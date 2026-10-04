@@ -37,6 +37,7 @@ export const CONFIG = {
   landmarks: [
     { at: 1, id: 'garage', label: "Founder's Garage", lot: [0, 1] },
     { at: 1, id: 'square', label: 'Town Square', lot: [0, 0] },
+    { at: 2, id: 'liberty', label: 'Statue of Blockerty', lot: [2, 1] }, // the city icon, on a riverside point
     { at: 3, id: 'cafe', label: 'gm Café', lot: [-1, 0] },
     { at: 5, id: 'hq', label: 'Builder HQ', lot: [0, -1] },
     { at: 8, id: 'hackathon', label: 'Hackathon Hall', lot: [-1, -2] },

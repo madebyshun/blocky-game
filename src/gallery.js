@@ -28,7 +28,10 @@ const items = [
   }),
   ...CONFIG.landmarks.map((l) => ({ label: l.label, p: { k: 0, kind: 'landmark', type: l.id } })),
 ];
-const cols = 6, gap = 11;
+// ?only=liberty,coaster shows just those designs, up close
+const only = new URLSearchParams(location.search).get('only')?.split(',');
+if (only) items.splice(0, items.length, ...items.filter((it) => only.includes(it.p.type)));
+const cols = only ? Math.min(3, items.length) : 6, gap = 11;
 const ground = new THREE.Mesh(new THREE.BoxGeometry(cols * gap + 4, 0.2, Math.ceil(items.length / cols) * gap + 4), new THREE.MeshLambertMaterial({ color: 0x6cc24a }));
 ground.position.y = -0.1;
 ground.receiveShadow = true;
@@ -45,7 +48,7 @@ items.forEach((it, n) => {
   tags.push([tag, g.position.clone().add(new THREE.Vector3(0, 0, 4))]);
 });
 
-const aspect = innerWidth / innerHeight, s = 70;
+const aspect = innerWidth / innerHeight, s = only ? 16 + 6 * Math.ceil(items.length / 3) : 70;
 const camera = new THREE.OrthographicCamera((-s * aspect) / 2, (s * aspect) / 2, s / 2, -s / 2, -300, 300);
 camera.position.set(40, 40, 40);
 const controls = new OrbitControls(camera, renderer.domElement);

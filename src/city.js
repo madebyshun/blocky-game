@@ -12,6 +12,7 @@ export const GLOW_MAT = new THREE.MeshLambertMaterial({ color: 0xa8d8ff, emissiv
 const BLUE_GLOW = new THREE.MeshLambertMaterial({ color: 0x3d8bff, emissive: 0x0052ff, emissiveIntensity: 0.8 });
 const GREEN_GLOW = new THREE.MeshLambertMaterial({ color: 0x8be04e, emissive: 0x4caf00, emissiveIntensity: 0.6 });
 const WATER_MAT = new THREE.MeshLambertMaterial({ color: 0x3fa9e8, transparent: true, opacity: 0.88 });
+const FLAME_MAT = new THREE.MeshLambertMaterial({ color: 0xffb300, emissive: 0xff8c00, emissiveIntensity: 0.9 });
 
 const C = {
   walk: 0xd5d8dc, grass: 0x6cc24a, grass2: 0x63b843, lawn: 0x7bd05a, road: 0x3b4048, trunk: 0x7a5230,
@@ -30,7 +31,7 @@ function colored(geo, color) {
 
 // Collects boxes (bottom at y) and merges them: one body mesh + glow meshes + animated extras.
 class Kit {
-  constructor() { this.lists = { body: [], glow: [], blue: [], green: [], water: [] }; this.extras = []; }
+  constructor() { this.lists = { body: [], glow: [], blue: [], green: [], water: [], flame: [] }; this.extras = []; }
   add(list, w, h, d, x, y, z, color) {
     const g = UNIT.clone(); g.scale(w, h, d); g.translate(x, y + h / 2, z);
     this.lists[list].push(color === undefined ? g : colored(g, color));
@@ -53,9 +54,10 @@ class Kit {
   blue(w, h, d, x, y, z) { this.add('blue', w, h, d, x, y, z); }
   green(w, h, d, x, y, z) { this.add('green', w, h, d, x, y, z); }
   water(w, h, d, x, y, z) { this.add('water', w, h, d, x, y, z); }
+  flame(w, h, d, x, y, z) { this.add('flame', w, h, d, x, y, z); }
   build() {
     const g = new THREE.Group();
-    const mats = { body: BODY_MAT, glow: GLOW_MAT, blue: BLUE_GLOW, green: GREEN_GLOW, water: WATER_MAT };
+    const mats = { body: BODY_MAT, glow: GLOW_MAT, blue: BLUE_GLOW, green: GREEN_GLOW, water: WATER_MAT, flame: FLAME_MAT };
     for (const [name, list] of Object.entries(this.lists)) {
       if (!list.length) continue;
       const m = new THREE.Mesh(mergeGeometries(list), mats[name]);
@@ -636,6 +638,45 @@ const LANDMARK = {
     }
     k.box(3.4, 0.1, 3.4, 0x3fa34d, 0, 0.3, 0);
     for (const [x, z] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) { k.box(0.15, 4, 0.15, C.dark, x, 0.3, z); k.win(0.6, 0.3, 0.6, x, 4.3, z); }
+  },
+  // Statue of Blockerty: the city icon. A copper-green Blocky raising a torch, a Base block under its arm.
+  liberty(k) {
+    const cu = 0x5fae96, cuDark = 0x4a9480, granite = 0xc9c3b6;
+    k.box(6.4, Y, 6.4, C.lawn);
+    k.boxR(4.6, 0.6, 4.6, 0xb8b2a4, 0, Y, 0, 0); k.boxR(4.6, 0.6, 4.6, 0xb8b2a4, 0, Y, 0, Math.PI / 4); // star fort
+    for (const [x, z] of [[-2.3, 2.3], [2.3, 2.3], [-2.3, -2.3], [2.3, -2.3]]) { k.box(0.3, 0.3, 0.3, C.dark, x, Y + 0.6, z); k.win(0.2, 0.2, 0.2, x, Y + 0.9, z); }
+    tree(k, -2.8, 2.8, 11); tree(k, -2.8, -2.6, 12);
+    // pedestal + statue, built at y = 0 and scaled up so the icon towers over the city
+    const st = new Kit();
+    st.box(2.6, 0.7, 2.6, granite, 0, 0, 0);
+    st.box(2.1, 1.9, 2.1, 0xd8d2c4, 0, 0.7, 0);
+    for (const [x, z, w, d] of [[0, 1.06, 1.3, 0.06], [0, -1.06, 1.3, 0.06], [1.06, 0, 0.06, 1.3], [-1.06, 0, 0.06, 1.3]]) st.box(w, 0.8, d, 0xb8b2a4, x, 1.2, z);
+    st.box(2.4, 0.3, 2.4, granite, 0, 2.6, 0);
+    const b = 2.9; // statue base
+    st.box(1.5, 0.25, 1.25, cuDark, 0, b, 0);
+    st.box(1.3, 1.4, 1.05, cu, 0, b + 0.25, 0); // robe
+    for (let i = 0; i < 4; i++) st.box(0.07, 1.3, 0.04, cuDark, -0.44 + i * 0.29, b + 0.3, 0.53); // folds
+    st.box(1.15, 0.95, 0.92, cu, 0, b + 1.65, 0); // torso
+    st.beam([-0.57, b + 2.5, 0.44], [0.57, b + 1.75, 0.47], 0.2, 0.1, cuDark); // sash
+    st.box(0.35, 0.22, 0.35, cu, 0, b + 2.6, 0); // neck
+    st.box(0.8, 0.8, 0.8, cu, 0, b + 2.82, 0); // head
+    st.box(0.1, 0.1, 0.04, 0x2f6b5c, -0.18, b + 3.12, 0.41); st.box(0.1, 0.1, 0.04, 0x2f6b5c, 0.18, b + 3.12, 0.41);
+    st.box(0.88, 0.16, 0.88, cuDark, 0, b + 3.58, 0); // crown band
+    for (let i = 0; i < 7; i++) { // seven rays fanning out over the front and sides
+      const t = ((i - 3) / 3) * 1.4;
+      st.beam([Math.sin(t) * 0.4, b + 3.66, Math.cos(t) * 0.4], [Math.sin(t) * 0.92, b + 4.14, Math.cos(t) * 0.92], 0.09, 0.09, cu);
+    }
+    st.beam([0.62, b + 2.48, 0], [0.84, b + 4.35, 0.09], 0.28, 0.28, cu); // raised right arm
+    st.box(0.32, 0.32, 0.32, cu, 0.85, b + 4.3, 0.09);
+    st.beam([0.86, b + 4.52, 0.09], [0.88, b + 5.05, 0.1], 0.2, 0.2, cuDark); // torch
+    st.box(0.44, 0.1, 0.44, C.gold, 0.88, b + 5.05, 0.1);
+    st.flame(0.28, 0.4, 0.28, 0.88, b + 5.15, 0.1); st.flame(0.16, 0.22, 0.16, 0.88, b + 5.55, 0.1);
+    st.beam([-0.62, b + 2.45, 0], [-0.75, b + 1.66, 0.3], 0.26, 0.26, cu); // left arm
+    st.blue(0.66, 0.66, 0.66, -0.7, b + 1.52, 0.57); // the Base block under its arm
+    const statue = st.build();
+    statue.scale.setScalar(1.45);
+    statue.position.y = Y + 0.6;
+    k.extras.push(statue);
   },
   beacon(k) {
     k.box(3, 1, 3, C.stone, 0, 0, 0);
