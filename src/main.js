@@ -11,7 +11,7 @@ import { now } from './time.js';
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
 const fmt = (n) => Math.floor(n).toLocaleString('en-US');
-const plural = `${CONFIG.citizen}s`;
+const plural = CONFIG.citizenPlural || `${CONFIG.citizen}s`;
 const CITY_START = Date.parse(CONFIG.cityStart);
 const HOUR = 3600000;
 
@@ -28,7 +28,9 @@ function ago(ms) {
 document.title = `${CONFIG.cityName} · ${CONFIG.tagline}`;
 $('title').textContent = CONFIG.cityName;
 $('tagline').textContent = CONFIG.tagline;
-$('next-label').textContent = `Next ${CONFIG.citizen.toLowerCase()}`;
+$('next-label').textContent = `Next ${CONFIG.citizen}`;
+$('pop-label').textContent = plural;
+$('leaders-title').textContent = `Top ${plural}`;
 $('fee-target').textContent = usd(CONFIG.feePerCitizen);
 if (CONFIG.buyUrl) { $('buy').hidden = false; $('buy').href = CONFIG.buyUrl; $('buy').textContent = `Buy ${CONFIG.ticker}`; }
 if (CONFIG.chartUrl) { $('chart').hidden = false; $('chart').href = CONFIG.chartUrl; }
@@ -45,10 +47,10 @@ if (CONFIG.tokenAddress) {
 
 const CAPTIONS = [
   `Every trade of <em>${CONFIG.ticker}</em> pays a creator fee`,
-  `Every <em>${usd(CONFIG.feePerCitizen)}</em> in fees brings a <em>new builder</em>`,
-  `Builders work <em>24/7</em>, even when no one is watching`,
-  `More builders, <em>faster city</em>`,
-  `The builders are <em>simulated</em>. The fees are <em>real</em>.`,
+  `Every <em>${usd(CONFIG.feePerCitizen)}</em> in fees brings a <em>new ${CONFIG.citizen}</em>`,
+  `${plural} build <em>24/7</em>, even when no one is watching`,
+  `More ${plural}, <em>faster city</em>`,
+  `The ${plural} are <em>simulated</em>. The fees are <em>real</em>.`,
 ];
 let capIdx = 0;
 function rotateCaption() {
@@ -119,7 +121,7 @@ function addBuilder(id, arrivedAt, arriving) {
 function nextUnlockText() {
   const next = CONFIG.landmarks.find((l) => l.at > population);
   $('next-unlock').innerHTML = next
-    ? `Next landmark: <b>${next.label}</b> at ${next.at} ${plural.toLowerCase()}`
+    ? `Next landmark: <b>${next.label}</b> at ${next.at} ${plural}`
     : 'Every landmark unlocked. The city is thriving.';
 }
 
@@ -279,8 +281,8 @@ $('card-follow').onclick = () => { following = !following; renderCard(); };
 
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
-  const crew = `${population} ${population === 1 ? CONFIG.citizen.toLowerCase() : plural.toLowerCase()}`;
-  const text = `${CONFIG.cityName}: ${city.state.done} buildings, built 24/7 by ${crew} on Base. Every ${usd(CONFIG.feePerCitizen)} in ${CONFIG.ticker} fees brings a new builder.`
+  const crew = `${population} ${population === 1 ? CONFIG.citizen : plural}`;
+  const text = `${CONFIG.cityName}: ${city.state.done} buildings, built 24/7 by ${crew}, the builders of Base. Every ${usd(CONFIG.feePerCitizen)} in ${CONFIG.ticker} fees brings a new ${CONFIG.citizen}.`
     + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '');
   const via = CONFIG.xHandle ? `&via=${CONFIG.xHandle}` : '';
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}${via}`, '_blank', 'noopener');

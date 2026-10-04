@@ -1,13 +1,13 @@
-# BaseCity: a city built 24/7 by builders on Base
+# BaseCity: a city built 24/7 by Blockies, the builders of Base
 
 A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 
 - Every trade of `$BLOCKY` pays a creator fee.
-- Every **$5** of fees brings a new **Builder** to the city (by blimp).
-- Builders haul blocks from the depot to the construction site **24/7**: offices, dev hubs, towers, cafés and parks rise floor by floor. More builders, faster city.
+- Every **$5** of fees brings a new **Blocky** (a builder on Base) to the city by blimp.
+- Blockies haul blocks from the depot to the construction site **24/7**: offices, dev hubs, towers, cafés and parks rise floor by floor. More Blockies, faster city.
 - Landmarks unlock as the crew grows: Founder's Garage → gm Café → Builder HQ → … → Onchain Beacon.
 - Day/night cycle, a city log with exact completion times, and a "while you were away" recap.
-- Same city for every visitor. No wallet needed. **The builders are simulated; the fees are real.**
+- Same city for every visitor. No wallet needed. **The Blockies are simulated; the fees are real.**
 
 ## Run
 
@@ -20,7 +20,7 @@ npm run build
 
 With no fee source in `.env.local`, the island shows one founder and $0 fees. Check `http://localhost:5173/api/colony`: with `FEE_WALLET` it returns a `breakdown` of every asset counted, so you can sanity-check the number before going live.
 
-URL flags: `?demo` fakes fee growth (a new builder about every 30s); `?speed=600` fast-forwards the city clock for timelapse videos. Combine them: `/?demo&speed=600`.
+URL flags: `?demo` fakes fee growth (a new Blocky about every 30s); `?speed=600` fast-forwards the city clock for timelapse videos. Combine them: `/?demo&speed=600`.
 
 ## Deploy (Vercel)
 

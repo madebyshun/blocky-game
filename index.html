@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>BaseCity · a city built 24/7 by builders on Base</title>
-    <meta name="description" content="Every trade pays a fee. Every $5 in fees brings a new builder. Builders build the city 24/7." />
+    <title>BaseCity · a city built 24/7 by Blockies, the builders of Base</title>
+    <meta name="description" content="Every trade pays a fee. Every $5 in fees brings a new Blocky. Blockies build the city 24/7." />
     <meta property="og:title" content="BaseCity" />
-    <meta property="og:description" content="A city built 24/7 by builders on Base. Every $5 in fees brings a new builder." />
+    <meta property="og:description" content="A city built 24/7 by Blockies, the builders of Base. Every $5 in fees brings a new Blocky." />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,7 +18,7 @@
 
     <header class="brand">
       <h1 id="title">BaseCity</h1>
-      <p id="tagline">A city built 24/7 by builders on Base</p>
+      <p id="tagline">A city built 24/7 by Blockies, the builders of Base</p>
       <div class="clock" id="clock">Day 1</div>
     </header>
 
@@ -29,7 +29,7 @@
       </div>
       <div class="bar"><div class="fill blue" id="site-fill"></div></div>
       <div class="row gap">
-        <span class="label" id="next-label">Next builder</span>
+        <span class="label" id="next-label">Next Blocky</span>
         <span class="value"><b id="fee-progress">$0.00</b> / <span id="fee-target">$5.00</span></span>
       </div>
       <div class="bar"><div class="fill" id="bar-fill"></div></div>
@@ -37,7 +37,7 @@
     </section>
 
     <section class="stats panel">
-      <div><span class="label">Builders</span><b id="pop">1</b></div>
+      <div><span class="label" id="pop-label">Blockies</span><b id="pop">1</b></div>
       <div><span class="label">Buildings</span><b id="buildings">0</b></div>
       <div><span class="label">Blocks placed</span><b id="blocks">0</b></div>
       <div><span class="label">Fees earned</span><b id="fees">$0.00</b></div>
@@ -51,7 +51,7 @@
 
     <aside id="card" class="card panel" hidden>
       <button class="close" id="card-close" aria-label="Close">×</button>
-      <div class="eyebrow" id="card-eyebrow">BUILDER #1</div>
+      <div class="eyebrow" id="card-eyebrow">BLOCKY #1</div>
       <h2 id="card-name">Pixel #1</h2>
       <div class="role" id="card-role">Founder</div>
       <dl>
@@ -66,7 +66,7 @@
 
     <aside class="side">
       <section class="panel board">
-        <h3>Top builders</h3>
+        <h3 id="leaders-title">Top Blockies</h3>
         <ol id="leaders"></ol>
       </section>
       <section class="panel feed">
