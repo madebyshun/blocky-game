@@ -7,7 +7,7 @@
 //   FEES_URL           any JSON endpoint returning { feesUsd } (Dune, your indexer, ...)
 //   FEE_WALLET         dedicated creator-fee wallet on Base. We value its ETH + WETH + USDC
 //                      (Chainlink ETH/USD) plus TOKEN_ADDRESS and every token it is paired
-//                      with (DexScreener prices), plus any FEE_TOKENS.
+//                      with (DexScreener prices), plus any FEE_TOKENS, minus EXCLUDE_TOKENS.
 //                      Withdrawals are handled by the high-water mark below (needs KV);
 //                      FEES_OFFSET_USD (may be negative) shifts the total, e.g. to subtract
 //                      what the wallet held before launch.
@@ -29,6 +29,8 @@ const KV_TOKEN = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
 const KEY = env.KV_KEY || 'blocky:colony';
 const TOKEN = env.TOKEN_ADDRESS || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885';
 const EXTRA_TOKENS = (env.FEE_TOKENS || '').split(',').map((s) => s.trim()).filter(Boolean);
+// Tokens shown in the breakdown but NOT counted as fees (e.g. the creator's own $BLOCKY bag).
+const EXCLUDED = new Set((env.EXCLUDE_TOKENS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const CACHE_MS = Number(env.CACHE_MS || 20000); // one chain read per 20s, however many visitors
 const STALE_MS = 10 * 60 * 1000; // on RPC errors, keep serving the last good answer this long
 
@@ -97,7 +99,10 @@ async function walletFees(walletRaw) {
     const b = results[4 + k * 2], d = results[5 + k * 2];
     if (b.status !== 'success' || d.status !== 'success') return;
     const amount = units(b.result, Number(d.result));
-    breakdown.push({ symbol: p.symbol, address, amount, usd: amount * p.usd });
+    const usd = amount * p.usd;
+    breakdown.push(EXCLUDED.has(address)
+      ? { symbol: p.symbol, address, amount, usd: 0, excluded: true, valueUsd: usd }
+      : { symbol: p.symbol, address, amount, usd });
   });
   // make a missing price visible instead of silently counting the token as $0
   if (priceError) breakdown.push({ symbol: 'TOKEN PRICES UNAVAILABLE', error: priceError, usd: 0 });

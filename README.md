@@ -33,6 +33,7 @@ Environment variables (pick one fee source):
 | `FEE_WALLET` | Dedicated creator-fee wallet on Base. Counts ETH + WETH + USDC (Chainlink ETH/USD) plus `TOKEN_ADDRESS` and every token it is paired with (DexScreener prices). |
 | `TOKEN_ADDRESS` | Default `0xE72A0C42b584a3E7A4503a82D1337dEB52adE885` ($BLOCKY). |
 | `FEE_TOKENS` | Extra ERC20 addresses (comma-separated) in the fee wallet to count. |
+| `EXCLUDE_TOKENS` | ERC20 addresses listed in the breakdown but not counted, e.g. `$BLOCKY` when the fee wallet is also the launch wallet holding supply. |
 | `FEES_URL` | Any JSON endpoint returning `{ "feesUsd": number }` (Dune API, your own indexer, launchpad API). |
 | `FEES_USD_OVERRIDE` | Fixed number, for pre-launch or testing. |
 | `FEES_OFFSET_USD` | Added to the fee total: positive for fees already withdrawn, negative to subtract what the wallet held before launch. |
