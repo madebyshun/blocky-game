@@ -9,8 +9,12 @@ export const CONFIG = {
   apiUrl: '/api/colony',
   pollMs: 15000,
 
+  // Token on Base
+  tokenAddress: '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
+
   // Links for the CTA buttons. Leave empty to hide.
-  buyUrl: '', // e.g. https://app.uniswap.org/swap?chain=base&outputCurrency=0x...
+  buyUrl: 'https://app.uniswap.org/swap?chain=base&outputCurrency=0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
+  chartUrl: 'https://dexscreener.com/base/0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
   xHandle: '', // e.g. blockyfun (without @)
   siteUrl: '', // canonical URL used in share text
 

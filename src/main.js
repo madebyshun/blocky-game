@@ -17,6 +17,17 @@ $('title').textContent = CONFIG.name;
 $('next-label').textContent = `NEXT ${CONFIG.citizen.toUpperCase()}`;
 $('fee-target').textContent = usd(CONFIG.feePerCitizen);
 if (CONFIG.buyUrl) { $('buy').hidden = false; $('buy').href = CONFIG.buyUrl; $('buy').textContent = `Buy ${CONFIG.ticker}`; }
+if (CONFIG.chartUrl) { $('chart').hidden = false; $('chart').href = CONFIG.chartUrl; }
+if (CONFIG.tokenAddress) {
+  const ca = $('ca'), a = CONFIG.tokenAddress;
+  const label = `CA ${a.slice(0, 6)}…${a.slice(-4)} ⧉`;
+  ca.hidden = false;
+  ca.textContent = label;
+  ca.onclick = async () => {
+    try { await navigator.clipboard.writeText(a); ca.textContent = 'Copied ✓'; } catch { ca.textContent = a; }
+    setTimeout(() => (ca.textContent = label), 1500);
+  };
+}
 
 const CAPTIONS = [
   `An island that <em>grows with every trade</em>`,
@@ -116,8 +127,13 @@ function applyState(s, first) {
   if (!s) return;
   source = s.source;
   const check = $('check-live');
-  check.textContent = source === 'demo' ? 'Demo mode: simulated fees' : 'Creator fees tracked onchain, live';
-  check.classList.toggle('demo', source === 'demo');
+  const labels = {
+    demo: 'Demo mode: simulated fees',
+    override: 'Test mode: fixed fee number',
+    prelaunch: 'One founder. No coin fees yet.',
+  };
+  check.textContent = labels[source] || 'Creator fees tracked onchain, live';
+  check.classList.toggle('demo', source in labels);
 
   const delta = s.feesUsd - fees;
   if (!first && delta > 0.0001) {
@@ -279,7 +295,7 @@ $('card-follow').onclick = () => { following = !following; renderCard(); };
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
   const who = selected ? `My favourite is ${selected.c.name}, a ${selected.c.style.label.toLowerCase()} ${selected.c.job.label.toLowerCase()}.` : '';
-  const text = `${population} ${population === 1 ? CONFIG.citizen : plural} live on the ${CONFIG.name} island. Every ${usd(CONFIG.feePerCitizen)} in ${CONFIG.ticker} fees lands a new one. ${who}`.trim();
+  const text = `${population} ${population === 1 ? CONFIG.citizen : plural} live on the ${CONFIG.name} island. Every ${usd(CONFIG.feePerCitizen)} in ${CONFIG.ticker} fees lands a new one. ${who}`.trim() + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '');
   const via = CONFIG.xHandle ? `&via=${CONFIG.xHandle}` : '';
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}${via}`, '_blank', 'noopener');
 };
