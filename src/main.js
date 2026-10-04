@@ -72,16 +72,19 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 
 const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera();
-camera.position.set(40, 34, 40);
-camera.zoom = innerWidth < innerHeight ? 1.5 : 1.05;
+const home = new THREE.Vector3(); // where the camera looks when not following a Blocky
+const TILT = 0.62; // radians from straight down; the land reads as a square, buildings still show height
+camera.position.set(0, Math.cos(TILT) * 80, Math.sin(TILT) * 80);
 const controls = new OrbitControls(camera, canvas);
 Object.assign(controls, {
-  enableDamping: true, enablePan: false, autoRotate: true, autoRotateSpeed: 0.3,
-  minZoom: 0.6, maxZoom: 6, minPolarAngle: 0.5, maxPolarAngle: 1.2,
+  enableDamping: true, enablePan: false,
+  minZoom: 0.7, maxZoom: 6, minPolarAngle: 0.35, maxPolarAngle: 0.95,
+  minAzimuthAngle: -0.3, maxAzimuthAngle: 0.3, // a gentle look-around, never a diamond
 });
 let idleTimer;
-controls.addEventListener('start', () => { controls.autoRotate = false; clearTimeout(idleTimer); });
-controls.addEventListener('end', () => { idleTimer = setTimeout(() => (controls.autoRotate = true), 8000); });
+let settle = false; // ease back to the straight-on view after the user lets go
+controls.addEventListener('start', () => { settle = false; clearTimeout(idleTimer); });
+controls.addEventListener('end', () => { idleTimer = setTimeout(() => (settle = true), 6000); });
 
 const city = createCity(scene);
 const traffic = createTraffic(city);
@@ -91,8 +94,10 @@ city.root.add(airship);
 
 function resize() {
   const w = innerWidth, h = innerHeight, aspect = w / h;
-  const H = Math.max(2, city.land) * PITCH + 4; // isometric square of half-width H: ~2.9H wide, ~1.9H tall
-  const s = Math.max(H * 1.9, (H * 2.9) / aspect, 30) * 1.05;
+  // square land of half-width H seen straight on: 2H wide, 2H*cos(tilt) deep plus slab and skyline height
+  const H = Math.max(2, city.land) * PITCH + 4;
+  const s = Math.max(2 * H * Math.cos(TILT) + 18 * Math.sin(TILT), (2 * H + 6) / aspect, 30) * 1.12;
+  home.set(0, 0, -H * 0.06); // nudge the city below the top HUD
   Object.assign(camera, { left: (-s * aspect) / 2, right: (s * aspect) / 2, top: s / 2, bottom: -s / 2, near: -400, far: 400 });
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
@@ -341,7 +346,6 @@ function welcomeBack() {
 const clock = new THREE.Timer();
 let simAcc = 0, slowAcc = 0;
 const tmp = new THREE.Vector3();
-const home = new THREE.Vector3();
 
 function frame() {
   clock.update();
@@ -363,6 +367,13 @@ function frame() {
     controls.target.lerp(tmp, Math.min(1, dt * 3));
   } else {
     controls.target.lerp(home, Math.min(1, dt * 2));
+    if (settle) {
+      const want = new THREE.Vector3(0, Math.cos(TILT), Math.sin(TILT)).multiplyScalar(80).add(controls.target);
+      camera.position.lerp(want, Math.min(1, dt * 1.5));
+      camera.zoom += (1 - camera.zoom) * Math.min(1, dt * 1.5);
+      camera.updateProjectionMatrix();
+      if (camera.position.distanceTo(want) < 0.05) settle = false;
+    }
   }
   controls.update();
   renderer.render(scene, camera);
