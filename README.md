@@ -4,7 +4,8 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 
 - Every **$5 of `$BLOCKY` bought** brings a new **Blocky** (a builder on Base) to the city by blimp. Each Blocky remembers the wallet whose buy brought it, and every buy shows up in the city log.
 - The city **starts from empty land**: grass, forest, a river. The founder builds the first garage, then the town square, then the city grows outward, roads appearing next to every new lot.
-- ~20 building types by district: cottages, family houses, townhouses, apartments, villas, shops, cafés, offices, dev hubs, a school, GPU farms, towers, skyscrapers, parks, playgrounds, courts, gardens, farms, wind turbines, water towers. Plus cars, buses and boats.
+- ~30 building types by district: cottages, family houses, townhouses, apartments, villas, shops, cafés, offices, dev hubs, a school, GPU farms, towers, skyscrapers, wind turbines, water towers, farms, gardens, and leisure: a **roller coaster**, **Ferris wheel** and **carousel** (all animated), lake parks with ducks, flower gardens, playgrounds, skate parks, a public pool, soccer field, basketball court, concert stage and ice cream stand. Plus cars, buses and boats.
+- `gallery.html` (dev only) shows every design side by side.
 - **The land is a square that expands**: when every lot is built, the Blockies reclaim a new ring of land, but only once enough Blockies live in the city (3, 6, 10, 16…). Until then the city waits, which is where new trades come in.
 - Landmarks are built as the crew grows: Founder's Garage → Town Square → gm Café → Builder HQ → … → Onchain Beacon.
 - Day/night cycle, a city log with exact completion times, and a "while you were away" recap.

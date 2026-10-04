@@ -104,7 +104,20 @@ export const CATALOG = {
   gpufarm: { label: 'GPU Farm', min: 14, w: [0.4, 0.9, 1], cost: 180, size: [[6, 6], [5, 6], [2, 3]] },
   tower: { label: 'Tower', min: 18, w: [2, 0.5, 0], cost: 320, size: [[4, 5], [4, 5], [12, 18]] },
   skyscraper: { label: 'Skyscraper', min: 30, w: [1.4, 0.2, 0], cost: 520, size: [[5, 5], [5, 5], [20, 30]] },
+  // leisure: parks and rides
+  flowergarden: { label: 'Flower Garden', min: 2, w: [0.5, 1, 1], cost: 35, size: [[6, 6], [6, 6], [1, 1]] },
+  icecream: { label: 'Ice Cream Stand', min: 3, w: [0.8, 0.8, 0.4], cost: 30, size: [[3, 3], [3, 3], [3, 3]] },
+  lakepark: { label: 'Lake Park', min: 4, w: [0.4, 1, 1], cost: 50, size: [[6, 6], [6, 6], [1, 1]] },
+  soccer: { label: 'Soccer Field', min: 5, w: [0.2, 0.8, 1], cost: 40, size: [[6, 6], [6, 6], [1, 1]] },
+  skatepark: { label: 'Skate Park', min: 6, w: [0.4, 0.7, 0.4], cost: 45, size: [[6, 6], [6, 6], [1, 1]] },
+  pool: { label: 'Public Pool', min: 7, w: [0.4, 0.8, 0.6], cost: 70, size: [[6, 6], [6, 6], [1, 1]] },
+  carousel: { label: 'Carousel', min: 8, w: [0.4, 0.6, 0.4], cost: 90, size: [[5, 5], [5, 5], [3, 3]] },
+  stage: { label: 'Concert Stage', min: 9, w: [0.6, 0.6, 0.3], cost: 80, size: [[6, 6], [5, 5], [3, 3]] },
+  ferris: { label: 'Ferris Wheel', min: 12, w: [0.1, 0.25, 0.2], cost: 220, size: [[6, 6], [6, 6], [8, 8]] },
+  coaster: { label: 'Roller Coaster', min: 16, w: [0.1, 0.25, 0.25], cost: 260, size: [[6, 6], [6, 6], [5, 5]] },
 };
+// Every city gets these early, then they keep appearing at random.
+const FEATURED = { 8: 'carousel', 11: 'lakepark', 13: 'ferris', 17: 'coaster' };
 const COLORS = {
   cottage: [0xf3e6d0, 0xe8d5c4, 0xd9e4ec, 0xf0d9da, 0xdfe8d5, 0xfff3c4],
   house: [0xf3e6d0, 0xd9e4ec, 0xf0d9da, 0xe3f1e1, 0xfde2c8],
@@ -120,11 +133,13 @@ const COLORS = {
   tower: [0xdfe6ee, 0xc4ccd6, 0x9fb1c7, 0xe9e3d6],
   skyscraper: [0x9fb1c7, 0x7f93ad, 0xb7c6d9],
   watertower: [0xd5d8dc],
+  coaster: [0xe74c3c], ferris: [0xf4f4f0], carousel: [0xf5c518], stage: [0x2b2f36], icecream: [0xffd1dc],
 };
 
 const zoneOf = (r) => (r <= 1 ? 0 : r <= 3 ? 1 : 2);
 
 function chooseType(k, r) {
+  if (FEATURED[k]) return FEATURED[k];
   const z = zoneOf(r);
   const options = Object.entries(CATALOG).filter(([, t]) => t.min <= k && t.w[z] > 0);
   const total = options.reduce((s, [, t]) => s + t.w[z], 0);

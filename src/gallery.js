@@ -49,8 +49,13 @@ const aspect = innerWidth / innerHeight, s = 70;
 const camera = new THREE.OrthographicCamera((-s * aspect) / 2, (s * aspect) / 2, s / 2, -s / 2, -300, 300);
 camera.position.set(40, 40, 40);
 const controls = new OrbitControls(camera, renderer.domElement);
+const animated = [];
+scene.traverse((o) => { if (o.userData.animate) animated.push(o); });
+const clock = new THREE.Timer();
 const v = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
+  clock.update();
+  for (const o of animated) o.userData.animate(clock.getElapsed(), Math.min(clock.getDelta(), 0.1));
   controls.update();
   renderer.render(scene, camera);
   for (const [tag, pos] of tags) {

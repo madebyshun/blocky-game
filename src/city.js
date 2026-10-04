@@ -36,6 +36,19 @@ class Kit {
     this.lists[list].push(color === undefined ? g : colored(g, color));
   }
   box(w, h, d, color, x = 0, y = 0, z = 0) { this.add('body', w, h, d, x, y, z, color); }
+  // box turned around the vertical axis
+  boxR(w, h, d, color, x, y, z, ry) {
+    const g = UNIT.clone(); g.scale(w, h, d); g.rotateY(ry); g.translate(x, y + h / 2, z);
+    this.lists.body.push(colored(g, color));
+  }
+  // a beam from point a to point b (rails, spokes, struts)
+  beam(a, b, tw, th, color, list = 'body') {
+    const dir = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+    const g = UNIT.clone(); g.scale(tw, th, dir.length());
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.normalize()));
+    g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+    this.lists[list].push(color === undefined ? g : colored(g, color));
+  }
   win(w, h, d, x, y, z) { this.add('glow', w, h, d, x, y, z); }
   blue(w, h, d, x, y, z) { this.add('blue', w, h, d, x, y, z); }
   green(w, h, d, x, y, z) { this.add('green', w, h, d, x, y, z); }
@@ -224,7 +237,8 @@ const DESIGN = {
     }
     blades.box(0.35, 0.35, 0.3, C.base, 0, -0.17, 0);
     rotor.add(blades.build());
-    rotor.userData.spin = 1.2 + hash(p.k, 5);
+    const spin = 1.2 + hash(p.k, 5);
+    rotor.userData.animate = (t, dt) => { rotor.rotation.z += dt * spin; };
     k.extras.push(rotor);
     tree(k, 2.4, 2.4, p.k); bush(k, -2.3, 2, p.k);
   },
@@ -326,7 +340,213 @@ const DESIGN = {
     k.box(0.2, 4, 0.2, C.dark, 0, y, 0);
     k.win(0.35, 0.35, 0.35, 0, y + 4, 0);
   },
+
+  // ----- leisure -----
+  coaster(k, p) {
+    k.box(6.4, Y, 6.4, C.lawn);
+    const N = 72, pts = [];
+    for (let i = 0; i < N; i++) pts.push(coasterPoint((i / N) * Math.PI * 2));
+    for (let i = 0; i < N; i++) {
+      const a = pts[i], b = pts[(i + 1) % N];
+      const dx = b[0] - a[0], dz = b[2] - a[2], l = Math.hypot(dx, dz) || 1, ox = (-dz / l) * 0.16, oz = (dx / l) * 0.16;
+      k.beam([a[0] + ox, a[1], a[2] + oz], [b[0] + ox, b[1], b[2] + oz], 0.07, 0.07, 0xe74c3c);
+      k.beam([a[0] - ox, a[1], a[2] - oz], [b[0] - ox, b[1], b[2] - oz], 0.07, 0.07, 0xe74c3c);
+      if (i % 3 === 0) k.beam([a[0] + ox * 1.4, a[1] - 0.05, a[2] + oz * 1.4], [a[0] - ox * 1.4, a[1] - 0.05, a[2] - oz * 1.4], 0.06, 0.05, 0x7f8c8d);
+      if (i % 6 === 0 && a[1] > Y + 0.3) k.box(0.12, a[1] - Y - 0.05, 0.12, C.white, a[0], Y, a[2]);
+    }
+    k.box(1.2, 1, 0.9, C.base, -2.6, Y, 2.6); k.box(1.4, 0.15, 1.1, C.white, -2.6, Y + 1, 2.6);
+    for (let i = 0; i < 4; i++) k.box(0.08, 0.4, 0.08, C.dark, -1.6 + i * 0.5, Y, 2.9);
+    const train = new THREE.Group();
+    const cars = [0, 1, 2].map((c) => kitFor((ck) => {
+      ck.box(0.42, 0.22, 0.55, [C.base, C.gold, 0x2ecc71][c], 0, 0, 0);
+      ck.box(0.12, 0.14, 0.12, 0xf1c27d, -0.1, 0.22, -0.05); ck.box(0.12, 0.14, 0.12, 0xe0ac69, 0.1, 0.22, 0.12);
+    }));
+    cars.forEach((c) => train.add(c));
+    let u = hash(p.k, 6) * Math.PI * 2;
+    train.userData.animate = (t, dt) => {
+      const h = coasterPoint(u)[1] - Y;
+      u += dt * (0.35 + 0.45 * Math.max(0, 3.2 - h) / 3.2); // faster at the bottom
+      cars.forEach((car, c) => {
+        const P = coasterPoint(u - c * 0.17), Q = coasterPoint(u - c * 0.17 + 0.02);
+        car.position.set(P[0], P[1] + 0.05, P[2]);
+        const dx = Q[0] - P[0], dy = Q[1] - P[1], dz = Q[2] - P[2];
+        car.rotation.set(-Math.atan2(dy, Math.hypot(dx, dz)), Math.atan2(dx, dz), 0, 'YXZ');
+      });
+    };
+    k.extras.push(train);
+  },
+  ferris(k, p) {
+    k.box(6.4, Y, 6.4, C.walk);
+    const R = 2.6, hy = Y + 3.6;
+    for (const z of [-0.6, 0.6]) {
+      k.beam([-1.7, Y, z], [0, hy, z], 0.18, 0.18, 0x95a5a6);
+      k.beam([1.7, Y, z], [0, hy, z], 0.18, 0.18, 0x95a5a6);
+    }
+    k.box(1.1, 1, 0.9, C.base, 2.4, Y, 2.5); k.box(1.3, 0.15, 1.1, C.white, 2.4, Y + 1, 2.5);
+    const wheel = new THREE.Group();
+    wheel.position.set(0, hy, 0);
+    wheel.add(kitFor((wk) => {
+      const n = 20;
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
+        for (const z of [-0.3, 0.3]) {
+          wk.beam([Math.cos(a0) * R, Math.sin(a0) * R, z], [Math.cos(a1) * R, Math.sin(a1) * R, z], 0.1, 0.1, C.white);
+          if (i % 2 === 0) wk.beam([0, 0, z], [Math.cos(a0) * R, Math.sin(a0) * R, z], 0.06, 0.06, 0xd5d8dc);
+        }
+        if (i % 2 === 0) wk.win(0.14, 0.14, 0.14, Math.cos(a0) * R, Math.sin(a0) * R - 0.07, 0.38);
+      }
+      wk.beam([0, 0, -0.75], [0, 0, 0.75], 0.32, 0.32, C.base);
+    }));
+    const cols = [0xe74c3c, C.gold, 0x2ecc71, C.base, 0xe84393];
+    const gondolas = [];
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const g = new THREE.Group();
+      g.position.set(Math.cos(a) * R, Math.sin(a) * R, 0);
+      g.add(kitFor((gk) => { gk.box(0.06, 0.3, 0.06, C.dark, 0, -0.3, 0); gk.box(0.5, 0.42, 0.45, cols[i % 5], 0, -0.72, 0); gk.box(0.56, 0.06, 0.5, C.white, 0, -0.32, 0); }));
+      wheel.add(g);
+      gondolas.push(g);
+    }
+    wheel.userData.animate = (t, dt) => {
+      wheel.rotation.z += dt * 0.22;
+      for (const g of gondolas) g.rotation.z = -wheel.rotation.z; // cabins stay level
+    };
+    k.extras.push(wheel);
+  },
+  carousel(k, p) {
+    k.box(6.4, Y, 6.4, C.walk);
+    k.boxR(4.4, 0.3, 4.4, 0xe8dcc8, 0, Y, 0, 0); k.boxR(4.4, 0.3, 4.4, 0xe8dcc8, 0, Y, 0, Math.PI / 4);
+    const ride = new THREE.Group();
+    ride.position.y = Y + 0.3;
+    ride.add(kitFor((rk) => {
+      rk.box(0.45, 2.4, 0.45, C.gold, 0, 0, 0);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        rk.box(0.06, 2.4, 0.06, C.gold, Math.cos(a) * 1.6, 0, Math.sin(a) * 1.6);
+        rk.boxR(1.3, 0.3, 0.9, i % 2 ? 0xe74c3c : C.white, Math.cos(a) * 1.55, 2.4, Math.sin(a) * 1.55, -a);
+      }
+      rk.boxR(2.6, 0.3, 2.6, 0xe74c3c, 0, 2.4, 0, 0); rk.boxR(2.6, 0.3, 2.6, C.white, 0, 2.4, 0, Math.PI / 4);
+      rk.box(1.6, 0.35, 1.6, 0xe74c3c, 0, 2.7, 0); rk.box(0.8, 0.35, 0.8, C.gold, 0, 3.05, 0);
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + 0.2; rk.win(0.12, 0.12, 0.12, Math.cos(a) * 2.1, 2.45, Math.sin(a) * 2.1); }
+    }));
+    const horses = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const h = kitFor((hk) => {
+        const c = [C.white, 0x8b5a2b, C.white, 0x2b2f36][i % 4];
+        hk.box(0.2, 0.28, 0.6, c, 0, 0, 0); hk.box(0.18, 0.32, 0.2, c, 0, 0.18, 0.32); hk.box(0.06, 0.3, 0.06, c, 0, -0.3, 0.2); hk.box(0.06, 0.3, 0.06, c, 0, -0.3, -0.2);
+        hk.box(0.22, 0.06, 0.24, 0xe74c3c, 0, 0.28, 0);
+      });
+      h.position.set(Math.cos(a) * 1.6, 0.9, Math.sin(a) * 1.6);
+      h.rotation.y = -a;
+      ride.add(h);
+      horses.push(h);
+    }
+    ride.userData.animate = (t, dt) => {
+      ride.rotation.y += dt * 0.6;
+      horses.forEach((h, i) => { h.position.y = 0.9 + Math.sin(t * 3 + i * 1.3) * 0.2; });
+    };
+    k.extras.push(ride);
+  },
+  lakepark(k, p) {
+    k.box(6.4, Y, 6.4, C.lawn);
+    k.box(4.4, 0.17, 3.4, C.sand, -0.4, 0, -0.4);
+    k.water(4, 0.19, 3, -0.4, 0.01, -0.4);
+    k.water(1.6, 0.19, 1, 1.0, 0.01, 1.4);
+    for (let i = 0; i < 5; i++) k.box(0.3, 0.02, 0.3, 0x4caf50, -1.8 + hash(p.k, i, 1) * 3, 0.2, -1.6 + hash(p.k, i, 2) * 2.2);
+    k.box(0.9, 0.12, 3.6, C.wood, 0.5, 0.25, -0.4);
+    for (const x of [0.08, 0.92]) k.box(0.06, 0.25, 3.6, 0x6e4b2a, x, 0.37, -0.4);
+    for (const [x, z] of [[-2.7, 2.6], [2.7, -2.7], [2.6, 0.6], [-2.6, -2.6]]) tree(k, x, z, p.k * 7 + x + z);
+    k.box(1.2, 0.3, 0.4, C.wood, -1.2, Y, 2.6);
+    const ducks = new THREE.Group();
+    const duck = (c) => kitFor((dk) => { dk.box(0.3, 0.18, 0.2, c, 0, 0, 0); dk.box(0.12, 0.14, 0.12, c, 0.12, 0.15, 0); dk.box(0.08, 0.04, 0.06, 0xf39c12, 0.21, 0.18, 0); });
+    const d1 = duck(C.white), d2 = duck(0xd4a76a);
+    ducks.add(d1, d2);
+    ducks.userData.animate = (t) => {
+      [d1, d2].forEach((d, i) => {
+        const a = t * 0.15 + i * 2.5;
+        d.position.set(-1.2 + Math.cos(a) * 0.9, 0.18, -0.6 + Math.sin(a) * 0.7);
+        d.rotation.y = -a - Math.PI / 2;
+      });
+    };
+    k.extras.push(ducks);
+  },
+  flowergarden(k, p) {
+    k.box(6.4, Y, 6.4, C.lawn);
+    k.box(6.4, 0.17, 0.9, C.sand, 0, 0, 0); k.box(0.9, 0.17, 6.4, C.sand, 0, 0, 0);
+    for (const [qx, qz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+        k.box(0.55, 0.3, 0.55, C.flower[(i + j + qx + 2) % 5], qx * (1.2 + i * 0.6), Y, qz * (1.2 + j * 0.6));
+      }
+    }
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; k.box(0.1, 1.4, 0.1, C.white, Math.cos(a) * 0.9, Y, Math.sin(a) * 0.9); }
+    k.box(1.1, 0.15, 1.1, C.white, 0, Y, 0);
+    k.boxR(2.2, 0.25, 2.2, 0x16a085, 0, Y + 1.4, 0, 0); k.boxR(2.2, 0.25, 2.2, 0x16a085, 0, Y + 1.4, 0, Math.PI / 4);
+    k.box(1.2, 0.3, 1.2, 0x16a085, 0, Y + 1.65, 0); k.box(0.4, 0.3, 0.4, C.gold, 0, Y + 1.95, 0);
+  },
+  skatepark(k, p) {
+    k.box(6.4, Y, 6.4, 0x9aa3ad);
+    for (let i = 0; i < 4; i++) { k.box(1.2 - i * 0.3, 0.35, 5.6, 0xb8c0c8, -2.6 + i * 0.15, Y + i * 0.35, 0); k.box(1.2 - i * 0.3, 0.35, 5.6, 0xb8c0c8, 2.6 - i * 0.15, Y + i * 0.35, 0); }
+    k.box(1.6, 0.5, 1.2, 0xc7ccd3, 0, Y, -1.2);
+    k.box(0.6, 0.25, 1.2, 0xc7ccd3, -1.1, Y, -1.2); k.box(0.6, 0.25, 1.2, 0xc7ccd3, 1.1, Y, -1.2);
+    k.box(2.6, 0.06, 0.06, 0xf5c518, 0, Y + 0.5, 1.4);
+    for (const x of [-1.2, 1.2]) k.box(0.06, 0.5, 0.06, C.dark, x, Y, 1.4);
+    const tags = [0xe84393, 0x2ecc71, C.base, 0xf5c518];
+    for (let i = 0; i < 4; i++) k.box(1.3, 0.8, 0.12, tags[i], -2 + i * 1.35, Y, -3);
+  },
+  pool(k, p) {
+    k.box(6.4, Y, 6.4, C.white);
+    k.box(5, 0.17, 3.4, 0x5dade2, 0, 0, -0.6);
+    k.water(4.8, 0.2, 3.2, 0, 0.01, -0.6);
+    for (let i = 1; i < 4; i++) k.box(4.8, 0.04, 0.05, i % 2 ? 0xe74c3c : C.white, 0, 0.21, -2.2 + i * 0.8);
+    k.box(0.5, 0.1, 1.2, C.white, 2.2, 0.25, -2.6);
+    for (const x of [-2.2, -1, 0.2]) { k.box(0.5, 0.15, 1, C.base, x, Y, 2.1); }
+    for (const x of [-1.6, 1.4]) { k.box(0.06, 1.3, 0.06, C.dark, x, Y, 2.8); k.box(1.2, 0.1, 1.2, x < 0 ? 0xe74c3c : C.gold, x, Y + 1.3, 2.8); }
+    k.box(1.2, 1.2, 0.9, 0x5dade2, 2.4, Y, 2.4);
+  },
+  soccer(k, p) {
+    k.box(6.4, Y, 6.4, C.walk);
+    for (let i = 0; i < 6; i++) k.box(0.9, 0.17, 4.4, i % 2 ? 0x4caf50 : 0x5cb85c, -2.25 + i * 0.9, 0, -0.4);
+    k.box(5.4, 0.18, 0.06, C.white, 0, 0, -2.6); k.box(5.4, 0.18, 0.06, C.white, 0, 0, 1.8);
+    k.box(0.06, 0.18, 4.4, C.white, -2.7, 0, -0.4); k.box(0.06, 0.18, 4.4, C.white, 2.7, 0, -0.4); k.box(0.06, 0.18, 4.4, C.white, 0, 0, -0.4);
+    k.box(0.9, 0.18, 0.06, C.white, 0, 0, -0.85); k.box(0.9, 0.18, 0.06, C.white, 0, 0, 0.05);
+    for (const x of [-2.75, 2.75]) {
+      k.box(0.08, 0.8, 0.08, C.white, x, Y, -1); k.box(0.08, 0.8, 0.08, C.white, x, Y, 0.2);
+      k.box(0.08, 0.08, 1.3, C.white, x, Y + 0.8, -0.4);
+    }
+    for (let i = 0; i < 3; i++) k.box(5, 0.3, 0.4, i % 2 ? C.base : C.white, 0, Y + i * 0.3, 2.3 + i * 0.35);
+    k.box(0.25, 0.25, 0.25, C.white, 0.6, Y, -0.3);
+  },
+  stage(k, p) {
+    k.box(6.4, Y, 6.4, 0x9aa3ad);
+    k.box(5, 0.7, 2.4, C.dark, 0, Y, -1.6);
+    k.box(5, 2.6, 0.2, 0x1d2127, 0, Y + 0.7, -2.7);
+    k.blue(2.4, 0.6, 0.06, 0, Y + 2.1, -2.58);
+    for (const x of [-2.4, 2.4]) { k.box(0.15, 3.6, 0.15, 0x95a5a6, x, Y, -0.5); k.box(0.7, 1.2, 0.6, C.dark, x * 0.85, Y + 0.7, -0.8); }
+    k.box(5, 0.15, 0.15, 0x95a5a6, 0, Y + 3.6, -0.5);
+    for (let i = 0; i < 5; i++) k.win(0.25, 0.25, 0.25, -1.6 + i * 0.8, Y + 3.35, -0.5);
+    for (let i = 0; i < 12; i++) k.box(0.2, 0.35, 0.2, C.flower[i % 5], -2.4 + hash(p.k, i, 3) * 4.8, Y, 0.6 + hash(p.k, i, 4) * 2.2);
+  },
+  icecream(k, p) {
+    lawn(k);
+    k.box(2.2, 1.8, 2, 0xffd1dc, 0, Y, -0.6);
+    k.win(1.4, 0.7, 0.06, 0, Y + 0.8, 0.43);
+    for (let i = 0; i < 5; i++) k.box(0.44, 0.1, 0.6, i % 2 ? C.white : 0xe84393, -0.88 + i * 0.44, Y + 1.6, 0.7);
+    k.box(2.4, 0.2, 2.2, 0xe84393, 0, Y + 1.8, -0.6);
+    for (let i = 0; i < 4; i++) k.box(0.25 + i * 0.15, 0.3, 0.25 + i * 0.15, 0xd4a76a, 0, Y + 2.0 + i * 0.3, -0.6); // cone, point down
+    k.box(0.9, 0.5, 0.9, 0xffb6c1, 0, Y + 3.2, -0.6); k.box(0.6, 0.35, 0.6, C.white, 0, Y + 3.7, -0.6); k.box(0.15, 0.15, 0.15, 0xe74c3c, 0, Y + 4.05, -0.6);
+    for (const x of [-2, 2]) { k.box(0.6, 0.4, 0.6, C.white, x, Y, 2.2); k.box(0.06, 1.1, 0.06, C.dark, x, Y + 0.4, 2.2); k.box(1, 0.08, 1, x < 0 ? 0x5dade2 : C.gold, x, Y + 1.5, 2.2); }
+  },
 };
+
+// the coaster's track: a figure-loop with two drops (local lot coords)
+function coasterPoint(a) {
+  return [
+    Math.cos(a) * 2.4 + Math.cos(2 * a) * 0.35,
+    Y + 0.5 + 2.4 * Math.max(0, Math.sin(a + 0.4)) ** 2 + 0.8 * Math.max(0, Math.sin(3 * a - 1)),
+    Math.sin(a) * 2.2,
+  ];
+}
 
 const LANDMARK = {
   garage(k) {
@@ -477,7 +697,7 @@ export function createCity(scene) {
   let site = null;
   let siteVersion = 0;
   const rising = []; // groups animating out of the ground
-  const spinners = [];
+  const animated = []; // objects with userData.animate(t, dt): rides, turbines
   let developed = new Set();
   let roadSig = '';
   let snapshot = { land: 0, next: null, placed: 0 };
@@ -487,11 +707,11 @@ export function createCity(scene) {
     const old = lots.get(key);
     if (old) {
       lotsGroup.remove(old.group);
-      old.group.traverse((o) => { const i = spinners.indexOf(o); if (i >= 0) spinners.splice(i, 1); });
+      old.group.traverse((o) => { const i = animated.indexOf(o); if (i >= 0) animated.splice(i, 1); });
     }
     const [x, z] = lotPos(lot);
     group.position.set(x, 0, z);
-    group.traverse((o) => { if (o.userData.spin) spinners.push(o); });
+    group.traverse((o) => { if (o.userData.animate) animated.push(o); });
     lotsGroup.add(group);
     lots.set(key, { kind, k, group });
     if (animate) { group.scale.set(1, 0.01, 1); rising.push({ group, t: 0, mode: 'grow' }); }
@@ -746,7 +966,7 @@ export function createCity(scene) {
       }
       if (r.t >= 1) rising.splice(i, 1);
     }
-    for (const sp of spinners) sp.rotation.z += dt * sp.userData.spin;
+    for (const o of animated) o.userData.animate(t, dt);
 
     if (site?.jib) {
       site.jib.rotation.y = 0.8 + Math.sin(t * 0.4) * 0.5;
