@@ -66,7 +66,8 @@ async function dexPrices() {
 // Every balance, decimals and the ETH price in ONE eth_call (Multicall3), so public RPCs don't rate limit us.
 async function walletFees(walletRaw) {
   const wallet = getAddress(walletRaw.trim().toLowerCase());
-  const prices = await dexPrices().catch((e) => { console.warn('[colony]', e.message); return new Map(); });
+  let priceError;
+  const prices = await dexPrices().catch((e) => { priceError = e.message; console.warn('[colony]', e.message); return new Map(); });
   const skip = new Set([WETH.toLowerCase(), USDC.toLowerCase()]);
   const tokens = [...prices].filter(([a]) => !skip.has(a));
   const bal = (address) => ({ address, abi: erc20Abi, functionName: 'balanceOf', args: [wallet] });
@@ -96,8 +97,10 @@ async function walletFees(walletRaw) {
     const b = results[4 + k * 2], d = results[5 + k * 2];
     if (b.status !== 'success' || d.status !== 'success') return;
     const amount = units(b.result, Number(d.result));
-    if (amount > 0) breakdown.push({ symbol: p.symbol, address, amount, usd: amount * p.usd });
+    breakdown.push({ symbol: p.symbol, address, amount, usd: amount * p.usd });
   });
+  // make a missing price visible instead of silently counting the token as $0
+  if (priceError) breakdown.push({ symbol: 'TOKEN PRICES UNAVAILABLE', error: priceError, usd: 0 });
   return { fees: breakdown.reduce((s, r) => s + r.usd, 0), breakdown };
 }
 
