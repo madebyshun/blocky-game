@@ -38,8 +38,9 @@ const SHIRT = [0x3fa34d, 0x2e86de, 0xe67e22, 0x9b59b6, 0xe74c3c, 0x1abc9c, 0xf1c
 const HOUR = 3600000;
 
 export function makeBuilder(id, arrivedAt) {
-  const role = id === 1 ? ROLES[0] : ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))];
   const legend = CONFIG.legends?.[id] ?? null;
+  let role = id === 1 ? ROLES[0] : ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))];
+  if (legend?.title) role = { ...role, label: legend.title };
   return {
     id,
     name: `${legend ? legend.name : pick(NAMES, id, 14)} #${id}`,

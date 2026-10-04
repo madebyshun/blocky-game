@@ -33,15 +33,15 @@ export const CONFIG = {
   xHandle: '', // e.g. blockyfun (without @)
   siteUrl: '', // canonical URL used in share text
 
-  // Legendary Blockies with a hand-made look, by Blocky number. #1 is the founder (you); #2-#6 go
+  // Legendary Blockies with a hand-made look, by Blocky number. `title` replaces the random role name. #1 is the founder (you); #2-#6 go
   // to the first buyers. Looks: founder, halo, punk, spartan, robo, hoodie (LEGEND_LOOKS in src/citizens.js).
   legends: {
-    1: { look: 'founder', name: 'Founder', label: 'The Founder' },
-    2: { look: 'halo', name: 'Nibel', label: 'Nibel' },
-    3: { look: 'punk', name: 'Jesse', label: 'Jesse' },
-    4: { look: 'spartan', name: 'Xen', label: 'Xen' },
-    5: { look: 'robo', name: 'Poet', label: 'Poet' },
-    6: { look: 'hoodie', name: 'CEO', label: 'CEO' },
+    1: { look: 'founder', name: 'Founder', label: 'The Founder', title: 'Founder' },
+    2: { look: 'halo', name: 'Nibel', label: 'Nibel', title: 'Base Builder' },
+    3: { look: 'punk', name: 'Jesse', label: 'Jesse', title: 'Base Builder' },
+    4: { look: 'spartan', name: 'Xen', label: 'Xen', title: 'Base Builder' },
+    5: { look: 'robo', name: 'Poet', label: 'Poet', title: 'Base Builder' },
+    6: { look: 'hoodie', name: 'Brian', label: 'Brian', title: 'CEO' },
   },
 
   // Landmarks: once the Blocky count reaches `at`, the crew builds it next on its reserved lot [x, z].
