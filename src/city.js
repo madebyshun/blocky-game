@@ -62,7 +62,7 @@ const Y = 0.15; // sidewalk height
 function sidewalk(k, color = C.walk) { k.box(6.4, Y, 6.4, color); }
 function lawn(k) { k.box(6.4, Y, 6.4, C.lawn); }
 
-function windows(k, w, d, y0, floors, front = true) {
+function windows(k, w, d, y0, floors, front = true, ox = 0, oz = 0) {
   const row = (len, place) => {
     const n = Math.max(1, Math.floor((len * 0.85) / 0.9));
     const step = (len * 0.85) / n;
@@ -70,8 +70,8 @@ function windows(k, w, d, y0, floors, front = true) {
   };
   for (let f = 0; f < floors; f++) {
     const y = y0 + f + 0.3;
-    row(w, (x) => { if (front) k.win(0.55, 0.45, 0.06, x, y, d / 2 + 0.03); k.win(0.55, 0.45, 0.06, x, y, -d / 2 - 0.03); });
-    row(d, (z) => { k.win(0.06, 0.45, 0.55, w / 2 + 0.03, y, z); k.win(0.06, 0.45, 0.55, -w / 2 - 0.03, y, z); });
+    row(w, (x) => { if (front) k.win(0.55, 0.45, 0.06, ox + x, y, oz + d / 2 + 0.03); k.win(0.55, 0.45, 0.06, ox + x, y, oz - d / 2 - 0.03); });
+    row(d, (z) => { k.win(0.06, 0.45, 0.55, ox + w / 2 + 0.03, y, oz + z); k.win(0.06, 0.45, 0.55, ox - w / 2 - 0.03, y, oz + z); });
   }
 }
 
@@ -99,9 +99,9 @@ function fence(k, w, d, color = C.white, gap = 1.2) {
   k.box(w, 0.06, 0.06, color, 0, Y + 0.32, -d / 2);
   k.box(0.06, 0.06, d, color, -w / 2, Y + 0.32, 0); k.box(0.06, 0.06, d, color, w / 2, Y + 0.32, 0);
 }
-function gableRoof(k, w, d, y, color) {
+function gableRoof(k, w, d, y, color, ox = 0, oz = 0) {
   const steps = Math.ceil(Math.min(w, d) / 1.2);
-  for (let i = 0; i < steps; i++) k.box(w + 0.3 - i * 1.0, 0.35, d + 0.3, color, 0, y + i * 0.35, 0);
+  for (let i = 0; i < steps; i++) k.box(w + 0.3 - i * 1.0, 0.35, d + 0.3, color, ox, y + i * 0.35, oz);
 }
 
 // ---------- building designs (local coords, lot centre = origin, door faces +z) ----------
@@ -113,7 +113,7 @@ const DESIGN = {
     k.box(p.w, p.h, p.d, p.color, 0, Y, -0.6);
     k.win(0.6, 0.5, 0.06, p.w / 4, Y + 0.6, p.d / 2 - 0.57);
     k.box(0.7, 1.1, 0.08, 0x8b5a2b, -p.w / 5, Y, p.d / 2 - 0.55);
-    gableRoof(k, p.w, p.d, Y + p.h, roof);
+    gableRoof(k, p.w, p.d, Y + p.h, roof, 0, -0.6);
     k.box(0.35, 0.8, 0.35, C.stone, p.w / 3, Y + p.h + 0.3, -1);
     for (let i = 0; i < 3; i++) k.box(0.3, 0.25, 0.3, C.flower[(p.k + i) % 5], -2.4 + i * 0.5, Y, 2.4);
     tree(k, 2.4, 2.2, p.k);
@@ -122,9 +122,9 @@ const DESIGN = {
     lawn(k);
     const roof = C.roof[(p.k + 2) % C.roof.length];
     k.box(p.w, p.h, p.d, p.color, 0, Y, -0.8);
-    windows(k, p.w, p.d, Y, p.h);
+    windows(k, p.w, p.d, Y, p.h, true, 0, -0.8);
     k.box(0.8, 1.2, 0.08, 0x6e4b2a, 0, Y, p.d / 2 - 0.75);
-    gableRoof(k, p.w, p.d, Y + p.h, roof);
+    gableRoof(k, p.w, p.d, Y + p.h, roof, 0, -0.8);
     k.box(1.6, 0.06, 2.2, C.walk, 0, Y, 2.0);
     fence(k, 6.2, 6.2, C.white, 1.8);
     bush(k, -2, 2.3, p.k); bush(k, 2, 2.3, p.k + 1);
@@ -145,7 +145,7 @@ const DESIGN = {
     sidewalk(k);
     k.box(p.w, p.h, p.d, p.color, 0, Y, -0.5);
     k.win(p.w * 0.7, 1.1, 0.06, 0, Y + 0.3, p.d / 2 - 0.47);
-    windows(k, p.w, p.d, Y + 1.3, p.h - 1.3, false);
+    windows(k, p.w, p.d, Y + 1.3, p.h - 1.3, false, 0, -0.5);
     for (let i = 0; i < Math.round(p.w / 0.5); i++) k.box(0.5, 0.12, 0.9, i % 2 ? C.white : 0x8b4513, -p.w / 2 + 0.25 + i * 0.5, Y + 1.6, p.d / 2 - 0.05);
     k.box(2.2, 0.6, 0.15, C.base, 0, Y + p.h, p.d / 2 - 0.7);
     k.box(p.w + 0.2, 0.2, p.d + 0.2, 0x8b4513, 0, Y + p.h, -0.5);
@@ -174,7 +174,7 @@ const DESIGN = {
     k.box(6.4, Y, 6.4, 0x6b4423);
     for (let r = 0; r < 6; r++) k.box(5.6, 0.28, 0.5, r % 2 ? 0xe8c547 : 0x7cc94a, 0, Y, -2.6 + r * 0.95);
     fence(k, 6.2, 6.2, C.wood, 0);
-    k.box(1.6, 1.4, 1.2, 0xc0392b, -2.2, Y, 2.3); gableRoof(k, 1.6, 1.2, Y + 1.4, C.white);
+    k.box(1.6, 1.4, 1.2, 0xc0392b, -2.2, Y, 2.3); gableRoof(k, 1.6, 1.2, Y + 1.4, C.white, -2.2, 2.3);
     k.box(0.3, 1.6, 0.3, C.wood, 2.5, Y, 2.3); k.box(1, 0.15, 0.15, C.wood, 2.5, Y + 1.1, 2.3); k.box(0.45, 0.45, 0.45, 0xe8c547, 2.5, Y + 1.4, 2.3);
   },
   playground(k, p) {
@@ -281,7 +281,7 @@ const DESIGN = {
   school(k, p) {
     sidewalk(k);
     k.box(p.w, p.h, p.d - 1.5, p.color, 0, Y, -1.4);
-    windows(k, p.w, p.d - 1.5, Y, p.h);
+    windows(k, p.w, p.d - 1.5, Y, p.h, true, 0, -1.4);
     k.box(1.6, p.h + 1, 1.6, 0xe9e3d6, 0, Y, -0.2);
     k.box(1.2, 1.2, 0.08, C.white, 0, Y + p.h - 0.2, 0.62);
     k.box(0.08, 0.5, 0.06, C.dark, 0, Y + p.h + 0.15, 0.68);
@@ -447,6 +447,9 @@ function wildLot(k, i, j) {
     bush(k, -2 + hash(i, j, 72) * 4, -2 + hash(i, j, 73) * 4, i + j, 0);
   }
 }
+
+// A finished building or landmark as a standalone group (also used by gallery.html).
+export const buildingGroup = (p) => kitFor((k) => (p.kind === 'landmark' ? LANDMARK[p.type](k) : DESIGN[p.type](k, p)));
 
 // ---------- city ----------
 
@@ -683,7 +686,6 @@ export function createCity(scene) {
     site.topY = floors + 1;
   }
 
-  const finishedGroup = (p) => kitFor((k) => (p.kind === 'landmark' ? LANDMARK[p.type](k) : DESIGN[p.type](k, p)));
 
   // Bring the rendered city in line with a simulation snapshot.
   function sync(sim, animate) {
@@ -696,7 +698,7 @@ export function createCity(scene) {
       const cur = lots.get(key);
       if (cur?.kind === 'built' && cur.k === p.k) continue;
       if (site && site.k === p.k) site = null;
-      setLot(key, p.lot, 'built', p.k, finishedGroup(p), animate);
+      setLot(key, p.lot, 'built', p.k, buildingGroup(p), animate);
     }
     if (sim.next.lot) dev.add(lotKey(sim.next.lot));
     developed = dev;
