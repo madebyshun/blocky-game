@@ -96,22 +96,20 @@ export class BuilderView {
   }
 
   get status() {
-    return { toDepot: 'Fetching blocks', load: 'Loading blocks', toSite: 'Carrying blocks', place: 'Placing blocks', toBreak: 'Heading for coffee', break: 'Coffee break' }[this.mode];
+    if (this.city.waiting && (this.mode === 'toBreak' || this.mode === 'break')) return 'Waiting for more Blockies';
+    return { toDepot: 'Fetching blocks', load: 'Loading blocks', toSite: 'Carrying blocks', place: 'Placing blocks', toBreak: 'Taking a break', break: 'Taking a break' }[this.mode];
   }
 
   go(mode) {
     const p = this.group.position, s = this.b.id * 1000 + this.step++;
+    if (this.city.waiting && (mode === 'toSite' || mode === 'toDepot')) mode = 'toBreak'; // land is full: chill until it can expand
     this.mode = mode;
-    let target;
-    if (mode === 'toDepot') target = this.city.depotSpot(s);
-    else if (mode === 'toSite') target = this.city.siteSpot(s);
-    else if (mode === 'toBreak') target = this.city.landmarkSpot('cafe', s);
-    if (!target) return;
+    const target = mode === 'toDepot' ? this.city.depotSpot(s) : mode === 'toSite' ? this.city.siteSpot(s) : this.city.chillSpot(s);
     this.path = route(p.x, p.z, target[0], target[1]);
     this.carry.visible = mode === 'toSite';
   }
 
-  update(t, dt, onPlace) {
+  update(t, dt) {
     const g = this.group, p = g.position;
     if (this.wait > 0) { this.wait -= dt; this.idle(t); return; }
 
@@ -122,9 +120,8 @@ export class BuilderView {
 
     if (this.mode === 'load') { this.go('toSite'); return; }
     if (this.mode === 'place') {
-      onPlace?.(this);
       this.carry.visible = false;
-      this.go(hash(this.b.id, this.step, 50) < 0.08 && this.city.landmarkSpot('cafe', 0) ? 'toBreak' : 'toDepot');
+      this.go(hash(this.b.id, this.step, 50) < 0.06 ? 'toBreak' : 'toDepot');
       return;
     }
     if (this.mode === 'break') { this.go('toDepot'); return; }
@@ -167,50 +164,4 @@ export class BuilderView {
   }
 
   setSelected(on) { this.ring.visible = on; }
-}
-
-// ---------- floating labels ----------
-
-export class Floaters {
-  constructor(parent) {
-    this.parent = parent;
-    this.items = [];
-  }
-
-  spawn(text, color, x, y, z, scale = 1) {
-    const cv = document.createElement('canvas');
-    cv.width = 512; cv.height = 96;
-    const ctx = cv.getContext('2d');
-    ctx.font = '800 52px "Lilita One", system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineWidth = 10;
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.strokeText(text, 256, 50);
-    ctx.fillStyle = color;
-    ctx.fillText(text, 256, 50);
-    const tex = new THREE.CanvasTexture(cv);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-    sp.scale.set(4 * scale, 0.75 * scale, 1);
-    sp.position.set(x, y, z);
-    sp.renderOrder = 10;
-    this.parent.add(sp);
-    this.items.push({ sp, life: 0 });
-  }
-
-  update(dt) {
-    for (let i = this.items.length - 1; i >= 0; i--) {
-      const it = this.items[i];
-      it.life += dt;
-      it.sp.position.y += dt * 0.8;
-      it.sp.material.opacity = Math.min(1, 3 * (2.2 - it.life));
-      if (it.life > 2.2) {
-        this.parent.remove(it.sp);
-        it.sp.material.map.dispose();
-        it.sp.material.dispose();
-        this.items.splice(i, 1);
-      }
-    }
-  }
 }

@@ -4,8 +4,10 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 
 - Every trade of `$BLOCKY` pays a creator fee.
 - Every **$5** of fees brings a new **Blocky** (a builder on Base) to the city by blimp.
-- Blockies haul blocks from the depot to the construction site **24/7**: offices, dev hubs, towers, cafés and parks rise floor by floor. More Blockies, faster city.
-- Landmarks unlock as the crew grows: Founder's Garage → gm Café → Builder HQ → … → Onchain Beacon.
+- The city **starts from empty land**: grass, forest, a river. The founder builds the first garage, then the town square, then the city grows outward, roads appearing next to every new lot.
+- ~20 building types by district: cottages, family houses, townhouses, apartments, villas, shops, cafés, offices, dev hubs, a school, GPU farms, towers, skyscrapers, parks, playgrounds, courts, gardens, farms, wind turbines, water towers. Plus cars, buses and boats.
+- **The land is a square that expands**: when every lot is built, the Blockies reclaim a new ring of land, but only once enough Blockies live in the city (3, 6, 10, 16…). Until then the city waits, which is where new trades come in.
+- Landmarks are built as the crew grows: Founder's Garage → Town Square → gm Café → Builder HQ → … → Onchain Beacon.
 - Day/night cycle, a city log with exact completion times, and a "while you were away" recap.
 - Same city for every visitor. No wallet needed. **The Blockies are simulated; the fees are real.**
 
@@ -40,15 +42,16 @@ Environment variables (pick one fee source):
 | `FEE_PER_CITIZEN` | Default `5`. Keep it in sync with `feePerCitizen` in `src/config.js`. |
 | `BASE_RPC_URL` | Default `https://mainnet.base.org` (rate limits quickly). Use a free Alchemy/QuickNode URL. Each refresh is a single Multicall3 `eth_call`, cached for `CACHE_MS` (20s); on RPC errors the last good answer is served for up to 10 min. |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis (Vercel KV). **Recommended.** Stores the fee high-water mark (population never shrinks when you withdraw) and each Blocky's arrival time (identical trade history for every visitor). |
-| `LAUNCH_TIME_MS` | Arrival time of Blocky #1 (the founder). |
+| `LAUNCH_TIME_MS` | When the city starts from empty land. Without it, the first time the API runs with KV is used. |
 
 With no fee source configured, the API returns `$0` and one founder: "One crew member. No coin yet."
 
 ## Customize
 
-- `src/config.js`: city name, ticker, token links, fee per builder, `cityStart` (when the founder started building), `blocksPerHour`, day length, landmark milestones.
-- `src/sim.js`: builder roles and work rates, the deterministic city plan (which building goes on which lot, and its size).
-- `src/city.js`: voxel designs for every building and landmark, construction sites, roads, day/night.
+- `src/config.js`: city name, ticker, token links, fee per Blocky, `blocksPerHour`, day length, land size and expansion thresholds, landmark milestones.
+- `src/sim.js`: Blocky roles and work rates, the river, the building catalog and the deterministic build plan (landmarks, buildings, land expansions).
+- `src/city.js`: voxel designs, land/river/bridges, progressive roads, construction sites, day/night.
+- `src/vehicles.js`: cars, buses and boats.
 - `src/citizens.js`: builders walking the roads, hauling and placing blocks.
 
 ## How "24/7, same for every visitor" works

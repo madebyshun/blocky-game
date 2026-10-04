@@ -8,10 +8,17 @@ export const CONFIG = {
   citizenPlural: 'Blockies',
   feePerCitizen: 5, // USD of creator fees that brings one new Blocky
 
-  // The city has been building since this moment. Blocky #1 (the founder) starts here.
-  cityStart: '2026-10-01T00:00:00Z',
-  blocksPerHour: 20, // base work rate of one builder; more builders = faster city
+  // When the city starts from empty land. Normally the API decides this (LAUNCH_TIME_MS, or the
+  // first time the live API ran, stored in KV). Leave null to start "now" when no API value exists.
+  cityStart: null,
+  blocksPerHour: 24, // work rate of one Blocky; more Blockies = faster city
   dayLengthMin: 20, // one day/night cycle in real minutes (same for every visitor)
+
+  // Square land of (2*startLand+1)^2 lots. When every lot is built, the Blockies expand the land
+  // by one ring, but only once enough Blockies live in the city.
+  startLand: 2,
+  expandNeeds: [0, 0, 0, 3, 6, 10, 16, 25, 40, 60, 90], // Blockies needed to reach land level L
+  expandCost: 120, // blocks per land level for an expansion
 
   // Live state (see api/colony.js). If it fails, the game falls back to demo mode.
   apiUrl: '/api/colony',
@@ -26,16 +33,17 @@ export const CONFIG = {
   xHandle: '', // e.g. blockyfun (without @)
   siteUrl: '', // canonical URL used in share text
 
-  // Landmarks unlock as the Blocky count grows (fees), on reserved lots [x, z] of the city grid.
+  // Landmarks: once the Blocky count reaches `at`, the crew builds it next on its reserved lot [x, z].
   landmarks: [
     { at: 1, id: 'garage', label: "Founder's Garage", lot: [0, 1] },
-    { at: 3, id: 'cafe', label: 'gm Café', lot: [1, 0] },
-    { at: 5, id: 'hq', label: 'Builder HQ', lot: [-1, 0] },
-    { at: 8, id: 'hackathon', label: 'Hackathon Hall', lot: [0, -2] },
-    { at: 12, id: 'studio', label: 'Design Studio', lot: [2, 1] },
-    { at: 20, id: 'datalab', label: 'Data Lab', lot: [-2, -1] },
-    { at: 35, id: 'launchpad', label: 'Launchpad Tower', lot: [2, -2] },
-    { at: 50, id: 'stadium', label: 'Demo Day Stadium', lot: [-2, 2] },
-    { at: 100, id: 'beacon', label: 'Onchain Beacon', lot: [0, 3] },
+    { at: 1, id: 'square', label: 'Town Square', lot: [0, 0] },
+    { at: 3, id: 'cafe', label: 'gm Café', lot: [-1, 0] },
+    { at: 5, id: 'hq', label: 'Builder HQ', lot: [0, -1] },
+    { at: 8, id: 'hackathon', label: 'Hackathon Hall', lot: [-1, -2] },
+    { at: 12, id: 'studio', label: 'Design Studio', lot: [-2, 1] },
+    { at: 20, id: 'datalab', label: 'Data Lab', lot: [-3, -1] },
+    { at: 35, id: 'launchpad', label: 'Launchpad Tower', lot: [-1, 3] },
+    { at: 50, id: 'stadium', label: 'Demo Day Stadium', lot: [-3, 2] },
+    { at: 100, id: 'beacon', label: 'Onchain Beacon', lot: [-2, -4] },
   ],
 };

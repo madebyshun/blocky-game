@@ -1,8 +1,8 @@
 import { CONFIG } from './config.js';
 
-// Deterministic city simulation. Everything is a pure function of
-// (builder ids, arrival times, current time), so the city keeps "building"
-// 24/7 with no game server and every visitor sees the same skyline.
+// Deterministic city simulation. The whole city is a pure function of
+// (Blocky arrival times, city start, now): it keeps building 24/7 with no game
+// server, and every visitor sees the same skyline.
 
 export function hash(...xs) {
   let h = 0x9e3779b9;
@@ -14,10 +14,10 @@ export function hash(...xs) {
   h = Math.imul(h ^ (h >>> 16), 0x297a2d39);
   return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
 }
-const pick = (arr, ...seed) => arr[Math.floor(hash(...seed) * arr.length)];
+export const pick = (arr, ...seed) => arr[Math.floor(hash(...seed) * arr.length)];
 const range = ([a, b], ...seed) => a + Math.floor(hash(...seed) * (b - a + 1));
 
-// ---------- builders ----------
+// ---------- Blockies ----------
 
 export const ROLES = [
   { id: 'founder', label: 'Founder', hat: 0x0052ff, rate: 1.0 },
@@ -53,104 +53,182 @@ export function makeBuilder(id, arrivedAt) {
 export const blocksBy = (b, t) => (Math.max(0, t - b.arrivedAt) / HOUR) * b.rate;
 export const totalWork = (builders, t) => builders.reduce((s, b) => s + blocksBy(b, t), 0);
 
-// When did the crew's combined work first reach `w` blocks? (binary search, W(t) is monotonic)
-export function timeAtWork(builders, w, lo, hi) {
-  for (let i = 0; i < 40; i++) {
+// When did the crew's combined work first reach `w` blocks? (W(t) is monotonic)
+function timeAtWork(builders, w, lo, hi) {
+  if (totalWork(builders, lo) >= w) return lo;
+  for (let i = 0; i < 44; i++) {
     const mid = (lo + hi) / 2;
     if (totalWork(builders, mid) < w) lo = mid; else hi = mid;
   }
   return hi;
 }
 
-// ---------- city plan ----------
+// ---------- land: a square grid of lots with a river ----------
 
-export const PITCH = 8; // lot (6) + road (2)
+export const PITCH = 8; // 6 lot + 2 road
+export const ring = (i, j) => Math.max(Math.abs(i), Math.abs(j));
 
-const TYPES = {
-  loft: { label: 'Builder Loft', w: [4, 5], d: [4, 5], h: [3, 5] },
-  cafe: { label: 'gm Café', w: [4, 5], d: [4, 5], h: [2, 3] },
-  office: { label: 'Office', w: [5, 6], d: [4, 6], h: [6, 10] },
-  devhub: { label: 'Dev Hub', w: [5, 6], d: [5, 6], h: [4, 7] },
-  tower: { label: 'Tower', w: [4, 5], d: [4, 5], h: [11, 18] },
-  park: { label: 'Park', w: [6, 6], d: [6, 6], h: [1, 1] },
-  nodes: { label: 'Node Farm', w: [5, 6], d: [5, 6], h: [2, 3] },
+export const riverCol = (j) => Math.round(1.6 + Math.sin(j * 0.5 + 0.8) * 1.2);
+// The river flows along z; each row j also joins its column to the next row's column.
+export function isWater(i, j) {
+  const a = riverCol(j), b = riverCol(j + 1);
+  return i >= Math.min(a, b) && i <= Math.max(a, b);
+}
+
+export const needFor = (L) => {
+  const n = CONFIG.expandNeeds;
+  return L < n.length ? n[L] : Math.ceil(n[n.length - 1] * 1.5 ** (L - n.length + 1));
 };
 
+// ---------- building catalog ----------
+// w: weight per zone [downtown (ring<=1), midtown (ring<=3), outskirts], min: projects built before it appears.
+
+export const CATALOG = {
+  cottage: { label: 'Cottage', min: 0, w: [2, 2.5, 2.5], cost: 24, size: [[3, 4], [3, 4], [2, 2]] },
+  garden: { label: 'Community Garden', min: 0, w: [0.6, 1.2, 1.6], cost: 18, size: [[6, 6], [6, 6], [1, 1]] },
+  house: { label: 'Family House', min: 1, w: [1.5, 2.5, 2.5], cost: 40, size: [[4, 5], [3, 4], [2, 3]] },
+  shop: { label: 'Corner Shop', min: 2, w: [2, 1.2, 0.4], cost: 48, size: [[4, 5], [4, 4], [2, 2]] },
+  park: { label: 'Park', min: 2, w: [1, 1.6, 1.2], cost: 36, size: [[6, 6], [6, 6], [1, 1]] },
+  farm: { label: 'Farm', min: 3, w: [0, 0.4, 2], cost: 28, size: [[6, 6], [6, 6], [1, 1]] },
+  cafe: { label: 'gm Café', min: 3, w: [1.4, 0.8, 0.3], cost: 55, size: [[4, 5], [4, 5], [2, 3]] },
+  playground: { label: 'Playground', min: 4, w: [0.6, 1.2, 0.8], cost: 30, size: [[6, 6], [6, 6], [1, 1]] },
+  court: { label: 'Basketball Court', min: 5, w: [0.5, 0.9, 0.6], cost: 32, size: [[6, 6], [6, 6], [1, 1]] },
+  townhouses: { label: 'Townhouses', min: 5, w: [1.4, 2, 0.8], cost: 80, size: [[6, 6], [4, 4], [3, 4]] },
+  windmill: { label: 'Wind Turbine', min: 6, w: [0, 0.3, 1.4], cost: 40, size: [[2, 2], [2, 2], [9, 9]] },
+  villa: { label: 'Villa', min: 7, w: [0.2, 0.8, 1.4], cost: 90, size: [[4, 5], [3, 4], [2, 2]] },
+  apartment: { label: 'Apartments', min: 8, w: [2, 1.6, 0.4], cost: 140, size: [[5, 6], [4, 5], [5, 8]] },
+  watertower: { label: 'Water Tower', min: 9, w: [0.2, 0.4, 0.6], cost: 50, size: [[3, 3], [3, 3], [7, 7]] },
+  office: { label: 'Office', min: 10, w: [2.4, 1, 0.1], cost: 200, size: [[5, 6], [4, 6], [6, 11]] },
+  devhub: { label: 'Dev Hub', min: 10, w: [1.6, 1, 0.2], cost: 160, size: [[5, 6], [5, 6], [4, 7]] },
+  school: { label: 'Builder School', min: 12, w: [0.4, 0.9, 0.4], cost: 150, size: [[6, 6], [5, 5], [3, 3]] },
+  gpufarm: { label: 'GPU Farm', min: 14, w: [0.4, 0.9, 1], cost: 180, size: [[6, 6], [5, 6], [2, 3]] },
+  tower: { label: 'Tower', min: 18, w: [2, 0.5, 0], cost: 320, size: [[4, 5], [4, 5], [12, 18]] },
+  skyscraper: { label: 'Skyscraper', min: 30, w: [1.4, 0.2, 0], cost: 520, size: [[5, 5], [5, 5], [20, 30]] },
+};
 const COLORS = {
-  loft: [0xf3e6d0, 0xe8d5c4, 0xd9e4ec, 0xf0d9da, 0xdfe8d5],
+  cottage: [0xf3e6d0, 0xe8d5c4, 0xd9e4ec, 0xf0d9da, 0xdfe8d5, 0xfff3c4],
+  house: [0xf3e6d0, 0xd9e4ec, 0xf0d9da, 0xe3f1e1, 0xfde2c8],
+  shop: [0xfff1e0, 0xe7f0fb, 0xfde8e8],
   cafe: [0xfff1e0, 0xf7e2c7],
+  townhouses: [0xe8b4a0, 0xd9c1a6, 0xc7d3dd, 0xe9d8a6],
+  villa: [0xf8f8f2, 0xf2ece0],
+  apartment: [0xe2c9a5, 0xc9d1da, 0xd8b4a0, 0xe6e1d3],
   office: [0xc9d1da, 0xb8c2cc, 0xd6d0c4, 0xa9b6c4],
   devhub: [0x23395b, 0x1f2f4a, 0x2a3d66],
+  school: [0xd35400, 0xc0392b],
+  gpufarm: [0x2b2f36, 0x353b44],
   tower: [0xdfe6ee, 0xc4ccd6, 0x9fb1c7, 0xe9e3d6],
-  park: [0x6cc24a],
-  nodes: [0x5b6470, 0x4a525c],
+  skyscraper: [0x9fb1c7, 0x7f93ad, 0xb7c6d9],
+  watertower: [0xd5d8dc],
 };
 
-function typeFor(k, ring) {
-  const r = hash(k, 31);
-  if (ring <= 2) return r < 0.22 ? 'tower' : r < 0.5 ? 'office' : r < 0.68 ? 'devhub' : r < 0.8 ? 'cafe' : r < 0.9 ? 'park' : 'loft';
-  if (ring <= 4) return r < 0.08 ? 'tower' : r < 0.3 ? 'office' : r < 0.45 ? 'devhub' : r < 0.58 ? 'cafe' : r < 0.7 ? 'park' : r < 0.8 ? 'nodes' : 'loft';
-  return r < 0.15 ? 'office' : r < 0.25 ? 'cafe' : r < 0.4 ? 'park' : r < 0.5 ? 'nodes' : 'loft';
+const zoneOf = (r) => (r <= 1 ? 0 : r <= 3 ? 1 : 2);
+
+function chooseType(k, r) {
+  const z = zoneOf(r);
+  const options = Object.entries(CATALOG).filter(([, t]) => t.min <= k && t.w[z] > 0);
+  const total = options.reduce((s, [, t]) => s + t.w[z], 0);
+  let x = hash(k, 31) * total;
+  for (const [id, t] of options) { x -= t.w[z]; if (x <= 0) return id; }
+  return options[options.length - 1][0];
 }
 
-const reserved = () => new Set(['0,0', ...CONFIG.landmarks.map((l) => l.lot.join(','))]);
-let RESERVED;
-const lots = [];
-let ringDone = 0;
-function ensureLots(n) {
-  RESERVED ??= reserved();
-  while (lots.length < n) {
-    const r = ++ringDone;
-    const ring = [];
+function buildingProject(k, lot) {
+  const r = ring(...lot);
+  const type = chooseType(k, r);
+  const t = CATALOG[type];
+  const [W, D, H] = t.size;
+  const p = { k, kind: 'building', type, lot, w: range(W, k, 1), d: range(D, k, 2), h: range(H, k, 3) };
+  p.color = COLORS[type] ? pick(COLORS[type], k, 4) : 0xffffff;
+  p.cost = Math.round(t.cost * (0.8 + (p.h / Math.max(1, H[1])) * 0.4));
+  p.name = `${t.label} #${k + 1}`;
+  return p;
+}
+
+const LANDMARK_SIZE = {
+  garage: [5, 4, 3, 60], square: [6, 6, 1, 40], cafe: [5, 4, 3, 90], hq: [6, 6, 12, 400],
+  hackathon: [6, 5, 4, 260], studio: [4, 4, 6, 220], datalab: [6, 6, 5, 300],
+  launchpad: [6, 6, 14, 600], stadium: [6, 6, 3, 700], beacon: [3, 3, 20, 900],
+};
+
+// ---------- the build plan, replayed over time ----------
+
+export class CitySim {
+  constructor(start) { this.start = start; this.builders = []; this.reset(); }
+
+  setBuilders(builders) {
+    this.builders = builders.slice().sort((a, b) => a.arrivedAt - b.arrivedAt);
+    this.reset();
+  }
+
+  reset() {
+    this.land = CONFIG.startLand;
+    this.done = []; // completed projects, each with .at
+    this.consumed = 0; // work used by completed projects
+    this.lastT = this.start;
+    this.builtLandmarks = new Set();
+    this.reserved = new Set(CONFIG.landmarks.map((l) => l.lot.join(',')));
+    this.queue = [];
+    for (let r = 0; r <= this.land; r++) this.queue.push(...this.ringLots(r));
+    this.k = 0;
+    this.next = this.plan(this.start);
+  }
+
+  ringLots(r) {
+    const lots = [];
     for (let i = -r; i <= r; i++) {
       for (let j = -r; j <= r; j++) {
-        if (Math.max(Math.abs(i), Math.abs(j)) === r && !RESERVED.has(`${i},${j}`)) ring.push([i, j]);
+        if (ring(i, j) !== r || isWater(i, j) || this.reserved.has(`${i},${j}`)) continue;
+        lots.push([i, j]);
       }
     }
-    ring.sort((a, b) => Math.hypot(...a) + hash(...a, 7) * 0.9 - (Math.hypot(...b) + hash(...b, 7) * 0.9));
-    lots.push(...ring);
+    return lots.sort((a, b) => Math.hypot(...a) + hash(...a, 7) * 0.9 - (Math.hypot(...b) + hash(...b, 7) * 0.9));
   }
-}
 
-const projects = [];
-const prefix = [0]; // prefix[k] = total cost of projects 0..k-1
-
-export function project(k) {
-  while (projects.length <= k) {
-    const n = projects.length;
-    ensureLots(n + 1);
-    const lot = lots[n];
-    const ring = Math.max(Math.abs(lot[0]), Math.abs(lot[1]));
-    const type = typeFor(n, ring);
-    const t = TYPES[type];
-    const p = {
-      k: n,
-      lot,
-      ring,
-      type,
-      w: range(t.w, n, 1),
-      d: range(t.d, n, 2),
-      h: range(t.h, n, 3),
-      color: pick(COLORS[type], n, 4),
-      name: `${t.label} #${n + 1}`,
-    };
-    p.cost = type === 'park' ? 80 : p.w * p.d * p.h;
-    projects.push(p);
-    prefix.push(prefix[n] + p.cost);
+  popAt(t) {
+    let n = 0;
+    for (const b of this.builders) if (b.arrivedAt <= t) n++;
+    return n;
   }
-  return projects[k];
-}
 
-export const costBefore = (k) => (project(k), prefix[k]);
-
-// City state for a given amount of total work.
-export function cityAt(work) {
-  let n = 0;
-  while (true) {
-    const p = project(n);
-    if (prefix[n] + p.cost > work) break;
-    n++;
+  plan(t) {
+    const k = this.k++;
+    const pop = this.popAt(t);
+    const lm = CONFIG.landmarks.find((l) => l.at <= pop && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land);
+    if (lm) {
+      const [w, d, h, cost] = LANDMARK_SIZE[lm.id];
+      return { k, kind: 'landmark', type: lm.id, lot: lm.lot, w, d, h, cost, color: 0xd5d8dc, name: lm.label };
+    }
+    if (this.queue.length) return buildingProject(k, this.queue.shift());
+    const L = this.land + 1;
+    return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land, need: needFor(L), name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };
   }
-  const active = project(n);
-  return { done: n, active, placed: work - prefix[n] };
+
+  // Replay every project finished by `now`. Returns the newly finished ones.
+  advance(now) {
+    const finished = [];
+    for (let guard = 0; guard < 5000; guard++) {
+      const p = this.next;
+      const end = this.consumed + p.cost;
+      let t = totalWork(this.builders, now) >= end ? timeAtWork(this.builders, end, this.lastT, now) : Infinity;
+      if (p.need) t = Math.max(t, this.builders[p.need - 1]?.arrivedAt ?? Infinity);
+      if (t > now) break;
+      p.at = t;
+      this.done.push(p);
+      this.consumed = end;
+      this.lastT = t;
+      if (p.kind === 'expand') { this.land = p.level; this.queue.push(...this.ringLots(p.level)); }
+      if (p.kind === 'landmark') this.builtLandmarks.add(p.type);
+      finished.push(p);
+      this.next = this.plan(t);
+    }
+    this.work = totalWork(this.builders, now);
+    this.placed = Math.max(0, Math.min(this.next.cost, this.work - this.consumed));
+    const pop = this.popAt(now);
+    this.blocked = this.next.need && pop < this.next.need ? { need: this.next.need, have: pop } : null;
+    return finished;
+  }
+
+  // lots that hold a finished building/landmark
+  get buildingCount() { return this.done.filter((p) => p.kind !== 'expand').length; }
 }

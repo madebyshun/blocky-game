@@ -23,7 +23,7 @@ const env = process.env;
 const RPC = env.BASE_RPC_URL || 'https://mainnet.base.org';
 const FEE_PER = Number(env.FEE_PER_CITIZEN || 5);
 const OFFSET = Number(env.FEES_OFFSET_USD || 0);
-const LAUNCH = Number(env.LAUNCH_TIME_MS || 0) || Date.parse('2026-01-01T00:00:00Z');
+const LAUNCH = Number(env.LAUNCH_TIME_MS || 0) || null; // when the city starts from empty land
 const KV_URL = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
 const KV_TOKEN = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
 const KEY = env.KV_KEY || 'blocky:colony';
@@ -136,22 +136,27 @@ async function compute() {
   const now = Date.now();
   let feesUsd = Math.max(0, fees + OFFSET);
   let arrivals = null;
+  let cityStart = LAUNCH;
 
   if (KV_URL && KV_TOKEN) {
     const saved = JSON.parse((await kv('GET', KEY)) || '{"high":0,"arrivals":[]}');
+    // the city starts from empty land at LAUNCH_TIME_MS, or the first time this API ever ran
+    const start = LAUNCH ?? saved.start ?? now;
     feesUsd = Math.max(saved.high, feesUsd);
-    arrivals = saved.arrivals.length ? saved.arrivals : [LAUNCH];
+    arrivals = saved.arrivals.length ? saved.arrivals : [start];
     const population = 1 + Math.floor(feesUsd / FEE_PER);
     while (arrivals.length < population) arrivals.push(now);
-    if (feesUsd !== saved.high || arrivals.length !== saved.arrivals.length) {
-      await kv('SET', KEY, JSON.stringify({ high: feesUsd, arrivals }));
+    if (feesUsd !== saved.high || arrivals.length !== saved.arrivals.length || saved.start !== start) {
+      await kv('SET', KEY, JSON.stringify({ high: feesUsd, arrivals, start }));
     }
+    cityStart = start;
   }
 
   return {
     feesUsd,
     population: 1 + Math.floor(feesUsd / FEE_PER),
     arrivals,
+    cityStart,
     feePerCitizen: FEE_PER,
     source,
     breakdown,

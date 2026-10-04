@@ -29,6 +29,7 @@ export async function fetchColony() {
       feesUsd: s.feesUsd,
       population: s.population ?? 1 + Math.floor(s.feesUsd / CONFIG.feePerCitizen),
       arrivals: Array.isArray(s.arrivals) ? s.arrivals : null,
+      cityStart: typeof s.cityStart === 'number' ? s.cityStart : null,
       source: s.source || 'live',
     };
   } catch (e) {

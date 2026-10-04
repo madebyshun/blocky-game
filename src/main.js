@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG } from './config.js';
 import { createCity } from './city.js';
-import { BuilderView, Floaters } from './citizens.js';
-import { makeBuilder, blocksBy, totalWork, timeAtWork, costBefore, project, PITCH } from './sim.js';
+import { BuilderView } from './citizens.js';
+import { createTraffic } from './vehicles.js';
+import { makeBuilder, blocksBy, CitySim, PITCH } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { now } from './time.js';
@@ -12,8 +13,8 @@ const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
 const fmt = (n) => Math.floor(n).toLocaleString('en-US');
 const plural = CONFIG.citizenPlural || `${CONFIG.citizen}s`;
-const CITY_START = Date.parse(CONFIG.cityStart);
 const HOUR = 3600000;
+const size = (L) => `${2 * L + 1}×${2 * L + 1}`;
 
 function ago(ms) {
   const s = Math.max(0, (now() - ms) / 1000);
@@ -49,7 +50,7 @@ const CAPTIONS = [
   `Every trade of <em>${CONFIG.ticker}</em> pays a creator fee`,
   `Every <em>${usd(CONFIG.feePerCitizen)}</em> in fees brings a <em>new ${CONFIG.citizen}</em>`,
   `${plural} build <em>24/7</em>, even when no one is watching`,
-  `More ${plural}, <em>faster city</em>`,
+  `Land full? More ${plural} <em>expand the land</em>`,
   `The ${plural} are <em>simulated</em>. The fees are <em>real</em>.`,
 ];
 let capIdx = 0;
@@ -72,28 +73,27 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera();
 camera.position.set(40, 34, 40);
+camera.zoom = innerWidth < innerHeight ? 1.5 : 1.05;
 const controls = new OrbitControls(camera, canvas);
 Object.assign(controls, {
   enableDamping: true, enablePan: false, autoRotate: true, autoRotateSpeed: 0.3,
-  minZoom: 0.6, maxZoom: 5, minPolarAngle: 0.5, maxPolarAngle: 1.2,
+  minZoom: 0.6, maxZoom: 6, minPolarAngle: 0.5, maxPolarAngle: 1.2,
 });
 let idleTimer;
-camera.zoom = innerWidth < innerHeight ? 1.7 : 1.15;
 controls.addEventListener('start', () => { controls.autoRotate = false; clearTimeout(idleTimer); });
 controls.addEventListener('end', () => { idleTimer = setTimeout(() => (controls.autoRotate = true), 8000); });
 
 const city = createCity(scene);
-const floaters = new Floaters(city.root);
+const traffic = createTraffic(city);
 const airship = createAirship();
 airship.visible = false;
 city.root.add(airship);
 
 function resize() {
   const w = innerWidth, h = innerHeight, aspect = w / h;
-  // isometric view of a square city of half-width H: ~2.9H wide, ~1.9H tall
-  const H = city.extent * PITCH + 5;
-  const size = Math.max(H * 1.9, (H * 2.9) / aspect, 30) * 1.05;
-  Object.assign(camera, { left: (-size * aspect) / 2, right: (size * aspect) / 2, top: size / 2, bottom: -size / 2, near: -400, far: 400 });
+  const H = Math.max(2, city.land) * PITCH + 4; // isometric square of half-width H: ~2.9H wide, ~1.9H tall
+  const s = Math.max(H * 1.9, (H * 2.9) / aspect, 30) * 1.05;
+  Object.assign(camera, { left: (-s * aspect) / 2, right: (s * aspect) / 2, top: s / 2, bottom: -s / 2, near: -400, far: 400 });
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
 }
@@ -101,18 +101,19 @@ addEventListener('resize', resize);
 
 // ---------- colony state ----------
 
+let sim = null;
+let cityStart = 0;
 const builders = []; // data, index = id - 1
 const views = [];
 let fees = 0;
 let population = 0;
-let lastQueued = 0; // highest builder id already spawned or waiting for the airship
+let lastQueued = 0; // highest Blocky id already spawned or waiting for the airship
 const arrivalQueue = [];
 let selected = null;
 let following = false;
-let work = 0;
 
 function addBuilder(id, arrivedAt, arriving) {
-  const b = makeBuilder(id, id === 1 ? CITY_START : Math.max(CITY_START, arrivedAt));
+  const b = makeBuilder(id, id === 1 ? cityStart : Math.max(cityStart, arrivedAt));
   builders[id - 1] = b;
   views[id - 1] = new BuilderView(b, city, { arriving });
   return views[id - 1];
@@ -120,9 +121,10 @@ function addBuilder(id, arrivedAt, arriving) {
 
 function nextUnlockText() {
   const next = CONFIG.landmarks.find((l) => l.at > population);
+  const landTxt = `Land ${size(sim.land)}`;
   $('next-unlock').innerHTML = next
-    ? `Next landmark: <b>${next.label}</b> at ${next.at} ${plural}`
-    : 'Every landmark unlocked. The city is thriving.';
+    ? `${landTxt} · Next landmark: <b>${next.label}</b> at ${next.at} ${plural}`
+    : `${landTxt} · Every landmark unlocked`;
 }
 
 function applyState(s, first) {
@@ -132,22 +134,17 @@ function applyState(s, first) {
   check.textContent = labels[s.source] || 'Creator fees tracked onchain, live';
   check.classList.toggle('demo', s.source in labels);
 
-  const delta = s.feesUsd - fees;
-  if (!first && delta > 0.0001) {
-    city.feePulse();
-    floaters.spawn(`+${usd(delta)} fees`, '#7fb2ff', 0, 4.5, 0);
-  }
+  if (!first && s.feesUsd - fees > 0.0001) city.feePulse();
   fees = Math.max(fees, s.feesUsd);
 
   const target = Math.max(1, s.population);
   if (first) {
+    cityStart = s.cityStart ?? (CONFIG.cityStart ? Date.parse(CONFIG.cityStart) : now());
+    sim = new CitySim(cityStart);
     const ts = now();
-    for (let id = 1; id <= target; id++) {
-      const at = s.arrivals?.[id - 1] ?? ts - (target - id + 1) * 30 * 60 * 1000;
-      addBuilder(id, at, false);
-    }
+    for (let id = 1; id <= target; id++) addBuilder(id, s.arrivals?.[id - 1] ?? ts - (target - id + 1) * 30 * 60 * 1000, false);
     population = lastQueued = target;
-    city.setPopulation(population, false);
+    sim.setBuilders(builders.filter(Boolean));
   } else {
     for (let id = lastQueued + 1; id <= target; id++) arrivalQueue.push({ id, at: s.arrivals?.[id - 1] ?? now() });
     lastQueued = Math.max(lastQueued, target);
@@ -159,7 +156,7 @@ function applyState(s, first) {
 // ---------- airship arrivals ----------
 
 const PAD = new THREE.Vector3(city.helipad[0], 1.6, city.helipad[1]);
-const FROM = new THREE.Vector3(60, 22, 40);
+const FROM = new THREE.Vector3(70, 24, 46);
 let flight = null;
 
 function updateAirship(dt) {
@@ -179,19 +176,20 @@ function updateAirship(dt) {
       flight.phase = 'dock'; flight.t = 0;
       const v = addBuilder(flight.id, flight.at, true);
       population = flight.id;
+      sim.setBuilders(builders.filter(Boolean));
       toast(`NEW ${CONFIG.citizen.toUpperCase()} JOINED`, v.b.name, v.b.role.label);
       log(`👷 ${v.b.name} joined as ${v.b.role.label}`, now(), v.b.id);
-      for (const l of city.setPopulation(population, true)) { toast('LANDMARK UNLOCKED', l.label); log(`🏛️ ${l.label} unlocked`); }
+      stepCity(true);
       nextUnlockText();
       renderHud();
     }
   } else if (flight.phase === 'dock') {
-    airship.position.y = PAD.y + Math.sin(flight.t * 8) * 0.05;
+    airship.position.copy(PAD);
     if (flight.t > 0.5) { flight.phase = 'out'; flight.t = 0; }
   } else {
     const t = Math.min(1, flight.t);
-    airship.position.set(PAD.x - t * t * 50, PAD.y + t * t * 18, PAD.z + t * t * 30);
-    airship.rotation.y = Math.atan2(-30, -50);
+    airship.position.set(PAD.x - t * t * 60, PAD.y + t * t * 20, PAD.z + t * t * 36);
+    airship.rotation.y = Math.atan2(-36, -60);
     if (t >= 1) { airship.visible = false; flight = null; }
   }
 }
@@ -219,23 +217,32 @@ function log(html, when = now(), id) {
   while (ul.children.length > 7) ul.lastChild.remove();
 }
 
+const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.level)}` : p.kind === 'landmark' ? `🏛️ ${p.name} built` : `🏗️ ${p.name} completed`);
+
 function renderHud() {
+  if (!sim) return;
   const per = CONFIG.feePerCitizen;
   const progress = Math.max(0, Math.min(per, fees - (lastQueued - 1) * per));
   $('fee-progress').textContent = usd(progress);
   $('bar-fill').style.width = `${(progress / per) * 100}%`;
   $('pop').textContent = population;
   $('fees').textContent = usd(fees);
-  $('buildings').textContent = fmt(city.state.done);
-  $('blocks').textContent = fmt(work);
-  const a = city.state.active;
-  if (a) {
-    const pct = Math.min(99, Math.floor((city.state.placed / a.cost) * 100));
+  $('buildings').textContent = fmt(sim.buildingCount);
+  $('blocks').textContent = fmt(sim.work ?? 0);
+  const a = sim.next;
+  const pct = Math.min(99, Math.floor((sim.placed / a.cost) * 100));
+  const panel = document.querySelector('.progress');
+  panel.classList.toggle('blocked', !!sim.blocked);
+  if (sim.blocked) {
+    $('site-name').textContent = `Land full: need ${sim.blocked.need} ${plural}`;
+    $('site-pct').textContent = `${sim.blocked.have}/${sim.blocked.need}`;
+    $('site-fill').style.width = `${(sim.blocked.have / sim.blocked.need) * 100}%`;
+  } else {
     $('site-name').textContent = a.name;
     $('site-pct').textContent = `${pct}%`;
     $('site-fill').style.width = `${pct}%`;
   }
-  const day = Math.floor((now() - CITY_START) / 86400000) + 1;
+  const day = Math.floor((now() - cityStart) / 86400000) + 1;
   $('clock').textContent = `Day ${day} · ${city.env.daylight < 0.5 ? '🌙 Night shift' : '☀️ Day shift'}`;
   for (const el of document.querySelectorAll('#feed [data-at]')) el.textContent = ago(+el.dataset.at);
 }
@@ -264,7 +271,7 @@ function renderCard() {
   $('card-status').textContent = selected.status;
   $('card-blocks').textContent = fmt(placed);
   $('card-hours').textContent = fmt((ts - b.arrivedAt) / HOUR);
-  $('card-share').textContent = `${work ? ((placed / work) * 100).toFixed(1) : 0}%`;
+  $('card-share').textContent = `${sim.work ? ((placed / sim.work) * 100).toFixed(1) : 0}%`;
   $('card-joined').textContent = ago(b.arrivedAt);
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
 }
@@ -282,7 +289,7 @@ $('card-follow').onclick = () => { following = !following; renderCard(); };
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
   const crew = `${population} ${population === 1 ? CONFIG.citizen : plural}`;
-  const text = `${CONFIG.cityName}: ${city.state.done} buildings, built 24/7 by ${crew}, the builders of Base. Every ${usd(CONFIG.feePerCitizen)} in ${CONFIG.ticker} fees brings a new ${CONFIG.citizen}.`
+  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${crew}, the builders of Base. Every ${usd(CONFIG.feePerCitizen)} in ${CONFIG.ticker} fees brings a new ${CONFIG.citizen}.`
     + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '');
   const via = CONFIG.xHandle ? `&via=${CONFIG.xHandle}` : '';
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}${via}`, '_blank', 'noopener');
@@ -303,33 +310,27 @@ canvas.addEventListener('pointerup', (e) => {
 
 // ---------- the 24/7 build ----------
 
+let shownLand = 0;
 function stepCity(animate) {
-  work = totalWork(builders.filter(Boolean), now());
-  const { completed, grew } = city.setWork(work, animate);
-  if (grew) resize();
+  const finished = sim.advance(now());
+  city.sync(sim, animate);
+  city.waiting = !!sim.blocked;
+  if (city.land !== shownLand) { shownLand = city.land; resize(); }
   if (!animate) return;
-  for (const p of completed) {
-    log(`🏗️ ${p.name} completed`);
-    floaters.spawn('Completed!', '#ffd23f', p.lot[0] * PITCH, p.h + 2, p.lot[1] * PITCH, 1.2);
-  }
-}
-
-// Seed the city log with the latest completions, timed exactly as they happened.
-function seedLog() {
-  const list = builders.filter(Boolean);
-  for (let k = Math.max(0, city.state.done - 5); k < city.state.done; k++) {
-    const p = project(k);
-    log(`🏗️ ${p.name} completed`, timeAtWork(list, costBefore(k) + p.cost, CITY_START, now()));
+  for (const p of finished) {
+    log(logLine(p));
+    if (p.kind === 'expand') toast('LAND EXPANDED', size(p.level), `${plural} reclaimed a new ring of land`);
+    if (p.kind === 'landmark') toast('LANDMARK BUILT', p.name);
   }
 }
 
 function welcomeBack() {
-  const KEY = 'blocky:lastVisit';
+  const KEY = 'basecity:lastVisit';
   try {
     const prev = JSON.parse(localStorage.getItem(KEY) || 'null');
-    const built = prev ? city.state.done - prev.done : 0;
-    if (prev && built > 0) toast('WHILE YOU WERE AWAY', `+${built} building${built > 1 ? 's' : ''}`, `built in the last ${ago(prev.at).replace(' ago', '')}`);
-    const save = () => localStorage.setItem(KEY, JSON.stringify({ done: city.state.done, at: now() }));
+    const built = prev && prev.start === cityStart ? sim.buildingCount - prev.done : 0;
+    if (built > 0) toast('WHILE YOU WERE AWAY', `+${built} building${built > 1 ? 's' : ''}`, `built in the last ${ago(prev.at).replace(' ago', '')}`);
+    const save = () => localStorage.setItem(KEY, JSON.stringify({ done: sim.buildingCount, at: now(), start: cityStart }));
     save();
     setInterval(save, 30000);
   } catch { /* storage unavailable: skip */ }
@@ -342,26 +343,20 @@ let simAcc = 0, slowAcc = 0;
 const tmp = new THREE.Vector3();
 const home = new THREE.Vector3();
 
-function onPlace(bv) {
-  if (views.length > 40 && Math.random() > 0.15) return; // fewer labels for big crews
-  const p = bv.group.position;
-  floaters.spawn('+1 🧱', '#9cc2ff', p.x, p.y + 2, p.z, 0.6);
-}
-
 function frame() {
   clock.update();
   const dt = Math.min(clock.getDelta(), 0.1);
   const t = clock.getElapsed();
 
   city.update(t, dt);
-  for (const v of views) v?.update(t, dt, onPlace);
+  traffic.update(t, dt);
+  for (const v of views) v?.update(t, dt);
   updateAirship(dt);
-  floaters.update(dt);
 
   simAcc += dt;
   if (simAcc > 0.5) { simAcc = 0; stepCity(true); }
   slowAcc += dt;
-  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); renderCard(); renderHud(); }
+  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); renderCard(); renderHud(); nextUnlockText(); }
 
   if (selected && following) {
     selected.group.getWorldPosition(tmp);
@@ -379,7 +374,7 @@ function frame() {
   applyState(s, true);
   stepCity(false);
   resize();
-  seedLog();
+  for (const p of sim.done.slice(-5)) log(logLine(p), p.at);
   renderLeaders();
   renderHud();
   welcomeBack();
@@ -387,4 +382,4 @@ function frame() {
   setInterval(async () => applyState(await fetchColony(), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
 })();
 
-window.blocky = { city, builders, views };
+window.blocky = { city, builders, views, get sim() { return sim; } };
