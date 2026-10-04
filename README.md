@@ -10,7 +10,7 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - `gallery.html` (dev only) shows every design and Blocky side by side; `?only=blockies` or `?only=coaster,ferris` to zoom in.
 - **The land is a square that expands**: when every lot is built, the Blockies reclaim a new ring of land, but only once enough Blockies live in the city (3, 6, 10, 16…). Until then the city waits, which is where new trades come in.
 - Landmarks are built as the crew grows: Founder's Garage → Town Square → **Statue of Blockerty** (the city icon, on a riverside point, unlocked by the first buy) → gm Café → Builder HQ → … → Onchain Beacon.
-- Day/night cycle, a city log with exact completion times, and a "while you were away" recap.
+- Day/night cycle, clouds drifting around the city, flocks of birds and river gulls (they sleep at night), a city log with exact completion times, and a "while you were away" recap.
 - Same city for every visitor. No wallet needed. **The Blockies are simulated; the buys are real.**
 
 ## Run

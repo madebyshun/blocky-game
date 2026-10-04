@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 import { createCity } from './city.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
+import { createSky } from './sky.js';
 import { makeBuilder, blocksBy, CitySim, PITCH } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
@@ -87,6 +88,7 @@ controls.addEventListener('end', () => { idleTimer = setTimeout(() => (controls.
 
 const city = createCity(scene);
 const traffic = createTraffic(city);
+const sky = createSky(city);
 const airship = createAirship();
 airship.visible = false;
 city.root.add(airship);
@@ -368,6 +370,7 @@ function frame() {
 
   city.update(t, dt);
   traffic.update(t, dt);
+  sky.update(t, dt);
   for (const v of views) v?.update(t, dt);
   updateAirship(dt);
 
