@@ -37,11 +37,11 @@ export const CONFIG = {
   // to the first buyers. Looks: founder, halo, punk, spartan, robo, hoodie (LEGEND_LOOKS in src/citizens.js).
   legends: {
     1: { look: 'founder', name: 'Founder', label: 'The Founder' },
-    2: { look: 'halo', name: 'Halo', label: 'Halo Builder' },
-    3: { look: 'punk', name: 'Blondie', label: 'Wild Punk' },
-    4: { look: 'spartan', name: 'Sparta', label: 'Spartan' },
-    5: { look: 'robo', name: 'Robo King', label: 'Robo King' },
-    6: { look: 'hoodie', name: '3D', label: '3D Hoodie' },
+    2: { look: 'halo', name: 'Nibel', label: 'Nibel' },
+    3: { look: 'punk', name: 'Jesse', label: 'Jesse' },
+    4: { look: 'spartan', name: 'Xen', label: 'Xen' },
+    5: { look: 'robo', name: 'Poet', label: 'Poet' },
+    6: { look: 'hoodie', name: 'CEO', label: 'CEO' },
   },
 
   // Landmarks: once the Blocky count reaches `at`, the crew builds it next on its reserved lot [x, z].
