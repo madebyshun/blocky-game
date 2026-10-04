@@ -38,7 +38,7 @@ export const CONFIG = {
   legends: {
     1: { look: 'founder', name: 'Founder', label: 'The Founder', title: 'Founder' },
     2: { look: 'halo', name: 'Nibel', label: 'Nibel', title: 'Base Builder' },
-    3: { look: 'punk', name: 'Jesse', label: 'Jesse', title: 'Base Builder' },
+    3: { look: 'punk', name: 'Jesse', label: 'Jesse', title: 'Builder 001' },
     4: { look: 'spartan', name: 'Xen', label: 'Xen', title: 'Base Builder' },
     5: { look: 'robo', name: 'Poet', label: 'Poet', title: 'Base Builder' },
     6: { look: 'hoodie', name: 'Brian', label: 'Brian', title: 'CEO' },
