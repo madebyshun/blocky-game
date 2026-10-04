@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>BLOCKY · a floating island that grows with every trade</title>
+    <meta name="description" content="Every trade pays a fee. Every $5 of fees lands a new Blocky. Every Blocky trades." />
+    <meta property="og:title" content="BLOCKY" />
+    <meta property="og:description" content="A floating island that grows with every trade. Every $5 in fees lands a new Blocky." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <header class="brand">
+      <h1 id="title">BLOCKY</h1>
+      <p id="tagline">A floating island that grows with every trade</p>
+    </header>
+
+    <section class="progress panel" aria-live="polite">
+      <div class="row">
+        <span class="label" id="next-label">NEXT BLOCKY</span>
+        <span class="value"><b id="fee-progress">$0.00</b> / <span id="fee-target">$5.00</span></span>
+      </div>
+      <div class="bar"><div class="fill" id="bar-fill"></div></div>
+      <div class="sub" id="next-unlock"></div>
+    </section>
+
+    <section class="stats panel">
+      <div><span class="label">Population</span><b id="pop">1</b></div>
+      <div><span class="label">Fees earned</span><b id="fees">$0.00</b></div>
+      <div><span class="label">Trades</span><b id="trades">0</b></div>
+      <div class="cta">
+        <a id="buy" class="btn primary" target="_blank" rel="noopener" hidden>Buy</a>
+        <button id="share" class="btn">Share</button>
+      </div>
+    </section>
+
+    <aside id="card" class="card panel" hidden>
+      <button class="close" id="card-close" aria-label="Close">×</button>
+      <div class="eyebrow" id="card-eyebrow">CITIZEN #1</div>
+      <h2 id="card-name">Pixel #1</h2>
+      <div class="role" id="card-role">Miner · Breakout</div>
+      <dl>
+        <dt>Portfolio</dt><dd id="card-portfolio">$5.00</dd>
+        <dt>Profit</dt><dd id="card-profit">+$0.00</dd>
+        <dt>Trades</dt><dd id="card-trades">0</dd>
+        <dt>Win rate</dt><dd id="card-win">0%</dd>
+        <dt>Arrived</dt><dd id="card-arrived">just now</dd>
+      </dl>
+      <button class="btn small" id="card-follow">Follow</button>
+    </aside>
+
+    <aside class="side">
+      <section class="panel board">
+        <h3>Leaderboard</h3>
+        <ol id="leaders"></ol>
+      </section>
+      <section class="panel feed">
+        <h3>Live trades <span class="dot"></span></h3>
+        <ul id="feed"></ul>
+      </section>
+    </aside>
+
+    <footer>
+      <ul class="checks" id="checks">
+        <li id="check-live">Creator fees tracked onchain, live</li>
+        <li>The same island for every visitor</li>
+        <li>No wallet needed: just watch</li>
+      </ul>
+      <div class="caption" id="caption"></div>
+    </footer>
+
+    <div id="toast" class="toast" hidden></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
