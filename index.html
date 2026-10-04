@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>BLOCKY · a floating island that grows with every trade</title>
-    <meta name="description" content="Every trade pays a fee. Every $5 of fees lands a new Blocky. Every Blocky trades." />
-    <meta property="og:title" content="BLOCKY" />
-    <meta property="og:description" content="A floating island that grows with every trade. Every $5 in fees lands a new Blocky." />
+    <title>BaseCity · a city built 24/7 by builders on Base</title>
+    <meta name="description" content="Every trade pays a fee. Every $5 in fees brings a new builder. Builders build the city 24/7." />
+    <meta property="og:title" content="BaseCity" />
+    <meta property="og:description" content="A city built 24/7 by builders on Base. Every $5 in fees brings a new builder." />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,13 +17,19 @@
     <canvas id="scene"></canvas>
 
     <header class="brand">
-      <h1 id="title">BLOCKY</h1>
-      <p id="tagline">A floating island that grows with every trade</p>
+      <h1 id="title">BaseCity</h1>
+      <p id="tagline">A city built 24/7 by builders on Base</p>
+      <div class="clock" id="clock">Day 1</div>
     </header>
 
     <section class="progress panel" aria-live="polite">
       <div class="row">
-        <span class="label" id="next-label">NEXT BLOCKY</span>
+        <span class="label">Now building</span>
+        <span class="value"><b id="site-name" class="blue">Office #1</b> <span id="site-pct">0%</span></span>
+      </div>
+      <div class="bar"><div class="fill blue" id="site-fill"></div></div>
+      <div class="row gap">
+        <span class="label" id="next-label">Next builder</span>
         <span class="value"><b id="fee-progress">$0.00</b> / <span id="fee-target">$5.00</span></span>
       </div>
       <div class="bar"><div class="fill" id="bar-fill"></div></div>
@@ -31,9 +37,10 @@
     </section>
 
     <section class="stats panel">
-      <div><span class="label">Population</span><b id="pop">1</b></div>
+      <div><span class="label">Builders</span><b id="pop">1</b></div>
+      <div><span class="label">Buildings</span><b id="buildings">0</b></div>
+      <div><span class="label">Blocks placed</span><b id="blocks">0</b></div>
       <div><span class="label">Fees earned</span><b id="fees">$0.00</b></div>
-      <div><span class="label">Trades</span><b id="trades">0</b></div>
       <div class="cta">
         <a id="buy" class="btn primary" target="_blank" rel="noopener" hidden>Buy</a>
         <a id="chart" class="btn" target="_blank" rel="noopener" hidden>Chart</a>
@@ -44,26 +51,26 @@
 
     <aside id="card" class="card panel" hidden>
       <button class="close" id="card-close" aria-label="Close">×</button>
-      <div class="eyebrow" id="card-eyebrow">CITIZEN #1</div>
+      <div class="eyebrow" id="card-eyebrow">BUILDER #1</div>
       <h2 id="card-name">Pixel #1</h2>
-      <div class="role" id="card-role">Miner · Breakout</div>
+      <div class="role" id="card-role">Founder</div>
       <dl>
-        <dt>Portfolio</dt><dd id="card-portfolio">$5.00</dd>
-        <dt>Profit</dt><dd id="card-profit">+$0.00</dd>
-        <dt>Trades</dt><dd id="card-trades">0</dd>
-        <dt>Win rate</dt><dd id="card-win">0%</dd>
-        <dt>Arrived</dt><dd id="card-arrived">just now</dd>
+        <dt>Status</dt><dd id="card-status">Carrying blocks</dd>
+        <dt>Blocks placed</dt><dd id="card-blocks">0</dd>
+        <dt>Hours on shift</dt><dd id="card-hours">0</dd>
+        <dt>Share of city</dt><dd id="card-share">0%</dd>
+        <dt>Joined</dt><dd id="card-joined">just now</dd>
       </dl>
       <button class="btn small" id="card-follow">Follow</button>
     </aside>
 
     <aside class="side">
       <section class="panel board">
-        <h3>Leaderboard</h3>
+        <h3>Top builders</h3>
         <ol id="leaders"></ol>
       </section>
       <section class="panel feed">
-        <h3>Live trades <span class="dot"></span></h3>
+        <h3>City log <span class="dot"></span></h3>
         <ul id="feed"></ul>
       </section>
     </aside>
@@ -71,8 +78,8 @@
     <footer>
       <ul class="checks" id="checks">
         <li id="check-live">Creator fees tracked onchain, live</li>
-        <li>The same island for every visitor</li>
-        <li>No wallet needed: just watch</li>
+        <li>Builds 24/7, even when no one is watching</li>
+        <li>Same city for every visitor</li>
       </ul>
       <div class="caption" id="caption"></div>
     </footer>

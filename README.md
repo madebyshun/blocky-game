@@ -1,13 +1,13 @@
-# BLOCKY: a floating island that grows with every trade
+# BaseCity: a city built 24/7 by builders on Base
 
-A live, watch-only voxel game tied to a Base token.
+A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 
 - Every trade of `$BLOCKY` pays a creator fee.
-- Every **$5** of fees lands a new **Blocky** on the island (by airship).
-- Every Blocky has a **job** (miner, farmer, lumberjack, builder, merchant) and its own **trading style** (scalper, breakout, degen, diamond hands…).
-- Their trades are simulated. **The fees are real.**
-- Buildings unlock as the population grows (farm → mine → market → … → castle).
-- Same island for every visitor. No wallet needed.
+- Every **$5** of fees brings a new **Builder** to the city (by blimp).
+- Builders haul blocks from the depot to the construction site **24/7**: offices, dev hubs, towers, cafés and parks rise floor by floor. More builders, faster city.
+- Landmarks unlock as the crew grows: Founder's Garage → gm Café → Builder HQ → … → Onchain Beacon.
+- Day/night cycle, a city log with exact completion times, and a "while you were away" recap.
+- Same city for every visitor. No wallet needed. **The builders are simulated; the fees are real.**
 
 ## Run
 
@@ -20,7 +20,7 @@ npm run build
 
 With no fee source in `.env.local`, the island shows one founder and $0 fees. Check `http://localhost:5173/api/colony`: with `FEE_WALLET` it returns a `breakdown` of every asset counted, so you can sanity-check the number before going live.
 
-Add `?demo` to any URL to force demo mode (fees grow by themselves, about one new Blocky every 30s). That's handy for recording launch videos.
+URL flags: `?demo` fakes fee growth (a new builder about every 30s); `?speed=600` fast-forwards the city clock for timelapse videos. Combine them: `/?demo&speed=600`.
 
 ## Deploy (Vercel)
 
@@ -46,11 +46,11 @@ With no fee source configured, the API returns `$0` and one founder: "One crew m
 
 ## Customize
 
-- `src/config.js`: name, ticker, token address, buy/chart links, fee per citizen, X handle, unlock milestones.
-- `src/sim.js`: jobs, trading styles, deterministic trade simulation.
-- `src/world.js`: island generation and every voxel building.
-- `src/citizens.js`: Blocky characters, walking and work routes, floating PnL labels.
+- `src/config.js`: city name, ticker, token links, fee per builder, `cityStart` (when the founder started building), `blocksPerHour`, day length, landmark milestones.
+- `src/sim.js`: builder roles and work rates, the deterministic city plan (which building goes on which lot, and its size).
+- `src/city.js`: voxel designs for every building and landmark, construction sites, roads, day/night.
+- `src/citizens.js`: builders walking the roads, hauling and placing blocks.
 
-## How "same for every visitor" works
+## How "24/7, same for every visitor" works
 
-No game server. Each Blocky's job, style and every trade come from a seeded hash of `(id, trade index)`. Trade `k` happens at `arrivedAt + k × interval`. Any browser that knows the fee total and arrival times computes the exact same colony.
+No game server. Each builder works at a fixed rate from the moment they arrive, so total blocks placed is `Σ rate × hours since arrival`. The city plan is a fixed, seeded sequence of buildings; the first `n` whose combined cost fits in that total are finished and the next one is under construction. Any browser that knows the fee total and arrival times (from `/api/colony` + KV) computes the exact same skyline, including when each building was completed.

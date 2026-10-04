@@ -1,8 +1,8 @@
-// Deterministic citizen simulation. Every visitor computes the exact same
-// jobs, trading styles and trade history from (citizen id, arrival time),
-// so the colony looks identical for everyone without a game server.
+import { CONFIG } from './config.js';
 
-export const START_BALANCE = 5;
+// Deterministic city simulation. Everything is a pure function of
+// (builder ids, arrival times, current time), so the city keeps "building"
+// 24/7 with no game server and every visitor sees the same skyline.
 
 export function hash(...xs) {
   let h = 0x9e3779b9;
@@ -14,25 +14,18 @@ export function hash(...xs) {
   h = Math.imul(h ^ (h >>> 16), 0x297a2d39);
   return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
 }
+const pick = (arr, ...seed) => arr[Math.floor(hash(...seed) * arr.length)];
+const range = ([a, b], ...seed) => a + Math.floor(hash(...seed) * (b - a + 1));
 
-export const JOBS = [
-  { id: 'miner', label: 'Miner', hat: 0x5b6470, station: 'mine' },
-  { id: 'farmer', label: 'Farmer', hat: 0xe8b04a, station: 'farm' },
-  { id: 'lumberjack', label: 'Lumberjack', hat: 0xc0392b, station: 'sawmill' },
-  { id: 'builder', label: 'Builder', hat: 0xf5c518, station: 'crane' },
-  { id: 'merchant', label: 'Merchant', hat: 0x2e86de, station: 'market' },
-];
+// ---------- builders ----------
 
-// interval: seconds between trades. win: win probability.
-// up/down: average % move on a win/loss. size: fraction of portfolio per trade.
-export const STYLES = [
-  { id: 'scalper', label: 'Scalper', interval: 45, win: 0.58, up: 0.6, down: 0.7, size: 0.5 },
-  { id: 'breakout', label: 'Breakout', interval: 180, win: 0.36, up: 6, down: 2.5, size: 0.4 },
-  { id: 'swing', label: 'Swing', interval: 420, win: 0.5, up: 4, down: 3.5, size: 0.5 },
-  { id: 'diamond', label: 'Diamond Hands', interval: 900, win: 0.55, up: 8, down: 7, size: 0.9 },
-  { id: 'degen', label: 'Degen', interval: 90, win: 0.3, up: 25, down: 10, size: 1 },
-  { id: 'meanrev', label: 'Mean Reversion', interval: 240, win: 0.62, up: 2, down: 3, size: 0.5 },
-  { id: 'momentum', label: 'Momentum', interval: 300, win: 0.45, up: 5, down: 3, size: 0.6 },
+export const ROLES = [
+  { id: 'founder', label: 'Founder', hat: 0x0052ff, rate: 1.0 },
+  { id: 'contracts', label: 'Smart Contract Dev', hat: 0xf5c518, rate: 1.2 },
+  { id: 'frontend', label: 'Frontend Dev', hat: 0x2ecc71, rate: 1.1 },
+  { id: 'designer', label: 'Designer', hat: 0xe84393, rate: 0.9 },
+  { id: 'community', label: 'Community', hat: 0xe67e22, rate: 0.85 },
+  { id: 'research', label: 'Researcher', hat: 0x9b59b6, rate: 1.0 },
 ];
 
 const NAMES = [
@@ -40,61 +33,124 @@ const NAMES = [
   'Rusty', 'Juno', 'Bolt', 'Sprout', 'Cobble', 'Luna', 'Gizmo', 'Tofu', 'Rook', 'Sunny',
   'Basalt', 'Clay', 'Opal', 'Waffle', 'Nugget', 'Quartz', 'Bean', 'Fizz', 'Onyx', 'Maple',
 ];
-
 const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac, 0xf5d0a9];
 const SHIRT = [0x3fa34d, 0x2e86de, 0xe67e22, 0x9b59b6, 0xe74c3c, 0x1abc9c, 0xf1c40f, 0x34495e];
+const HOUR = 3600000;
 
-export const REKT_BELOW = 0.1;
-
-export function makeCitizen(id, arrivedAt) {
-  const job = JOBS[Math.floor(hash(id, 11) * JOBS.length)];
-  const style = STYLES[Math.floor(hash(id, 12) * STYLES.length)];
-  const interval = style.interval * (0.75 + 0.5 * hash(id, 13)) * 1000;
+export function makeBuilder(id, arrivedAt) {
+  const role = id === 1 ? ROLES[0] : ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))];
   return {
     id,
-    name: `${NAMES[Math.floor(hash(id, 14) * NAMES.length)]} #${id}`,
-    job,
-    style,
-    interval,
+    name: `${pick(NAMES, id, 14)} #${id}`,
+    role,
     arrivedAt,
-    skin: SKIN[Math.floor(hash(id, 15) * SKIN.length)],
-    shirt: SHIRT[Math.floor(hash(id, 16) * SHIRT.length)],
-    // trade state, advanced lazily
-    k: 0,
-    portfolio: START_BALANCE,
-    wins: 0,
-    best: 0,
-    last: null,
+    skin: pick(SKIN, id, 15),
+    shirt: pick(SHIRT, id, 16),
+    rate: CONFIG.blocksPerHour * role.rate * (0.85 + 0.3 * hash(id, 13)), // blocks per hour
   };
 }
 
-// Advance a citizen's trade history up to time `now` (ms).
-// Returns the trades that happened, newest last (capped to avoid floods).
-export function advance(c, now, collect = true) {
-  const due = Math.floor((now - c.arrivedAt) / c.interval);
-  const events = [];
-  const s = c.style;
-  while (c.k < due) {
-    if (c.portfolio < REKT_BELOW) break; // rekt citizens stop trading
-    const k = c.k++;
-    const won = hash(c.id, k, 21) < s.win;
-    const mag = (won ? s.up : s.down) / 100 * (0.4 + 1.2 * hash(c.id, k, 22));
-    const pnl = c.portfolio * s.size * (won ? mag : -mag);
-    c.portfolio = Math.max(0, c.portfolio + pnl);
-    if (won) c.wins++;
-    if (pnl > c.best) c.best = pnl;
-    c.last = { pnl, at: c.arrivedAt + (k + 1) * c.interval };
-    if (collect && events.length < 3) events.push({ citizen: c, pnl, at: c.last.at });
+export const blocksBy = (b, t) => (Math.max(0, t - b.arrivedAt) / HOUR) * b.rate;
+export const totalWork = (builders, t) => builders.reduce((s, b) => s + blocksBy(b, t), 0);
+
+// When did the crew's combined work first reach `w` blocks? (binary search, W(t) is monotonic)
+export function timeAtWork(builders, w, lo, hi) {
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (totalWork(builders, mid) < w) lo = mid; else hi = mid;
   }
-  return events;
+  return hi;
 }
 
-export function stats(c) {
-  return {
-    portfolio: c.portfolio,
-    profit: c.portfolio - START_BALANCE,
-    trades: c.k,
-    winRate: c.k ? c.wins / c.k : 0,
-    rekt: c.portfolio < REKT_BELOW,
-  };
+// ---------- city plan ----------
+
+export const PITCH = 8; // lot (6) + road (2)
+
+const TYPES = {
+  loft: { label: 'Builder Loft', w: [4, 5], d: [4, 5], h: [3, 5] },
+  cafe: { label: 'gm Café', w: [4, 5], d: [4, 5], h: [2, 3] },
+  office: { label: 'Office', w: [5, 6], d: [4, 6], h: [6, 10] },
+  devhub: { label: 'Dev Hub', w: [5, 6], d: [5, 6], h: [4, 7] },
+  tower: { label: 'Tower', w: [4, 5], d: [4, 5], h: [11, 18] },
+  park: { label: 'Park', w: [6, 6], d: [6, 6], h: [1, 1] },
+  nodes: { label: 'Node Farm', w: [5, 6], d: [5, 6], h: [2, 3] },
+};
+
+const COLORS = {
+  loft: [0xf3e6d0, 0xe8d5c4, 0xd9e4ec, 0xf0d9da, 0xdfe8d5],
+  cafe: [0xfff1e0, 0xf7e2c7],
+  office: [0xc9d1da, 0xb8c2cc, 0xd6d0c4, 0xa9b6c4],
+  devhub: [0x23395b, 0x1f2f4a, 0x2a3d66],
+  tower: [0xdfe6ee, 0xc4ccd6, 0x9fb1c7, 0xe9e3d6],
+  park: [0x6cc24a],
+  nodes: [0x5b6470, 0x4a525c],
+};
+
+function typeFor(k, ring) {
+  const r = hash(k, 31);
+  if (ring <= 2) return r < 0.22 ? 'tower' : r < 0.5 ? 'office' : r < 0.68 ? 'devhub' : r < 0.8 ? 'cafe' : r < 0.9 ? 'park' : 'loft';
+  if (ring <= 4) return r < 0.08 ? 'tower' : r < 0.3 ? 'office' : r < 0.45 ? 'devhub' : r < 0.58 ? 'cafe' : r < 0.7 ? 'park' : r < 0.8 ? 'nodes' : 'loft';
+  return r < 0.15 ? 'office' : r < 0.25 ? 'cafe' : r < 0.4 ? 'park' : r < 0.5 ? 'nodes' : 'loft';
+}
+
+const reserved = () => new Set(['0,0', ...CONFIG.landmarks.map((l) => l.lot.join(','))]);
+let RESERVED;
+const lots = [];
+let ringDone = 0;
+function ensureLots(n) {
+  RESERVED ??= reserved();
+  while (lots.length < n) {
+    const r = ++ringDone;
+    const ring = [];
+    for (let i = -r; i <= r; i++) {
+      for (let j = -r; j <= r; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) === r && !RESERVED.has(`${i},${j}`)) ring.push([i, j]);
+      }
+    }
+    ring.sort((a, b) => Math.hypot(...a) + hash(...a, 7) * 0.9 - (Math.hypot(...b) + hash(...b, 7) * 0.9));
+    lots.push(...ring);
+  }
+}
+
+const projects = [];
+const prefix = [0]; // prefix[k] = total cost of projects 0..k-1
+
+export function project(k) {
+  while (projects.length <= k) {
+    const n = projects.length;
+    ensureLots(n + 1);
+    const lot = lots[n];
+    const ring = Math.max(Math.abs(lot[0]), Math.abs(lot[1]));
+    const type = typeFor(n, ring);
+    const t = TYPES[type];
+    const p = {
+      k: n,
+      lot,
+      ring,
+      type,
+      w: range(t.w, n, 1),
+      d: range(t.d, n, 2),
+      h: range(t.h, n, 3),
+      color: pick(COLORS[type], n, 4),
+      name: `${t.label} #${n + 1}`,
+    };
+    p.cost = type === 'park' ? 80 : p.w * p.d * p.h;
+    projects.push(p);
+    prefix.push(prefix[n] + p.cost);
+  }
+  return projects[k];
+}
+
+export const costBefore = (k) => (project(k), prefix[k]);
+
+// City state for a given amount of total work.
+export function cityAt(work) {
+  let n = 0;
+  while (true) {
+    const p = project(n);
+    if (prefix[n] + p.cost > work) break;
+    n++;
+  }
+  const active = project(n);
+  return { done: n, active, placed: work - prefix[n] };
 }
