@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>BaseCity · a city built 24/7 by Blockies, the builders of Base</title>
-    <meta name="description" content="Every trade pays a fee. Every $5 in fees brings a new Blocky. Blockies build the city 24/7." />
+    <meta name="description" content="Every $5 of $BLOCKY bought brings a new Blocky. Blockies build the city 24/7." />
     <meta property="og:title" content="BaseCity" />
-    <meta property="og:description" content="A city built 24/7 by Blockies, the builders of Base. Every $5 in fees brings a new Blocky." />
+    <meta property="og:description" content="A city built 24/7 by Blockies, the builders of Base. Every $5 of $BLOCKY bought brings a new Blocky." />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -40,7 +40,7 @@
       <div><span class="label" id="pop-label">Blockies</span><b id="pop">1</b></div>
       <div><span class="label">Buildings</span><b id="buildings">0</b></div>
       <div><span class="label">Blocks placed</span><b id="blocks">0</b></div>
-      <div><span class="label">Fees earned</span><b id="fees">$0.00</b></div>
+      <div><span class="label" id="fees-label">Bought</span><b id="fees">$0.00</b></div>
       <div class="cta">
         <a id="buy" class="btn primary" target="_blank" rel="noopener" hidden>Buy</a>
         <a id="chart" class="btn" target="_blank" rel="noopener" hidden>Chart</a>
@@ -60,6 +60,7 @@
         <dt>Hours on shift</dt><dd id="card-hours">0</dd>
         <dt>Share of city</dt><dd id="card-share">0%</dd>
         <dt>Joined</dt><dd id="card-joined">just now</dd>
+        <dt>Brought by</dt><dd id="card-by">Founder</dd>
       </dl>
       <button class="btn small" id="card-follow">Follow</button>
     </aside>
@@ -77,7 +78,7 @@
 
     <footer>
       <ul class="checks" id="checks">
-        <li id="check-live">Creator fees tracked onchain, live</li>
+        <li id="check-live">Buys tracked onchain, live</li>
         <li>Builds 24/7, even when no one is watching</li>
         <li>Same city for every visitor</li>
       </ul>

@@ -15,6 +15,8 @@ const fmt = (n) => Math.floor(n).toLocaleString('en-US');
 const plural = CONFIG.citizenPlural || `${CONFIG.citizen}s`;
 const HOUR = 3600000;
 const size = (L) => `${2 * L + 1}×${2 * L + 1}`;
+const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
+const PER = CONFIG.usdPerBlocky;
 
 function ago(ms) {
   const s = Math.max(0, (now() - ms) / 1000);
@@ -32,7 +34,7 @@ $('tagline').textContent = CONFIG.tagline;
 $('next-label').textContent = `Next ${CONFIG.citizen}`;
 $('pop-label').textContent = plural;
 $('leaders-title').textContent = `Top ${plural}`;
-$('fee-target').textContent = usd(CONFIG.feePerCitizen);
+$('fee-target').textContent = usd(PER);
 if (CONFIG.buyUrl) { $('buy').hidden = false; $('buy').href = CONFIG.buyUrl; $('buy').textContent = `Buy ${CONFIG.ticker}`; }
 if (CONFIG.chartUrl) { $('chart').hidden = false; $('chart').href = CONFIG.chartUrl; }
 if (CONFIG.tokenAddress) {
@@ -47,11 +49,11 @@ if (CONFIG.tokenAddress) {
 }
 
 const CAPTIONS = [
-  `Every trade of <em>${CONFIG.ticker}</em> pays a creator fee`,
-  `Every <em>${usd(CONFIG.feePerCitizen)}</em> in fees brings a <em>new ${CONFIG.citizen}</em>`,
+  `Every buy shows up in the <em>city log</em>`,
+  `Buy <em>${usd(PER)}</em> of ${CONFIG.ticker}, bring a <em>new ${CONFIG.citizen}</em>`,
   `${plural} build <em>24/7</em>, even when no one is watching`,
   `Land full? More ${plural} <em>expand the land</em>`,
-  `The ${plural} are <em>simulated</em>. The fees are <em>real</em>.`,
+  `The ${plural} are <em>simulated</em>. The buys are <em>real</em>.`,
 ];
 let capIdx = 0;
 function rotateCaption() {
@@ -105,7 +107,10 @@ let sim = null;
 let cityStart = 0;
 const builders = []; // data, index = id - 1
 const views = [];
-let fees = 0;
+let fees = 0; // USD counted toward new Blockies (buys, or fees in fee mode)
+let bought = 0;
+let crewInfo = []; // who brought each Blocky
+const loggedBuys = new Set();
 let population = 0;
 let lastQueued = 0; // highest Blocky id already spawned or waiting for the airship
 const arrivalQueue = [];
@@ -129,13 +134,23 @@ function nextUnlockText() {
 
 function applyState(s, first) {
   if (!s) return;
-  const labels = { demo: 'Demo mode: simulated fees', override: 'Test mode: fixed fee number', prelaunch: 'No fees yet: the founder builds alone' };
+  const buys = s.mode !== 'fees';
+  const labels = { demo: 'Demo mode: simulated buys', override: 'Test mode: fixed number', prelaunch: 'No fees yet: the founder builds alone' };
   const check = $('check-live');
-  check.textContent = labels[s.source] || 'Creator fees tracked onchain, live';
+  check.textContent = labels[s.source] || (buys ? 'Buys tracked onchain, live' : 'Creator fees tracked onchain, live');
   check.classList.toggle('demo', s.source in labels);
+  $('fees-label').textContent = buys ? 'Bought' : 'Fees earned';
 
-  if (!first && s.feesUsd - fees > 0.0001) city.feePulse();
-  fees = Math.max(fees, s.feesUsd);
+  if (!first && s.progressUsd - fees > 0.0001) city.feePulse();
+  fees = Math.max(fees, s.progressUsd);
+  bought = Math.max(bought, s.boughtUsd ?? fees);
+  if (s.crew) crewInfo = s.crew;
+  for (const b of [...(s.recentBuys || [])].reverse()) {
+    const key = `${b.at}|${b.from}|${b.usd}`;
+    if (loggedBuys.has(key)) continue;
+    loggedBuys.add(key);
+    if (!first) log(`🛒 ${short(b.from)} bought ${usd(b.usd)}${b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : ''}`, b.at);
+  }
 
   const target = Math.max(1, s.population);
   if (first) {
@@ -177,8 +192,9 @@ function updateAirship(dt) {
       const v = addBuilder(flight.id, flight.at, true);
       population = flight.id;
       sim.setBuilders(builders.filter(Boolean));
-      toast(`NEW ${CONFIG.citizen.toUpperCase()} JOINED`, v.b.name, v.b.role.label);
-      log(`👷 ${v.b.name} joined as ${v.b.role.label}`, now(), v.b.id);
+      const by = crewInfo[flight.id - 1];
+      toast(`NEW ${CONFIG.citizen.toUpperCase()} JOINED`, v.b.name, by ? `${v.b.role.label} · brought by ${short(by.from)}` : v.b.role.label);
+      log(`👷 ${v.b.name} joined${by ? `, brought by ${short(by.from)}` : ` as ${v.b.role.label}`}`, now(), v.b.id);
       stepCity(true);
       nextUnlockText();
       renderHud();
@@ -221,12 +237,12 @@ const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.le
 
 function renderHud() {
   if (!sim) return;
-  const per = CONFIG.feePerCitizen;
+  const per = PER;
   const progress = Math.max(0, Math.min(per, fees - (lastQueued - 1) * per));
   $('fee-progress').textContent = usd(progress);
   $('bar-fill').style.width = `${(progress / per) * 100}%`;
   $('pop').textContent = population;
-  $('fees').textContent = usd(fees);
+  $('fees').textContent = usd(bought);
   $('buildings').textContent = fmt(sim.buildingCount);
   $('blocks').textContent = fmt(sim.work ?? 0);
   const a = sim.next;
@@ -273,6 +289,8 @@ function renderCard() {
   $('card-hours').textContent = fmt((ts - b.arrivedAt) / HOUR);
   $('card-share').textContent = `${sim.work ? ((placed / sim.work) * 100).toFixed(1) : 0}%`;
   $('card-joined').textContent = ago(b.arrivedAt);
+  const by = crewInfo[b.id - 1];
+  $('card-by').textContent = b.id === 1 ? 'Founder' : by ? `${short(by.from)} (${usd(by.usd)} buy)` : '—';
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
 }
 
@@ -289,7 +307,7 @@ $('card-follow').onclick = () => { following = !following; renderCard(); };
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
   const crew = `${population} ${population === 1 ? CONFIG.citizen : plural}`;
-  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${crew}, the builders of Base. Every ${usd(CONFIG.feePerCitizen)} in ${CONFIG.ticker} fees brings a new ${CONFIG.citizen}.`
+  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${crew}, the builders of Base. Buy ${usd(PER)} of ${CONFIG.ticker} to bring a new ${CONFIG.citizen}.`
     + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '');
   const via = CONFIG.xHandle ? `&via=${CONFIG.xHandle}` : '';
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}${via}`, '_blank', 'noopener');

@@ -2,14 +2,13 @@
 
 A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 
-- Every trade of `$BLOCKY` pays a creator fee.
-- Every **$5** of fees brings a new **Blocky** (a builder on Base) to the city by blimp.
+- Every **$5 of `$BLOCKY` bought** brings a new **Blocky** (a builder on Base) to the city by blimp. Each Blocky remembers the wallet whose buy brought it, and every buy shows up in the city log.
 - The city **starts from empty land**: grass, forest, a river. The founder builds the first garage, then the town square, then the city grows outward, roads appearing next to every new lot.
 - ~20 building types by district: cottages, family houses, townhouses, apartments, villas, shops, cafés, offices, dev hubs, a school, GPU farms, towers, skyscrapers, parks, playgrounds, courts, gardens, farms, wind turbines, water towers. Plus cars, buses and boats.
 - **The land is a square that expands**: when every lot is built, the Blockies reclaim a new ring of land, but only once enough Blockies live in the city (3, 6, 10, 16…). Until then the city waits, which is where new trades come in.
 - Landmarks are built as the crew grows: Founder's Garage → Town Square → gm Café → Builder HQ → … → Onchain Beacon.
 - Day/night cycle, a city log with exact completion times, and a "while you were away" recap.
-- Same city for every visitor. No wallet needed. **The Blockies are simulated; the fees are real.**
+- Same city for every visitor. No wallet needed. **The Blockies are simulated; the buys are real.**
 
 ## Run
 
@@ -28,23 +27,18 @@ URL flags: `?demo` fakes fee growth (a new Blocky about every 30s); `?speed=600`
 
 Import the repo; Vercel detects Vite and serves `api/colony.js` as a serverless function.
 
-Environment variables (pick one fee source):
+Environment variables (see `.env.example`):
 
 | Var | What |
 | --- | --- |
-| `FEE_WALLET` | Dedicated creator-fee wallet on Base. Counts ETH + WETH + USDC (Chainlink ETH/USD) plus `TOKEN_ADDRESS` and every token it is paired with (DexScreener prices). |
-| `TOKEN_ADDRESS` | Default `0xE72A0C42b584a3E7A4503a82D1337dEB52adE885` ($BLOCKY). |
-| `FEE_TOKENS` | Extra ERC20 addresses (comma-separated) in the fee wallet to count. |
-| `EXCLUDE_TOKENS` | ERC20 addresses listed in the breakdown but not counted, e.g. `$BLOCKY` when the fee wallet is also the launch wallet holding supply. |
-| `FEES_URL` | Any JSON endpoint returning `{ "feesUsd": number }` (Dune API, your own indexer, launchpad API). |
-| `FEES_USD_OVERRIDE` | Fixed number, for pre-launch or testing. |
-| `FEES_OFFSET_USD` | Added to the fee total: positive for fees already withdrawn, negative to subtract what the wallet held before launch. |
-| `FEE_PER_CITIZEN` | Default `5`. Keep it in sync with `feePerCitizen` in `src/config.js`. |
-| `BASE_RPC_URL` | Default `https://mainnet.base.org` (rate limits quickly). Use a free Alchemy/QuickNode URL. Each refresh is a single Multicall3 `eth_call`, cached for `CACHE_MS` (20s); on RPC errors the last good answer is served for up to 10 min. |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis (Vercel KV). **Recommended.** Stores the fee high-water mark (population never shrinks when you withdraw) and each Blocky's arrival time (identical trade history for every visitor). |
-| `LAUNCH_TIME_MS` | When the city starts from empty land. Without it, the first time the API runs with KV is used. |
-
-With no fee source configured, the API returns `$0` and one founder: "One crew member. No coin yet."
+| `COUNT_MODE` | `buys` (default): every `USD_PER_BLOCKY` of `$BLOCKY` bought brings a Blocky. `fees`: creator fees instead. |
+| `USD_PER_BLOCKY` | Default `5`. Keep in sync with `usdPerBlocky` in `src/config.js`. |
+| `MIN_BUY_USD` / `MAX_USD_PER_BUY` | Ignore dust buys (default $1); cap one buy's credit (default $100 = 20 Blockies). |
+| `POOL_ID` | The BLOCKY/NVDAc Uniswap v4 pool. Buys are read from its public GeckoTerminal trade feed. |
+| `LAUNCH_TIME_MS` | When the city starts from empty land and buys start counting. Default: the first time the API runs. |
+| `BACKFILL_HOURS` | Testing: also count buys from the last N hours (the feed covers ~24h). |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis (Vercel KV). **Required in production**: stores the running total and every Blocky's arrival so the city never shrinks and every visitor sees the same one. |
+| `FEE_WALLET`, `EXCLUDE_TOKENS`, `BASE_RPC_URL`, `FEES_URL`, `FEES_USD_OVERRIDE`, `FEES_OFFSET_USD`, `FEE_TOKENS` | Only for `COUNT_MODE=fees`. |
 
 ## Customize
 

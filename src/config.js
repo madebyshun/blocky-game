@@ -6,7 +6,7 @@ export const CONFIG = {
   tagline: 'A city built 24/7 by Blockies, the builders of Base',
   citizen: 'Blocky', // one inhabitant (a builder on Base)
   citizenPlural: 'Blockies',
-  feePerCitizen: 5, // USD of creator fees that brings one new Blocky
+  usdPerBlocky: 5, // every $5 of $BLOCKY bought brings one new Blocky (must match USD_PER_BLOCKY on the API)
 
   // When the city starts from empty land. Normally the API decides this (LAUNCH_TIME_MS, or the
   // first time the live API ran, stored in KV). Leave null to start "now" when no API value exists.
