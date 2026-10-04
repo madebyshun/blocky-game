@@ -16,6 +16,9 @@
 // fee high-water mark and each citizen's arrival time, so the population never shrinks and
 // every visitor sees identical trade histories.
 
+import { createPublicClient, http, erc20Abi, parseAbi, getAddress } from 'viem';
+import { base } from 'viem/chains';
+
 const env = process.env;
 const RPC = env.BASE_RPC_URL || 'https://mainnet.base.org';
 const FEE_PER = Number(env.FEE_PER_CITIZEN || 5);
@@ -26,25 +29,16 @@ const KV_TOKEN = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
 const KEY = env.KV_KEY || 'blocky:colony';
 const TOKEN = env.TOKEN_ADDRESS || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885';
 const EXTRA_TOKENS = (env.FEE_TOKENS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const CACHE_MS = Number(env.CACHE_MS || 20000); // one chain read per 20s, however many visitors
+const STALE_MS = 10 * 60 * 1000; // on RPC errors, keep serving the last good answer this long
 
 const WETH = '0x4200000000000000000000000000000000000006';
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const ETH_USD_FEED = '0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70'; // Chainlink ETH/USD on Base
 
-async function rpc(method, params) {
-  const res = await fetch(RPC, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-  });
-  const json = await res.json();
-  if (json.error) throw new Error(`RPC ${method}: ${json.error.message}`);
-  return json.result;
-}
-
-const call = (to, data) => rpc('eth_call', [{ to, data }, 'latest']);
-const pad = (addr) => addr.toLowerCase().replace('0x', '').padStart(64, '0');
-const big = (hex) => BigInt(hex && hex !== '0x' ? hex : '0x0');
+const client = createPublicClient({ chain: base, transport: http(RPC, { retryCount: 2 }) });
+const FEED_ABI = parseAbi(['function latestRoundData() view returns (uint80, int256, uint256, uint256, uint80)']);
+const MULTICALL_ABI = parseAbi(['function getEthBalance(address) view returns (uint256)']);
 const units = (raw, decimals) => Number(raw) / 10 ** decimals;
 
 // USD price of TOKEN, every token it trades against, and FEE_TOKENS (best-liquidity pair wins).
@@ -69,27 +63,41 @@ async function dexPrices() {
   return best;
 }
 
-async function walletFees(wallet) {
-  const [eth, weth, usdc, round, prices] = await Promise.all([
-    rpc('eth_getBalance', [wallet, 'latest']),
-    call(WETH, '0x70a08231' + pad(wallet)),
-    call(USDC, '0x70a08231' + pad(wallet)),
-    call(ETH_USD_FEED, '0xfeaf968c'), // latestRoundData() -> answer is the 2nd word, 8 decimals
-    dexPrices().catch((e) => { console.warn('[colony]', e.message); return new Map(); }),
-  ]);
-  const ethUsd = Number(big('0x' + round.slice(2 + 64, 2 + 128))) / 1e8;
-  const breakdown = [
-    { symbol: 'ETH+WETH', amount: units(big(eth) + big(weth), 18), usd: units(big(eth) + big(weth), 18) * ethUsd },
-    { symbol: 'USDC', amount: units(big(usdc), 6), usd: units(big(usdc), 6) },
-  ];
+// Every balance, decimals and the ETH price in ONE eth_call (Multicall3), so public RPCs don't rate limit us.
+async function walletFees(walletRaw) {
+  const wallet = getAddress(walletRaw.trim().toLowerCase());
+  const prices = await dexPrices().catch((e) => { console.warn('[colony]', e.message); return new Map(); });
   const skip = new Set([WETH.toLowerCase(), USDC.toLowerCase()]);
   const tokens = [...prices].filter(([a]) => !skip.has(a));
-  const rows = await Promise.all(tokens.map(async ([addr, p]) => {
-    const [bal, dec] = await Promise.all([call(addr, '0x70a08231' + pad(wallet)), call(addr, '0x313ce567')]);
-    const amount = units(big(bal), Number(big(dec)));
-    return { symbol: p.symbol, address: addr, amount, usd: amount * p.usd };
-  }));
-  breakdown.push(...rows.filter((r) => r.amount > 0));
+  const bal = (address) => ({ address, abi: erc20Abi, functionName: 'balanceOf', args: [wallet] });
+  const results = await client.multicall({
+    allowFailure: true,
+    contracts: [
+      { address: base.contracts.multicall3.address, abi: MULTICALL_ABI, functionName: 'getEthBalance', args: [wallet] },
+      { address: ETH_USD_FEED, abi: FEED_ABI, functionName: 'latestRoundData' },
+      bal(WETH),
+      bal(USDC),
+      ...tokens.flatMap(([a]) => [bal(a), { address: a, abi: erc20Abi, functionName: 'decimals' }]),
+    ],
+  });
+  const ok = (i) => {
+    const e = results[i].error;
+    if (results[i].status !== 'success') throw new Error(`RPC read #${i} failed: ${e?.details || e?.shortMessage || e}`);
+    return results[i].result;
+  };
+  const ethUsd = Number(ok(1)[1]) / 1e8; // answer, 8 decimals
+  const eth = units(ok(0) + ok(2), 18);
+  const usdc = units(ok(3), 6);
+  const breakdown = [
+    { symbol: 'ETH+WETH', amount: eth, usd: eth * ethUsd },
+    { symbol: 'USDC', amount: usdc, usd: usdc },
+  ];
+  tokens.forEach(([address, p], k) => {
+    const b = results[4 + k * 2], d = results[5 + k * 2];
+    if (b.status !== 'success' || d.status !== 'success') return;
+    const amount = units(b.result, Number(d.result));
+    if (amount > 0) breakdown.push({ symbol: p.symbol, address, amount, usd: amount * p.usd });
+  });
   return { fees: breakdown.reduce((s, r) => s + r.usd, 0), breakdown };
 }
 
@@ -112,35 +120,49 @@ async function readFees() {
   return { fees: 0, source: 'prelaunch' };
 }
 
-export default async function handler(req, res) {
-  try {
-    const { fees, source, breakdown } = await readFees();
-    const now = Date.now();
-    let feesUsd = Math.max(0, fees + OFFSET);
-    let arrivals = null;
+let cache = null; // { at, body }, survives between requests on a warm server
+let inflight = null; // concurrent requests share one chain read
 
-    if (KV_URL && KV_TOKEN) {
-      const saved = JSON.parse((await kv('GET', KEY)) || '{"high":0,"arrivals":[]}');
-      feesUsd = Math.max(saved.high, feesUsd);
-      arrivals = saved.arrivals.length ? saved.arrivals : [LAUNCH];
-      const population = 1 + Math.floor(feesUsd / FEE_PER);
-      while (arrivals.length < population) arrivals.push(now);
-      if (feesUsd !== saved.high || arrivals.length !== saved.arrivals.length) {
-        await kv('SET', KEY, JSON.stringify({ high: feesUsd, arrivals }));
-      }
+async function compute() {
+  const { fees, source, breakdown } = await readFees();
+  const now = Date.now();
+  let feesUsd = Math.max(0, fees + OFFSET);
+  let arrivals = null;
+
+  if (KV_URL && KV_TOKEN) {
+    const saved = JSON.parse((await kv('GET', KEY)) || '{"high":0,"arrivals":[]}');
+    feesUsd = Math.max(saved.high, feesUsd);
+    arrivals = saved.arrivals.length ? saved.arrivals : [LAUNCH];
+    const population = 1 + Math.floor(feesUsd / FEE_PER);
+    while (arrivals.length < population) arrivals.push(now);
+    if (feesUsd !== saved.high || arrivals.length !== saved.arrivals.length) {
+      await kv('SET', KEY, JSON.stringify({ high: feesUsd, arrivals }));
     }
+  }
 
-    res.setHeader('cache-control', 's-maxage=10, stale-while-revalidate=30');
-    res.status(200).json({
-      feesUsd,
-      population: 1 + Math.floor(feesUsd / FEE_PER),
-      arrivals,
-      feePerCitizen: FEE_PER,
-      source,
-      breakdown,
-      updatedAt: now,
-    });
+  return {
+    feesUsd,
+    population: 1 + Math.floor(feesUsd / FEE_PER),
+    arrivals,
+    feePerCitizen: FEE_PER,
+    source,
+    breakdown,
+    updatedAt: now,
+  };
+}
+
+export default async function handler(req, res) {
+  res.setHeader('cache-control', 's-maxage=10, stale-while-revalidate=30');
+  try {
+    if (!cache || Date.now() - cache.at > CACHE_MS) {
+      inflight ??= compute().then((body) => (cache = { at: Date.now(), body })).finally(() => (inflight = null));
+      await inflight;
+    }
+    res.status(200).json(cache.body);
   } catch (e) {
-    res.status(502).json({ error: String(e.message || e) });
+    const msg = String(e.shortMessage || e.message || e);
+    console.warn('[colony]', msg);
+    if (cache && Date.now() - cache.at < STALE_MS) return res.status(200).json({ ...cache.body, stale: true });
+    res.status(502).json({ error: msg });
   }
 }

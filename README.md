@@ -37,7 +37,7 @@ Environment variables (pick one fee source):
 | `FEES_USD_OVERRIDE` | Fixed number, for pre-launch or testing. |
 | `FEES_OFFSET_USD` | Added to the fee total: positive for fees already withdrawn, negative to subtract what the wallet held before launch. |
 | `FEE_PER_CITIZEN` | Default `5`. Keep it in sync with `feePerCitizen` in `src/config.js`. |
-| `BASE_RPC_URL` | Default `https://mainnet.base.org`. Use Alchemy/QuickNode in prod. |
+| `BASE_RPC_URL` | Default `https://mainnet.base.org` (rate limits quickly). Use a free Alchemy/QuickNode URL. Each refresh is a single Multicall3 `eth_call`, cached for `CACHE_MS` (20s); on RPC errors the last good answer is served for up to 10 min. |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis (Vercel KV). **Recommended.** Stores the fee high-water mark (population never shrinks when you withdraw) and each Blocky's arrival time (identical trade history for every visitor). |
 | `LAUNCH_TIME_MS` | Arrival time of Blocky #1 (the founder). |
 
