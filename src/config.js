@@ -33,6 +33,17 @@ export const CONFIG = {
   xHandle: '', // e.g. blockyfun (without @)
   siteUrl: '', // canonical URL used in share text
 
+  // Legendary Blockies with a hand-made look, by Blocky number. #1 is the founder (you); #2-#6 go
+  // to the first buyers. Looks: founder, halo, punk, spartan, robo, hoodie (LEGEND_LOOKS in src/citizens.js).
+  legends: {
+    1: { look: 'founder', name: 'Founder', label: 'The Founder' },
+    2: { look: 'halo', name: 'Halo', label: 'Halo Builder' },
+    3: { look: 'punk', name: 'Blondie', label: 'Wild Punk' },
+    4: { look: 'spartan', name: 'Sparta', label: 'Spartan' },
+    5: { look: 'robo', name: 'Robo King', label: 'Robo King' },
+    6: { look: 'hoodie', name: '3D', label: '3D Hoodie' },
+  },
+
   // Landmarks: once the Blocky count reaches `at`, the crew builds it next on its reserved lot [x, z].
   landmarks: [
     { at: 1, id: 'garage', label: "Founder's Garage", lot: [0, 1] },

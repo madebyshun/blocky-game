@@ -283,7 +283,7 @@ function renderCard() {
   const b = selected.b, ts = now(), placed = blocksBy(b, ts);
   $('card-eyebrow').textContent = `${CONFIG.citizen.toUpperCase()} #${b.id}${b.id === 1 ? ' · FOUNDER' : ''}`;
   $('card-name').textContent = b.name;
-  $('card-role').textContent = `${b.role.label} · ${b.rate.toFixed(0)} blocks/h`;
+  $('card-role').textContent = `${b.legend ? `★ ${b.legend.label} · ` : ''}${b.role.label} · ${b.rate.toFixed(0)} blocks/h`;
   $('card-status').textContent = selected.status;
   $('card-blocks').textContent = fmt(placed);
   $('card-hours').textContent = fmt((ts - b.arrivedAt) / HOUR);

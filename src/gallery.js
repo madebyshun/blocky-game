@@ -1,7 +1,7 @@
 // Dev tool: every building design side by side. Open /gallery.html while `npm run dev` runs.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CATALOG, ROLES } from './sim.js';
+import { CATALOG, ROLES, makeBuilder } from './sim.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
 import { buildingGroup } from './city.js';
@@ -31,7 +31,8 @@ const items = [
 ];
 // ?only=liberty,coaster shows just those designs, up close
 const only = new URLSearchParams(location.search).get('only')?.split(',');
-const showBlockies = !only || only.includes('blockies');
+const showBlockies = !only || only.includes('blockies') || only.includes('legends');
+const legendsOnly = only?.includes('legends') && !only.includes('blockies');
 if (only) items.splice(0, items.length, ...items.filter((it) => only.includes(it.p.type)));
 const cols = only ? Math.max(1, Math.min(3, items.length)) : 6, gap = 11;
 const rows = Math.ceil(items.length / cols);
@@ -56,15 +57,22 @@ const crew = [];
 if (showBlockies) {
   const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac, 0xf5d0a9];
   const SHIRT = [0x3fa34d, 0x2e86de, 0xe67e22, 0x9b59b6, 0xe74c3c, 0x1abc9c];
-  const people = ROLES.map((role, i) => ({ id: i + 1, role, skin: SKIN[i], shirt: SHIRT[i], label: role.label, pose: 'stand' }));
+  const roles = CONFIG.legends?.[1] ? ROLES.filter((r) => r.id !== 'founder') : ROLES; // the founder is a legend
+  const people = roles.map((role, i) => ({ id: i + 1, role, skin: SKIN[i], shirt: SHIRT[i], label: role.label, pose: 'stand' }));
   people.push({ id: 7, role: ROLES[1], skin: SKIN[4], shirt: SHIRT[2], label: 'Walking', pose: 'walk' });
   people.push({ id: 8, role: ROLES[2], skin: SKIN[2], shirt: SHIRT[5], label: 'Carrying a block', pose: 'carry' });
   const rowZ = items.length ? (Math.ceil(items.length / cols) / 2) * gap + 4 : 0;
   const scale = items.length ? 2.6 : 3.2, step = items.length ? 7 : 3.4;
+  // a second row behind: the founder and the legendary Blockies
+  const legends = Object.entries(CONFIG.legends || {}).map(([id]) => { const b = makeBuilder(Number(id), 0); return { ...b, label: `★ ${b.legend.label}`, pose: 'stand', row: 1 }; });
+  if (legendsOnly) people.length = 0;
+  people.push(...legends);
   people.forEach((b, i) => {
     const m = buildBlocky(b);
+    const inRow = b.row ? legends.indexOf(b) : i, rowLen = b.row ? legends.length : people.length - legends.length;
+    const back = b.row && !legendsOnly ? step * 2.4 : 0; // legends stand in their own row behind the crew
     m.group.scale.setScalar(scale);
-    m.group.position.set((i - (people.length - 1) / 2) * step, 0, rowZ);
+    m.group.position.set((inRow - (rowLen - 1) / 2) * step, 0, rowZ - back);
     m.carry.visible = b.pose === 'carry';
     scene.add(m.group);
     crew.push({ ...m, pose: b.pose, phase: i });

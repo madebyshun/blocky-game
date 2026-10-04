@@ -39,10 +39,12 @@ const HOUR = 3600000;
 
 export function makeBuilder(id, arrivedAt) {
   const role = id === 1 ? ROLES[0] : ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))];
+  const legend = CONFIG.legends?.[id] ?? null;
   return {
     id,
-    name: `${pick(NAMES, id, 14)} #${id}`,
+    name: `${legend ? legend.name : pick(NAMES, id, 14)} #${id}`,
     role,
+    legend,
     arrivedAt,
     skin: pick(SKIN, id, 15),
     shirt: pick(SHIRT, id, 16),
