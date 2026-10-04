@@ -29,42 +29,91 @@ function route(fx, fz, tx, tz) {
   return [[rx, fz], [rx, rz], [tx, rz], [tx, tz]];
 }
 
+const HAIR = [0x2b1d14, 0x5a3a1a, 0xd9a441, 0xa0522d, 0x1b1b1b, 0x9aa3ad];
+
+// One Blocky: a little builder in a safety vest, dressed for its role.
+// Returns the group plus the parts that animate (legs, arms) and the block it carries.
+export function buildBlocky(b) {
+  const g = new THREE.Group();
+  g.scale.setScalar(0.95);
+  const role = b.role.id;
+  const hair = HAIR[Math.floor(hash(b.id, 17) * HAIR.length)];
+  const shirt = role === 'research' ? 0xf4f4f0 : role === 'contracts' ? 0x3b4252 : b.shirt;
+
+  const leg = (x) => {
+    const p = new THREE.Group();
+    p.position.set(x, 0.38, 0);
+    B(p, 0.18, 0.38, 0.22, PANTS, 0, -0.38);
+    B(p, 0.19, 0.08, 0.26, 0x2b2f36, 0, -0.38, 0.02); // shoes
+    g.add(p);
+    return p;
+  };
+  const arm = (x) => {
+    const p = new THREE.Group();
+    p.position.set(x, 0.78, 0);
+    B(p, 0.13, 0.36, 0.16, shirt, 0, -0.36);
+    B(p, 0.13, 0.1, 0.16, b.skin, 0, -0.46);
+    g.add(p);
+    return p;
+  };
+  const legs = [leg(-0.11), leg(0.11)];
+  B(g, 0.46, 0.42, 0.28, shirt, 0, 0.38);
+  B(g, 0.48, 0.08, 0.3, 0xf39c12, 0, 0.62); // safety vest stripe
+  const arms = [arm(-0.3), arm(0.3)];
+  B(g, 0.42, 0.42, 0.42, b.skin, 0, 0.8);
+  B(g, 0.07, 0.09, 0.02, 0x111111, -0.1, 0.98, 0.215);
+  B(g, 0.07, 0.09, 0.02, 0x111111, 0.1, 0.98, 0.215);
+  B(g, 0.44, 0.12, 0.1, hair, 0, 1.1, -0.17); // hair at the back
+
+  const hardHat = (c) => { B(g, 0.5, 0.16, 0.5, c, 0, 1.2); B(g, 0.56, 0.04, 0.62, c, 0, 1.2, 0.04); };
+  const cap = (c, back = false) => { B(g, 0.46, 0.13, 0.46, c, 0, 1.2); B(g, 0.4, 0.04, 0.24, c, 0, 1.2, back ? -0.32 : 0.32); };
+  switch (role) {
+    case 'founder':
+      cap(b.role.hat);
+      B(g, 0.12, 0.12, 0.04, 0xf4c542, 0, 1.24, 0.24, 0xa07000);
+      B(g, 0.1, 0.1, 0.03, 0xf4c542, -0.12, 0.5, 0.15, 0xa07000); // badge
+      break;
+    case 'contracts':
+      hardHat(b.role.hat);
+      B(g, 0.46, 0.3, 0.12, shirt, 0, 0.8, -0.25); // hood
+      B(g, 0.36, 0.42, 0.18, 0x2e86de, 0, 0.32, -0.23); // backpack
+      break;
+    case 'frontend':
+      B(g, 0.44, 0.1, 0.44, hair, 0, 1.2); // hair on top
+      B(g, 0.5, 0.07, 0.1, 0x2b2f36, 0, 1.28, 0);
+      B(g, 0.08, 0.2, 0.2, b.role.hat, -0.25, 0.92, 0); B(g, 0.08, 0.2, 0.2, b.role.hat, 0.25, 0.92, 0);
+      break;
+    case 'designer':
+      B(g, 0.52, 0.1, 0.5, b.role.hat, 0.04, 1.2); B(g, 0.08, 0.08, 0.08, b.role.hat, 0.04, 1.3, 0);
+      B(g, 0.48, 0.08, 0.32, 0xff6b9d, 0, 0.74); B(g, 0.1, 0.22, 0.04, 0xff6b9d, 0.12, 0.54, 0.16); // scarf
+      break;
+    case 'community':
+      cap(b.role.hat, true);
+      B(arms[1], 0.12, 0.12, 0.26, 0xf4f4f0, 0, -0.56, 0.12); B(arms[1], 0.18, 0.18, 0.08, 0xe74c3c, 0, -0.59, 0.27); // megaphone
+      break;
+    case 'research':
+      B(g, 0.44, 0.1, 0.44, hair, 0, 1.2);
+      B(g, 0.15, 0.12, 0.02, 0x111111, -0.1, 0.94, 0.225); B(g, 0.15, 0.12, 0.02, 0x111111, 0.1, 0.94, 0.225); // glasses
+      B(g, 0.06, 0.03, 0.02, 0x111111, 0, 0.99, 0.225);
+      B(g, 0.08, 0.3, 0.02, b.role.hat, 0, 0.42, 0.15); // tie
+      B(arms[0], 0.04, 0.32, 0.24, 0x8b5a2b, 0.08, -0.6, 0.1); B(arms[0], 0.03, 0.26, 0.2, 0xf4f4f0, 0.1, -0.57, 0.1); // clipboard
+      break;
+  }
+
+  const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
+  carry.visible = false;
+  return { group: g, legs, arms, carry };
+}
+
 export class BuilderView {
   constructor(b, city, { arriving = false } = {}) {
     this.b = b;
     this.city = city;
-    const g = (this.group = new THREE.Group());
-    g.scale.setScalar(0.95);
-
-    const leg = (x) => {
-      const p = new THREE.Group();
-      p.position.set(x, 0.38, 0);
-      B(p, 0.18, 0.38, 0.22, PANTS, 0, -0.38);
-      g.add(p);
-      return p;
-    };
-    const arm = (x) => {
-      const p = new THREE.Group();
-      p.position.set(x, 0.78, 0);
-      B(p, 0.13, 0.36, 0.16, b.shirt, 0, -0.36);
-      B(p, 0.13, 0.1, 0.16, b.skin, 0, -0.46);
-      g.add(p);
-      return p;
-    };
-    this.legs = [leg(-0.11), leg(0.11)];
-    B(g, 0.46, 0.42, 0.28, b.shirt, 0, 0.38);
-    B(g, 0.48, 0.08, 0.3, 0xf39c12, 0, 0.62); // safety vest stripe
-    this.arms = [arm(-0.3), arm(0.3)];
-    B(g, 0.42, 0.42, 0.42, b.skin, 0, 0.8);
-    B(g, 0.07, 0.09, 0.02, 0x111111, -0.1, 0.98, 0.215);
-    B(g, 0.07, 0.09, 0.02, 0x111111, 0.1, 0.98, 0.215);
-    // hard hat in the role colour
-    B(g, 0.5, 0.16, 0.5, b.role.hat, 0, 1.2);
-    B(g, 0.56, 0.04, 0.62, b.role.hat, 0, 1.2, 0.04);
-    if (b.id === 1) B(g, 0.12, 0.12, 0.04, 0xf4c542, 0, 1.26, 0.27, 0xa07000); // founder badge
-
-    this.carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
-    this.carry.visible = false;
+    const { group: g, legs, arms, carry } = buildBlocky(b);
+    this.group = g;
+    this.legs = legs;
+    this.arms = arms;
+    this.carry = carry;
 
     this.ring = B(g, 0.9, 0.04, 0.9, 0xffd23f, 0, 0.01, 0, 0x806000);
     this.ring.visible = false;
