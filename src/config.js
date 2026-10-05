@@ -24,7 +24,7 @@ export const CONFIG = {
     chainId: 8453,
     contract: '',
     royaltyBps: 500,
-    treasury: '0x699eacc348852de429ac3e9a28238e5906ec75d6',
+    treasury: '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D', // the dev wallet: royalties, and it deploys and owns the contract
   },
 
   // Every Blocky rolls a rarity from its number, so anyone can verify it.

@@ -72,7 +72,7 @@ URL flags: `?demo` fakes 3 days of history and then a trade every 30s (a $1,000 
 2. **Fresh start**: set `KV_KEY` to a new name (e.g. `basecity-v1`): a new key means an empty ledger, so the city starts from empty land at 0 / 10,000 and only buys from now on count. Optionally set `LAUNCH_TIME_MS` (ms timestamp) to the launch moment. Do not set `BACKFILL_HOURS`.
 3. **RPC**: set `BASE_RPC_URL` to your own Base RPC (Alchemy, QuickNode, …): the API reads every trade's receipt (the real wallet, and the block hash that seeds rarity) and checks holders' balances.
 4. **Deploy and open the site** once so the ledger starts (`/api/colony`).
-5. **Contract**: open `/deploy.html` with the dev wallet (`0x699e…5d6`), click *Generate a signer key*, copy the key, deploy. Then in Vercel set `NFT_CONTRACT` (the new address), `CLAIM_SIGNER_KEY` (the key) and `SITE_URL` (your domain), and redeploy: claims open.
+5. **Contract**: open `/deploy.html` with the dev wallet (`0x8eBA…C34D`), click *Generate a signer key*, copy the key, deploy. Then in Vercel set `NFT_CONTRACT` (the new address), `CLAIM_SIGNER_KEY` (the key) and `SITE_URL` (your domain), and redeploy: claims open.
 6. **Verify** on Basescan with the Standard JSON Input the deploy page links (compiler and constructor arguments are printed there too).
 7. **OpenSea** lists the collection after the first claim; set its links and creator earnings there.
 

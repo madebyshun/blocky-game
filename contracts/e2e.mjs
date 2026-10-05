@@ -118,7 +118,7 @@ assert.equal((await call(nftApi, { url: '/api/nft/abc', query: { id: 'abc' } }))
 r = await call(nftApi, { url: '/api/nft/collection', query: { id: 'collection' } });
 assert.equal(r.body.name, 'BaseCity Blockies');
 assert.equal(r.body.seller_fee_basis_points, 500);
-assert.equal(r.body.fee_recipient, '0x699eacc348852de429ac3e9a28238e5906ec75d6');
+assert.equal(r.body.fee_recipient, '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D');
 r = await call(nftApi, { url: '/api/nft/collection.svg', query: { id: 'collection.svg' } });
 assert.match(r.body, /^<svg/);
 console.log('claim + nft API end to end: all checks pass');
