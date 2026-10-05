@@ -18,6 +18,15 @@ export const CONFIG = {
   ],
   founderSkill: 2,
 
+  // Every Blocky (not the founder or legends) rolls a rarity from its number, so anyone can verify it.
+  // Rare looks walk around the city, show on the Blocky card and in its PFP.
+  rarity: [
+    { id: 'common', label: 'Common', chance: 0.70, traits: [] },
+    { id: 'uncommon', label: 'Uncommon', chance: 0.22, traits: ['shades', 'basecap'] },
+    { id: 'rare', label: 'Rare', chance: 0.07, traits: ['goldhat', 'lasereyes', 'astronaut'] },
+    { id: 'legendary', label: 'Legendary', chance: 0.01, traits: ['diamond', 'crown'] },
+  ],
+
   // When the city starts from empty land. Normally the API decides this (LAUNCH_TIME_MS, or the
   // first time the live API ran, stored in KV). Leave null to start "now" when no API value exists.
   cityStart: null,

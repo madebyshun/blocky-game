@@ -43,3 +43,25 @@ h1 { margin: 14px 0 6px; font: 400 clamp(40px, 7vw, 64px)/1 'Lilita One', Inter,
   .card h2 { font-size: 18px; }
   .card .body { padding: 10px; }
 }
+
+.card .pic { cursor: pointer; }
+.card .mini { display: flex; gap: 10px; color: #c9d2e3; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.profile { width: min(760px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); color: var(--text); }
+.profile::backdrop { background: rgba(5, 8, 16, 0.7); }
+.profile .close { position: absolute; top: 8px; right: 12px; background: none; border: 0; color: var(--muted); font-size: 26px; cursor: pointer; z-index: 1; }
+.profile-grid { display: grid; grid-template-columns: 300px 1fr; gap: 0; }
+.profile-grid img { width: 100%; height: auto; display: block; }
+.profile-grid > div { padding: 18px 20px; display: grid; align-content: start; gap: 4px; }
+.profile h2 { margin: 0; font: 400 30px/1.1 'Lilita One', Inter, sans-serif; }
+.profile .title { color: var(--accent); font-weight: 800; }
+.profile .status { color: var(--muted); font-weight: 600; font-size: 14px; }
+.profile .status.here { color: var(--up); }
+.profile dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 12px 0 4px; font-size: 14px; }
+.profile dt { color: var(--muted); font-weight: 600; }
+.profile dd { margin: 0; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+.profile .row { display: flex; gap: 8px; margin-top: 10px; }
+.profile .row .btn { flex: 1; }
+@media (max-width: 640px) {
+  .profile-grid { grid-template-columns: 1fr; }
+  .profile-grid img { max-width: 320px; margin: 0 auto; }
+}

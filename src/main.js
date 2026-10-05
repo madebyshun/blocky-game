@@ -9,7 +9,7 @@ import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
-import { makeBuilder, CitySim, PITCH, tierOf } from './sim.js';
+import { makeBuilder, CitySim, PITCH, tierOf, TRAIT_LABEL } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
@@ -272,8 +272,10 @@ function updateAirship(dt) {
       population = flight.id;
       sim.setBuilders(builders.filter(Boolean));
       const b = v.b, by = crewInfo[flight.id - 1];
-      const head = b.legend ? '★ LEGEND ARRIVED' : b.tier.id === 'whale' ? '🐋 WHALE ARRIVED' : b.tier.pro ? `🔷 ${b.tier.label.toUpperCase()} ARRIVED` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`;
-      toast(head, b.name, `${b.role.label} · ${b.skill.toFixed(1)}× skill${by ? ` · brought by ${short(by.from)}` : ''}`);
+      const rareNow = b.rarity && b.rarity.id !== 'common';
+      const head = b.legend ? '★ LEGEND ARRIVED' : b.tier.id === 'whale' ? '🐋 WHALE ARRIVED' : b.tier.pro ? `🔷 ${b.tier.label.toUpperCase()} ARRIVED` : rareNow ? `✨ ${b.rarity.label.toUpperCase()} ${CONFIG.citizen.toUpperCase()}!` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`;
+      toast(head, b.name, `${rareNow ? `${TRAIT_LABEL[b.trait]} · ` : ''}${b.role.label} · ${b.skill.toFixed(1)}× skill${by ? ` · brought by ${short(by.from)}` : ''}`);
+      if (rareNow && b.rarity.id !== 'uncommon') { weather.celebrate(); news.unshift(`<b>RARE ${CONFIG.citizen.toUpperCase()}:</b> ${b.name} arrived with ${TRAIT_LABEL[b.trait]} (${b.rarity.label}, ${Math.round(b.rarity.chance * 100)}% chance)`); }
       if (b.tier.pro) weather.celebrate();
       log(`${b.legend ? '★' : b.tier.pro ? BADGE[b.tier.id] : '👷'} ${b.name} joined${b.tier.pro ? ` as ${b.tier.label}` : ''}${by ? `, brought by ${short(by.from)}` : ''}`, now(), b.id);
       stepCity(true);
@@ -370,7 +372,8 @@ for (const id of ['leaders', 'feed']) {
 function renderCard() {
   if (!selected) return;
   const b = selected.b, ts = now(), placed = sim.blocksBy(b, ts);
-  $('card-eyebrow').textContent = `${CONFIG.citizen.toUpperCase()} #${b.id}${b.id === 1 ? ' · FOUNDER' : b.legend ? ' · ★ LEGEND' : b.tier.pro ? ` · ${b.tier.label.toUpperCase()}` : ''}`;
+  const rare = b.trait ? ` · ${b.rarity.label.toUpperCase()}: ${TRAIT_LABEL[b.trait].toUpperCase()}` : '';
+  $('card-eyebrow').textContent = `${CONFIG.citizen.toUpperCase()} #${b.id}${b.id === 1 ? ' · FOUNDER' : b.legend ? ' · ★ LEGEND' : b.tier.pro ? ` · ${b.tier.label.toUpperCase()}` : ''}${rare}`;
   $('card-name').textContent = b.name;
   $('card-role').textContent = [b.role.label, b.id !== 1 && b.tier.label !== b.role.label ? b.tier.label : null, `${b.skill.toFixed(1)}× skill`].filter(Boolean).join(' · ');
   $('card-status').textContent = selected.status;

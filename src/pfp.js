@@ -8,8 +8,10 @@ import { hash } from './sim.js';
 const PALETTE = ['#0052ff', '#7c3aed', '#16a34a', '#e11d48', '#f59e0b', '#0ea5e9', '#14b8a6', '#f97316', '#db2777', '#4f46e5'];
 const TIER_BG = { blocky: '#0ea5e9', base: '#0052ff', whale: '#f59e0b', founder: '#0052ff' };
 
+const RARITY_BG = { uncommon: '#16a34a', rare: '#7c3aed', legendary: '#f59e0b' };
 export function pfpColor(b) {
   if (b.legend?.bg) return b.legend.bg;
+  if (RARITY_BG[b.rarity?.id]) return RARITY_BG[b.rarity.id];
   if (b.legendIdx >= 0) return PALETTE[b.legendIdx % PALETTE.length];
   if (b.id === 1) return TIER_BG.founder;
   return TIER_BG[b.tier?.id] || PALETTE[Math.floor(hash(b.id, 21) * PALETTE.length)];

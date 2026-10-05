@@ -1,7 +1,7 @@
 // Dev tool: every building design side by side. Open /gallery.html while `npm run dev` runs.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CATALOG, ROLES, makeBuilder } from './sim.js';
+import { CATALOG, ROLES, makeBuilder, TRAIT_LABEL } from './sim.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
 import { buildingGroup, adWall, updateBoards } from './city.js';
@@ -61,7 +61,8 @@ const items = [
 const only = new URLSearchParams(location.search).get('only')?.split(',').map((x) => x.trim());
 const legendNames = new Set([CONFIG.founder?.name, ...(CONFIG.legends || []).map((l) => l.name)].filter(Boolean).map((n) => n.toLowerCase()));
 const pickedLegends = only?.filter((x) => legendNames.has(x.toLowerCase())).map((x) => x.toLowerCase()) ?? [];
-const showBlockies = !only || only.includes('blockies') || only.includes('legends') || pickedLegends.length > 0;
+const showRare = !only || only.includes('rare') || only.includes('blockies');
+const showBlockies = !only || only.includes('blockies') || only.includes('legends') || only.includes('rare') || pickedLegends.length > 0;
 const legendsOnly = (only?.includes('legends') || pickedLegends.length > 0) && !only.includes('blockies');
 if (only) items.splice(0, items.length, ...items.filter((it) => only.includes(it.p.type)));
 const cols = only ? Math.max(1, Math.min(3, items.length)) : 6, gap = 11;
@@ -96,8 +97,16 @@ if (showBlockies) {
     return { ...b, legend, legendIdx: i, name: legend.name };
   })].map((b) => ({ ...b, label: `★ ${b.legend.name}`, pose: 'stand' }))
     .filter((b) => !pickedLegends.length || pickedLegends.includes(b.legend.name.toLowerCase()));
+  // one Blocky per rare trait, labelled with its odds
+  const rares = CONFIG.rarity.flatMap((r) => r.traits.map((trait, i) => ({
+    id: 40 + i, role: ROLES[1 + (i % 5)], tier: tier0, skin: SKIN[(i + 2) % 6], shirt: SHIRT[(i + 3) % 6], rarity: r, trait, pose: 'stand',
+    label: `${r.label} · ${TRAIT_LABEL[trait]} (${+(r.chance * 100).toFixed(1)}%)`,
+  })));
   const lines = [];
-  if (!legendsOnly) lines.push(people);
+  const rareOnly = only?.includes('rare') && !only.includes('blockies');
+  if (!legendsOnly && !rareOnly) lines.push(people);
+  if (showRare && !legendsOnly) lines.push(rares);
+  if (rareOnly) legends.length = 0;
   const perRow = Math.ceil(legends.length / Math.ceil(legends.length / 8)); // even rows of up to 8
   for (let i = 0; i < legends.length; i += perRow) lines.push(legends.slice(i, i + perRow));
   const rowZ = items.length ? (rows / 2) * gap + 4 : 0;

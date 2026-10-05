@@ -508,6 +508,49 @@ function tierUniform(g, tier, hair, star) {
   }
 }
 
+// ---------- rare traits (CONFIG.rarity), drawn over whatever the Blocky wears ----------
+const GLASS = new THREE.MeshLambertMaterial({ color: 0xcfefff, transparent: true, opacity: 0.35, depthWrite: false });
+const DIAMOND = new THREE.MeshPhongMaterial({ color: 0xc8f6ff, emissive: 0x3ab8d8, emissiveIntensity: 0.35, shininess: 120, specular: 0xffffff });
+const GOLD = new THREE.MeshPhongMaterial({ color: 0xffc21a, emissive: 0x8a5a00, emissiveIntensity: 0.55, shininess: 90, specular: 0xfff2b0 });
+const shiny = (g, material, w, h, d, x, y, z) => { const m = new THREE.Mesh(BOX, material); m.scale.set(w, h, d); m.position.set(x, y + h / 2, z); m.castShadow = true; g.add(m); return m; };
+function applyTrait(g, arms, b, skin) {
+  const top = new THREE.Box3().setFromObject(g).max.y / g.scale.y; // top of the hat or hair
+  switch (b.trait) {
+    case 'shades':
+      B(g, 0.44, 0.1, 0.03, 0x111111, 0, 0.93, 0.225); B(g, 0.08, 0.03, 0.035, 0xffffff, -0.13, 0.98, 0.23);
+      break;
+    case 'basecap':
+      B(g, 0.53, 0.15, 0.53, 0x0052ff, 0, 1.19); B(g, 0.42, 0.04, 0.26, 0x0052ff, 0, 1.19, 0.34);
+      B(g, 0.13, 0.13, 0.02, 0xffffff, 0, 1.21, 0.27); B(g, 0.08, 0.03, 0.025, 0x0052ff, 0.01, 1.255, 0.272);
+      break;
+    case 'goldhat': // polished gold, a ridge and a blue gem: not the everyday yellow hard hat
+      shiny(g, GOLD, 0.56, 0.2, 0.56, 0, 1.18, 0); shiny(g, GOLD, 0.62, 0.04, 0.7, 0, 1.18, 0.04); shiny(g, GOLD, 0.1, 0.1, 0.58, 0, 1.38, 0);
+      B(g, 0.12, 0.12, 0.03, 0x2e7bff, 0, 1.24, 0.29, 0x0040ff); B(g, 0.05, 0.12, 0.02, 0xffffff, -0.18, 1.24, 0.285, 0xffffff);
+      break;
+    case 'lasereyes':
+      for (const x of [-0.1, 0.1]) { B(g, 0.1, 0.1, 0.03, 0xff2020, x, 0.94, 0.225, 0xff0000); B(g, 0.025, 0.025, 0.55, 0xff5050, x, 0.975, 0.5, 0xff0000); }
+      break;
+    case 'astronaut': {
+      const helmet = new THREE.Mesh(BOX, GLASS);
+      helmet.scale.set(0.62, 0.62, 0.62); helmet.position.set(0, 1.02, 0);
+      g.add(helmet);
+      B(g, 0.52, 0.09, 0.36, 0xe8e8e8, 0, 0.72); // collar ring
+      B(g, 0.4, 0.46, 0.2, 0xe0e0e0, 0, 0.3, -0.22); B(g, 0.12, 0.12, 0.02, 0x0052ff, 0.13, 0.5, 0.142); // life support, patch
+      break;
+    }
+    case 'diamond':
+      g.traverse((o) => { if (o.isMesh && o.material?.color?.getHex?.() === skin) o.material = DIAMOND; });
+      for (const [x, y] of [[-0.12, 1.08], [0.15, 0.86], [0.2, 1.12]]) B(g, 0.05, 0.05, 0.03, 0xffffff, x, y, 0.215, 0xffffff); // sparkles
+      break;
+    case 'crown':
+      B(g, 0.46, 0.1, 0.46, 0xf4c542, 0, top - 0.02, 0, 0x6a5000);
+      for (const [x, z] of [[-0.18, 0.18], [0, 0.18], [0.18, 0.18], [-0.18, -0.18], [0.18, -0.18]]) B(g, 0.07, 0.14, 0.07, 0xf4c542, x, top + 0.08, z, 0x6a5000);
+      B(g, 0.08, 0.08, 0.03, 0xe0302a, 0, top + 0.02, 0.235, 0x600000);
+      B(g, 0.46, 0.56, 0.05, 0xc0392b, 0, 0.18, -0.17); // cape
+      break;
+  }
+}
+
 // One Blocky: a little builder in a safety vest, dressed for its role.
 // Returns the group plus the parts that animate (legs, arms) and the block it carries.
 export function buildBlocky(b) {
@@ -518,7 +561,8 @@ export function buildBlocky(b) {
   const tier = b.tier?.id;
   const uniform = !look && (tier === 'base' || tier === 'whale' || b.legend);
   const hair = HAIR[Math.floor(hash(b.id, 17) * HAIR.length)];
-  const shirt = look ? look.shirt : uniform ? (tier === 'whale' ? 0x14213d : 0x1b2a4a) : role === 'research' ? 0xf4f4f0 : role === 'contracts' ? 0x3b4252 : b.shirt;
+  let shirt = look ? look.shirt : uniform ? (tier === 'whale' ? 0x14213d : 0x1b2a4a) : role === 'research' ? 0xf4f4f0 : role === 'contracts' ? 0x3b4252 : b.shirt;
+  if (b.trait === 'astronaut') shirt = 0xf2f2f2; // space suit
   const skin = look ? look.skin : b.skin;
   const pants = look?.pants ?? (tier === 'whale' ? 0x14213d : PANTS);
 
@@ -545,6 +589,7 @@ export function buildBlocky(b) {
   B(g, 0.42, 0.42, 0.42, skin, 0, 0.8);
   if (look || uniform) {
     if (look) look.dress(g, arms); else tierUniform(g, tier === 'whale' ? 'whale' : 'base', hair, !!b.legend);
+    if (b.trait) applyTrait(g, arms, b, skin);
     const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
     carry.visible = false;
     return { group: g, legs, arms, carry };
@@ -588,6 +633,7 @@ export function buildBlocky(b) {
       break;
   }
 
+  if (b.trait) applyTrait(g, arms, b, skin);
   const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
   carry.visible = false;
   return { group: g, legs, arms, carry };

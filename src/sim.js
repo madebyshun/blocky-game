@@ -50,6 +50,21 @@ export function skillFor(usd) {
   return t.skill[0] + (t.skill[1] - t.skill[0]) * f;
 }
 
+export const TRAIT_LABEL = {
+  shades: 'Shades', basecap: 'Base Cap', goldhat: 'Gold Hard Hat', lasereyes: 'Laser Eyes',
+  astronaut: 'Astronaut', diamond: 'Diamond Skin', crown: 'Crown',
+};
+// Rarity from the Blocky's number alone: the same roll for every visitor, checkable by anyone.
+export function rarityOf(id) {
+  const roll = hash(id, 222);
+  let acc = 0;
+  for (const r of [...CONFIG.rarity].reverse()) { // rarest first
+    acc += r.chance;
+    if (roll < acc) return { rarity: r, trait: r.traits.length ? r.traits[Math.floor(hash(id, 223) * r.traits.length)] : null };
+  }
+  return { rarity: CONFIG.rarity[0], trait: null };
+}
+
 // Which legend (index into CONFIG.legends) a new Blocky becomes, if any: a legend's own wallet
 // buying brings that legend; otherwise the next wallet-less legend goes to the next Base Builder.
 function legendFor(info, tier, taken) {
@@ -69,6 +84,7 @@ export function makeBuilder(id, arrivedAt, info = null, taken = new Set()) {
   const legend = founder ? CONFIG.founder ?? null : CONFIG.legends?.[legendIdx] ?? null;
   let role = founder ? ROLES[0] : ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))];
   if (legend?.title) role = { ...role, label: legend.title };
+  const { rarity, trait } = founder || legend ? { rarity: null, trait: null } : rarityOf(id);
   return {
     id,
     name: `${legend ? legend.name : pick(NAMES, id, 14)} #${id}`,
@@ -83,6 +99,8 @@ export function makeBuilder(id, arrivedAt, info = null, taken = new Set()) {
     skin: pick(SKIN, id, 15),
     shirt: pick(SHIRT, id, 16),
     skill: founder ? CONFIG.founderSkill : skillFor(usd),
+    rarity,
+    trait,
   };
 }
 
