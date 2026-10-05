@@ -479,7 +479,7 @@ export class CitySim {
       return { k, kind: 'landmark', type: lm.id, lot: lm.lot, w, d, h, cost: cost * CONFIG.buildTime.landmark, color: lm.brand ? parseInt(lm.brand.color.slice(1), 16) : 0xd5d8dc, name: lm.label, ...(lm.brand ? { brand: lm.brand } : {}) };
     }
     const metro = CONFIG.metro;
-    if (metro && !this.metroPlanned && pop >= metro.at) { // an elevated loop over the ring road, no lot of its own
+    if (metro && !this.metroPlanned && pop >= metro.at && this.land >= (metro.land || 0)) { // an elevated loop over the ring road, no lot of its own
       this.metroPlanned = true;
       return { k, kind: 'metro', cost: metro.cost * CONFIG.buildTime.metro, name: metro.label };
     }

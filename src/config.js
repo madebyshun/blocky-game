@@ -218,7 +218,8 @@ export const CONFIG = {
     ],
   },
 
-  // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`.
-  // It grows with the land and its train stops at a station on every side.
-  metro: { at: 200, label: 'BaseCity Metro', cost: 700 },
+  // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`
+  // and the land is at least `land` rings out (6: 13x13 lots), so it circles a real city, not a few
+  // blocks downtown. It grows with the land and its train stops at a station on every side.
+  metro: { at: 1000, land: 6, label: 'BaseCity Metro', cost: 700 },
 };
