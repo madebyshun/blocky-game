@@ -2,7 +2,7 @@
 
 A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 
-- **Every $5 = 1 Blocky.** Every $5 of `$BLOCKY` a wallet buys (added up per wallet) brings one Blocky to the city by blimp: Blocky #1, #2, ... with at most **10,000** in the city at once. Each Blocky is an NFT its wallet claims (**BaseCity Blockies, BCB**, see below). Big buys arrive in batches. A single buy of $1,000+ also builds a **Whale Fountain** signed with the wallet, and jumps the build queue.
+- **Every $10 = 1 Blocky.** Every $10 of `$BLOCKY` a wallet buys (added up per wallet) brings one Blocky to the city by blimp (`usdPerBlocky` in `src/config.js`; each buy counts at the price of its day, so changing it only affects later buys): Blocky #1, #2, ... with at most **10,000** in the city at once. Each Blocky is an NFT its wallet claims (**BaseCity Blockies, BCB**, see below). Big buys arrive in batches. A single buy of $1,000+ also builds a **Whale Fountain** signed with the wallet, and jumps the build queue.
 - **Hold to stay.** A wallet keeps the share of its Blockies that matches the share of its bought `$BLOCKY` it still holds: sell half and its newest half leave the city (tokens moved away count as sold). Freed places go to the next wallets in line (a waitlist once the city is full). Once the NFT collection unlocks, Blockies stay for good.
 - **Builds take time**: a crew shares one site, so speed grows with the square root of the crew's total skill (4× the skill = 2× faster). The HUD shows the time left, the next community goal and how many of the 10,000 Blockies are left. Land expansions and landmarks unlock at Blocky counts (10, 30, 75, … for land; 15 for Builder HQ, 100 for the airport, 200 for the metro, …). Up to ~120 Blockies walk the streets at once (the founder, the Base Builders, the first 20 OGs, every Legendary and the newest arrivals); all of them build.
 - The city **starts from empty land**: grass, forest, a river. The founder builds the first garage, then the town square, then the city grows outward, roads appearing next to every new lot.
@@ -79,6 +79,26 @@ URL flags: `?demo` fakes 3 days of history and then a trade every 30s (a $1,000 
 ## Deploy (Vercel)
 
 Import the repo; Vercel detects Vite and serves `api/*.js` as serverless functions.
+
+Environment variables (see `.env.example`):
+
+| Var | What |
+| --- | --- |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis (Vercel KV). **Required in production**: stores the ledger (every Blocky, its wallet and seed, departures, the waitlist) so every visitor sees the same city. |
+| `KV_KEY` | Name of the stored ledger (default `blocky:colony`). A new name starts a fresh city at 0 / 10,000. |
+| `LAUNCH_TIME_MS` | When the city starts from empty land and buys start counting. Default: the first time the API runs. |
+| `BASE_RPC_URL` | Base RPC for receipts, balance checks and the NFT contract (default: the public `mainnet.base.org`, rate limited). |
+| `NFT_CONTRACT` | The BaseCity Blockies contract (from `/deploy.html`). Claims open when this and `CLAIM_SIGNER_KEY` are set. |
+| `CLAIM_SIGNER_KEY` | Private key that signs claims; its address is the contract's `signer`. Server only, never commit it. |
+| `SITE_URL` | Your domain, e.g. `https://basecity.xyz`: NFT metadata links, share links and share images. |
+| `USD_PER_BLOCKY` / `MAX_SUPPLY` / `WHALE_USD` | Optional overrides of `usdPerBlocky` (10), `supply` (10000) and `whaleUsd` (1000) in `src/config.js`; keep them in sync. |
+| `MIN_BUY_USD` | Ignore dust buys (default $1). |
+| `HOLD_CHECK_MINUTES` | How often holders' `$BLOCKY` balances are checked (default 15). |
+| `RESOLVE_WALLETS` | `0` to skip reading receipts (then smart-wallet buys count for the bundler and rarity seeds from the tx hash). Default on. |
+| `POOL_ID` | The BLOCKY/NVDAc Uniswap v4 pool. Trades are read from its public GeckoTerminal feed. |
+| `STOCK_TOKENS` | Optional: comma-separated addresses of more tokenized stocks on Base for the Stock Exchange ticker. |
+| `BACKFILL_HOURS` | Testing only: also count trades from the last N hours (the feed covers ~24h). |
+| `COUNT_MODE` | `buys` (default). `fees`: creator fees bring Blockies instead (`FEE_WALLET`, `EXCLUDE_TOKENS`, `FEES_URL`, `FEES_USD_OVERRIDE`, `FEES_OFFSET_USD`, `FEE_TOKENS`). |
 
 ## Customize
 

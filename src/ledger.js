@@ -3,7 +3,8 @@
 // follow exactly the same rules:
 //
 // - Every `per` USD a wallet buys (added up per wallet) earns one Blocky, numbered in order: #1, #2, ...
-//   Numbers are never reused.
+//   Each buy counts at the price of its day (fractions carry over), so changing `per` only affects
+//   later buys. Numbers are never reused.
 // - At most `supply` Blockies live in the city at once.
 // - A wallet keeps the share of its Blockies that matches the share of its bought $BLOCKY it still
 //   holds: sell half, and the newest half of its Blockies leave the city. Any real sell costs at least
@@ -31,7 +32,7 @@ export function rollSeed(n, source) {
 }
 
 export function newLedger(start) {
-  return { v: 4, start, bought: 0, wallets: [], acct: {}, blockies: [], departures: [], waiting: [], whales: [], recent: [] };
+  return { v: 5, start, bought: 0, wallets: [], acct: {}, blockies: [], departures: [], waiting: [], whales: [], recent: [] };
 }
 
 function indexOf(L, addr) {
@@ -41,11 +42,11 @@ function indexOf(L, addr) {
   return L._index.get(a);
 }
 const sec = (L, ms) => Math.round((ms - L.start) / 1000);
-const account = (L, wi) => (L.acct[wi] ||= { usd: 0, tin: 0, tout: 0, bal: null, ids: [] });
+const account = (L, wi) => (L.acct[wi] ||= { usd: 0, credits: 0, tin: 0, tout: 0, bal: null, ids: [] });
 
 // How many Blockies a wallet may keep right now.
-export function allowance(a, per) {
-  const earned = Math.floor(a.usd / per + 1e-9);
+export function allowance(a) {
+  const earned = Math.floor((a.credits || 0) + 1e-9);
   if (!(a.tin > 0) || earned === 0) return 0;
   let held = (a.tin - a.tout) / a.tin;
   if (a.bal != null) held = Math.min(held, a.bal / a.tin); // tokens moved away count as sold
@@ -57,7 +58,7 @@ function rebalance(L, at, cfg, touched, source) {
   const added = {}, left = {}, s = sec(L, at);
   // 1. wallets that sold lose their newest Blockies
   for (const wi of touched) {
-    const a = L.acct[wi], keep = allowance(a, cfg.per);
+    const a = L.acct[wi], keep = allowance(a);
     while (!L.frozen && a.ids.length > keep) {
       const n = a.ids.pop();
       L.blockies[n - 1][2] = s;
@@ -70,7 +71,7 @@ function rebalance(L, at, cfg, touched, source) {
   let active = L.blockies.length - L.departures.length;
   while (L.waiting.length && active < cfg.supply) {
     const wi = L.waiting[0], a = L.acct[wi];
-    if (a.ids.length >= allowance(a, cfg.per)) { L.waiting.shift(); continue; }
+    if (a.ids.length >= allowance(a)) { L.waiting.shift(); continue; }
     const n = L.blockies.length + 1;
     L.blockies.push([wi, s, null, rollSeed(n, source)]);
     a.ids.push(n);
@@ -84,7 +85,7 @@ function rebalance(L, at, cfg, touched, source) {
 export function applyTrade(L, t, cfg) {
   const wi = indexOf(L, t.who), a = account(L, wi);
   if (t.kind === 'buy') {
-    a.usd += t.usd; a.tin += t.tokens; L.bought += t.usd;
+    a.usd += t.usd; a.credits = (a.credits || 0) + t.usd / cfg.per; a.tin += t.tokens; L.bought += t.usd;
     if (t.usd >= cfg.whaleUsd) L.whales.push({ from: L.wallets[wi], usd: cents(t.usd), at: t.at, tx: t.tx });
   } else {
     a.tout += t.tokens;
@@ -123,6 +124,7 @@ export function walletBlockies(L, addr) {
 export function snapshot(L, cfg, since = 0, dsince = 0) {
   const ms = (s) => (s == null ? null : L.start + s * 1000);
   return {
+    price: cfg.per, // USD of $BLOCKY per Blocky
     minted: L.blockies.length - L.departures.length, // in the city now
     issued: L.blockies.length,
     departed: L.departures.length,

@@ -22,8 +22,8 @@ const plural = CONFIG.citizenPlural || `${CONFIG.citizen}s`;
 const HOUR = 3600000;
 const size = (L) => `${2 * L + 1}×${2 * L + 1}`;
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
-const PER = CONFIG.usdPerBlocky;
 const money = (v) => (v >= 1000 ? `$${v / 1000}k` : `$${v}`);
+let price = CONFIG.usdPerBlocky; // USD of $BLOCKY per Blocky (the API's)
 const badge = (b) => (b.kind === 'legend' ? '★ ' : b.rarity && b.rarity.id !== 'common' && b.rarity.id !== 'uncommon' ? '✨ ' : '');
 const rareText = (b) => (b.trait ? `${b.rarity.label} · ${TRAIT_LABEL[b.trait]}` : '');
 function dur(ms) {
@@ -69,21 +69,21 @@ if (CONFIG.tokenAddress) {
 }
 
 const CAPTIONS = [
-  `Every <em>${money(PER)}</em> of ${CONFIG.ticker} you buy brings <em>1 ${CONFIG.citizen}</em> to the city`,
-  `Only <em>${fmt(CONFIG.supply)}</em> ${plural} will ever exist`,
+  () => `Every <em>${money(price)}</em> of ${CONFIG.ticker} you buy brings <em>1 ${CONFIG.citizen}</em>, an NFT`,
+  `At most <em>${fmt(CONFIG.supply)}</em> ${plural} live in the city`,
   `<em>1%</em> of ${plural} are Legendary: Diamond Skin or a Crown`,
   `Real Base builders build here as <em>Base Builders</em>`,
   `A <em>${money(CONFIG.whaleUsd)}+</em> buy builds a fountain with your name`,
   `Every buy shows up in the <em>city log</em>`,
   `${plural} build <em>24/7</em>, even when no one is watching`,
   `Land full? More ${plural} <em>expand the land</em>`,
-  `The ${plural} are <em>simulated</em>. The buys are <em>real</em>.`,
+  `Every ${CONFIG.citizen} is an <em>NFT</em> its wallet claims`,
 ];
 let capIdx = 0;
 function rotateCaption() {
   const el = $('caption');
   el.style.opacity = 0;
-  setTimeout(() => { el.innerHTML = CAPTIONS[capIdx++ % CAPTIONS.length]; el.style.opacity = 1; }, 400);
+  setTimeout(() => { const c = CAPTIONS[capIdx++ % CAPTIONS.length]; el.innerHTML = typeof c === 'function' ? c() : c; el.style.opacity = 1; }, 400);
 }
 rotateCaption();
 setInterval(rotateCaption, 4500);
@@ -244,7 +244,7 @@ function nextUnlockText() {
   $('goal-count').textContent = next ? `${fmt(minted)}/${fmt(next.at)}` : '';
   $('bar-fill').style.width = `${next ? (minted / next.at) * 100 : 100}%`;
   const left = Math.max(0, supply - minted);
-  $('next-unlock').innerHTML = `Land ${size(sim.land)} · ${left ? `<b>${fmt(left)}</b> of ${fmt(supply)} ${plural} left` : `all ${fmt(supply)} ${plural} are here`}`;
+  $('next-unlock').innerHTML = `Land ${size(sim.land)} · ${left ? `<b>${fmt(left)}</b> of ${fmt(supply)} ${plural} left` : `all ${fmt(supply)} ${plural} are here`} · <b>${money(price)}</b> per ${CONFIG.citizen}`;
 }
 
 function applyState(s, first) {
@@ -258,6 +258,7 @@ function applyState(s, first) {
 
   if (!first && s.boughtUsd - bought > 0.0001) city.feePulse();
   bought = Math.max(bought, s.boughtUsd);
+  if (typeof s.price === 'number') price = s.price;
   supply = s.supply || supply;
   if (s.market) { market = s.market; weather.setMarket(market); }
   updateBoards({ market, population: Math.max(minted, s.minted || 0) });
@@ -498,7 +499,7 @@ $('card-pfp-dl').onclick = () => selected && downloadPfp(selected.b);
 
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
-  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${fmt(minted)} of ${fmt(supply)} ${plural} and ${CONFIG.legends?.length || 0} Base builders. Every ${money(PER)} of ${CONFIG.ticker} you buy brings a ${CONFIG.citizen}.`
+  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${fmt(minted)} of ${fmt(supply)} ${plural} and ${CONFIG.legends?.length || 0} Base builders. Every ${money(price)} of ${CONFIG.ticker} you buy brings a ${CONFIG.citizen}, an NFT you claim.`
     + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '');
   const via = CONFIG.xHandle ? `&via=${CONFIG.xHandle}` : '';
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}${via}`, '_blank', 'noopener');
@@ -620,7 +621,7 @@ function headlines() {
   const sponsors = CONFIG.sponsors || [];
   if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>${sp.sponsored ? 'SPONSORED' : 'BUILT ON BASE'}:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
   if (Math.random() < 0.5 || !sponsors.length) out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);
-  out.push(`<b>${CONFIG.ticker}:</b> every ${money(PER)} you buy brings a ${CONFIG.citizen}; only ${fmt(supply)} will ever exist. ${money(CONFIG.whaleUsd)}+ in one buy builds a fountain with your name`);
+  out.push(`<b>${CONFIG.ticker}:</b> every ${money(price)} you buy brings a ${CONFIG.citizen} NFT; at most ${fmt(supply)} in the city. ${money(CONFIG.whaleUsd)}+ in one buy builds a fountain with your name`);
   return out;
 }
 function refreshTicker() {

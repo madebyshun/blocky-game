@@ -7,7 +7,7 @@
 // D (clients poll with the counts they have).
 //
 // COUNT_MODE=buys (default): the Blocky ledger (src/ledger.js). Every $USD_PER_BLOCKY of $BLOCKY a
-//   wallet buys (added up per wallet) brings one Blocky, up to MAX_SUPPLY in the city at once. A
+//   wallet buys (added up per wallet) earns one Blocky, up to MAX_SUPPLY in the city at once. A
 //   wallet keeps the share of its Blockies that matches the share of its bought $BLOCKY it still
 //   holds; sellers' Blockies leave and their places go to the next wallets in line. A single buy of
 //   WHALE_USD+ also builds a Whale Fountain. Trades come from the pool's public trade feed
@@ -33,7 +33,7 @@ import { env, TOKEN, LEDGER, LAUNCH, NFT, client, kv, useKv, KEY_BASE, loadLedge
 import { CLAIM_ABI } from './_sig.js';
 
 const MODE = env.COUNT_MODE || 'buys';
-const FEE_PER = LEDGER.per;
+const FEE_PER = Number(env.FEE_PER_CITIZEN || LEDGER.per); // fee mode: USD of fees per Blocky
 const SUPPLY = LEDGER.supply;
 const MIN_BUY = Number(env.MIN_BUY_USD || 1);
 const POOL = env.POOL_ID || '0x61ccc84e302c1a95fb66435a285e95581134bfc2a11d4fbb88ed07e68ca2e4c0'; // BLOCKY/NVDAc
@@ -274,7 +274,7 @@ async function market() {
 
 async function compute() {
   const [body, mkt] = await Promise.all([MODE === 'fees' ? computeFees() : computeBuys(), market()]);
-  return { ...body, market: mkt, mode: MODE, usdPerBlocky: FEE_PER, feePerCitizen: FEE_PER, updatedAt: Date.now() };
+  return { ...body, market: mkt, mode: MODE, ...(MODE === 'fees' ? { price: FEE_PER, usdPerBlocky: FEE_PER, feePerCitizen: FEE_PER } : {}), updatedAt: Date.now() };
 }
 
 export default async function handler(req, res) {

@@ -6,9 +6,10 @@ export const CONFIG = {
   tagline: 'A city built 24/7 by Blockies, the builders of Base',
   citizen: 'Blocky', // one inhabitant (a builder on Base)
   citizenPlural: 'Blockies',
-  // Every $5 of $BLOCKY a wallet buys (added up per wallet) brings one Blocky to the city: Blocky #1,
-  // #2, ... up to `supply`, then no more. Each one is meant to become that wallet's NFT.
-  usdPerBlocky: 5, // must match USD_PER_BLOCKY on the API
+  // Every `usdPerBlocky` of $BLOCKY a wallet buys (added up over all its buys) earns one Blocky: #1, #2,
+  // ... Each one is an NFT the wallet claims. A buy counts at the price of its day, so changing the
+  // price later only changes future buys. (USD_PER_BLOCKY on the API overrides it.)
+  usdPerBlocky: 10,
   supply: 10000, // must match MAX_SUPPLY on the API
   whaleUsd: 1000, // a single buy this big also builds a Whale Fountain signed with the wallet (WHALE_USD on the API)
   blockySkill: 1, // work speed of a Blocky

@@ -12,7 +12,7 @@ export const env = process.env;
 export const RPC = env.BASE_RPC_URL || 'https://mainnet.base.org';
 export const TOKEN = (env.TOKEN_ADDRESS || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885').toLowerCase();
 export const LEDGER = {
-  per: Number(env.USD_PER_BLOCKY || env.FEE_PER_CITIZEN || 5),
+  per: Number(env.USD_PER_BLOCKY || CONFIG.usdPerBlocky), // USD of $BLOCKY per Blocky
   supply: Number(env.MAX_SUPPLY || 10000),
   whaleUsd: Number(env.WHALE_USD || 1000),
 };
@@ -26,7 +26,7 @@ export const client = createPublicClient({ chain: base, transport: http(RPC, { r
 const KV_URL = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
 const KV_TOKEN = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
 export const KEY_BASE = env.KV_KEY || 'blocky:colony';
-const LEDGER_KEY = `${KEY_BASE}:ledger:v4`;
+const LEDGER_KEY = `${KEY_BASE}:ledger:v5`;
 export const useKv = () => Boolean(KV_URL && KV_TOKEN);
 
 export async function kv(...cmd) {

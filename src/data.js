@@ -66,6 +66,7 @@ export async function fetchColony(since = 0, dsince = 0) {
       departures: Array.isArray(s.departures) ? s.departures : [],
       whales: Array.isArray(s.whales) ? s.whales : [],
       boughtUsd: s.boughtUsd ?? 0,
+      price: typeof s.price === 'number' ? s.price : null,
       mode: s.mode || 'buys',
       recentBuys: Array.isArray(s.recentBuys) ? s.recentBuys : [],
       market: s.market && typeof s.market.change24h === 'number' ? { ...s.market, stocks: Array.isArray(s.market.stocks) ? s.market.stocks.filter((x) => x && typeof x.priceUsd === 'number' && x.priceUsd > 0) : [] } : null,

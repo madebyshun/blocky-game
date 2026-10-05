@@ -8,7 +8,7 @@ mountSite('about');
 const $ = (id) => document.getElementById(id);
 const fill = (cls, text) => { for (const el of document.querySelectorAll(cls)) el.textContent = text; };
 fill('.tk', CONFIG.ticker);
-fill('.per', String(CONFIG.usdPerBlocky));
+
 fill('.supply', fmt(CONFIG.supply));
 fill('.whale', fmt(CONFIG.whaleUsd));
 fill('.royalty', String(CONFIG.nft.royaltyBps / 100));

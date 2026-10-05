@@ -53,13 +53,13 @@ async function wallet(L, address) {
   const { active, left } = walletBlockies(L, address);
   const wi = L.wallets.indexOf(address.toLowerCase());
   const a = wi >= 0 ? L.acct[wi] : null;
-  return { a, active, left, owed: a ? Math.max(0, allowance(a, LEDGER.per) - a.ids.length) : 0 };
+  return { a, active, left, owed: a ? Math.max(0, allowance(a) - a.ids.length) : 0 };
 }
 async function holding(L, a, address) {
   if (L.frozen) return Infinity;
   const decimals = L.decimals ?? Number(await client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'decimals' }));
   const bal = Number(await client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [address] })) / 10 ** decimals;
-  return allowance({ ...a, bal }, LEDGER.per);
+  return allowance({ ...a, bal });
 }
 
 export default async function handler(req, res) {
@@ -85,8 +85,9 @@ export default async function handler(req, res) {
         chainId: CHAIN_ID,
         open: Boolean(NFT && SIGNER),
         unlocked,
-        usdPerBlocky: LEDGER.per,
+        price: LEDGER.per, // USD of $BLOCKY per Blocky
         boughtUsd: Math.round((w.a?.usd ?? 0) * 100) / 100,
+        toNext: Math.round((1 - ((w.a?.credits ?? 0) % 1)) * LEDGER.per * 100) / 100, // USD more for the next Blocky
         blockies: w.active.map((n) => ({ n, at: atOf(n), seed: seedOf(n), claimed: claimed.has(n) })),
         left: w.left.map((n) => ({ n, at: atOf(n), seed: seedOf(n) })),
         waiting: w.owed, // owed a place: the city is full

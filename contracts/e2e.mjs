@@ -9,7 +9,7 @@ const evm = await chain();
 const [owner, signer, alice, bob, dave] = [11, 12, 13, 14, 18].map(account);
 const C = await evm.deploy(owner, [owner.address, signer.address, owner.address, 500, 10000n, 'https://basecity.test/api/nft/', '']);
 for (const k of Object.keys(process.env)) if (/^(KV_|UPSTASH_)/.test(k)) delete process.env[k];
-Object.assign(process.env, { NFT_CONTRACT: C, CLAIM_SIGNER_KEY: `0x${'12'.padStart(64, '0')}`, SITE_URL: 'https://basecity.test' });
+Object.assign(process.env, { NFT_CONTRACT: C, CLAIM_SIGNER_KEY: `0x${'12'.padStart(64, '0')}`, SITE_URL: 'https://basecity.test', USD_PER_BLOCKY: '5' });
 
 const { client, saveLedger, loadLedger, LEDGER } = await import('../api/_store.js');
 const { newLedger, applyTrade } = await import('../src/ledger.js');

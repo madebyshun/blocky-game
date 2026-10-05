@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
+import { CONFIG } from './src/config.js';
 
 // `npm run dev` also serves the API (api/*.js, the same code Vercel runs), reading variables from
 // .env.local, so the live flow can be tested locally.
@@ -15,8 +16,12 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       {
-        name: 'absolute-og-image',
-        transformIndexHtml: (html) => (site ? html.replace(/content="\/og\.png"/g, `content="${site}/og.png"`) : html),
+        // %PRICE% in the pages = USD of $BLOCKY per Blocky (src/config.js); share images need absolute URLs
+        name: 'page-text',
+        transformIndexHtml: (html) => {
+          const out = html.replace(/%PRICE%/g, String(Number(env.USD_PER_BLOCKY) || CONFIG.usdPerBlocky));
+          return site ? out.replace(/content="\/og\.png"/g, `content="${site}/og.png"`) : out;
+        },
       },
       {
         name: 'local-api',

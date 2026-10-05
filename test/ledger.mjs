@@ -1,4 +1,4 @@
-// The Blocky ledger's rules (src/ledger.js): $5 per Blocky per wallet, the hold rule, the waitlist,
+// The Blocky ledger's rules (src/ledger.js): $ per Blocky per wallet, the hold rule, the waitlist,
 // whales, incremental snapshots, fair rarity seeds, and the unlock. Run: npm test
 import assert from 'node:assert/strict';
 import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed } from '../src/ledger.js';
@@ -74,7 +74,17 @@ L.frozen = true;
 applyTrade(L, { who: '0xE', kind: 'sell', usd: 50, tokens: 500, at: at() }, cfg);
 assert.equal(snapshot(L, cfg).minted, 10);
 
-// 6. rarity: seeded by the block of the buy, same odds as the config
+// 6. each buy counts at the price of its day: raising the price later keeps what was earned
+L = newLedger(0);
+applyTrade(L, { who: '0xG', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);
+applyTrade(L, { who: '0xG', kind: 'buy', usd: 50, tokens: 500, at: at() }, { ...cfg, per: 25 });
+assert.equal(walletBlockies(L, '0xg').active.length, 12);
+applyTrade(L, { who: '0xH', kind: 'buy', usd: 30, tokens: 300, at: at() }, { ...cfg, per: 25 }); // 1.2: one, the rest carries over
+applyTrade(L, { who: '0xH', kind: 'buy', usd: 20, tokens: 200, at: at() }, { ...cfg, per: 25 });
+assert.equal(walletBlockies(L, '0xh').active.length, 2);
+assert.equal(snapshot(L, { ...cfg, per: 25 }).price, 25);
+
+// 7. rarity: seeded by the block of the buy, same odds as the config
 L = newLedger(0);
 applyTrade(L, { who: '0xF', kind: 'buy', usd: 10, tokens: 100, at: at(), tx: '0xt', block: '0xb1' }, cfg);
 assert.equal(snapshot(L, cfg).blockies[0][3], rollSeed(1, '0xb1'));

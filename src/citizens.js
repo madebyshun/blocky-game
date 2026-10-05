@@ -487,7 +487,7 @@ export const LEGEND_LOOKS = {
   },
 };
 
-// Tier uniforms for Blockies brought by big buys (see CONFIG.tiers), worn instead of the role outfit.
+// Uniforms worn instead of the role outfit: a Base Builder without a hand-made look wears `base`.
 // base: Base-blue hard hat with the logo, navy jacket with a blue/white reflective vest, tool belt.
 // whale: gold hard hat, navy suit, sunglasses and a gold chain with a little whale.
 // star: a legend without a hand-made look.

@@ -78,7 +78,7 @@ export function makeLegend(i, start) {
   };
 }
 
-// Blocky #n: brought by `from`'s buys, one per $5. Its look and rarity follow from n alone.
+// Blocky #n: earned by `from`'s buys. Its look follows from n, its rarity from n and its seed.
 // seed: the roll the ledger gave Blocky #n (src/ledger.js rollSeed); without one, the number alone.
 export function makeBlocky(n, arrivedAt, from = null, seed = null) {
   const { rarity, trait } = rarityOf(n, seed);

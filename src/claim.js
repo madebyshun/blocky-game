@@ -134,8 +134,8 @@ function tile(entry, gone) {
 function render(j) {
   const list = j?.blockies || [], left = j?.left || [];
   const claimed = list.filter((x) => x.claimed).length, unclaimed = list.length - claimed;
-  const per = j?.usdPerBlocky || CONFIG.usdPerBlocky, usd = j?.boughtUsd || 0;
-  const toNext = per - (usd % per);
+  const price = j?.price || CONFIG.usdPerBlocky, usd = j?.boughtUsd || 0;
+  const toNext = j?.toNext ?? price;
   $('mystats').innerHTML = !j ? '' : [
     [`${CONFIG.citizenPlural} in the city`, fmt(list.length)],
     ['Claimed', fmt(claimed)],
@@ -151,7 +151,7 @@ function render(j) {
   for (const x of list) tiles.appendChild(tile(x, false));
   for (const x of left) gone.appendChild(tile(x, true));
   $('gone-title').hidden = !left.length;
-  if (j && !list.length) tiles.innerHTML = `<p class="empty-mine">No ${CONFIG.citizenPlural} for this wallet yet. Every $${per} of ${CONFIG.ticker} it buys brings one${CONFIG.buyUrl ? `: <a href="${CONFIG.buyUrl}" target="_blank" rel="noopener">buy ${CONFIG.ticker}</a>` : ''}.</p>`;
+  if (j && !list.length) tiles.innerHTML = `<p class="empty-mine">No ${CONFIG.citizenPlural} for this wallet yet. Every $${price} of ${CONFIG.ticker} it buys brings one${CONFIG.buyUrl ? `: <a href="${CONFIG.buyUrl}" target="_blank" rel="noopener">buy ${CONFIG.ticker}</a>` : ''}.</p>`;
 
   const btn = $('claim');
   const mineNow = account && viewing && account.toLowerCase() === viewing.toLowerCase();
