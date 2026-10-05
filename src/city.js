@@ -1310,24 +1310,29 @@ export function createCity(scene) {
     if (animate) { group.scale.set(1, 0.01, 1); rising.push({ group, t: 0, mode: 'grow' }); }
   }
 
-  // a concrete road bridge where a paved street crosses the river
+  // a concrete road bridge where a paved street crosses the river: it spans between two junctions,
+  // and its railings stop where the junctions begin (the junctions get their own deck and railings)
+  const RAIL = 0xd5d8dc, DECK = 0xb0b6bd;
   function roadBridge(k, x, z, along) {
-    const long = PITCH + 0.4, ax = along === 'x';
-    k.box(ax ? long : 2.6, 0.3, ax ? 2.6 : long, 0xb0b6bd, x, -0.15, z);
-    k.box(ax ? long : 2, 0.05, ax ? 2 : long, C.road, x, 0.15, z);
+    const span = PITCH - 2, ax = along === 'x';
+    k.box(ax ? span + 0.6 : 2.6, 0.3, ax ? 2.6 : span + 0.6, DECK, x, -0.15, z);
+    k.box(ax ? span : 2, 0.05, ax ? 2 : span, C.road, x, 0.15, z);
     for (let s = -2; s <= 2; s += 2) k.box(ax ? 0.9 : 0.12, 0.02, ax ? 0.12 : 0.9, 0xf4f4f0, x + (ax ? s : 0), 0.2, z + (ax ? 0 : s));
-    for (const o of [-1.2, 1.2]) k.box(ax ? long : 0.2, 0.3, ax ? 0.2 : long, 0xd5d8dc, x + (ax ? 0 : o), 0.15, z + (ax ? o : 0));
+    for (const o of [-1.2, 1.2]) k.box(ax ? span : 0.2, 0.3, ax ? 0.2 : span, RAIL, x + (ax ? 0 : o), 0.15, z + (ax ? o : 0));
     for (const s of [-2.5, 2.5]) k.box(ax ? 0.6 : 1.6, 0.6, ax ? 1.6 : 0.6, 0x9aa3ad, x + (ax ? s : 0), -0.75, z + (ax ? 0 : s));
   }
 
-  function bridge(k, x, z, along) {
-    const long = PITCH + 0.4;
-    k.box(along === 'x' ? long : 2, 0.25, along === 'x' ? 2 : long, C.wood, x, -0.1, z);
+  // a wooden footbridge where no road crosses; cutA / cutB pull its ends back from a road junction
+  function bridge(k, x, z, along, cutA = 0, cutB = 0) {
+    const ax = along === 'x', from = -(PITCH + 0.4) / 2 + cutA, to = (PITCH + 0.4) / 2 - cutB, long = to - from, mid = (from + to) / 2;
+    const at = (s, o) => (ax ? [x + s, z + o] : [x + o, z + s]);
+    const [cx, cz] = at(mid, 0);
+    k.box(ax ? long : 2, 0.25, ax ? 2 : long, C.wood, cx, -0.1, cz);
+    const posts = Math.max(1, Math.round(long / 1.4));
     for (const o of [-0.95, 0.95]) {
-      if (along === 'x') k.box(long, 0.08, 0.08, 0x6e4b2a, x, 0.45, z + o); else k.box(0.08, 0.08, long, 0x6e4b2a, x + o, 0.45, z);
-      for (let s = -long / 2; s <= long / 2; s += 1.4) {
-        if (along === 'x') k.box(0.1, 0.45, 0.1, 0x6e4b2a, x + s, 0.1, z + o); else k.box(0.1, 0.45, 0.1, 0x6e4b2a, x + o, 0.1, z + s);
-      }
+      const [rx, rz] = at(mid, o);
+      k.box(ax ? long : 0.08, 0.08, ax ? 0.08 : long, 0x6e4b2a, rx, 0.45, rz);
+      for (let n = 0; n <= posts; n++) { const [px, pz] = at(from + (n * long) / posts, o); k.box(0.1, 0.45, 0.1, 0x6e4b2a, px, 0.1, pz); }
     }
   }
 
@@ -1484,13 +1489,31 @@ export function createCity(scene) {
         link([i, j - 1], [i, j]);
       }
     }
-    // every other river crossing keeps a wooden footbridge
-    for (let i = -L; i <= L; i++) for (let j = -L; j < L; j++) if (isWater(i, j) && isWater(i, j + 1) && !carried.has(`h${i},${j}`)) bridge(k, i * PITCH, j * PITCH + 4, 'x');
-    for (let i = -L; i < L; i++) for (let j = -L; j <= L; j++) if (isWater(i, j) && isWater(i + 1, j) && !carried.has(`v${i},${j}`)) bridge(k, i * PITCH + 4, j * PITCH, 'z');
+    // every other river crossing keeps a wooden footbridge, stopping short of any road junction
+    const foot = [];
+    for (let i = -L; i <= L; i++) for (let j = -L; j < L; j++) if (isWater(i, j) && isWater(i, j + 1) && !carried.has(`h${i},${j}`)) foot.push([i, j, 'h']);
+    for (let i = -L; i < L; i++) for (let j = -L; j <= L; j++) if (isWater(i, j) && isWater(i + 1, j) && !carried.has(`v${i},${j}`)) foot.push([i, j, 'v']);
+    const cut = (i, j) => (graph.nodes.has(`${i},${j}`) ? 1.2 : 0);
+    for (const [i, j, d] of foot) {
+      if (d === 'h') bridge(k, i * PITCH, j * PITCH + 4, 'x', cut(i - 1, j), cut(i, j));
+      else bridge(k, i * PITCH + 4, j * PITCH, 'z', cut(i, j - 1), cut(i, j));
+    }
+    // junctions: over the river they sit on a deck at bridge height, with railings on every side over
+    // the water that no road or bridge leaves from
+    const open = new Set([...segs, ...foot].map(([i, j, d]) => `${d}${i},${j}`));
     for (const [key, [x, z]] of graph.nodes) {
-      k.box(2, 0.05, 2, C.road, x, 0, z);
       const [i, j] = key.split(',').map(Number);
-      if ((i + j) % 2 === 0) { k.box(0.12, 2, 0.12, C.dark, x + 1.15, 0, z + 1.15); k.win(0.35, 0.25, 0.35, x + 1.15, 2, z + 1.15); }
+      const wet = [[i, j], [i + 1, j], [i, j + 1], [i + 1, j + 1]].map(([a, b]) => isWater(a, b));
+      const y = wet.every(Boolean) ? 0.15 : 0;
+      if (wet.some(Boolean)) k.box(2.6, 0.3, 2.6, DECK, x, y - 0.3, z);
+      k.box(2, 0.05, 2, C.road, x, y, z);
+      for (const [seg, a, b, dx, dz] of [
+        [`h${i},${j}`, [i, j], [i, j + 1], -1, 0], [`h${i + 1},${j}`, [i + 1, j], [i + 1, j + 1], 1, 0],
+        [`v${i},${j}`, [i, j], [i + 1, j], 0, -1], [`v${i},${j + 1}`, [i, j + 1], [i + 1, j + 1], 0, 1],
+      ]) {
+        if (!open.has(seg) && isWater(...a) && isWater(...b)) k.box(dx ? 0.2 : 2.6, 0.3, dx ? 2.6 : 0.2, RAIL, x + dx * 1.2, y, z + dz * 1.2);
+      }
+      if ((i + j) % 2 === 0) { k.box(0.12, 2, 0.12, C.dark, x + 1.15, y, z + 1.15); k.win(0.35, 0.25, 0.35, x + 1.15, y + 2, z + 1.15); }
     }
     roadGroup.add(k.build());
   }
