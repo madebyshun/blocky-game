@@ -1,0 +1,30 @@
+/* The Blockies page (shared styles: site.css). */
+.lede a { color: #8fb5ff; font-weight: 800; text-decoration: none; }
+.coll { display: grid; gap: 16px; margin-top: 18px; }
+.coll .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+.filters { display: grid; gap: 10px; margin-bottom: 10px; }
+.filters input { width: 100%; }
+.selects { display: flex; flex-wrap: wrap; gap: 8px; }
+.selects select { flex: 1 1 150px; }
+.shown { margin: 4px 0 10px; }
+.more { display: flex; justify-content: center; margin: 18px 0 6px; }
+.empty { color: var(--muted); font-weight: 600; grid-column: 1 / -1; }
+.side { display: grid; gap: 14px; position: sticky; top: 76px; }
+.box { padding: 16px; }
+.box h2 { margin: 0 0 10px; font: 400 22px/1.1 'Lilita One', Inter, sans-serif; letter-spacing: 0.01em; }
+.box .small { margin: 10px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+.holders { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; counter-reset: h; }
+.holders li { counter-increment: h; }
+.holders button { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 9px; cursor: pointer; font-size: 14px; }
+.holders button:hover, .holders button:focus-visible { background: rgba(255, 255, 255, 0.07); }
+.holders button::before { content: counter(h); width: 20px; color: var(--muted); font-weight: 800; font-size: 12px; }
+.holders .a { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: var(--soft); }
+.holders b { font-variant-numeric: tabular-nums; }
+.holders .none { color: var(--muted); font-size: 14px; }
+.modal .eyebrow { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; }
+.modal .tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--soft); font-weight: 700; font-size: 14px; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .side { position: static; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+}

@@ -587,7 +587,8 @@ function finish(g, legs, arms) { mergeParts(g); for (const p of [...legs, ...arm
 
 // One Blocky: a little builder in a safety vest, dressed for its role.
 // Returns the group plus the parts that animate (legs, arms) and the block it carries.
-export function buildBlocky(b) {
+// merge: false keeps every box separate (the SVG renderer reads them one by one).
+export function buildBlocky(b, { merge = true } = {}) {
   const g = new THREE.Group();
   g.scale.setScalar(0.95);
   const role = b.role.id;
@@ -624,7 +625,7 @@ export function buildBlocky(b) {
   if (look || uniform) {
     if (look) look.dress(g, arms); else tierUniform(g, tier === 'whale' ? 'whale' : 'base', hair, !!b.legend);
     if (b.trait) applyTrait(g, arms, b, skin);
-    finish(g, legs, arms);
+    if (merge) finish(g, legs, arms);
     const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
     carry.visible = false;
     return { group: g, legs, arms, carry };
@@ -669,7 +670,7 @@ export function buildBlocky(b) {
   }
 
   if (b.trait) applyTrait(g, arms, b, skin);
-  finish(g, legs, arms);
+  if (merge) finish(g, legs, arms);
   const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
   carry.visible = false;
   return { group: g, legs, arms, carry };

@@ -15,6 +15,18 @@ export const CONFIG = {
   builderSkill: 1.5, // work speed of a Base Builder (the legends below)
   founderSkill: 2,
 
+  // The NFT (contracts/BaseCityBlockies.sol): the wallet that brought a Blocky claims it and pays the
+  // gas. Transfers open once `supply` Blockies are claimed. contract: the deployed address (the API's
+  // NFT_CONTRACT wins); royalties go to the treasury.
+  nft: {
+    name: 'BaseCity Blockies',
+    symbol: 'BCB',
+    chainId: 8453,
+    contract: '',
+    royaltyBps: 500,
+    treasury: '0x699eacc348852de429ac3e9a28238e5906ec75d6',
+  },
+
   // Every Blocky rolls a rarity from its number, so anyone can verify it.
   // Rare looks walk around the city, show on the Blocky card and in its PFP.
   rarity: [

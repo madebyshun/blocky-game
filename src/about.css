@@ -1,0 +1,8 @@
+/* The About page (shared styles: site.css). */
+.prose { padding-bottom: 8px; }
+.prose table.t { margin: 10px 0 4px; }
+.prose td small { color: var(--muted); font-weight: 600; }
+.prose td a { overflow-wrap: anywhere; }
+.live { margin-top: 18px; max-width: 760px; }
+.live .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.fine { margin-top: 26px; color: var(--muted) !important; font-size: 13px; }

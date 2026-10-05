@@ -77,7 +77,7 @@ html, body {
 
 
 /* stats */
-.stats { position: fixed; top: 16px; right: 16px; padding: 12px 16px; display: grid; gap: 8px; width: 290px; }
+.stats { position: fixed; top: 16px; right: 16px; padding: 12px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; width: 290px; }
 .stats > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
 .stats b { font-size: 18px; font-variant-numeric: tabular-nums; }
 .stats .cta { gap: 8px; margin-top: 4px; }
@@ -115,7 +115,10 @@ html, body {
 .card-pfp { width: 72px; height: 72px; border-radius: 14px; flex-shrink: 0; background: rgba(255, 255, 255, 0.06); }
 .card-actions { display: flex; gap: 8px; margin-top: 12px; }
 .card-actions .btn { flex: 1; }
-.builders-link { text-decoration: none; text-align: center; color: var(--accent); }
+.site-links { display: flex; gap: 2px; margin-top: 2px; min-width: 0; }
+.site-links a { flex: 1 1 auto; min-width: 0; padding: 5px 4px; border-radius: 8px; text-align: center; text-decoration: none; color: var(--soft, #c9d2e3); font-weight: 800; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.site-links a:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.site-links a.hot { color: var(--accent); background: rgba(255, 200, 61, 0.12); }
 .up { color: var(--up); }
 .down { color: var(--down); }
 
@@ -194,7 +197,7 @@ body.photo .photo-exit { display: block; }
   .district { font-size: 12px; }
   .stats { top: 196px; left: 16px; right: 16px; width: auto; grid-template-columns: repeat(4, 1fr); padding: 10px 12px; }
   .stats > div { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .stats .cta, .stats .ca { grid-column: 1 / -1; flex-direction: row; }
+  .stats .cta, .stats .ca, .stats .site-links { grid-column: 1 / -1; flex-direction: row; }
   #next-unlock { display: none; }
   .stats b { font-size: 15px; }
   .card { top: auto; bottom: 96px; left: 16px; right: 16px; width: auto; padding: 12px 14px; }

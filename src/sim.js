@@ -44,13 +44,15 @@ export const TRAIT_LABEL = {
   shades: 'Shades', basecap: 'Base Cap', goldhat: 'Gold Hard Hat', lasereyes: 'Laser Eyes',
   astronaut: 'Astronaut', diamond: 'Diamond Skin', crown: 'Crown',
 };
-// Rarity from the Blocky's number alone: the same roll for every visitor, checkable by anyone.
-export function rarityOf(n) {
-  const roll = hash(n, 222);
+// Rarity from the Blocky's number and the seed the ledger gave it (the block that brought it): the
+// same roll for every visitor, checkable by anyone, unknowable before the buy.
+export function rarityOf(n, seed = null) {
+  const roll = (salt) => (seed == null ? hash(n, salt) : hash(seed, n, salt));
+  const r0 = roll(222);
   let acc = 0;
   for (const r of [...CONFIG.rarity].reverse()) { // rarest first
     acc += r.chance;
-    if (roll < acc) return { rarity: r, trait: r.traits.length ? r.traits[Math.floor(hash(n, 223) * r.traits.length)] : null };
+    if (r0 < acc) return { rarity: r, trait: r.traits.length ? r.traits[Math.floor(roll(223) * r.traits.length)] : null };
   }
   return { rarity: CONFIG.rarity[0], trait: null };
 }
@@ -77,12 +79,13 @@ export function makeLegend(i, start) {
 }
 
 // Blocky #n: brought by `from`'s buys, one per $5. Its look and rarity follow from n alone.
-export function makeBlocky(n, arrivedAt, from = null) {
-  const { rarity, trait } = rarityOf(n);
+// seed: the roll the ledger gave Blocky #n (src/ledger.js rollSeed); without one, the number alone.
+export function makeBlocky(n, arrivedAt, from = null, seed = null) {
+  const { rarity, trait } = rarityOf(n, seed);
   return {
     ...base(n), kind: 'blocky', name: `${pick(NAMES, n, 14)} #${n}`, legend: null,
     role: ROLES[1 + Math.floor(hash(n, 11) * (ROLES.length - 1))], tier: BLOCKY_TIER,
-    arrivedAt, from, skill: CONFIG.blockySkill, rarity, trait,
+    arrivedAt, from, seed, skill: CONFIG.blockySkill, rarity, trait,
   };
 }
 
@@ -220,18 +223,38 @@ export class CitySim {
 
   setBuilders(builders) {
     this.builders = builders.slice().sort((a, b) => a.arrivedAt - b.arrivedAt);
-    this.blockyTimes = this.builders.filter((b) => b.kind === 'blocky').map((b) => b.arrivedAt); // sorted
-    // Crew segments between arrivals: total skill S, crew speed, and the running totals at the
-    // segment start (W: blocks placed, P: blocks per unit of skill, to credit each Blocky its share).
+    // Crew segments between arrivals and departures: total skill S, crew speed, and the running
+    // totals at the segment start (W: blocks placed, P: blocks per unit of skill, to credit each
+    // builder its share). A Blocky that left stops working from that moment.
+    const events = [];
+    for (const b of this.builders) {
+      events.push([b.arrivedAt, b.skill]);
+      if (Number.isFinite(b.leftAt)) events.push([Math.max(b.arrivedAt, b.leftAt), -b.skill]);
+    }
+    events.sort((x, y) => x[0] - y[0]);
     this.segs = [];
     let S = 0, W = 0, P = 0;
-    this.builders.forEach((b, i) => {
-      S += b.skill;
-      const rate = crewRate(S), seg = { t0: b.arrivedAt, S, rate, W, P };
-      this.segs.push(seg);
-      const t1 = this.builders[i + 1]?.arrivedAt;
-      if (t1 !== undefined) { const h = (t1 - b.arrivedAt) / HOUR; W += rate * h; P += (rate / S) * h; }
+    events.forEach(([t, ds], i) => {
+      S += ds;
+      const next = events[i + 1]?.[0];
+      if (next === t) return; // several changes at the same moment: one segment
+      const rate = S > 1e-9 ? crewRate(S) : 0;
+      this.segs.push({ t0: t, S, rate, W, P });
+      if (next !== undefined) { const h = (next - t) / HOUR; W += rate * h; P += S > 1e-9 ? (rate / S) * h : 0; }
     });
+    // Goals count the Blockies in the city: arrivals minus departures, and the first moment each
+    // count was reached (land expansions wait for it).
+    const blockies = this.builders.filter((b) => b.kind === 'blocky');
+    this.arrivals = blockies.map((b) => b.arrivedAt).sort((x, y) => x - y);
+    this.leaves = blockies.filter((b) => Number.isFinite(b.leftAt)).map((b) => b.leftAt).sort((x, y) => x - y);
+    this.firstReach = [];
+    let i = 0, j = 0, n = 0;
+    while (i < this.arrivals.length) {
+      if (j < this.leaves.length && this.leaves[j] < this.arrivals[i]) { n--; j++; continue; }
+      n++;
+      if (this.firstReach[n] === undefined) this.firstReach[n] = this.arrivals[i];
+      i++;
+    }
     this.reset();
   }
 
@@ -243,8 +266,9 @@ export class CitySim {
   workAt(t) { const g = this.seg(t); return g ? g.W + (g.rate * (t - g.t0)) / HOUR : 0; }
   rateAt(t) { return this.seg(t)?.rate ?? 0; }
   blocksBy(b, t) {
-    const per = (x) => { const g = this.seg(x); return g ? g.P + ((g.rate / g.S) * (x - g.t0)) / HOUR : 0; };
-    return t <= b.arrivedAt ? 0 : b.skill * (per(t) - per(b.arrivedAt));
+    const per = (x) => { const g = this.seg(x); return g && g.S > 1e-9 ? g.P + ((g.rate / g.S) * (x - g.t0)) / HOUR : g ? g.P : 0; };
+    const end = Math.min(t, Number.isFinite(b.leftAt) ? b.leftAt : Infinity);
+    return end <= b.arrivedAt ? 0 : b.skill * (per(end) - per(b.arrivedAt));
   }
   // first moment the crew's total reaches w blocks (W(t) is piecewise linear and increasing)
   timeAtWork(w) {
@@ -282,10 +306,9 @@ export class CitySim {
     return lots.sort((a, b) => Math.hypot(...a) + hash(...a, 7) * 0.9 - (Math.hypot(...b) + hash(...b, 7) * 0.9));
   }
 
-  popAt(t) { // Blockies arrived by t (Base Builders and the founder don't count toward goals)
-    let lo = 0, hi = this.blockyTimes.length;
-    while (lo < hi) { const m = (lo + hi) >> 1; if (this.blockyTimes[m] <= t) lo = m + 1; else hi = m; }
-    return lo;
+  popAt(t) { // Blockies in the city at t (Base Builders and the founder don't count toward goals)
+    const upTo = (list) => { let lo = 0, hi = list.length; while (lo < hi) { const m = (lo + hi) >> 1; if (list[m] <= t) lo = m + 1; else hi = m; } return lo; };
+    return upTo(this.arrivals) - upTo(this.leaves);
   }
   proAt(t) { return this.builders.some((b) => b.tier.pro && b.arrivedAt <= t); }
 
@@ -317,7 +340,7 @@ export class CitySim {
   // A project starts when the previous one is done (an expansion also waits for enough Blockies)
   // and is finished once the crew has placed its cost in blocks since then.
   startOf(p) {
-    return p.need ? Math.max(this.lastT, this.blockyTimes[p.need - 1] ?? Infinity) : this.lastT;
+    return p.need ? Math.max(this.lastT, this.firstReach[p.need] ?? Infinity) : this.lastT;
   }
 
   // Replay every project finished by `now`. Returns the newly finished ones.

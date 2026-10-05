@@ -1,0 +1,37 @@
+/* The claim page (shared styles: site.css). */
+.claim { display: grid; gap: 16px; margin-top: 18px; }
+.claim h2 { margin: 0 0 12px; font: 400 24px/1.1 'Lilita One', Inter, sans-serif; letter-spacing: 0.01em; }
+.connect, .mine, .rules { padding: 18px; }
+.wallets { display: flex; flex-wrap: wrap; gap: 10px; }
+.wallet { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px 10px 10px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: var(--text); font: 800 15px Inter, system-ui, sans-serif; cursor: pointer; }
+.wallet:hover { background: rgba(255, 255, 255, 0.12); }
+.wallet img, .wallet .ic { width: 28px; height: 28px; border-radius: 8px; flex: none; }
+.wallet .ic { display: grid; place-items: center; background: var(--base); border-radius: 50%; }
+.wallet .ic::after { content: ''; width: 12px; height: 12px; border-radius: 3px; background: #fff; }
+.wallet .ic.plain { background: #2b3550; border-radius: 8px; }
+.wallet .ic.plain::after { background: var(--muted); border-radius: 50%; width: 10px; height: 10px; }
+.wallet small { color: var(--muted); font-weight: 700; font-size: 12px; }
+.lookup { margin-top: 16px; display: grid; gap: 6px; max-width: 560px; }
+.lookup label { color: var(--muted); font-weight: 700; font-size: 13px; }
+.lookup div { display: flex; gap: 8px; }
+.lookup input { flex: 1; }
+.mine-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+.mine-head > div { min-width: 0; }
+.k { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.who { display: block; font-weight: 700; overflow-wrap: anywhere; text-decoration: none; color: #8fb5ff; }
+.mine .stat { background: var(--panel-2); border-radius: 12px; }
+.claim-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 16px 0; }
+.claim-msg { color: var(--soft); font-weight: 600; min-width: 0; flex: 1; }
+.claim-msg a { color: #8fb5ff; font-weight: 800; }
+.claim-msg.ok { color: var(--up); }
+.claim-msg.bad { color: #ffb0b8; }
+.gone-title { margin: 22px 0 10px; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+.rules ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; color: var(--soft); }
+.rules b { color: var(--text); }
+.rules p { margin: 12px 0 0; }
+.rules a { color: #8fb5ff; font-weight: 800; text-decoration: none; }
+.empty-mine { color: var(--muted); font-weight: 600; }
+@media (max-width: 560px) {
+  .mine-head { flex-direction: column; align-items: stretch; }
+  .claim-row .btn { width: 100%; }
+}

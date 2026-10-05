@@ -1,36 +1,25 @@
 // The Base Builders page: every Base Builder with a voxel PFP, live stats from the city, and a download.
 import { CONFIG } from './config.js';
-import { cityCrew, makeBlocky, CitySim } from './sim.js';
 import { fetchColony } from './data.js';
 import { renderPfp, downloadPfp } from './pfp.js';
+import { replay } from './replay.js';
+import { mountSite, fmt, day } from './site.js';
 
 const $ = (id) => document.getElementById(id);
+mountSite('builders');
 $('ticker').textContent = CONFIG.ticker;
-if (CONFIG.buyUrl) { $('buy').hidden = false; $('buy').href = CONFIG.buyUrl; $('buy').textContent = `Buy ${CONFIG.ticker}`; }
 $('profile').querySelector('.close').onclick = () => $('profile').close();
 $('profile').addEventListener('click', (e) => { if (e.target === $('profile')) $('profile').close(); });
 $('profile').addEventListener('close', () => history.replaceState(null, '', location.pathname + location.search));
 
-const fmt = (n) => Math.floor(n).toLocaleString('en-US');
-const day = (ms) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const slug = (n) => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-
-// Replay the city (same rules as the game) to know how much every builder has built.
-function replay(state) {
-  const start = state?.cityStart ?? Date.now();
-  const crew = cityCrew(start);
-  (state?.blockies || []).forEach(([from, at], i) => crew.push(makeBlocky(i + 1, Math.max(start, at), from)));
-  const sim = new CitySim(start);
-  sim.setCrew(crew, state?.whales || []);
-  sim.advance(Date.now());
-  return { crew, sim, minted: state?.minted ?? 0 };
-}
 
 function statsOf(b, sim) {
   const now = Date.now();
   if (b.arrivedAt > now) return null;
   const blocks = sim.blocksBy(b, now);
-  return { hours: (now - b.arrivedAt) / 3600000, blocks, share: sim.work ? (blocks / sim.work) * 100 : 0, skill: b.skill, joined: b.arrivedAt };
+  const total = sim.workAt(now);
+  return { hours: (now - b.arrivedAt) / 3600000, blocks, share: total ? (blocks / total) * 100 : 0, skill: b.skill, joined: b.arrivedAt };
 }
 
 function card(b, rank, status, here, stats) {
@@ -90,11 +79,10 @@ function openProfile(b, status, here, stats) {
 (async () => {
   let state = null;
   try { state = await fetchColony(); } catch { /* show the line-up without live stats */ }
-  const { crew, sim, minted } = replay(state);
+  const { team, sim, minted } = replay(state);
   const now = Date.now();
-  const team = crew.filter((b) => b.kind !== 'blocky');
   const live = state && state.source !== 'demo';
-  $('count').textContent = `${team.filter((b) => b.arrivedAt <= now).length - 1} Base builders · ${fmt(minted)} of ${fmt(CONFIG.supply)} Blockies minted${live ? '' : ' (demo data)'}`;
+  $('count').textContent = `${team.filter((b) => b.arrivedAt <= now).length - 1} Base builders · ${fmt(minted)} of ${fmt(CONFIG.supply)} Blockies in the city${live ? '' : ' (demo data)'}`;
   const cards = team.map((b, i) => {
     const here = b.arrivedAt <= now;
     const status = b.kind === 'founder' ? `Built ${CONFIG.cityName} from empty land` : here ? `Building ${CONFIG.cityName} since ${day(b.arrivedAt)}` : `Joins on ${day(b.arrivedAt)}`;

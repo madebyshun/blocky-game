@@ -1,14 +1,20 @@
 // Vercel serverless function: GET /api/colony
-// Returns the live state every visitor renders:
-//   { minted, supply, blockies: [[from, at]...], whales: [{ from, usd, at }], boughtUsd, recentBuys,
-//     cityStart, market, source, mode, updatedAt }
-// `?since=N` returns only blockies after the first N (clients poll with the count they have).
+// Returns the live state every visitor renders (see snapshot() in src/ledger.js):
+//   { minted, issued, departed, supply, waiting, blockies: [[from, at, leftAt, seed]...],
+//     departures: [[number, at]...], whales: [{ from, usd, at }], boughtUsd, recentBuys, cityStart,
+//     market, source, mode, updatedAt }
+// `?since=N&dsince=D` returns only the Blockies after the first N and the departures after the first
+// D (clients poll with the counts they have).
 //
-// COUNT_MODE=buys (default): every $USD_PER_BLOCKY of $BLOCKY a wallet buys (added up per wallet)
-//   brings one Blocky: #1, #2, ... up to MAX_SUPPLY, then no more. Each Blocky remembers its wallet
-//   (it is meant to become that wallet's NFT). A single buy of WHALE_USD+ also builds a Whale
-//   Fountain. Buys come from the pool's public trade feed (GeckoTerminal), counted from
-//   LAUNCH_TIME_MS or the first time this API runs (BACKFILL_HOURS reaches back for testing).
+// COUNT_MODE=buys (default): the Blocky ledger (src/ledger.js). Every $USD_PER_BLOCKY of $BLOCKY a
+//   wallet buys (added up per wallet) brings one Blocky, up to MAX_SUPPLY in the city at once. A
+//   wallet keeps the share of its Blockies that matches the share of its bought $BLOCKY it still
+//   holds; sellers' Blockies leave and their places go to the next wallets in line. A single buy of
+//   WHALE_USD+ also builds a Whale Fountain. Trades come from the pool's public trade feed
+//   (GeckoTerminal); each trade's real wallet is read from its receipt (smart wallets trade through
+//   bundlers), and balances are checked every HOLD_CHECK_MINUTES so tokens moved away count as sold.
+//   Counting starts at LAUNCH_TIME_MS, or the first time this API runs (BACKFILL_HOURS reaches back
+//   for testing).
 //
 // COUNT_MODE=fees: every $USD_PER_BLOCKY of creator fees brings a Blocky. Fee sources:
 //   FEES_USD_OVERRIDE  fixed number, handy for testing
@@ -20,36 +26,32 @@
 // every Blocky, so the city never shrinks and every visitor sees the same one. Without KV the state
 // lives in memory (fine for `npm run dev`, not for production).
 
-import { createPublicClient, http, erc20Abi, parseAbi, getAddress } from 'viem';
+import { erc20Abi, parseAbi, getAddress } from 'viem';
 import { base } from 'viem/chains';
+import { applyTrade, applyBalances, snapshot, holders } from '../src/ledger.js';
+import { env, TOKEN, LEDGER, LAUNCH, NFT, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
+import { CLAIM_ABI } from './_sig.js';
 
-const env = process.env;
-const RPC = env.BASE_RPC_URL || 'https://mainnet.base.org';
 const MODE = env.COUNT_MODE || 'buys';
-const FEE_PER = Number(env.USD_PER_BLOCKY || env.FEE_PER_CITIZEN || 5);
+const FEE_PER = LEDGER.per;
+const SUPPLY = LEDGER.supply;
 const MIN_BUY = Number(env.MIN_BUY_USD || 1);
-const SUPPLY = Number(env.MAX_SUPPLY || 10000);
-const WHALE_USD = Number(env.WHALE_USD || 1000);
-const BACKFILL_MS = Number(env.BACKFILL_HOURS || 0) * 3600000;
 const POOL = env.POOL_ID || '0x61ccc84e302c1a95fb66435a285e95581134bfc2a11d4fbb88ed07e68ca2e4c0'; // BLOCKY/NVDAc
 const OFFSET = Number(env.FEES_OFFSET_USD || 0);
-const LAUNCH = Number(env.LAUNCH_TIME_MS || 0) || null; // when the city starts from empty land
-const KV_URL = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
-const KV_TOKEN = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
-const KEY_BASE = env.KV_KEY || 'blocky:colony';
-const KEY = MODE === 'fees' ? KEY_BASE : `${KEY_BASE}:buys:v3`; // separate state per counting mode (v3: $5 per Blocky, per wallet)
-const TOKEN = env.TOKEN_ADDRESS || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885';
+const KEY = KEY_BASE; // fee mode state
 const EXTRA_TOKENS = (env.FEE_TOKENS || '').split(',').map((s) => s.trim()).filter(Boolean);
 // Tokens shown in the breakdown but NOT counted as fees (e.g. the creator's own $BLOCKY bag).
 const EXCLUDED = new Set((env.EXCLUDE_TOKENS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
-const CACHE_MS = Number(env.CACHE_MS || 20000); // one chain read per 20s, however many visitors
-const STALE_MS = 10 * 60 * 1000; // on RPC errors, keep serving the last good answer this long
+const CACHE_MS = Number(env.CACHE_MS || 20000); // one feed read per 20s, however many visitors
+const STALE_MS = 10 * 60 * 1000; // on errors, keep serving the last good answer this long
+const HOLD_CHECK_MS = Number(env.HOLD_CHECK_MINUTES || 15) * 60000;
+const RESOLVE = env.RESOLVE_WALLETS !== '0';
 
 const WETH = '0x4200000000000000000000000000000000000006';
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const ETH_USD_FEED = '0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70'; // Chainlink ETH/USD on Base
+const TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 
-const client = createPublicClient({ chain: base, transport: http(RPC, { retryCount: 2 }) });
 const FEED_ABI = parseAbi(['function latestRoundData() view returns (uint80, int256, uint256, uint256, uint80)']);
 const MULTICALL_ABI = parseAbi(['function getEthBalance(address) view returns (uint256)']);
 const units = (raw, decimals) => Number(raw) / 10 ** decimals;
@@ -120,76 +122,87 @@ async function walletFees(walletRaw) {
   return { fees: breakdown.reduce((s, r) => s + r.usd, 0), breakdown };
 }
 
-async function kv(...cmd) {
-  const res = await fetch(KV_URL, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${KV_TOKEN}`, 'content-type': 'application/json' },
-    body: JSON.stringify(cmd),
-  });
-  return (await res.json()).result;
-}
+// ---------- buys and sells: the Blocky ledger ----------
 
-// persistent state: KV when configured, otherwise this process's memory
-let memory = null;
-const useKv = () => Boolean(KV_URL && KV_TOKEN);
-async function load() { return useKv() ? JSON.parse((await kv('GET', KEY)) || 'null') : memory; }
-async function save(state) { if (useKv()) await kv('SET', KEY, JSON.stringify(state)); else memory = state; }
-
-// ---------- buys ----------
-
-async function recentBuys() {
+async function recentTrades() {
   const res = await fetch(`https://api.geckoterminal.com/api/v2/networks/base/pools/${POOL}/trades`, { headers: { accept: 'application/json' } });
   if (!res.ok) throw new Error(`GeckoTerminal HTTP ${res.status} for pool ${POOL}`);
-  const token = TOKEN.toLowerCase();
-  return ((await res.json()).data || [])
-    .map((d) => ({ id: d.id, ...d.attributes }))
-    .filter((t) => (t.to_token_address ? t.to_token_address.toLowerCase() === token : t.kind === 'buy'))
-    .map((t) => ({ id: t.id || t.tx_hash, tx: t.tx_hash, from: t.tx_from_address, usd: Number(t.volume_in_usd) || 0, at: Date.parse(t.block_timestamp) }))
-    .sort((a, b) => a.at - b.at);
+  return ((await res.json()).data || []).map((d) => {
+    const t = { id: d.id, ...d.attributes };
+    const buy = t.to_token_address ? t.to_token_address.toLowerCase() === TOKEN : t.kind === 'buy';
+    const sell = t.from_token_address ? t.from_token_address.toLowerCase() === TOKEN : t.kind === 'sell';
+    if (!buy && !sell) return null;
+    return {
+      id: t.id || t.tx_hash, tx: t.tx_hash, who: (t.tx_from_address || '').toLowerCase(), kind: buy ? 'buy' : 'sell',
+      usd: Number(t.volume_in_usd) || 0, tokens: Number(buy ? t.to_token_amount : t.from_token_amount) || 0, at: Date.parse(t.block_timestamp),
+    };
+  }).filter(Boolean).sort((a, b) => a.at - b.at);
 }
 
-const cents = (v) => Math.round(v * 100) / 100;
+// Smart wallets (Coinbase Smart Wallet, the Base App) trade through a bundler, so the transaction's
+// sender is not the trader. Read the wallet the $BLOCKY actually went to (buy) or came from (sell):
+// the biggest $BLOCKY transfer in the receipt, its last hop for a buy and its first hop for a sell.
+// Also returns the trade's block hash, which seeds the rarity of the Blockies it brings.
+async function realWallet(t) {
+  if (!RESOLVE || !t.tx) return { who: t.who };
+  try {
+    const r = await client.getTransactionReceipt({ hash: t.tx });
+    const moves = r.logs.filter((l) => l.address.toLowerCase() === TOKEN && l.topics[0] === TRANSFER && l.topics.length === 3);
+    if (!moves.length) return { who: t.who, block: r.blockHash };
+    const amount = (l) => BigInt(l.data);
+    const max = moves.reduce((m, l) => (amount(l) > m ? amount(l) : m), 0n);
+    const big = moves.filter((l) => amount(l) * 100n >= max * 95n);
+    const addr = (topic) => `0x${topic.slice(26)}`.toLowerCase();
+    return { who: t.kind === 'buy' ? addr(big[big.length - 1].topics[2]) : addr(big[0].topics[1]), block: r.blockHash };
+  } catch {
+    return { who: t.who };
+  }
+}
 
-// State, kept compact for KV: wallets[] holds each address once; blockies[] is [walletIndex, secondsSinceStart].
+async function inBatches(list, size, fn) {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(...(await Promise.all(list.slice(i, i + size).map(fn))));
+  return out;
+}
+
+// Tokens moved away count as sold: read every holder's balance (Multicall3, 500 per call).
+// Once the NFT collection unlocks, Blockies stay whatever their wallets do.
+async function checkBalances(L) {
+  if (NFT && !L.frozen) L.frozen = await client.readContract({ address: NFT, abi: CLAIM_ABI, functionName: 'unlocked' }).catch(() => false);
+  if (L.frozen) return;
+  const wallets = holders(L);
+  if (!wallets.length) return;
+  L.decimals ??= Number(await client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'decimals' }));
+  const balances = {};
+  for (let i = 0; i < wallets.length; i += 500) {
+    const chunk = wallets.slice(i, i + 500);
+    const res = await client.multicall({ allowFailure: true, contracts: chunk.map((w) => ({ address: TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [w] })) });
+    res.forEach((r, k) => { if (r.status === 'success') balances[chunk[k]] = Number(r.result) / 10 ** L.decimals; });
+  }
+  const head = await client.getBlock().catch(() => null);
+  applyBalances(L, balances, Date.now(), LEDGER, head?.hash);
+}
+
 async function computeBuys() {
   const now = Date.now();
-  const loaded = await load();
-  const state = loaded || { start: LAUNCH ?? now - BACKFILL_MS, bought: 0, wallets: [], credit: {}, blockies: [], whales: [], seen: [], recent: [] };
-  const index = new Map(state.wallets.map((w, i) => [w, i]));
-  const seen = new Set(state.seen);
-  let changed = false;
-  for (const b of await recentBuys()) {
-    if (b.at < state.start || seen.has(b.id)) continue;
-    seen.add(b.id);
+  const { ledger: L, fresh } = await loadLedger();
+  const seen = new Set(L.seen);
+  let changed = fresh;
+  const trades = (await recentTrades()).filter((t) => t.at >= L.start && !seen.has(t.id));
+  const wallets = await inBatches(trades, 6, realWallet);
+  trades.forEach((t, i) => {
+    seen.add(t.id);
     changed = true;
-    if (b.usd < MIN_BUY) continue;
-    state.bought += b.usd;
-    const from = (b.from || '').toLowerCase();
-    if (!index.has(from)) { index.set(from, state.wallets.length); state.wallets.push(from); }
-    const w = index.get(from);
-    const c = state.credit[w] || { usd: 0, n: 0 };
-    c.usd += b.usd;
-    let added = 0;
-    while (c.n < Math.floor(c.usd / FEE_PER) && state.blockies.length < SUPPLY) {
-      state.blockies.push([w, Math.round((b.at - state.start) / 1000)]);
-      c.n++; added++;
-    }
-    state.credit[w] = c;
-    if (b.usd >= WHALE_USD) state.whales.push({ from, usd: cents(b.usd), at: b.at, tx: b.tx });
-    state.recent = [{ from, usd: cents(b.usd), at: b.at, tx: b.tx, blockies: added }, ...state.recent].slice(0, 10);
+    if (t.kind === 'buy' && t.usd < MIN_BUY) return; // dust buys don't count; every sell does
+    applyTrade(L, { ...t, ...wallets[i] }, LEDGER);
+  });
+  if (now - (L.checkedAt || 0) > HOLD_CHECK_MS) {
+    try { await checkBalances(L); changed = true; } catch (e) { console.warn('[colony] balance check skipped:', e.shortMessage || e.message); }
+    L.checkedAt = now;
   }
-  state.seen = [...seen].slice(-600);
-  if (changed || !loaded) await save(state);
-  return {
-    minted: state.blockies.length,
-    supply: SUPPLY,
-    blockies: state.blockies.map(([w, sec]) => [state.wallets[w], state.start + sec * 1000]),
-    whales: state.whales,
-    boughtUsd: state.bought,
-    recentBuys: state.recent,
-    cityStart: state.start,
-    source: 'onchain',
-  };
+  L.seen = [...seen].slice(-1000);
+  if (changed) await saveLedger(L);
+  return { ...snapshot(L, LEDGER), source: 'onchain' };
 }
 
 // ---------- fees ----------
@@ -228,8 +241,8 @@ async function computeFees() {
     cityStart = start;
   }
   const minted = Math.min(SUPPLY, Math.floor(feesUsd / FEE_PER));
-  const blockies = Array.from({ length: minted }, (_, i) => [null, arrivals?.[i + 1] ?? cityStart ?? Date.now()]);
-  return { minted, supply: SUPPLY, blockies, whales: [], boughtUsd: feesUsd, feesUsd, cityStart, source, breakdown };
+  const blockies = Array.from({ length: minted }, (_, i) => [null, arrivals?.[i + 1] ?? cityStart ?? Date.now(), null]);
+  return { minted, issued: minted, departed: 0, supply: SUPPLY, waiting: 0, blockies, departures: [], whales: [], boughtUsd: feesUsd, feesUsd, cityStart, source, breakdown };
 }
 
 // Price moves drive the city's weather; the Base Stock Exchange shows the quotes. Best-liquidity pair
@@ -244,7 +257,7 @@ async function market() {
     const res = await fetch(`https://api.dexscreener.com/tokens/v1/base/${[TOKEN, ...STOCKS].join(',')}`);
     if (!res.ok) return null;
     const pairs = await res.json();
-    const p = bestPair(pairs, TOKEN.toLowerCase());
+    const p = bestPair(pairs, TOKEN);
     if (!p) return null;
     const stocks = [];
     const native = Number(p.priceNative);
@@ -271,8 +284,11 @@ export default async function handler(req, res) {
       inflight ??= compute().then((body) => (cache = { at: Date.now(), body })).finally(() => (inflight = null));
       await inflight;
     }
-    const since = Math.max(0, Number(new URL(req.url, 'http://x').searchParams.get('since')) || 0);
-    res.status(200).json(since ? { ...cache.body, blockies: cache.body.blockies.slice(since), since } : cache.body);
+    // clients send how many Blockies and departures they already have
+    const q = new URL(req.url, 'http://x').searchParams;
+    const since = Math.max(0, Number(q.get('since')) || 0), dsince = Math.max(0, Number(q.get('dsince')) || 0);
+    const body = cache.body;
+    res.status(200).json(since || dsince ? { ...body, blockies: body.blockies.slice(since), departures: body.departures.slice(dsince), since, dsince } : body);
   } catch (e) {
     const msg = String(e.shortMessage || e.message || e);
     console.warn('[colony]', msg);

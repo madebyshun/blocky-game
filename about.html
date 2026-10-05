@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>How BaseCity works · BaseCity</title>
+    <meta name="description" content="How BaseCity works: every $5 of $BLOCKY brings a Blocky that builds the city 24/7 and is an NFT you claim. Rules, rarity odds, goals and the contract." />
+    <meta property="og:title" content="How BaseCity works" />
+    <meta property="og:description" content="Every $5 of $BLOCKY brings a Blocky that builds the city 24/7 and is an NFT you claim on Base." />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/site.css" />
+    <link rel="stylesheet" href="/src/about.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>How BaseCity works</h1>
+      <p class="lede">A voxel city on Base that builds itself 24/7. Every <b>$5</b> of <span class="tk">$BLOCKY</span> bought brings a Blocky, a little builder that works on the city day and night and is an NFT its wallet claims.</p>
+      <div class="stats-row live" id="live"></div>
+    </header>
+    <main class="wrap"><div class="prose">
+      <h2>Blockies arrive with every buy</h2>
+      <ul>
+        <li>Every <b>$<span class="per">5</span></b> of <span class="tk">$BLOCKY</span> a wallet buys brings one Blocky. Buys add up per wallet: $3 now and $2 later make one.</li>
+        <li>Blockies are numbered in the order they arrive (#1, #2, …) and numbers are never reused.</li>
+        <li>At most <b class="supply">10,000</b> Blockies live in the city at once. When it is full, new buyers join a waitlist and get the next free places, first come first served.</li>
+        <li>A single buy of <b>$<span class="whale">1,000</span>+</b> also builds a <b>Whale Fountain</b> in the city, signed with the buyer's wallet.</li>
+        <li>Buys are read from the <span class="tk">$BLOCKY</span> pool onchain, with the real wallet behind each trade (smart wallets included). Nothing is faked: no buys, no fees.</li>
+      </ul>
+
+      <h2>Hold to stay</h2>
+      <p>A wallet keeps the share of its Blockies that matches the share of its bought <span class="tk">$BLOCKY</span> it still holds. Sell half and the newest half of its Blockies leave the city; tokens sent away count as sold. Their places go to the next wallets in line. This holds until the NFT collection unlocks; after that every Blocky stays for good.</p>
+
+      <h2>The NFT: BaseCity Blockies (BCB)</h2>
+      <ul>
+        <li><b>Claim it yourself.</b> Connect the wallet that bought on the <a href="/claim.html">claim page</a> and claim. You pay the gas, a few cents on Base. Your Blocky's number is its token id.</li>
+        <li><b>Locked until <span class="supply">10,000</span>.</b> Blockies can't be transferred or listed until all <span class="supply">10,000</span> are claimed. Then the collection unlocks by itself and trades on OpenSea and every marketplace on Base.</li>
+        <li><b>Before the unlock, selling has a price.</b> If a wallet sells after claiming, the Blockies that leave are burned and their places go to the next buyers.</li>
+        <li><b>Royalty <span class="royalty">5</span>%</b> on secondary sales, paid to the BaseCity treasury.</li>
+        <li><b>The image is the Blocky.</b> Each NFT's portrait is drawn from the same 3D model that walks the city, and its metadata tracks the blocks it has placed.</li>
+      </ul>
+      <p id="contract-line"></p>
+
+      <h2>Rarity</h2>
+      <p>Every Blocky rolls a rarity and a trait from its number and the block of the buy that brought it. Nobody can know or pick a rare number before buying, and anyone can check the roll afterwards. Rare looks walk around the city too.</p>
+      <table class="t" id="odds"></table>
+
+      <h2>The city grows with its Blockies</h2>
+      <p>The crew builds all the time, even when nobody is watching, and every visitor sees the same city. Big buildings take hours. More Blockies make the crew faster (four times the crew, twice the speed), unlock landmarks, the metro, and more land.</p>
+      <table class="t" id="goals"></table>
+
+      <h2>Base Builders</h2>
+      <p>Real builders from the Base ecosystem build BaseCity alongside the Blockies, at 1.5× speed. They are added by hand, are not part of the NFT collection, and each has a voxel PFP anyone can download on the <a href="/builders.html">Base Builders page</a>.</p>
+
+      <h2>FAQ</h2>
+      <h3>Do I have to claim?</h3>
+      <p>No. Your Blockies build the city either way. Claiming makes them NFTs in your wallet, ready to trade once the collection unlocks.</p>
+      <h3>I bought but see no Blocky</h3>
+      <p>Buys show up within a minute. Check that you bought at least $<span class="per">5</span> in total from the wallet you connect, and that you still hold the <span class="tk">$BLOCKY</span>. If the city is full, you are on the waitlist.</p>
+      <h3>When can I trade my Blockies?</h3>
+      <p>When all <span class="supply">10,000</span> are claimed. The lock keeps the claim fair: nobody can farm Blockies, dump the token and sell the NFTs.</p>
+      <h3>Do NFT holders earn anything?</h3>
+      <p>Not today. Sharing revenue with Blocky holders is on the roadmap once <span class="tk">$BLOCKY</span> earns fees; nothing will start before it is announced.</p>
+
+      <h2>Contracts</h2>
+      <table class="t" id="contracts"></table>
+      <p class="fine">BaseCity is a game and a collectible, not an investment. Nothing here is financial advice; tokens and NFTs can lose value.</p>
+    </div></main>
+    <script type="module" src="/src/about.js"></script>
+  </body>
+</html>

@@ -1,7 +1,8 @@
 // Dev tool: every building design side by side. Open /gallery.html while `npm run dev` runs.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CATALOG, ROLES, cityCrew, TRAIT_LABEL } from './sim.js';
+import { CATALOG, ROLES, cityCrew, makeBlocky, rarityOf, TRAIT_LABEL } from './sim.js';
+import { blockySvg } from './voxel-svg.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
 import { buildingGroup, adWall, updateBoards } from './city.js';
@@ -22,6 +23,35 @@ function fleetShowcase() {
     g.add(v);
   });
   g.userData.animate = (t) => flash(t);
+  return g;
+}
+
+// the NFT portraits (src/voxel-svg.js, the image of every BaseCity Blockies token) in frames
+function nftWall() {
+  const g = new THREE.Group();
+  const trait = (t) => { for (let n = 2; n < 5000; n++) if (rarityOf(n).trait === t) return makeBlocky(n, 0, '0x1'); };
+  const [founder, jesse] = cityCrew(0);
+  const picks = [makeBlocky(2, 0, '0x1'), trait('shades'), trait('lasereyes'), trait('crown'), founder, jesse];
+  const frameMat = new THREE.MeshLambertMaterial({ color: 0x1b2440 });
+  picks.forEach((b, i) => {
+    const tex = new THREE.Texture();
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const img = new Image();
+    img.onload = () => { tex.image = img; tex.needsUpdate = true; };
+    img.src = URL.createObjectURL(new Blob([blockySvg(b, { size: 512 })], { type: 'image/svg+xml' }));
+    const x = ((i % 3) - 1) * 2.9, y = i < 3 ? 4.5 : 1.6;
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(2.7, 2.7, 0.2), frameMat);
+    frame.position.set(x, y, -0.12);
+    frame.castShadow = true;
+    const pic = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshBasicMaterial({ map: tex }));
+    pic.position.set(x, y, 0);
+    g.add(frame, pic);
+  });
+  for (const x of [-4.4, 4.4]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 6, 0.25), frameMat);
+    post.position.set(x, 3, -0.2);
+    g.add(post);
+  }
   return g;
 }
 
@@ -55,6 +85,7 @@ const items = [
   { label: 'BaseCity Metro', p: { type: 'metro' }, make: metroSample },
   { label: 'AI agent drones', p: { type: 'drones' }, make: dronesSample },
   { label: 'Whale Fountain ($1k+ buy)', p: { k: 0, kind: 'wonder', type: 'wonder', whale: { from: '0x1234567890abcdef1234567890abcdef12345678', usd: 1500 } } },
+  { label: 'NFT portraits (BaseCity Blockies)', p: { type: 'nft' }, make: nftWall },
 ];
 // ?only=liberty,coaster shows just those designs, up close
 // ?only=legends, ?only=blockies, or legend names: ?only=Jesse,Ahaan Raizada shows just those, up close

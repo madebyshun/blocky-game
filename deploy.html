@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Deploy the NFT contract · BaseCity</title>
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/site.css" />
+    <style>
+      .form { display: grid; gap: 14px; padding: 18px; margin-top: 18px; max-width: 760px; }
+      .form h2 { margin: 6px 0 0; font: 400 22px/1.1 'Lilita One', Inter, sans-serif; }
+      .form label { display: grid; gap: 4px; color: var(--muted); font-weight: 700; font-size: 13px; }
+      .form input, .form textarea { width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0f1528; color: var(--text); font: 600 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .form textarea { min-height: 64px; resize: vertical; }
+      .form .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+      .form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .steps { color: var(--soft); padding-left: 20px; display: grid; gap: 6px; }
+      .steps code, .note code { font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); overflow-wrap: anywhere; }
+      @media (max-width: 560px) { .form .two { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <h1>Deploy BaseCity Blockies</h1>
+      <p class="lede">Owner tool: deploys the BaseCity Blockies (BCB) contract on Base from your browser wallet. Run it once.</p>
+    </header>
+    <main class="wrap">
+      <form class="panel form" id="form">
+        <h2>1. Wallet</h2>
+        <div class="row" id="wallets"></div>
+        <div class="count" id="me">Use a browser wallet (MetaMask, Rabby, Coinbase Wallet extension): the dev wallet that will own the contract.</div>
+
+        <h2>2. Claim signer</h2>
+        <p class="count">The server signs claims with this key (Vercel env <code>CLAIM_SIGNER_KEY</code>); the contract only accepts its signatures. Generate one here, or paste the address of a key you already made.</p>
+        <div class="row"><button class="btn" type="button" id="gen">Generate a signer key</button></div>
+        <label id="keybox" hidden>Signer private key: copy it into Vercel as CLAIM_SIGNER_KEY now. It is not stored anywhere and can't be shown again.
+          <textarea id="key" readonly></textarea>
+        </label>
+        <label>Signer address<input id="signer" required placeholder="0x…" autocomplete="off" /></label>
+
+        <h2>3. Settings</h2>
+        <div class="two">
+          <label>Owner<input id="owner" required placeholder="0x… (your wallet)" /></label>
+          <label>Royalty receiver (treasury)<input id="royalty" required /></label>
+          <label>Royalty (basis points, 500 = 5%)<input id="bps" required inputmode="numeric" /></label>
+          <label>Max supply (Blockies at once)<input id="supply" required inputmode="numeric" /></label>
+        </div>
+        <label>Base URI (token metadata = base URI + token id)<input id="base" required /></label>
+        <label>Contract URI (collection metadata)<input id="curi" required /></label>
+
+        <h2>4. Deploy</h2>
+        <div class="row"><button class="btn primary big" type="submit" id="go" disabled>Deploy on Base</button></div>
+        <div class="note" id="out" hidden></div>
+      </form>
+    </main>
+    <script type="module" src="/src/deploy.js"></script>
+  </body>
+</html>

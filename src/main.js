@@ -46,8 +46,15 @@ function ago(ms) {
 document.title = `${CONFIG.cityName} · ${CONFIG.tagline}`;
 $('title').textContent = CONFIG.cityName;
 $('tagline').textContent = CONFIG.tagline;
-$('pop-label').textContent = `${plural} minted`;
+$('pop-label').textContent = plural;
 $('leaders-title').textContent = `Top ${plural}`;
+// phones: the stats panel sits right under the progress panel, however tall that gets
+{
+  const progress = document.querySelector('.progress'), stats = document.querySelector('.stats');
+  const place = () => { stats.style.top = innerWidth <= 900 ? `${Math.round(progress.getBoundingClientRect().bottom + 8)}px` : ''; };
+  if (typeof ResizeObserver === 'function') new ResizeObserver(place).observe(progress);
+  addEventListener('resize', place);
+}
 if (CONFIG.buyUrl) { $('buy').hidden = false; $('buy').href = CONFIG.buyUrl; $('buy').textContent = `Buy ${CONFIG.ticker}`; }
 if (CONFIG.chartUrl) { $('chart').hidden = false; $('chart').href = CONFIG.chartUrl; }
 if (CONFIG.tokenAddress) {
@@ -167,8 +174,9 @@ const crew = []; // every builder in arrival order: the founder, the Base Builde
 const byId = new Map();
 const views = new Map(); // id -> BuilderView; only some Blockies are drawn, every one of them builds
 const MAX_VIEWS = 120, OG = 20; // drawn: founder, Base Builders, the first OG Blockies, Legendaries, the newest
-let minted = 0; // Blockies in the city
+let minted = 0; // Blockies in the city now
 let known = 0; // Blockies the API has told us about (some may still be on the airship)
+let knownGone = 0; // departures the API has told us about
 let supply = CONFIG.supply;
 let whales = [];
 let bought = 0; // USD bought (or fees earned in fee mode)
@@ -183,6 +191,15 @@ function draw(b, arriving = false) {
   return views.get(b.id);
 }
 const kept = (b) => b.kind !== 'blocky' || b.id <= OG || b.rarity?.id === 'legendary' || selected?.b === b;
+const inCity = (b) => !Number.isFinite(b.leftAt);
+const countMinted = () => crew.reduce((n, b) => n + (b.kind === 'blocky' && inCity(b) ? 1 : 0), 0);
+function undraw(id) {
+  const v = views.get(id);
+  if (!v) return;
+  if (selected === v) select(null);
+  city.root.remove(v.group);
+  views.delete(id);
+}
 function trimViews() { // drop the oldest ordinary Blockies once too many are drawn (they keep building off screen)
   if (views.size <= MAX_VIEWS) return;
   for (const [id, v] of views) {
@@ -220,11 +237,15 @@ function applyState(s, first) {
   if (s.market) { market = s.market; weather.setMarket(market); }
   updateBoards({ market, population: Math.max(minted, s.minted || 0) });
   for (const b of [...(s.recentBuys || [])].reverse()) {
-    const key = `${b.at}|${b.from}|${b.usd}`;
+    const key = `${b.at}|${b.from}|${b.usd}|${b.kind}`;
     if (loggedBuys.has(key)) continue;
     loggedBuys.add(key);
     if (first) continue;
-    const what = b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : minted >= supply ? '' : ' → adds up to the next one';
+    if (b.kind === 'sell') {
+      log(`💸 ${short(b.from)} sold ${usd(b.usd)}${b.left ? ` → ${b.left} ${b.left > 1 ? plural : CONFIG.citizen} left the city` : ''}`, b.at);
+      continue;
+    }
+    const what = b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : minted >= supply ? ' → waiting for a place in the city' : ' → adds up to the next one';
     log(`🛒 ${short(b.from)} bought ${usd(b.usd)}${what}`, b.at);
     if (b.usd >= CONFIG.whaleUsd) {
       weather.celebrate(); setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800);
@@ -235,25 +256,53 @@ function applyState(s, first) {
     }
   }
 
-  // the API sends only the Blockies after `known` (a stale answer may resend all of them)
+  // the API sends only what came after `known` and `knownGone` (a stale answer may resend everything)
   const fresh = (s.since ?? 0) === known ? s.blockies : s.blockies.slice(Math.max(0, known - (s.since ?? 0)));
+  const gone = (s.dsince ?? 0) === knownGone ? s.departures : s.departures.slice(Math.max(0, knownGone - (s.dsince ?? 0)));
   const whalesChanged = (s.whales?.length || 0) !== whales.length;
   if (whalesChanged) whales = s.whales || [];
+  const blocky = (n, [from, at, left, seed]) => {
+    const b = makeBlocky(n, Math.max(cityStart, at ?? now()), from, seed);
+    if (left != null) b.leftAt = Math.max(b.arrivedAt, left);
+    return b;
+  };
   if (first) {
     cityStart = s.cityStart ?? (CONFIG.cityStart ? Date.parse(CONFIG.cityStart) : now());
     sim = new CitySim(cityStart);
     for (const b of cityCrew(cityStart)) { join(b); draw(b); }
-    fresh.forEach(([from, at], i) => join(makeBlocky(i + 1, Math.max(cityStart, at), from)));
-    minted = known = fresh.length;
-    // draw the first OG Blockies, every Legendary and the newest arrivals
-    const blockies = crew.filter((b) => b.kind === 'blocky');
-    for (const b of blockies.filter((x) => kept(x)).slice(0, MAX_VIEWS - views.size)) draw(b);
-    for (const b of blockies.slice().reverse()) { if (views.size >= MAX_VIEWS) break; draw(b); }
+    fresh.forEach((e, i) => join(blocky(i + 1, e)));
+    known = fresh.length;
+    knownGone = s.departed ?? 0; // already folded into each Blocky's leftAt
+    minted = countMinted();
+    // draw the first OG Blockies, every Legendary and the newest arrivals still in the city
+    const here = crew.filter((b) => b.kind === 'blocky' && inCity(b));
+    for (const b of here.filter((x) => kept(x)).slice(0, MAX_VIEWS - views.size)) draw(b);
+    for (const b of here.slice().reverse()) { if (views.size >= MAX_VIEWS) break; draw(b); }
     sim.setCrew(crew, whales);
   } else {
-    fresh.forEach(([from, at], i) => arrivalQueue.push({ n: known + i + 1, from, at: at ?? now() }));
+    let changed = whalesChanged;
+    fresh.forEach((e, i) => {
+      const n = known + i + 1;
+      if (e[2] != null) { join(blocky(n, e)); changed = true; } // came and went between two polls
+      else arrivalQueue.push({ n, from: e[0], at: e[1] ?? now(), seed: e[3] });
+    });
     known += fresh.length;
-    if (whalesChanged) sim.setCrew(crew, whales);
+    // Blockies whose wallets sold leave the city; their places go to the next wallets in line
+    const leaving = [];
+    for (const [n, at] of gone) {
+      const b = byId.get(n);
+      if (b) { if (inCity(b)) { b.leftAt = Math.max(b.arrivedAt, at); undraw(n); leaving.push(b); } continue; }
+      const q = arrivalQueue.findIndex((x) => x.n === n);
+      if (q >= 0) { const [x] = arrivalQueue.splice(q, 1); join(blocky(n, [x.from, x.at, at, x.seed])); }
+    }
+    knownGone += gone.length;
+    if (leaving.length) {
+      changed = true;
+      const nums = leaving.length > 1 ? `${leaving.length} ${plural}` : leaving[0].name;
+      log(`👋 ${nums} left the city: ${leaving.length > 1 ? 'their wallets' : 'its wallet'} sold ${CONFIG.ticker}`, now(), leaving[0].id);
+      news.unshift(`<b>MOVING OUT:</b> ${nums} left ${CONFIG.cityName} after ${leaving.length > 1 ? 'their wallets' : 'its wallet'} sold ${CONFIG.ticker}. Their places go to the next buyers`);
+    }
+    if (changed) { minted = countMinted(); sim.setCrew(crew, whales); }
   }
   nextUnlockText();
   renderHud();
@@ -266,8 +315,8 @@ const FROM = new THREE.Vector3(70, 24, 46);
 let flight = null;
 
 function land(batch) {
-  const arrived = batch.map(({ n, from, at }) => { const b = makeBlocky(n, Math.max(cityStart, at), from); join(b); draw(b, true); return b; });
-  minted = Math.max(minted, arrived[arrived.length - 1].id);
+  const arrived = batch.map(({ n, from, at, seed }) => { const b = makeBlocky(n, Math.max(cityStart, at), from, seed); join(b); draw(b, true); return b; });
+  minted = countMinted();
   trimViews();
   sim.setCrew(crew, whales);
   const rares = arrived.filter((b) => b.rarity && b.rarity.id !== 'common');
@@ -379,7 +428,7 @@ function renderHud() {
 
 function topBuilders(n) {
   const ts = now();
-  return crew.map((b) => [b, sim.blocksBy(b, ts)]).sort((a, b) => b[1] - a[1]).slice(0, n);
+  return crew.filter(inCity).map((b) => [b, sim.blocksBy(b, ts)]).sort((a, b) => b[1] - a[1]).slice(0, n);
 }
 function renderLeaders() {
   $('leaders').innerHTML = topBuilders(5)
@@ -409,6 +458,8 @@ function renderCard() {
   $('card-joined').textContent = ago(b.arrivedAt);
   $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : b.from ? short(b.from) : '—';
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
+  $('card-nft').hidden = b.kind !== 'blocky';
+  $('card-nft').href = `/collection.html#${b.id}`;
   const img = $('card-pfp');
   if (img.dataset.id !== String(b.id)) { img.dataset.id = b.id; img.src = renderPfp(b, { size: 256, mark: false }); img.alt = `Voxel PFP of ${b.name}`; }
 }
@@ -612,7 +663,7 @@ function frame() {
   refreshTicker();
   welcomeBack();
   requestAnimationFrame(frame);
-  setInterval(async () => applyState(await fetchColony(known), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
+  setInterval(async () => applyState(await fetchColony(known, knownGone), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
 })();
 
 window.blocky = { city, crew, views, agents, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };
