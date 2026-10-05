@@ -67,6 +67,14 @@ export const CONFIG = {
   // (one per ruinAt, at most maxRuins) until the crew rebuilds it, first thing.
   departures: { ruinAt: 20, maxRuins: 3 },
 
+  // Basenames on Base (api/_names.js): where primary names live. ENS's L2 reverse registrar is the
+  // source of truth since 2025; the older Basenames resolver still holds names set before that.
+  basenames: {
+    reverseRegistrar: '0x0000000000D8e504002cC26E3Ec46D81971C1664',
+    legacyResolver: '0xC6d566A56A1aFf6508b41f6c90ff131615583BCD',
+    registry: '0xb94704422c2a1e396835a571837aa5ae53285a95',
+  },
+
   // Live state (see api/colony.js). If it fails, the game falls back to demo mode.
   apiUrl: '/api/colony',
   pollMs: 15000,
@@ -131,7 +139,10 @@ export const CONFIG = {
     { name: 'Joey', title: 'Base Builder', look: 'mintcap' },
   ],
 
-  // Landmarks: once `at` Blockies have arrived, the crew builds it next on its reserved lot [x, z].
+  // Landmarks: once `at` Blockies have arrived, the crew builds it next on its reserved lot [x, z]:
+  // at most one landmark (or Base project HQ) every `landmarkEvery` projects, so homes keep going up
+  // between them even when many unlock at once (the team reserve unlocks the first ones at launch).
+  landmarkEvery: 3,
   landmarks: [
     { at: 0, id: 'garage', label: "Founder's Garage", lot: [0, 1] },
     { at: 0, id: 'square', label: 'Town Square', lot: [0, 0] },
@@ -147,6 +158,28 @@ export const CONFIG = {
     { at: 500, id: 'launchpad', label: 'Launchpad Tower', lot: [-1, 3], pro: true }, // pro: needs a Base Builder in the crew
     { at: 1000, id: 'stadium', label: 'Demo Day Stadium', lot: [-3, 2], pro: true },
     { at: 2500, id: 'beacon', label: 'Onchain Beacon', lot: [-2, -4], pro: true },
+  ],
+
+  // Base projects: each gets a headquarters on its own lot once `at` Blockies are in the city (a
+  // community goal like any landmark). Until then its plot shows a COMING SOON sign; the HQ's signs
+  // link to the project. Tributes to teams building on Base, not paid placements or endorsements.
+  //   { id, name, label?, tagline, url, color, accent?, text?, logo?, style, at, lot }
+  // style: tower, campus, spire or dome. logo: one of LOGOS in src/city.js (else the initial on
+  // `color`). label: the building's name (default "<name> HQ"). Lots: free lots near Town Square.
+  baseProjects: [
+    { id: 'virtuals', name: 'Virtuals', tagline: 'Co-own autonomous AI agents', url: 'https://app.virtuals.io', color: '#3ca1a4', accent: '#e6fbdc', logo: 'virtuals', style: 'tower', at: 100, lot: [0, 2] },
+    { id: 'basenames', name: 'Basenames', label: 'Basenames City Hall', tagline: 'Your identity on Base', url: 'https://www.base.org/names', color: '#0052ff', accent: '#ffffff', logo: 'basenames', style: 'dome', at: 125, lot: [-1, 2] },
+    { id: 'uniswap', name: 'Uniswap', tagline: 'Swap anytime, anywhere', url: 'https://app.uniswap.org', color: '#ff007a', accent: '#ffffff', logo: 'uniswap', style: 'campus', at: 175, lot: [1, 2] },
+    { id: 'aero', name: 'Aero', tagline: "Base's central liquidity hub", url: 'https://aerodrome.finance', color: '#0433ff', accent: '#ff1100', logo: 'aero', style: 'spire', at: 250, lot: [-2, 2] }, // Aerodrome, Aero once it merges with Velodrome
+    { id: 'cbwallet', name: 'Coinbase Wallet', tagline: 'Self-custody, built for Base', url: 'https://www.coinbase.com/wallet', color: '#0052ff', accent: '#ffffff', logo: 'cbwallet', style: 'tower', at: 350, lot: [0, 3] },
+    { id: 'morpho', name: 'Morpho', tagline: 'Open credit network for the world', url: 'https://morpho.org', color: '#2470ff', accent: '#d0e0f8', logo: 'morpho', style: 'spire', at: 400, lot: [1, 3] },
+    { id: 'usdc', name: 'USDC', label: 'Circle USDC Tower', tagline: 'Digital dollars, onchain', url: 'https://www.circle.com/usdc', color: '#2775ca', accent: '#ffffff', logo: 'usdc', style: 'tower', at: 450, lot: [-2, 3] },
+    { id: 'bankr', name: 'Bankr', tagline: 'Your AI banker on Base', url: 'https://bankr.bot', color: '#7b2ff2', accent: '#ffd400', logo: 'bankr', style: 'campus', at: 600, lot: [-3, 3] },
+    { id: 'x402', name: 'x402', tagline: 'Internet-native payments for AI agents', url: 'https://www.x402.org', color: '#0052ff', accent: '#9fd0ff', logo: 'x402', style: 'spire', at: 750, lot: [3, 3] },
+    { id: 'limitless', name: 'Limitless', tagline: 'Trade the future', url: 'https://limitless.exchange', color: '#141414', accent: '#c3ff00', logo: 'limitless', style: 'dome', at: 900, lot: [-1, 4] },
+    { id: 'o1', name: 'o1.exchange', tagline: 'Trade onchain', url: 'https://o1.exchange', color: '#1d1d1d', accent: '#9fd0ff', logo: 'o1', style: 'tower', at: 1200, lot: [0, 4] },
+    { id: 'veranta', name: 'Veranta', tagline: 'Trade global markets onchain', url: 'https://www.veranta.xyz', color: '#7e18ff', accent: '#4a71ff', style: 'campus', at: 1400, lot: [3, 4] }, // was Avantis
+    { id: 'basepaint', name: 'BasePaint', tagline: 'Paint together. Mint daily.', url: 'https://basepaint.xyz', color: '#1b1b1b', accent: '#ffd23f', logo: 'basepaint', style: 'campus', at: 1750, lot: [-2, 4] },
   ],
 
   // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`.

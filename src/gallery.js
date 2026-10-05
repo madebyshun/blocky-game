@@ -1,11 +1,11 @@
 // Dev tool: every building design side by side. Open /gallery.html while `npm run dev` runs.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CATALOG, ROLES, cityCrew, makeBlocky, rarityOf, TRAIT_LABEL } from './sim.js';
+import { CATALOG, ROLES, cityCrew, makeBlocky, rarityOf, TRAIT_LABEL, LANDMARKS, HQ_SIZE } from './sim.js';
 import { blockySvg } from './voxel-svg.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
-import { buildingGroup, ruinGroup, adWall, updateBoards, kitFor, reserveLot } from './city.js';
+import { buildingGroup, ruinGroup, adWall, updateBoards, kitFor, reserveLot, brandPlot } from './city.js';
 import { dronesSample } from './agents.js';
 import { FLEET, makeService, flash } from './fleet.js';
 import { metroSample } from './metro.js';
@@ -79,7 +79,11 @@ const items = [
     const mid = (r) => Math.round((r[0] + r[1]) / 2);
     return { label: t.label, p: { k: k + 3, kind: 'building', type, w: t.size[0][1], d: t.size[1][1], h: mid(t.size[2]), color: 0xe8dcc8 } };
   }),
-  ...CONFIG.landmarks.map((l) => ({ label: l.label, p: { k: 0, kind: 'landmark', type: l.id } })),
+  ...LANDMARKS.map((l) => {
+    const [w, d, h] = l.brand ? HQ_SIZE[l.brand.style] || HQ_SIZE.tower : [];
+    return { label: l.label, p: { k: 0, kind: 'landmark', type: l.brand ? 'hq' : l.id, w, d, h, brand: l.brand } };
+  }),
+  ...(CONFIG.baseProjects || []).slice(0, 1).map((b) => ({ label: `${b.name} HQ: its plot until then`, p: { type: 'hq' }, make: () => kitFor((k) => brandPlot(k, b)) })),
   { label: 'Billboards', p: { type: 'billboards' }, make: adWall },
   { label: 'Service vehicles', p: { type: 'vehicles' }, make: fleetShowcase },
   { label: 'BaseCity Metro', p: { type: 'metro' }, make: metroSample },

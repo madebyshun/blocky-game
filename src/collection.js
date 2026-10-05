@@ -6,7 +6,8 @@ import { blockySvg } from './voxel-svg.js';
 import { fetchColony } from './data.js';
 import { replay } from './replay.js';
 import { lazyPortrait, portraitUrl } from './portraits.js';
-import { mountSite, short, fmt, day, basescan, opensea, esc, nftInfo, downloadSvgPng } from './site.js';
+import { mountSite, fmt, day, basescan, opensea, esc, nftInfo, downloadSvgPng } from './site.js';
+import { addNames, nameOf, who } from './names.js';
 
 mountSite('blockies');
 const $ = (id) => document.getElementById(id);
@@ -39,7 +40,7 @@ function sidebar() {
   for (const b of all) if (here(b) && b.from) count.set(b.from, (count.get(b.from) || 0) + 1);
   const top = [...count].sort((a, b) => b[1] - a[1]).slice(0, 10);
   $('holders').innerHTML = top.length
-    ? top.map(([a, n]) => `<li><button type="button" data-a="${esc(a)}" title="Show this wallet's ${CONFIG.citizenPlural}"><span class="a">${esc(short(a))}</span><b>${fmt(n)}</b></button></li>`).join('')
+    ? top.map(([a, n]) => `<li><button type="button" data-a="${esc(a)}" title="Show the ${CONFIG.citizenPlural} of ${esc(a)}"><span class="a">${esc(who(a, 22))}</span><b>${fmt(n)}</b></button></li>`).join('')
     : `<li class="none">No ${CONFIG.citizenPlural} yet.</li>`;
   $('holders').onclick = (e) => {
     const btn = e.target.closest('button[data-a]');
@@ -80,7 +81,7 @@ function matches(b) {
   if (!q) return true;
   if (/^#?\d+$/.test(q)) return b.id === Number(q.replace('#', ''));
   if (q.startsWith('0x')) return (b.from || '').startsWith(q);
-  return b.name.toLowerCase().includes(q);
+  return b.name.toLowerCase().includes(q) || (nameOf(b.from) || '').includes(q); // a Blocky's name or its wallet's Basename
 }
 
 function apply() {
@@ -108,7 +109,7 @@ function more() {
     el.className = `tile${here(b) ? '' : ' gone'}`;
     el.innerHTML = `<div class="pic"><img alt="${esc(b.name)}" width="256" height="256" /></div>
       <div class="info"><div class="name">${esc(b.name)}</div>
-      <div class="sub"><span class="rarity ${b.rarity.id}">${b.rarity.label}</span><span>${esc(short(b.from))}</span></div></div>
+      <div class="sub"><span class="rarity ${b.rarity.id}">${b.rarity.label}</span><span>${esc(who(b.from, 16))}</span></div></div>
       ${here(b) ? '' : '<span class="flag gone">Left</span>'}`;
     el.onclick = () => open(b);
     lazyPortrait(el.querySelector('img'), b);
@@ -142,7 +143,7 @@ function open(b) {
     [here(b) ? 'Building for' : 'Built for', `${fmt((end - b.arrivedAt) / 3600000)} hours`],
     ['Arrived', day(b.arrivedAt)],
     ...(here(b) ? [] : [['Left', day(b.leftAt)]]),
-    [teamReserve(b) ? 'Team reserve' : 'Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener">${esc(short(b.from))}</a>` : '—'],
+    [teamReserve(b) ? 'Team reserve' : 'Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener" title="${esc(b.from)}">${esc(who(b.from, 30))}</a>` : '—'],
   ];
   $('d-dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const site = CONFIG.siteUrl || location.origin;
@@ -161,6 +162,7 @@ function open(b) {
   $('shown').textContent = 'Loading…';
   const [state, nft] = await Promise.all([fetchColony().catch(() => null), nftInfo()]);
   info = nft;
+  addNames(state?.names);
   const r = replay(state);
   all = r.blockies;
   sim = r.sim;

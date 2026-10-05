@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
-import { hash, PITCH, isWater, isReserve } from './sim.js';
+import { hash, PITCH, isWater, isReserve, LANDMARKS } from './sim.js';
 import { now } from './time.js';
 import { makeService, makeDrone } from './fleet.js';
 
@@ -191,6 +191,66 @@ export const LOGOS = {
     for (const yy of [0.31, 0.35, 0.39]) g.fillRect(x + s * 0.65, y + s * yy, s * 0.12, s * 0.018);
     for (const xx of [0.68, 0.74]) { g.fillRect(x + s * xx, y + s * 0.46, s * 0.012, s * 0.12); g.fillRect(x + s * (xx - 0.015), y + s * (xx === 0.68 ? 0.52 : 0.49), s * 0.042, s * 0.02); }
     g.fillRect(x + s * 0.27, y + s * 0.65, s * 0.08, s * 0.018);
+  },
+  // a pink unicorn's head
+  uniswap(g, x, y, s) {
+    g.fillStyle = '#ff007a'; rr(g, x, y, s, s, s * 0.12);
+    g.fillStyle = '#ffffff';
+    const P = (pts) => { g.beginPath(); pts.forEach(([u, v], i) => (i ? g.lineTo : g.moveTo).call(g, x + u * s, y + v * s)); g.closePath(); g.fill(); };
+    P([[0.36, 0.86], [0.3, 0.56], [0.36, 0.38], [0.46, 0.27], [0.5, 0.12], [0.55, 0.26], [0.66, 0.34], [0.78, 0.5], [0.76, 0.58], [0.66, 0.56], [0.58, 0.5], [0.56, 0.62], [0.64, 0.86]]);
+    g.fillStyle = '#ff007a'; g.beginPath(); g.arc(x + s * 0.55, y + s * 0.4, s * 0.03, 0, Math.PI * 2); g.fill();
+  },
+  // a white butterfly on a blue disc: two wings each side
+  morpho(g, x, y, s) {
+    g.fillStyle = '#ffffff'; rr(g, x, y, s, s, s * 0.12);
+    g.fillStyle = '#2470ff'; g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.44, 0, Math.PI * 2); g.fill();
+    for (const d of [-1, 1]) {
+      g.fillStyle = '#ffffff';
+      g.beginPath(); g.moveTo(x + s * 0.5, y + s * 0.5); g.lineTo(x + s * (0.5 + d * 0.3), y + s * 0.24); g.lineTo(x + s * (0.5 + d * 0.27), y + s * 0.5); g.closePath(); g.fill();
+      g.fillStyle = '#d0e0f8';
+      g.beginPath(); g.moveTo(x + s * 0.5, y + s * 0.52); g.lineTo(x + s * (0.5 + d * 0.24), y + s * 0.55); g.lineTo(x + s * (0.5 + d * 0.14), y + s * 0.76); g.closePath(); g.fill();
+    }
+  },
+  // a blue coin: a dollar sign between two arcs
+  usdc(g, x, y, s) {
+    g.fillStyle = '#ffffff'; rr(g, x, y, s, s, s * 0.12);
+    g.fillStyle = '#2775ca'; g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.4, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#ffffff'; g.lineWidth = s * 0.045;
+    g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.29, Math.PI * 0.62, Math.PI * 1.38); g.stroke();
+    g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.29, -Math.PI * 0.38, Math.PI * 0.38); g.stroke();
+    g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `800 ${Math.round(s * 0.34)}px Inter, system-ui, sans-serif`; g.fillText('$', x + s / 2, y + s * 0.52);
+  },
+  // the Base mark: a white disc with a bar cut in from the left, on blue
+  basenames(g, x, y, s) {
+    g.fillStyle = '#0052ff'; rr(g, x, y, s, s, s * 0.16);
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.32, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#0052ff'; g.fillRect(x + s * 0.12, y + s * 0.455, s * 0.46, s * 0.09);
+  },
+  // four lime arrows meeting in the middle
+  limitless(g, x, y, s) {
+    g.fillStyle = '#0b0b0b'; rr(g, x, y, s, s, s * 0.12);
+    g.fillStyle = '#c3ff00';
+    const c = [x + s / 2, y + s / 2];
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2, R = (u, v) => [c[0] + Math.cos(a) * u - Math.sin(a) * v, c[1] + Math.sin(a) * u + Math.cos(a) * v];
+      g.beginPath(); [R(s * 0.08, 0), R(s * 0.24, -s * 0.12), R(s * 0.24, -s * 0.04), R(s * 0.38, -s * 0.04), R(s * 0.38, s * 0.04), R(s * 0.24, s * 0.04), R(s * 0.24, s * 0.12)].forEach(([u, v], k) => (k ? g.lineTo(u, v) : g.moveTo(u, v)));
+      g.closePath(); g.fill();
+    }
+  },
+  // "402" on Coinbase blue: payments for the internet
+  x402(g, x, y, s) {
+    g.fillStyle = '#0052ff'; rr(g, x, y, s, s, s * 0.12);
+    g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `800 ${Math.round(s * 0.2)}px Inter, system-ui, sans-serif`; g.fillText('x', x + s / 2, y + s * 0.3);
+    g.font = `800 ${Math.round(s * 0.34)}px Inter, system-ui, sans-serif`; g.fillText('402', x + s / 2, y + s * 0.6);
+  },
+  // a canvas of colourful pixels
+  basepaint(g, x, y, s) {
+    g.fillStyle = '#1b1b1b'; rr(g, x, y, s, s, s * 0.12);
+    const P = ['#0052ff', '#ff5c5c', '#ffd23f', '#2ecc71', '#ffffff', '#b388ff'];
+    const n = 5, c = (s * 0.7) / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { g.fillStyle = P[(i * 7 + j * 3 + i * j) % P.length]; g.fillRect(x + s * 0.15 + i * c, y + s * 0.15 + j * c, c - s * 0.01, c - s * 0.01); }
   },
   // three tilted rings: blue, light blue, red
   aero(g, x, y, s) {
@@ -772,7 +832,7 @@ function plaqueMaterial(p) {
     g.fillText(text, 256, y);
   };
   fit('WHALE FOUNTAIN', 800, 56, '"Lilita One", Inter, system-ui, sans-serif', 62);
-  const w = p.whale, who = w?.from ? `${w.from.slice(0, 6)}…${w.from.slice(-4)}` : 'a whale';
+  const w = p.whale, who = w?.name || (w?.from ? `${w.from.slice(0, 6)}…${w.from.slice(-4)}` : 'a whale'); // its Basename, if it has one
   g.fillStyle = '#ffffff';
   fit(`gifted by ${who}${w?.usd ? ` · $${Math.round(w.usd).toLocaleString('en-US')}` : ''}`, 700, 32, 'Inter, system-ui, sans-serif', 128);
   const tex = new THREE.CanvasTexture(cv);
@@ -1243,6 +1303,169 @@ const LANDMARK = {
   },
 };
 
+// ---------- Base projects: a headquarters for teams building on Base (CONFIG.baseProjects) ----------
+// Four shapes in the project's colours, its logo up top and its name over the door. The signs are
+// clickable (they open the project's site), and until the HQ is built its plot shows the goal.
+const BRAND_MATS = new Map();
+const css = (c) => (typeof c === 'number' ? `#${c.toString(16).padStart(6, '0')}` : c);
+const num = (c) => (typeof c === 'number' ? c : parseInt(String(c).replace('#', ''), 16));
+const mix = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t).getHex();
+// a project's logo: hand-drawn (LOGOS), else its initial on its colour
+function drawLogo(g, b, x, y, s) {
+  if (LOGOS[b.logo]) return LOGOS[b.logo](g, x, y, s);
+  g.fillStyle = css(b.color); rr(g, x, y, s, s, s * 0.14);
+  g.fillStyle = css(b.text || '#ffffff'); g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `800 ${Math.round(s * 0.62)}px "Lilita One", Inter, system-ui, sans-serif`;
+  g.fillText(b.name[0].toUpperCase(), x + s / 2, y + s * 0.55);
+}
+function fitText(g, text, weight, size, family, maxW, x, y) {
+  do { g.font = `${weight} ${size}px ${family}`; size -= 2; } while (g.measureText(text).width > maxW && size > 12);
+  g.fillText(text, x, y);
+}
+const DISPLAY = '"Lilita One", Inter, system-ui, sans-serif', BODY = 'Inter, system-ui, sans-serif';
+// kind: 'logo' (square), 'name' (the sign over the door) or 'soon' (the plot's sign)
+function brandMaterial(b, kind) {
+  const key = `${b.id}|${kind}|${b.at}`;
+  if (BRAND_MATS.has(key)) return BRAND_MATS.get(key);
+  const cv = document.createElement('canvas'), g = cv.getContext('2d');
+  const ink = css(b.text || '#ffffff');
+  if (kind === 'logo') {
+    cv.width = cv.height = 256;
+    g.fillStyle = css(b.color); g.fillRect(0, 0, 256, 256);
+    drawLogo(g, b, 8, 8, 240);
+  } else if (kind === 'name') {
+    cv.width = 512; cv.height = 128;
+    g.fillStyle = css(b.color); g.fillRect(0, 0, 512, 128);
+    drawLogo(g, b, 12, 12, 104);
+    g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle';
+    fitText(g, b.name, 800, 60, DISPLAY, 360, 320, b.tagline ? 50 : 66);
+    if (b.tagline) { g.globalAlpha = 0.85; fitText(g, b.tagline, 700, 24, BODY, 360, 320, 98); g.globalAlpha = 1; }
+  } else {
+    cv.width = 512; cv.height = 256;
+    g.fillStyle = '#14213d'; g.fillRect(0, 0, 512, 256);
+    g.strokeStyle = '#f4c542'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 246);
+    drawLogo(g, b, 28, 52, 152);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#f4c542'; fitText(g, 'COMING SOON', 800, 34, DISPLAY, 280, 345, 56);
+    g.fillStyle = '#ffffff'; fitText(g, b.label || `${b.name} HQ`, 800, 48, DISPLAY, 290, 345, 118);
+    g.fillStyle = '#9fd0ff'; fitText(g, `at ${b.at.toLocaleString('en-US')} ${CONFIG.citizenPlural}`, 700, 30, BODY, 290, 345, 186);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const mat = new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.35 });
+  BRAND_MATS.set(key, mat);
+  return mat;
+}
+// a clickable panel facing +z (ry turns it), centred at (x, y, z)
+function brandPanel(k, b, kind, w, h, x, y, z, ry = 0) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), brandMaterial(b, kind));
+  m.position.set(x, y, z);
+  m.rotation.y = ry;
+  m.userData.sponsor = { name: b.name, url: b.url };
+  k.extras.push(m);
+}
+const SIDE = Math.PI / 2; // a panel on the +x face
+
+const HQ = {
+  // a glass tower on a podium: accent fins, the logo on its crown, a beacon on top
+  tower(k, b, p) {
+    const main = num(b.color), acc = num(b.accent || '#ffffff'), glass = mix(main, 0xffffff, 0.55), s = 4.4;
+    sidewalk(k);
+    k.box(5.8, 1.5, 5.8, mix(main, 0x000000, 0.35), 0, Y, 0);
+    k.win(4.2, 1.0, 0.06, 0, Y + 0.25, 2.92); k.win(0.06, 1.0, 4.2, 2.92, Y + 0.25, 0);
+    k.box(6, 0.16, 6, acc, 0, Y + 1.5, 0);
+    const floors = Math.max(6, p.h - 4), y0 = Y + 1.66;
+    for (let f = 0; f < floors; f++) {
+      k.box(s, 1, s, main, 0, y0 + f, 0);
+      k.box(s + 0.06, 0.5, s + 0.06, glass, 0, y0 + f + 0.28, 0);
+      if (f % 2 === 0) { k.win(s * 0.72, 0.28, 0.05, 0, y0 + f + 0.39, s / 2 + 0.06); k.win(0.05, 0.28, s * 0.72, s / 2 + 0.06, y0 + f + 0.39, 0); }
+    }
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) k.box(0.32, floors + 2.2, 0.32, acc, (x * s) / 2, y0, (z * s) / 2);
+    const top = y0 + floors;
+    k.box(s + 0.2, 2.2, s + 0.2, mix(main, 0x000000, 0.25), 0, top, 0);
+    brandPanel(k, b, 'logo', 1.9, 1.9, 0, top + 1.1, s / 2 + 0.12);
+    brandPanel(k, b, 'logo', 1.9, 1.9, s / 2 + 0.12, top + 1.1, 0, SIDE);
+    k.box(0.16, 2.6, 0.16, C.dark, 0, top + 2.2, 0);
+    k.blue(0.45, 0.45, 0.45, 0, top + 4.8, 0);
+    brandPanel(k, b, 'name', 3.6, 0.9, 0, Y + 2.15, 2.93);
+  },
+  // a low campus around a forecourt: glass ribbons, a raised wing, a logo cube by the entrance
+  campus(k, b, p) {
+    const main = num(b.color), acc = num(b.accent || '#ffffff'), glass = mix(main, 0xffffff, 0.6);
+    lawn(k);
+    k.box(6.4, 0.05, 2.2, 0xd5d8dc, 0, Y, 2.1);
+    const h = Math.max(2.6, p.h - 1.4);
+    k.box(5.8, h, 3.6, main, 0, Y, -1);
+    for (const y of [0.45, 1.55]) { k.box(5.86, 0.7, 3.66, glass, 0, Y + y, -1); k.win(5.2, 0.36, 0.05, 0, Y + y + 0.17, 0.84); k.win(0.05, 0.36, 3.0, 2.94, Y + y + 0.17, -1); }
+    k.box(6, 0.16, 3.8, mix(main, 0x000000, 0.35), 0, Y + h, -1);
+    k.box(3.2, 1.3, 2.4, acc, -1.1, Y + h + 0.16, -1.4);
+    k.win(2.6, 0.4, 0.05, -1.1, Y + h + 0.6, -0.18);
+    brandPanel(k, b, 'name', 3.4, 0.85, 1.05, Y + h + 0.62, 0.62);
+    for (const x of [-0.6, 2.7]) k.box(0.1, 0.5, 0.1, C.dark, x, Y + h + 0.16, 0.6);
+    k.box(1.4, 0.3, 1.4, C.stone, 1.9, Y, 2.1);
+    k.box(1.2, 1.2, 1.2, main, 1.9, Y + 0.3, 2.1);
+    brandPanel(k, b, 'logo', 1.08, 1.08, 1.9, Y + 0.9, 2.71);
+    brandPanel(k, b, 'logo', 1.08, 1.08, 2.51, Y + 0.9, 2.1, SIDE);
+    tree(k, -2.6, 2.3, p.k); bush(k, -1.2, 2.6, p.k + 1); bush(k, 0.3, 2.6, p.k + 2);
+  },
+  // a slim tower in three setbacks with accent rings and a lit spire
+  spire(k, b, p) {
+    const main = num(b.color), acc = num(b.accent || '#ffffff'), glass = mix(main, 0xffffff, 0.55);
+    sidewalk(k);
+    const H = Math.max(12, p.h), parts = [[4.2, Math.ceil(H * 0.42)], [3.3, Math.ceil(H * 0.34)], [2.4, H - Math.ceil(H * 0.42) - Math.ceil(H * 0.34)]];
+    let y = Y, mid = 0;
+    parts.forEach(([s, h], i) => {
+      k.box(s, h, s, main, 0, y, 0);
+      for (let f = 0; f < h; f += 1) k.box(s + 0.05, 0.42, s + 0.05, glass, 0, y + f + 0.3, 0);
+      for (let f = 1; f < h; f += 2) { k.win(s * 0.6, 0.22, 0.05, 0, y + f + 0.4, s / 2 + 0.05); k.win(0.05, 0.22, s * 0.6, s / 2 + 0.05, y + f + 0.4, 0); }
+      y += h;
+      k.box(s + 0.3, 0.25, s + 0.3, acc, 0, y, 0);
+      if (i === 1) mid = y - h / 2;
+      y += 0.25;
+    });
+    brandPanel(k, b, 'logo', 1.8, 1.8, 0, mid, 3.3 / 2 + 0.1);
+    brandPanel(k, b, 'logo', 1.8, 1.8, 3.3 / 2 + 0.1, mid, 0, SIDE);
+    k.box(0.3, 3.4, 0.3, acc, 0, y, 0);
+    k.blue(0.5, 0.5, 0.5, 0, y + 3.4, 0);
+    brandPanel(k, b, 'name', 3.4, 0.85, 0, Y + 1.5, 2.16);
+  },
+  // a round hall under a glass dome, the logo on a pylon out front
+  dome(k, b, p) {
+    const main = num(b.color), acc = num(b.accent || '#ffffff'), glass = mix(main, 0xffffff, 0.65);
+    sidewalk(k);
+    const h = Math.max(2.2, p.h - 3.6);
+    for (const r of [0, Math.PI / 4]) {
+      k.boxR(4.6, h, 4.6, main, 0, Y, -0.4, r);
+      k.boxR(4.68, 0.55, 4.68, glass, 0, Y + h * 0.45, -0.4, r);
+      k.boxR(4.8, 0.2, 4.8, acc, 0, Y + h, -0.4, r);
+    }
+    for (let i = 0; i < 5; i++) for (const r of [0, Math.PI / 4]) k.boxR(4.2 - i * 0.8, 0.5, 4.2 - i * 0.8, mix(glass, 0xffffff, i * 0.08), 0, Y + h + 0.2 + i * 0.5, -0.4, r);
+    k.blue(0.5, 0.5, 0.5, 0, Y + h + 2.7, -0.4);
+    k.win(1.4, 1.1, 0.06, 0, Y + 0.1, 2.0);
+    k.box(2.6, 0.18, 1.2, acc, 0, Y + 1.3, 2.2);
+    brandPanel(k, b, 'name', 2.8, 0.7, 0, Y + 1.85, 2.82);
+    k.box(0.9, 2.4, 0.9, mix(main, 0x000000, 0.35), 2.45, Y, 2.45);
+    brandPanel(k, b, 'logo', 0.82, 0.82, 2.45, Y + 1.85, 2.91);
+    brandPanel(k, b, 'logo', 0.82, 0.82, 2.91, Y + 1.85, 2.45, SIDE);
+  },
+};
+export const brandHq = (k, p) => (HQ[p.brand.style] || HQ.tower)(k, p.brand, p);
+
+// A Base project's plot before its HQ: cleared ground behind a fence, and a sign with the goal.
+export function brandPlot(k, b) {
+  k.box(6.4, 0.05, 6.4, 0xc9b99a);
+  for (let a = -3; a <= 3; a += 0.75) {
+    for (const [x, z] of [[a, -3.1], [-3.1, a], [3.1, a]]) k.box(0.08, 0.6, 0.08, C.wood, x, 0, z);
+    if (Math.abs(a) > 2) k.box(0.08, 0.6, 0.08, C.wood, a, 0, 3.1);
+  }
+  for (const s of [-1, 1]) { k.box(6.2, 0.08, 0.06, C.wood, 0, 0.45, s * 3.1); k.box(0.06, 0.08, 6.2, C.wood, s * 3.1, 0.45, 0); }
+  for (const x of [-1.6, 1.6]) k.box(0.14, 1.5, 0.14, C.dark, x, 0, 2.4);
+  k.box(3.8, 2.0, 0.1, C.dark, 0, 1.0, 2.33);
+  brandPanel(k, b, 'soon', 3.6, 1.8, 0, 2.0, 2.4);
+  for (let i = 0; i < 3; i++) k.box(0.45, 0.45, 0.45, i % 2 ? C.gold : C.base, -2 + i * 0.5, 0.05, -1.5); // the first blocks
+}
+
 // Every billboard design side by side (for the gallery).
 export const adWall = () => kitFor((k) => {
   sidewalk(k);
@@ -1250,6 +1473,8 @@ export const adWall = () => kitFor((k) => {
   for (const x of [-3.15, 0, 3.15]) k.box(0.16, 0.5 + rows * 1.5, 0.16, C.dark, x, Y, -0.2);
   for (let i = 0; i < n; i++) billboard(k, (i % 2 ? 1 : -1) * 1.58, Y + 0.45 + (rows - 1 - Math.floor(i / 2)) * 1.5, 0, 2.9, 1.13, i, 0.05);
 });
+
+const HQ_LOTS = new Map(LANDMARKS.filter((l) => l.brand).map((l) => [l.lot.join(','), l.brand]));
 
 // Untouched land: forest, meadow, rocks. Lot (0,0) starts with the founder's pile of blocks.
 function wildLot(k, i, j) {
@@ -1301,7 +1526,7 @@ export function reserveLot(k, i, j) {
 // A finished building or landmark as a standalone group (also used by gallery.html).
 const ROOF_BOARD = { office: 0.35, apartment: 0.3, devhub: 0.25, shop: 0.25 }; // roof height above the body
 export const buildingGroup = (p) => kitFor((k) => {
-  if (p.kind === 'landmark') return LANDMARK[p.type](k);
+  if (p.kind === 'landmark') return p.brand ? brandHq(k, p) : LANDMARK[p.type](k);
   if (p.kind === 'wonder') return wonder(k, p);
   DESIGN[p.type](k, p);
   if (ROOF_BOARD[p.type] !== undefined && hash(p.k, 77) < 0.5) {
@@ -1395,7 +1620,7 @@ export function createCity(scene) {
   let built = []; // finished lots: { x, z, h, type } (the AI agent drones fly between them)
   const graph = { nodes: new Map(), adj: new Map(), version: 0 };
 
-  function setLot(key, lot, kind, k, group, animate) {
+  function setLot(key, lot, kind, k, group, animate, sig = '') {
     const old = lots.get(key);
     if (old) {
       lotsGroup.remove(old.group);
@@ -1408,7 +1633,7 @@ export function createCity(scene) {
     group.position.set(x, 0, z);
     group.traverse((o) => { if (o.userData.animate) animated.push(o); if (o.userData.sponsor) billboards.push(o); });
     lotsGroup.add(group);
-    lots.set(key, { kind, k, group });
+    lots.set(key, { kind, k, group, sig });
     if (animate) { group.scale.set(1, 0.01, 1); rising.push({ group, t: 0, mode: 'grow' }); }
   }
 
@@ -1522,7 +1747,9 @@ export function createCity(scene) {
     for (let i = -L; i <= L; i++) for (let j = -L; j <= L; j++) {
       const key = `${i},${j}`;
       if (lots.has(key) || isWater(i, j)) continue;
+      const hq = HQ_LOTS.get(key);
       if (isReserve(i, j)) setLot(key, [i, j], 'reserve', -1, kitFor((kk) => reserveLot(kk, i, j)));
+      else if (hq) setLot(key, [i, j], 'plot', -1, kitFor((kk) => brandPlot(kk, hq))); // a Base project's HQ goes here
       else setLot(key, [i, j], 'wild', -1, kitFor((kk) => wildLot(kk, i, j)));
       if (animateRing && Math.max(Math.abs(i), Math.abs(j)) === L) {
         const g = lots.get(key).group;
@@ -1705,10 +1932,10 @@ export function createCity(scene) {
     const dev = new Set(sim.standing.keys());
     for (const [key, p] of sim.standing) {
       if (key === busy) continue;
-      const cur = lots.get(key), kind = p.ruinedAt ? 'ruin' : 'built';
-      if (cur?.kind === kind && cur.k === p.k) continue;
+      const cur = lots.get(key), kind = p.ruinedAt ? 'ruin' : 'built', sig = p.whale?.name || ''; // a fountain's plaque shows its whale's name
+      if (cur?.kind === kind && cur.k === p.k && cur.sig === sig) continue;
       if (site && site.k === p.k) site = null;
-      setLot(key, p.lot, kind, p.k, kind === 'ruin' ? ruinGroup(p) : buildingGroup(p), animate && kind === 'built');
+      setLot(key, p.lot, kind, p.k, kind === 'ruin' ? ruinGroup(p) : buildingGroup(p), animate && kind === 'built' && cur?.k !== p.k, sig);
     }
     if (busy) dev.add(busy);
     developed = dev;

@@ -2,7 +2,7 @@
 // Returns the live state every visitor renders (see snapshot() in src/ledger.js):
 //   { minted, issued, departed, supply, waiting, blockies: [[from, at, leftAt, seed]...],
 //     departures: [[number, at]...], whales: [{ from, usd, at }], boughtUsd, recentBuys, cityStart,
-//     market, source, mode, updatedAt }
+//     names: { address: 'name.base.eth' } (Basenames, api/_names.js), market, source, mode, updatedAt }
 // `?since=N&dsince=D` returns only the Blockies after the first N and the departures after the first
 // D (clients poll with the counts they have).
 //
@@ -31,6 +31,7 @@ import { base } from 'viem/chains';
 import { applyTrade, applyBalances, snapshot, holders } from '../src/ledger.js';
 import { env, TOKEN, LEDGER, LAUNCH, NFT, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
 import { CLAIM_ABI } from './_sig.js';
+import { namesFor } from './_names.js';
 import { fetchMarket } from '../src/market.js';
 import { CONFIG } from '../src/config.js';
 
@@ -204,7 +205,18 @@ async function computeBuys() {
   }
   L.seen = [...seen].slice(-1000);
   if (changed) await saveLedger(L);
-  return { ...snapshot(L, LEDGER), source: 'onchain' };
+  const snap = snapshot(L, LEDGER);
+  // Basenames of the wallets people see: Blockies in the city, whales, the latest trades
+  const seenWallets = [...snap.blockies.filter((b) => b[2] == null).map((b) => b[0]), ...snap.whales.map((w) => w.from), ...snap.recentBuys.map((b) => b.from)];
+  const names = await namesFor(seenWallets).catch(() => ({}));
+  return { ...snap, names, source: 'onchain' };
+}
+
+// the Basenames a partial answer needs: its new Blockies' wallets, the whales and the latest trades
+function namesIn(body, blockies) {
+  if (!body.names) return undefined;
+  const want = new Set([...blockies.map((b) => b[0]), ...(body.whales || []).map((w) => w.from), ...(body.recentBuys || []).map((b) => b.from)].filter(Boolean).map((a) => a.toLowerCase()));
+  return Object.fromEntries(Object.entries(body.names).filter(([a]) => want.has(a)));
 }
 
 // ---------- fees ----------
@@ -270,7 +282,8 @@ export default async function handler(req, res) {
     const q = new URL(req.url, 'http://x').searchParams;
     const since = Math.max(0, Number(q.get('since')) || 0), dsince = Math.max(0, Number(q.get('dsince')) || 0);
     const body = cache.body;
-    res.status(200).json(since || dsince ? { ...body, blockies: body.blockies.slice(since), departures: body.departures.slice(dsince), since, dsince } : body);
+    const part = since || dsince ? body.blockies.slice(since) : null;
+    res.status(200).json(part ? { ...body, blockies: part, departures: body.departures.slice(dsince), names: namesIn(body, part), since, dsince } : body);
   } catch (e) {
     const msg = String(e.shortMessage || e.message || e);
     console.warn('[colony]', msg);

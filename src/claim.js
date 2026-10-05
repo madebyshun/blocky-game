@@ -70,12 +70,13 @@ async function use(p) {
   }
 }
 
+const BASENAME = /^[^\s/?#]{1,64}\.base\.eth$/i;
 $('lookup').onsubmit = (e) => {
   e.preventDefault();
   const a = $('addr').value.trim();
-  if (!isAddress(a, { strict: false })) { $('addr').setCustomValidity('Enter a 0x address'); $('addr').reportValidity(); return; }
+  if (!isAddress(a, { strict: false }) && !BASENAME.test(a)) { $('addr').setCustomValidity('Enter a 0x address or a name.base.eth'); $('addr').reportValidity(); return; }
   $('addr').setCustomValidity('');
-  show(getAddress(a));
+  show(isAddress(a, { strict: false }) ? getAddress(a) : a.toLowerCase());
 };
 $('addr').oninput = () => $('addr').setCustomValidity('');
 $('switch').onclick = () => {
@@ -105,10 +106,13 @@ async function show(address) {
   say('Loading…');
   try {
     if (!info.live) throw new Error('Live data is not reachable here');
-    const res = await fetch(`/api/claim?address=${address}`, { cache: 'no-store' });
+    const res = await fetch(`/api/claim?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
     if (viewing !== address) return;
+    viewing = j.address; // a Basename looked up: the wallet it points to
+    $('who').textContent = j.name ? `${j.name} · ${j.address.slice(0, 6)}…${j.address.slice(-4)}` : j.address;
+    $('who').href = basescan(`address/${j.address}`);
     mine = j;
     render(j);
   } catch (e) {
@@ -201,4 +205,5 @@ $('claim').onclick = claim;
   status();
   const q = new URLSearchParams(location.search).get('address');
   if (q && isAddress(q, { strict: false })) show(getAddress(q));
+  else if (q && BASENAME.test(q)) show(q.toLowerCase()); // ?address=name.base.eth
 })();

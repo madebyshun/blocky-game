@@ -9,11 +9,12 @@ import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
-import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash, needFor } from './sim.js';
+import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash, needFor, LANDMARKS } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
 import { now } from './time.js';
+import { addNames, who, whoHtml } from './names.js';
 
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
@@ -21,7 +22,6 @@ const fmt = (n) => Math.floor(n).toLocaleString('en-US');
 const plural = CONFIG.citizenPlural || `${CONFIG.citizen}s`;
 const HOUR = 3600000;
 const size = (L) => `${2 * L + 1}×${2 * L + 1}`;
-const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
 const money = (v) => (v >= 1000 ? `$${v / 1000}k` : `$${v}`);
 let price = CONFIG.usdPerBlocky; // USD of $BLOCKY per Blocky (the API's)
 const badge = (b) => (b.kind === 'legend' ? '★ ' : b.rarity && b.rarity.id !== 'common' && b.rarity.id !== 'uncommon' ? '✨ ' : '');
@@ -235,8 +235,8 @@ function syncViews() {
   for (const id of want) if (!views.has(id)) draw(byId.get(id));
 }
 
-// community goals: landmarks and the metro, unlocked by the Blocky count
-const GOALS = [...CONFIG.landmarks, ...(CONFIG.metro ? [CONFIG.metro] : [])].filter((l) => l.at > 0).sort((a, b) => a.at - b.at);
+// community goals: landmarks (Base projects' HQs included) and the metro, unlocked by the Blocky count
+const GOALS = [...LANDMARKS, ...(CONFIG.metro ? [CONFIG.metro] : [])].filter((l) => l.at > 0).sort((a, b) => a.at - b.at);
 // (one that is built already stays built when Blockies leave and the count drops below it again)
 const nextGoal = () => GOALS.find((l) => l.at > minted && !(l.id ? sim?.builtLandmarks.has(l.id) : sim?.metroBuilt));
 function nextUnlockText() {
@@ -258,6 +258,7 @@ function applyState(s, first) {
   check.classList.toggle('demo', s.source in labels);
   $('fees-label').textContent = buys ? 'Bought' : 'Fees earned';
 
+  const named = addNames(s.names); // Basenames of the wallets in this answer
   if (!first && s.boughtUsd - bought > 0.0001) city.feePulse();
   bought = Math.max(bought, s.boughtUsd);
   if (typeof s.price === 'number') price = s.price;
@@ -270,25 +271,25 @@ function applyState(s, first) {
     loggedBuys.add(key);
     if (first) continue;
     if (b.kind === 'sell') {
-      log(`💸 ${short(b.from)} sold ${usd(b.usd)}${b.left ? ` → ${b.left} ${b.left > 1 ? plural : CONFIG.citizen} left the city` : ''}`, b.at);
+      log(`💸 ${whoHtml(b.from)} sold ${usd(b.usd)}${b.left ? ` → ${b.left} ${b.left > 1 ? plural : CONFIG.citizen} left the city` : ''}`, b.at);
       continue;
     }
     const what = b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : minted >= supply ? ' → waiting for a place in the city' : ' → adds up to the next one';
-    log(`🛒 ${short(b.from)} bought ${usd(b.usd)}${what}`, b.at);
+    log(`🛒 ${whoHtml(b.from)} bought ${usd(b.usd)}${what}`, b.at);
     if (b.usd >= CONFIG.whaleUsd) {
       weather.celebrate(); setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800);
-      news.unshift(`<b>WHALE ALERT:</b> ${short(b.from)} just bought ${usd(b.usd)}: ${b.blockies} ${plural} are flying in and the city starts a fountain in their name!`);
+      news.unshift(`<b>WHALE ALERT:</b> ${whoHtml(b.from)} just bought ${usd(b.usd)}: ${b.blockies} ${plural} are flying in and the city starts a fountain in their name!`);
     } else if (b.blockies >= 10) {
       weather.celebrate();
-      news.unshift(`<b>BIG BUY:</b> ${short(b.from)} just bought ${usd(b.usd)}, bringing ${b.blockies} ${plural}. Fireworks over the Statue of Blockerty!`);
+      news.unshift(`<b>BIG BUY:</b> ${whoHtml(b.from)} just bought ${usd(b.usd)}, bringing ${b.blockies} ${plural}. Fireworks over the Statue of Blockerty!`);
     }
   }
 
   // the API sends only what came after `known` and `knownGone` (a stale answer may resend everything)
   const fresh = (s.since ?? 0) === known ? s.blockies : s.blockies.slice(Math.max(0, known - (s.since ?? 0)));
   const gone = (s.dsince ?? 0) === knownGone ? s.departures : s.departures.slice(Math.max(0, knownGone - (s.dsince ?? 0)));
-  const whalesChanged = (s.whales?.length || 0) !== whales.length;
-  if (whalesChanged) whales = s.whales || [];
+  const whalesChanged = (s.whales?.length || 0) !== whales.length || (named && whales.some((w) => w.name !== who(w.from, 28))); // a late Basename re-signs a fountain
+  if (whalesChanged) whales = (s.whales || []).map((w) => ({ ...w, name: who(w.from, 28) }));
   const blocky = (n, [from, at, left, seed]) => {
     const b = makeBlocky(n, Math.max(cityStart, at ?? now()), from, seed);
     if (left != null) b.leftAt = Math.max(b.arrivedAt, left);
@@ -348,16 +349,16 @@ function land(batch) {
   const first = arrived[0], last = arrived[arrived.length - 1];
   const nums = arrived.length > 1 ? `#${first.id}–#${last.id}` : `#${first.id}`;
   if (arrived.length === 1) {
-    toast(best ? `✨ ${best.rarity.label.toUpperCase()} ${CONFIG.citizen.toUpperCase()}!` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`, first.name, `${best ? `${TRAIT_LABEL[best.trait]} · ` : ''}${first.role.label}${first.from ? ` · brought by ${short(first.from)}` : ''}`);
+    toast(best ? `✨ ${best.rarity.label.toUpperCase()} ${CONFIG.citizen.toUpperCase()}!` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`, first.name, `${best ? `${TRAIT_LABEL[best.trait]} · ` : ''}${first.role.label}${first.from ? ` · brought by ${whoHtml(first.from)}` : ''}`);
   } else {
-    toast(`+${arrived.length} ${plural.toUpperCase()} ARRIVED`, `${CONFIG.citizen} ${nums}`, best ? `incl. ✨ ${best.rarity.label} ${TRAIT_LABEL[best.trait]} (${best.name})` : first.from ? `brought by ${short(first.from)}` : '');
+    toast(`+${arrived.length} ${plural.toUpperCase()} ARRIVED`, `${CONFIG.citizen} ${nums}`, best ? `incl. ✨ ${best.rarity.label} ${TRAIT_LABEL[best.trait]} (${best.name})` : first.from ? `brought by ${whoHtml(first.from)}` : '');
   }
   if (best && best.rarity.id !== 'uncommon') {
     weather.celebrate();
     news.unshift(`<b>RARE ${CONFIG.citizen.toUpperCase()}:</b> ${best.name} arrived with ${TRAIT_LABEL[best.trait]} (${best.rarity.label}, ${+(best.rarity.chance * 100).toFixed(1)}% chance)`);
   }
   const owners = [...new Set(arrived.map((b) => b.from))];
-  log(`👷 ${arrived.length > 1 ? `${plural} ${nums} joined` : `${first.name} joined`}${owners.length === 1 && owners[0] ? `, brought by ${short(owners[0])}` : ''}`, now(), first.id);
+  log(`👷 ${arrived.length > 1 ? `${plural} ${nums} joined` : `${first.name} joined`}${owners.length === 1 && owners[0] ? `, brought by ${whoHtml(owners[0])}` : ''}`, now(), first.id);
   stepCity(true);
   nextUnlockText();
   renderHud();
@@ -417,7 +418,7 @@ function log(html, when = now(), id) {
 
 const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.level)}`
   : p.kind === 'landmark' ? `🏛️ ${p.name} built`
-  : p.kind === 'wonder' ? `⛲ Whale Fountain built, gifted by ${short(p.whale.from) || 'a whale'}`
+  : p.kind === 'wonder' ? `⛲ Whale Fountain built, gifted by ${whoHtml(p.whale.from) || 'a whale'}`
   : p.kind === 'metro' ? `🚇 ${p.name} opened`
   : p.restores ? `🏗️ ${p.name} rebuilt on the ruins of ${p.rebuilds}`
   : p.rebuilds ? `🏗️ ${p.name} completed, replacing ${p.rebuilds}`
@@ -490,7 +491,7 @@ function renderCard() {
   $('card-share').textContent = `${sim.work ? ((placed / sim.work) * 100).toFixed(1) : 0}%`;
   $('card-joined').textContent = ago(b.arrivedAt);
   const team = b.kind === 'blocky' && b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
-  $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : team ? `Team reserve (${short(b.from)})` : b.from ? short(b.from) : '—';
+  $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : team ? `Team reserve (${who(b.from)})` : b.from ? who(b.from, 28) : '—';
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
   $('card-nft').hidden = b.kind !== 'blocky';
   $('card-nft').href = `/collection.html#${b.id}`;
@@ -561,7 +562,7 @@ function stepCity(animate) {
     if (p.kind === 'expand') toast('LAND EXPANDED', size(p.level), `${plural} reclaimed a new ring of land`);
     if (p.kind === 'landmark') toast('LANDMARK BUILT', p.name);
     if (p.kind === 'metro') toast('🚇 METRO OPENED', p.name, 'Trains now loop the ring road');
-    if (p.kind === 'wonder') { toast('⛲ WONDER BUILT', 'Whale Fountain', `gifted by ${short(p.whale.from) || 'a whale'}`); weather.celebrate(); }
+    if (p.kind === 'wonder') { toast('⛲ WONDER BUILT', 'Whale Fountain', `gifted by ${whoHtml(p.whale.from) || 'a whale'}`); weather.celebrate(); }
   }
 }
 
@@ -642,6 +643,8 @@ function headlines() {
   const big = [...districts].sort((a, b) => b.buildings - a.buildings)[0];
   if (big && districts.length > 1) out.push(`<b>DISTRICTS:</b> ${big.name} leads with ${big.buildings} buildings`);
   for (let i = 0; i < 2; i++) out.push(FILLER[Math.floor(Math.random() * FILLER.length)]);
+  const hqs = GOALS.filter((l) => l.brand && sim.builtLandmarks.has(l.id)).map((l) => l.brand.name);
+  if (hqs.length) out.push(`<b>BASE AVENUE:</b> ${hqs.length > 1 ? `${hqs.slice(0, -1).join(', ')} and ${hqs.at(-1)} have` : `${hqs[0]} has`} a headquarters in ${CONFIG.cityName}`);
   const sponsors = CONFIG.sponsors || [];
   if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>${sp.sponsored ? 'SPONSORED' : 'BUILT ON BASE'}:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
   if (Math.random() < 0.5 || !sponsors.length) out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);

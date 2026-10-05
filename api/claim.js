@@ -1,6 +1,7 @@
 // Vercel serverless function: claim BaseCity Blockies as NFTs (contracts/BaseCityBlockies.sol).
 //   GET  /api/claim              whether claims are open: { open, contract, chainId, unlocked }
-//   GET  /api/claim?address=0x…  the wallet's Blockies: in the city (claimed or not), waiting, gone
+//   GET  /api/claim?address=0x…  the wallet's Blockies: in the city (claimed or not), waiting, gone,
+//                                and its Basename. address may also be a Basename (name.base.eth).
 //   POST /api/claim { address }  a signed claim for up to 50 of its unclaimed Blockies. The wallet
 //                                sends it to the contract itself and pays the gas.
 // The ledger (api/colony.js) decides who owns which Blocky; this signs exactly that. The signer key
@@ -13,6 +14,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { allowance, walletBlockies } from '../src/ledger.js';
 import { env, client, TOKEN, LEDGER, NFT, KEY_BASE, kv, useKv, loadLedger } from './_store.js';
 import { claimTypedData, CLAIM_ABI } from './_sig.js';
+import { namesFor, addressOf } from './_names.js';
 
 const SIGNER = /^0x[0-9a-fA-F]{64}$/.test(env.CLAIM_SIGNER_KEY || '') ? privateKeyToAccount(env.CLAIM_SIGNER_KEY) : null;
 const CHAIN_ID = 8453;
@@ -69,8 +71,13 @@ export default async function handler(req, res) {
     const unlocked = NFT ? await client.readContract({ address: NFT, abi: CLAIM_ABI, functionName: 'unlocked' }).catch(() => false) : false;
     return res.status(200).json({ open: Boolean(NFT && SIGNER), contract: NFT || null, chainId: CHAIN_ID, unlocked });
   }
-  if (!isAddress(raw || '', { strict: false })) return res.status(400).json({ error: 'Send a wallet address' });
-  const address = getAddress(raw);
+  let address = isAddress(raw || '', { strict: false }) ? getAddress(raw) : null;
+  if (!address && req.method !== 'POST' && /\.base\.eth$/i.test(String(raw || '').trim())) {
+    const a = await addressOf(raw).catch(() => null);
+    if (!a) return res.status(404).json({ error: `${String(raw).trim().slice(0, 80)} doesn't point to a wallet` });
+    address = getAddress(a);
+  }
+  if (!address) return res.status(400).json({ error: 'Send a wallet address' });
   try {
     const { ledger: L } = await loadLedger();
     const w = await wallet(L, address);
@@ -79,8 +86,10 @@ export default async function handler(req, res) {
 
     if (req.method !== 'POST') {
       const seedOf = (n) => L.blockies[n - 1][3] ?? null, atOf = (n) => L.start + L.blockies[n - 1][1] * 1000;
+      const name = (await namesFor([address]).catch(() => ({})))[address.toLowerCase()] || null;
       return res.status(200).json({
         address,
+        name, // its Basename
         contract: NFT || null,
         chainId: CHAIN_ID,
         open: Boolean(NFT && SIGNER),

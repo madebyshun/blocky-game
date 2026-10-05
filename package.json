@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/ledger.mjs && node test/city.mjs && node test/market.mjs"
+    "test": "node test/ledger.mjs && node test/city.mjs && node test/market.mjs && node test/names.mjs"
   },
   "dependencies": {
     "@coinbase/wallet-sdk": "^4.4.0",

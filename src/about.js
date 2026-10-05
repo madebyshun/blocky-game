@@ -1,6 +1,6 @@
 // The About page: the rules, filled in from the config and the live city.
 import { CONFIG } from './config.js';
-import { TRAIT_LABEL } from './sim.js';
+import { TRAIT_LABEL, LANDMARKS } from './sim.js';
 import { fetchColony } from './data.js';
 import { mountSite, fmt, basescan, opensea, nftInfo } from './site.js';
 
@@ -15,8 +15,8 @@ fill('.royalty', String(CONFIG.nft.royaltyBps / 100));
 
 $('odds').innerHTML = `<tr><th>Rarity</th><th>Traits</th><th class="n">Odds</th></tr>${[...CONFIG.rarity].reverse().map((r) => `<tr><td><span class="rarity ${r.id}">${r.label}</span></td><td>${r.traits.length ? r.traits.map((t) => TRAIT_LABEL[t]).join(', ') : '<small>the classic Blocky</small>'}</td><td class="n">${+(r.chance * 100).toFixed(1)}%</td></tr>`).join('')}`;
 
-const goals = [...CONFIG.landmarks, ...(CONFIG.metro ? [CONFIG.metro] : [])].filter((l) => l.at > 0).sort((a, b) => a.at - b.at);
-$('goals').innerHTML = `<tr><th>${CONFIG.citizenPlural} in the city</th><th>Unlocks</th></tr>${goals.map((g) => `<tr><td class="n">${fmt(g.at)}</td><td>${g.label}${g.pro ? ' <small>· needs a Base Builder on the crew</small>' : ''}</td></tr>`).join('')}`;
+const goals = [...LANDMARKS, ...(CONFIG.metro ? [CONFIG.metro] : [])].filter((l) => l.at > 0).sort((a, b) => a.at - b.at);
+$('goals').innerHTML = `<tr><th>${CONFIG.citizenPlural} in the city</th><th>Unlocks</th></tr>${goals.map((g) => `<tr><td class="n">${fmt(g.at)}</td><td>${g.brand ? `<a href="${g.brand.url}" target="_blank" rel="noopener">${g.label}</a> <small>· ${g.brand.tagline}</small>` : g.label}${g.pro ? ' <small>· needs a Base Builder on the crew</small>' : ''}</td></tr>`).join('')}`;
 
 const link = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
 const reserve = CONFIG.nft.reserve;

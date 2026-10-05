@@ -82,6 +82,7 @@ export async function fetchColony(since = 0, dsince = 0) {
       price: typeof s.price === 'number' ? s.price : null,
       mode: s.mode || 'buys',
       recentBuys: Array.isArray(s.recentBuys) ? s.recentBuys : [],
+      names: s.names && typeof s.names === 'object' ? s.names : {}, // Basenames: { address: 'name.base.eth' }
       market: s.market && typeof s.market.change24h === 'number' ? { ...s.market, stocks: Array.isArray(s.market.stocks) ? s.market.stocks.filter((x) => x && typeof x.priceUsd === 'number' && x.priceUsd > 0) : [] } : await realMarket(),
       cityStart: typeof s.cityStart === 'number' ? s.cityStart : null,
       source: s.source || 'live',

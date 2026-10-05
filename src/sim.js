@@ -194,7 +194,7 @@ export const isIndustrial = ([i, j]) => ring(i, j) >= 4 && j < 0 && i > riverCol
 
 // Woods the city keeps: some lots from ring 3 out stay forest for good, in clumps (more in the
 // outskirts), so the city grows around green space. Never on a landmark's lot.
-const LANDMARK_LOTS = new Set(CONFIG.landmarks.map((l) => l.lot.join(',')));
+const LANDMARK_LOTS = new Set([...CONFIG.landmarks, ...(CONFIG.baseProjects || [])].map((l) => l.lot.join(',')));
 export function isReserve(i, j) {
   const r = ring(i, j);
   if (r < 3 || isWater(i, j) || LANDMARK_LOTS.has(`${i},${j}`)) return false;
@@ -247,6 +247,16 @@ const LANDMARK_SIZE = {
   exchange: [6, 5, 5, 360], agenthub: [6, 6, 8, 380],
 };
 export const WONDER_COST = 300;
+// a Base project's HQ by its style: [w, d, h, blocks] (designs: HQ in src/city.js)
+export const HQ_SIZE = { tower: [5, 5, 14, 520], campus: [6, 5, 4, 300], spire: [4, 4, 16, 600], dome: [6, 6, 6, 420] };
+
+// Every landmark: the city's own, then a headquarters for each Base project (CONFIG.baseProjects),
+// in the order they unlock.
+export const LANDMARKS = [
+  ...CONFIG.landmarks,
+  ...(CONFIG.baseProjects || []).map((b) => ({ at: b.at, id: `hq-${b.id}`, label: b.label || `${b.name} HQ`, lot: b.lot, brand: b })),
+].sort((a, b) => a.at - b.at);
+const landmarkSize = (l) => (l.brand ? HQ_SIZE[l.brand.style] || HQ_SIZE.tower : LANDMARK_SIZE[l.id]);
 
 // ---------- the build plan, replayed over time ----------
 
@@ -338,7 +348,7 @@ export class CitySim {
     this.wonders = new Set(); // whale buys (index in whaleList) whose wonder is planned
     this.metroPlanned = false;
     this.metroBuilt = false;
-    this.reserved = new Set(CONFIG.landmarks.map((l) => l.lot.join(',')));
+    this.reserved = new Set(LANDMARKS.map((l) => l.lot.join(',')));
     this.queue = [];
     for (let r = 0; r <= this.land; r++) this.queue.push(...this.ringLots(r));
     this.standing = new Map(); // lot key -> the project standing there now
@@ -351,6 +361,7 @@ export class CitySim {
     this.events = []; // { kind: 'setback' | 'ruin', at, ... } in time order, for the city log
     this.di = 0; // departures handled so far
     this.k = 0;
+    this.sinceLandmark = Infinity; // projects planned since the last landmark
     this.next = this.plan(this.start);
   }
 
@@ -380,7 +391,7 @@ export class CitySim {
     if (wlot) {
       this.wonders.add(wi);
       const w = this.whaleList[wi];
-      return { k, kind: 'wonder', type: 'wonder', lot: wlot, w: 6, d: 6, h: 7, cost: WONDER_COST * CONFIG.buildTime.wonder, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd }, name: `Whale Fountain #${wi + 1}` };
+      return { k, kind: 'wonder', type: 'wonder', lot: wlot, w: 6, d: 6, h: 7, cost: WONDER_COST * CONFIG.buildTime.wonder, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd, name: w.name }, name: `Whale Fountain #${wi + 1}` };
     }
     // a building left abandoned by a big exit is rebuilt next: the same kind of building, from scratch
     while (this.ruinAt < this.ruins.length) {
@@ -392,10 +403,15 @@ export class CitySim {
       p.restores = true;
       return p;
     }
-    const lm = CONFIG.landmarks.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land);
+    // a landmark whose goal is reached comes next, but homes go up between landmarks (the first ones
+    // aside), unless there's no free lot for them
+    const spaced = this.sinceLandmark >= (CONFIG.landmarkEvery || 1) - 1 || !this.queue.length;
+    const lm = LANDMARKS.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land && (spaced || l.at <= 1));
+    this.sinceLandmark++;
     if (lm) {
-      const [w, d, h, cost] = LANDMARK_SIZE[lm.id];
-      return { k, kind: 'landmark', type: lm.id, lot: lm.lot, w, d, h, cost: cost * CONFIG.buildTime.landmark, color: 0xd5d8dc, name: lm.label };
+      this.sinceLandmark = 0;
+      const [w, d, h, cost] = landmarkSize(lm);
+      return { k, kind: 'landmark', type: lm.id, lot: lm.lot, w, d, h, cost: cost * CONFIG.buildTime.landmark, color: lm.brand ? parseInt(lm.brand.color.slice(1), 16) : 0xd5d8dc, name: lm.label, ...(lm.brand ? { brand: lm.brand } : {}) };
     }
     const metro = CONFIG.metro;
     if (metro && !this.metroPlanned && pop >= metro.at) { // an elevated loop over the ring road, no lot of its own
