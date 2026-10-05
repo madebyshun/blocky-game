@@ -4,7 +4,7 @@ import { hash, PITCH } from './sim.js';
 // The centre is always Downtown. Names stick once given, so the community can refer to places.
 
 const CATEGORY = {
-  tech: ['office', 'devhub', 'gpufarm', 'tower', 'skyscraper', 'school', 'hq', 'datalab', 'hackathon', 'launchpad', 'beacon', 'studio'],
+  tech: ['office', 'devhub', 'gpufarm', 'tower', 'skyscraper', 'school', 'hq', 'datalab', 'hackathon', 'launchpad', 'beacon', 'studio', 'airport'],
   fun: ['coaster', 'ferris', 'carousel', 'park', 'lakepark', 'playground', 'pool', 'soccer', 'skatepark', 'stage', 'icecream', 'court', 'flowergarden', 'stadium', 'liberty'],
   home: ['cottage', 'house', 'townhouses', 'apartment', 'villa', 'garage'],
   green: ['farm', 'garden', 'windmill', 'watertower'],

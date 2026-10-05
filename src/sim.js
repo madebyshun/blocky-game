@@ -166,7 +166,7 @@ function buildingProject(k, lot) {
 const LANDMARK_SIZE = {
   garage: [5, 4, 3, 60], square: [6, 6, 1, 40], cafe: [5, 4, 3, 90], hq: [6, 6, 12, 400],
   hackathon: [6, 5, 4, 260], studio: [4, 4, 6, 220], datalab: [6, 6, 5, 300],
-  launchpad: [6, 6, 14, 600], stadium: [6, 6, 3, 700], beacon: [3, 3, 20, 900], liberty: [4, 4, 13, 320],
+  launchpad: [6, 6, 14, 600], stadium: [6, 6, 3, 700], beacon: [3, 3, 20, 900], liberty: [4, 4, 13, 320], airport: [6, 6, 4, 420],
 };
 
 // ---------- the build plan, replayed over time ----------

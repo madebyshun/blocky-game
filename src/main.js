@@ -370,7 +370,10 @@ canvas.addEventListener('pointerup', (e) => {
   const p = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(p, camera);
   const hits = ray.intersectObjects(views.filter(Boolean).map((v) => v.hit), false);
-  select(hits[0]?.object.userData.builder ?? null);
+  if (hits[0]) return select(hits[0].object.userData.builder);
+  const board = ray.intersectObjects(city.billboards, false)[0]?.object.userData.sponsor;
+  if (board?.url) { open(board.url, '_blank', 'noopener'); return; }
+  select(null);
 });
 
 // ---------- the 24/7 build ----------
@@ -453,6 +456,9 @@ function headlines() {
   const big = [...districts].sort((a, b) => b.buildings - a.buildings)[0];
   if (big && districts.length > 1) out.push(`<b>DISTRICTS:</b> ${big.name} leads with ${big.buildings} buildings`);
   for (let i = 0; i < 2; i++) out.push(FILLER[Math.floor(Math.random() * FILLER.length)]);
+  const sponsors = CONFIG.sponsors || [];
+  if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>SPONSORED:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
+  else out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);
   out.push(`<b>${CONFIG.ticker}:</b> buy ${usd(PER)} to bring a new ${CONFIG.citizen} to ${CONFIG.cityName}`);
   return out;
 }

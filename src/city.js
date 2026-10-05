@@ -119,6 +119,47 @@ function gableRoof(k, w, d, y, color, ox = 0, oz = 0) {
   for (let i = 0; i < steps; i++) k.box(w + 0.3 - i * 1.0, 0.35, d + 0.3, color, ox, y + i * 0.35, oz);
 }
 
+// ---------- billboards ----------
+
+const BOARD_MATS = new Map();
+function sponsorFor(slot) {
+  const list = CONFIG.sponsors || [];
+  if (list.length) return list[slot % list.length];
+  const contact = CONFIG.adContact || (CONFIG.xHandle ? `DM @${CONFIG.xHandle}` : 'Advertise on BaseCity');
+  return { name: 'YOUR PROJECT HERE', tagline: contact, color: '#1b2233', url: CONFIG.xHandle ? `https://x.com/${CONFIG.xHandle}` : '', placeholder: true };
+}
+function boardMaterial(slot) {
+  const sp = sponsorFor(slot);
+  const key = `${sp.name}|${sp.color}`;
+  if (BOARD_MATS.has(key)) return { mat: BOARD_MATS.get(key), sp };
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 200;
+  const g = cv.getContext('2d');
+  g.fillStyle = sp.color || '#0052ff'; g.fillRect(0, 0, 512, 200);
+  g.strokeStyle = sp.placeholder ? '#ffc83d' : 'rgba(255,255,255,0.85)'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 190);
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  let size = 84;
+  do { g.font = `800 ${size}px "Lilita One", Inter, system-ui, sans-serif`; size -= 4; } while (g.measureText(sp.name).width > 470 && size > 24);
+  g.fillText(sp.name, 256, sp.tagline ? 82 : 100);
+  if (sp.tagline) { g.font = '700 30px Inter, system-ui, sans-serif'; g.fillStyle = sp.placeholder ? '#ffc83d' : 'rgba(255,255,255,0.9)'; g.fillText(sp.tagline, 256, 156); }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const mat = new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.35 });
+  BOARD_MATS.set(key, mat);
+  return { mat, sp };
+}
+// a billboard on posts, facing +z; the panel is clickable (userData.sponsor)
+function billboard(k, x, y, z, w, h, slot, posts = 0.6) {
+  for (const px of [-w / 2 + 0.2, w / 2 - 0.2]) k.box(0.12, posts, 0.12, C.dark, x + px, y, z);
+  k.box(w + 0.16, h + 0.16, 0.12, C.dark, x, y + posts - 0.08, z - 0.08);
+  const { mat, sp } = boardMaterial(slot);
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  panel.position.set(x, y + posts + h / 2, z + 0.0);
+  panel.userData.sponsor = sp;
+  k.extras.push(panel);
+}
+
 // ---------- building designs (local coords, lot centre = origin, door faces +z) ----------
 
 const DESIGN = {
@@ -562,6 +603,7 @@ const LANDMARK = {
     k.box(0.4, 0.4, 0.4, C.base, 2.45, Y + 0.8, 2.2);
   },
   square(k) {
+    billboard(k, 0.9, Y, -2.85, 3.4, 1.35, 0, 1.2);
     for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) k.box(1.6, Y, 1.6, (i + j) % 2 ? 0xe2dccd : 0xd2cab6, -2.4 + i * 1.6, 0, -2.4 + j * 1.6);
     k.box(2, 0.3, 2, C.stone, 0, Y, 0);
     k.box(1.2, 0.8, 1.2, C.white, 0, Y + 0.3, 0);
@@ -678,6 +720,53 @@ const LANDMARK = {
     statue.position.y = Y + 0.6;
     k.extras.push(statue);
   },
+  // Base Airport: runway, terminal, control tower, windsock, and a plane that lands and takes off
+  airport(k) {
+    const white = C.white;
+    k.box(6.4, Y, 6.4, 0x9aa3ad);
+    k.box(6.4, 0.18, 2.2, C.road, 0, 0, 1.6);
+    for (let x = -2.4; x <= 2.4; x += 1) k.box(0.5, 0.2, 0.1, white, x, 0, 1.6);
+    for (const ex of [-2.95, 2.95]) for (let s = -0.75; s <= 0.76; s += 0.3) k.box(0.36, 0.2, 0.12, white, ex, 0, 1.6 + s);
+    for (let x = -3; x <= 3.01; x += 1) { k.win(0.12, 0.12, 0.12, x, 0.18, 0.45); k.win(0.12, 0.12, 0.12, x, 0.18, 2.75); }
+    k.box(3.8, 1.4, 1.6, 0xe9eef5, -0.8, Y, -2.2);
+    k.win(3.4, 0.6, 0.06, -0.8, Y + 0.5, -1.38);
+    k.box(4.1, 0.2, 1.9, C.base, -0.8, Y + 1.4, -2.2);
+    k.box(2.2, 0.4, 0.1, C.base, -0.8, Y + 1.6, -1.4);
+    k.box(0.7, 3.2, 0.7, 0xdfe6ee, 2.3, Y, -2.2);
+    k.box(1.3, 0.8, 1.3, 0x2b2f36, 2.3, Y + 3.2, -2.2);
+    k.win(1.34, 0.4, 1.34, 2.3, Y + 3.4, -2.2);
+    k.box(1.4, 0.15, 1.4, white, 2.3, Y + 4, -2.2);
+    k.green(0.18, 0.18, 0.18, 2.3, Y + 4.15, -2.2);
+    k.box(0.08, 1.4, 0.08, C.dark, -2.9, Y, -0.5); k.box(0.5, 0.22, 0.22, 0xf39c12, -2.6, Y + 1.15, -0.5);
+    const plane = new THREE.Group();
+    plane.add(kitFor((pk) => {
+      pk.box(1.7, 0.36, 0.36, white, 0, 0, 0); pk.box(0.3, 0.26, 0.26, white, 0.95, 0.05, 0);
+      pk.box(0.08, 0.1, 0.3, 0x2b2f36, 1.08, 0.18, 0);
+      for (let i = 0; i < 5; i++) pk.box(0.1, 0.08, 0.38, 0x9fd8ff, -0.5 + i * 0.25, 0.2, 0);
+      pk.box(0.45, 0.06, 2, white, 0.05, 0.12, 0); pk.box(0.45, 0.07, 2.02, C.base, 0.05, 0.1, 0);
+      pk.box(0.3, 0.5, 0.06, C.base, -0.75, 0.36, 0); pk.box(0.25, 0.05, 0.8, white, -0.75, 0.25, 0);
+      pk.box(0.12, 0.14, 0.12, C.dark, 0.3, -0.14, 0.4); pk.box(0.12, 0.14, 0.12, C.dark, 0.3, -0.14, -0.4); pk.box(0.12, 0.14, 0.12, C.dark, -0.5, -0.14, 0);
+    }));
+    plane.add(kitFor((pk) => { pk.win(0.1, 0.1, 0.1, 0.05, 0.12, 1.02); pk.win(0.1, 0.1, 0.1, 0.05, 0.12, -1.02); }));
+    // 40s loop: parked, take-off roll and climb out east, away, approach from the west and land
+    plane.userData.animate = (t) => {
+      const c = t % 40, z = 1.6, park = -0.6;
+      plane.visible = true;
+      if (c < 8) { plane.position.set(park, 0.32, z); plane.rotation.z = 0; }
+      else if (c < 14) {
+        const u = (c - 8) / 6, roll = Math.min(1, u * 2.2);
+        const x = park + roll * roll * 3.6 + Math.max(0, u - 0.45) * 60;
+        const y = 0.32 + Math.max(0, u - 0.45) ** 1.6 * 26;
+        plane.position.set(x, y, z); plane.rotation.z = u > 0.45 ? 0.25 : 0;
+      } else if (c < 26) plane.visible = false;
+      else if (c < 34) {
+        const u = (c - 26) / 8;
+        if (u < 0.75) { const a = u / 0.75; plane.position.set(-40 + a * 37.2, 12 * (1 - a) ** 1.3 + 0.32, z); plane.rotation.z = -0.12 * (1 - a); }
+        else { const a = (u - 0.75) / 0.25; plane.position.set(-2.8 + (park + 2.8) * (1 - (1 - a) ** 2), 0.32, z); plane.rotation.z = 0; }
+      } else { plane.position.set(park, 0.32, z); plane.rotation.z = 0; }
+    };
+    k.extras.push(plane);
+  },
   beacon(k) {
     k.box(3, 1, 3, C.stone, 0, 0, 0);
     k.box(1.6, 18, 1.6, 0xe9eef5, 0, 1, 0);
@@ -710,7 +799,14 @@ function wildLot(k, i, j) {
 }
 
 // A finished building or landmark as a standalone group (also used by gallery.html).
-export const buildingGroup = (p) => kitFor((k) => (p.kind === 'landmark' ? LANDMARK[p.type](k) : DESIGN[p.type](k, p)));
+const ROOF_BOARD = { office: 0.35, apartment: 0.3, devhub: 0.25, shop: 0.25 }; // roof height above the body
+export const buildingGroup = (p) => kitFor((k) => {
+  if (p.kind === 'landmark') return LANDMARK[p.type](k);
+  DESIGN[p.type](k, p);
+  if (ROOF_BOARD[p.type] !== undefined && hash(p.k, 77) < 0.5) {
+    billboard(k, 0, Y + p.h + ROOF_BOARD[p.type], -p.d / 2 + 0.35, Math.min(p.w - 0.4, 3.4), Math.min(p.w - 0.4, 3.4) * 0.4, 1 + p.k, 0.45);
+  }
+});
 
 // ---------- city ----------
 
@@ -738,7 +834,8 @@ export function createCity(scene) {
   let site = null;
   let siteVersion = 0;
   const rising = []; // groups animating out of the ground
-  const animated = []; // objects with userData.animate(t, dt): rides, turbines
+  const animated = []; // objects with userData.animate(t, dt): rides, turbines, planes
+  const billboards = []; // clickable billboard panels (userData.sponsor)
   let developed = new Set();
   let roadSig = '';
   let snapshot = { land: 0, next: null, placed: 0 };
@@ -748,11 +845,14 @@ export function createCity(scene) {
     const old = lots.get(key);
     if (old) {
       lotsGroup.remove(old.group);
-      old.group.traverse((o) => { const i = animated.indexOf(o); if (i >= 0) animated.splice(i, 1); });
+      old.group.traverse((o) => {
+        const i = animated.indexOf(o); if (i >= 0) animated.splice(i, 1);
+        const b = billboards.indexOf(o); if (b >= 0) billboards.splice(b, 1);
+      });
     }
     const [x, z] = lotPos(lot);
     group.position.set(x, 0, z);
-    group.traverse((o) => { if (o.userData.animate) animated.push(o); });
+    group.traverse((o) => { if (o.userData.animate) animated.push(o); if (o.userData.sponsor) billboards.push(o); });
     lotsGroup.add(group);
     lots.set(key, { kind, k, group });
     if (animate) { group.scale.set(1, 0.01, 1); rising.push({ group, t: 0, mode: 'grow' }); }
@@ -1081,7 +1181,7 @@ export function createCity(scene) {
   }
 
   return {
-    root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, riverPath,
+    root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, riverPath, billboards,
     feePulse: () => (pulse = 1),
     get land() { return land; },
     get siteVersion() { return siteVersion; },

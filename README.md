@@ -14,6 +14,8 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - **Market weather**: the sky follows `$BLOCKY`'s 24h price change: storm with lightning (≤ -15%), rain, cloudy, sunny, and a fireworks bull run (≥ +15%). Buys of $50+ fire a volley over the Statue of Blockerty. `?weather=storm` forces a look for recording.
 - **Named districts**: 3×3-lot neighbourhoods are named after what was built there (Downtown, GPU Valley, Fun Pier, Builder Heights…) and labelled on the map.
 - **BaseCity News**: a SimCity-style ticker with buys, completions, weather, City Hall notices and the builder of the day.
+- **Base Airport** (community goal at 10 Blockies): runway, terminal, control tower, and a plane that lands and takes off on a loop.
+- **Billboards** on the Town Square and on some rooftops. With no sponsors they advertise themselves ("YOUR PROJECT HERE"); add `{ name, tagline, color, url }` to `sponsors` in `src/config.js` and the boards, the news ticker and a click-through link carry that project.
 - **Photo mode** for screenshots and recordings: 📷 button or `P` hides the panels and holds the camera still (`Esc` to exit); `R` toggles auto-rotate (remembered). `?photo` / `?still` start that way.
 - Same city for every visitor. No wallet needed. **The Blockies are simulated; the buys are real.**
 

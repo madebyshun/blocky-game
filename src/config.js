@@ -31,6 +31,13 @@ export const CONFIG = {
   buyUrl: 'https://app.uniswap.org/swap?chain=base&outputCurrency=0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
   chartUrl: 'https://dexscreener.com/base/0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
   xHandle: '', // e.g. blockyfun (without @)
+
+  // Billboards around the city (Town Square + rooftops). Empty = "your project here" ads that sell the slot.
+  // Add a sponsor and redeploy: { name, tagline, color, url }. Clicking a billboard opens its url.
+  sponsors: [
+    // { name: 'YourProject', tagline: 'Built on Base', color: '#0052ff', url: 'https://yourproject.xyz' },
+  ],
+  adContact: '', // shown on empty billboards, e.g. 'DM @blockyfun'; defaults to xHandle
   siteUrl: '', // canonical URL used in share text
 
   // Legendary Blockies with a hand-made look, by Blocky number. `title` replaces the random role name. #1 is the founder (you); #2-#6 go
@@ -52,6 +59,7 @@ export const CONFIG = {
     { at: 3, id: 'cafe', label: 'gm Café', lot: [-1, 0] },
     { at: 5, id: 'hq', label: 'Builder HQ', lot: [0, -1] },
     { at: 8, id: 'hackathon', label: 'Hackathon Hall', lot: [-1, -2] },
+    { at: 10, id: 'airport', label: 'Base Airport', lot: [-3, -3] }, // community goal: planes take off and land
     { at: 12, id: 'studio', label: 'Design Studio', lot: [-2, 1] },
     { at: 20, id: 'datalab', label: 'Data Lab', lot: [-3, -1] },
     { at: 35, id: 'launchpad', label: 'Launchpad Tower', lot: [-1, 3] },
