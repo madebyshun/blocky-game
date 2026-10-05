@@ -19,7 +19,7 @@ import { createCinematic } from './cinematic.js';
 import { watchLive } from './live.js';
 
 const $ = (id) => document.getElementById(id);
-const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
+const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmt = (n) => Math.floor(n).toLocaleString('en-US');
 const plural = CONFIG.citizenPlural || `${CONFIG.citizen}s`;
 const HOUR = 3600000;
@@ -760,6 +760,10 @@ function frame() {
   updateDistricts();
   requestAnimationFrame(frame);
 }
+
+// the side panels start right under the stats panel, however tall it grows (the live row, wrapping)
+const stats = document.querySelector('.stats');
+new ResizeObserver(() => document.documentElement.style.setProperty('--side-top', `${Math.ceil(stats.getBoundingClientRect().bottom) + 10}px`)).observe(stats);
 
 (async () => {
   const s = await fetchColony();
