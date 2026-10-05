@@ -87,6 +87,7 @@ URL flags: `?demo` fakes 3 days of history and then a trade every 30s (a $1,000 
 5. **Contract**: open `/deploy.html` with the dev wallet (`0x8eBA…C34D`), click *Generate a signer key*, copy the key, deploy. Then in Vercel set `NFT_CONTRACT` (the new address), `CLAIM_SIGNER_KEY` (the key) and `SITE_URL` (your domain), and redeploy: claims open. Claims stay closed on Vercel without KV (every instance must sign from the same ledger).
 6. **Verify** on Basescan with the Standard JSON Input the deploy page links (compiler and constructor arguments are printed there too).
 7. **OpenSea** lists the collection after the first claim; set its links and creator earnings there.
+8. **Keep it ticking**: point a free uptime pinger (cron-job.org, UptimeRobot) at `/api/colony` every minute. The ledger only updates when the API runs, and the trade feed keeps just the last 300 trades of the pool, so a quiet night without visitors must not drop buys.
 
 ## Deploy (Vercel)
 
