@@ -472,8 +472,11 @@ export const LEGEND_LOOKS = {
     skin: 0xf2d4c4, shirt: 0x3a3d42, pants: 0x2b2f36,
     dress(g, arms) {
       const hair = 0x2a1d16, ends = 0xc9a46a, cap = 0x3cc8b4;
-      B(g, 0.48, 0.5, 0.08, hair, 0, 0.62, -0.24); B(g, 0.48, 0.18, 0.08, ends, 0, 0.44, -0.24);
-      for (const x of [-0.245, 0.245]) { B(g, 0.07, 0.4, 0.34, hair, x, 0.66, -0.02); B(g, 0.07, 0.2, 0.3, ends, x, 0.46, -0.02); }
+      // the hair comes out from under the cap all round: back, sides, a fringe and two locks framing the face
+      B(g, 0.48, 0.55, 0.08, hair, 0, 0.62, -0.24); B(g, 0.48, 0.18, 0.08, ends, 0, 0.44, -0.24);
+      for (const x of [-0.245, 0.245]) { B(g, 0.07, 0.51, 0.41, hair, x, 0.66, -0.035); B(g, 0.07, 0.2, 0.36, ends, x, 0.46, -0.035); }
+      B(g, 0.42, 0.06, 0.03, hair, 0, 1.1, 0.215);
+      for (const x of [-0.18, 0.18]) B(g, 0.06, 0.3, 0.03, hair, x, 0.86, 0.215);
       B(g, 0.48, 0.14, 0.48, cap, 0, 1.16); B(g, 0.4, 0.04, 0.24, cap, 0, 1.16, 0.32);
       B(g, 0.08, 0.08, 0.02, 0xffffff, 0, 1.2, 0.245); B(g, 0.03, 0.03, 0.025, cap, 0.01, 1.22, 0.247); B(g, 0.12, 0.02, 0.02, 0xffffff, -0.06, 1.25, 0.245); // the "e"
       for (const x of [-0.1, 0.1]) B(g, 0.07, 0.05, 0.02, 0x1b1410, x, 0.97, 0.215);
