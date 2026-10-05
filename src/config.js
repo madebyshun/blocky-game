@@ -120,7 +120,7 @@ export const CONFIG = {
     { name: 'Aero', tagline: 'Liquidity hub of Base', color: '#efefef', textColor: '#1f2a44', logo: 'aero', url: 'https://aerodrome.finance' },
   ],
   adContact: '', // shown on empty billboards, e.g. 'DM @blockyfun'; defaults to xHandle
-  siteUrl: '', // BaseCity's domain once it has one, e.g. 'https://basecity.xyz': share text, the cinematic watermark, NFT links (SITE_URL on the API wins). Empty: the address the site is opened on
+  siteUrl: 'https://basecity.space', // BaseCity's domain, e.g. 'https://basecity.xyz': share text, the cinematic watermark, NFT links (SITE_URL on the API wins). Empty: the address the site is opened on
 
   // You: the city's first builder.
   founder: { look: 'founder', name: 'Founder', title: 'Founder', office: 'founder' },
