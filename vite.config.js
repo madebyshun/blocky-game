@@ -16,10 +16,13 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       {
-        // %PRICE% in the pages = USD of $BLOCKY per Blocky (src/config.js); share images need absolute URLs
+        // %PRICE% in the pages = USD of $BLOCKY per Blocky, %DAYS% = a Blocky's newcomer days before it
+        // is a citizen (src/config.js); share images need absolute URLs
         name: 'page-text',
         transformIndexHtml: (html) => {
-          const out = html.replace(/%PRICE%/g, String(Number(env.USD_PER_BLOCKY) || CONFIG.usdPerBlocky));
+          const out = html
+            .replace(/%PRICE%/g, String(Number(env.USD_PER_BLOCKY) || CONFIG.usdPerBlocky))
+            .replace(/%DAYS%/g, String(Number(env.CITIZEN_DAYS) || CONFIG.citizenDays));
           return site ? out.replace(/content="\/og\.png"/g, `content="${site}/og.png"`) : out;
         },
       },

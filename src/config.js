@@ -7,9 +7,14 @@ export const CONFIG = {
   citizen: 'Blocky', // one inhabitant (a builder on Base)
   citizenPlural: 'Blockies',
   // Every `usdPerBlocky` of $BLOCKY a wallet buys (added up over all its buys) earns one Blocky: #1, #2,
-  // ... Each one is an NFT the wallet claims. A buy counts at the price of its day, so changing the
-  // price later only changes future buys. (USD_PER_BLOCKY on the API overrides it.)
+  // ... A buy counts at the price of its day, so changing the price later only changes future buys.
+  // (USD_PER_BLOCKY on the API overrides it.)
   usdPerBlocky: 10,
+  // A Blocky is a newcomer for its first `citizenDays` days in the city: it leaves if its wallet sells
+  // its $BLOCKY. Then it is a citizen for good: an NFT its wallet claims, free to trade at once.
+  // Lower it any time; never raise it after launch (citizens already claimed can't become newcomers
+  // again). (CITIZEN_DAYS on the API overrides it.)
+  citizenDays: 14,
   supply: 10000, // must match MAX_SUPPLY on the API
   whaleUsd: 1000, // a single buy this big also builds something with the buyer's name (WHALE_USD on the API)
   // What a whale buy builds, by its size: the biggest tier it reaches. It goes up next, named after the
@@ -35,7 +40,8 @@ export const CONFIG = {
     royaltyBps: 500,
     treasury: '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D', // the dev wallet: royalties, and it deploys and owns the contract
     // The team's reserve: Blockies #1 to #count belong to this wallet from day one (giveaways,
-    // partners), claimable like any other, and they never leave the city. Shown on the About page.
+    // partners), citizens `citizenDays` after the city starts like everyone's first Blockies, and they
+    // never leave the city. Shown on the About page.
     // count 0 for none. (TEAM_RESERVE_WALLET / TEAM_RESERVE_COUNT on the API override it.)
     reserve: { wallet: '0xb7b3bdf2e53b9c877efabc99a74badfc03299823', count: 100 },
   },

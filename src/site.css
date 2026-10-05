@@ -102,6 +102,7 @@ input::placeholder { color: #6b778c; }
 .tile .flag { position: absolute; top: 8px; right: 8px; padding: 2px 8px; border-radius: 99px; background: rgba(10, 14, 24, 0.7); font-size: 11px; font-weight: 800; }
 .tile .flag.ok { color: var(--up); }
 .tile .flag.gone { color: var(--down); }
+.tile .flag.claim { color: #ffd23f; }
 @media (max-width: 480px) {
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 }

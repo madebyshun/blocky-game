@@ -6,16 +6,15 @@
 //   Each buy counts at the price of its day (fractions carry over), so changing `per` only affects
 //   later buys. Numbers are never reused.
 // - At most `supply` Blockies live in the city at once.
-// - A wallet keeps the share of its Blockies that matches the share of its bought $BLOCKY it still
-//   holds: sell half, and the newest half of its Blockies leave the city. Any real sell costs at least
-//   one Blocky; dust does not.
+// - A Blocky is a newcomer for its first `citizenDays` days in the city, then a citizen for good: an
+//   NFT its wallet can claim, free to trade, whatever the wallet does with its $BLOCKY afterwards.
+// - A wallet's newcomers stay while the $BLOCKY it still holds covers them, at what it paid per Blocky
+//   on average; sell, and the newest newcomers leave the city. With only newcomers: sell half and half
+//   of them leave. Any real sell costs at least one; dust does not.
 // - Free places go to wallets still owed Blockies, first come first served (a waitlist once the city
 //   is full), then to the next buyers.
-// - Once the city freezes (the NFT contract's `frozenAt`, read by the API: the claim of the last
-//   Blocky, or the owner's early unlock), selling no longer sends Blockies away; whatever left before
-//   is burned when the market opens. New buyers still get Blockies while there is room.
 // - The team's reserve (newLedger's `reserve`) holds Blockies #1 to #count from the start: granted,
-//   not bought, so the hold rule leaves them alone.
+//   not bought, so the hold rule leaves them alone. They are citizens `citizenDays` after the start.
 // - A single buy of `whaleUsd`+ also builds a Whale Fountain.
 // - A Blocky's rarity is rolled from its number and the block that brought it (rollSeed), so nobody
 //   can know or pick a rare number before buying, and anyone can check it afterwards.
@@ -54,29 +53,39 @@ function indexOf(L, addr) {
 const sec = (L, ms) => Math.round((ms - L.start) / 1000);
 const account = (L, wi) => (L.acct[wi] ||= { usd: 0, credits: 0, tin: 0, tout: 0, bal: null, ids: [] });
 
-// How many Blockies a wallet may keep right now: its grant (the team's reserve), plus what its buys
-// earned, as long as it holds the $BLOCKY they bought.
-export function allowance(a) {
-  const grant = a.grant || 0, earned = Math.floor((a.credits || 0) + 1e-9);
-  if (!(a.tin > 0) || earned === 0) return grant;
-  let held = (a.tin - a.tout) / a.tin;
-  if (a.bal != null) held = Math.min(held, a.bal / a.tin); // tokens moved away count as sold
-  held = Math.max(0, Math.min(1, held));
-  return grant + earned - Math.max(0, Math.ceil(earned * (1 - held) - 0.01));
+// When Blocky #n becomes a citizen (ms): `citizenDays` after it arrived (never without the setting).
+export const citizenAt = (L, n, cfg) => L.start + (L.blockies[n - 1][1] + (cfg.citizenDays ?? Infinity) * 86400) * 1000;
+
+// How many of a wallet's bought Blockies in the city are citizens at `at` (ms). Its granted ones (the
+// team's reserve) are the first `grant` of its ids.
+export function citizensOf(L, a, at, cfg) {
+  let c = 0;
+  for (let i = a.grant || 0; i < a.ids.length; i++) if (citizenAt(L, a.ids[i], cfg) <= at) c++;
+  return c;
 }
 
-// Whether selling no longer sends Blockies away at `at` (ms): from the freeze on (L.frozenAt, ms, from
-// the contract), and for any trade once the collection is unlocked (L.unlocked): nothing can be burned
-// then, so a sell from before the freeze that shows up late keeps its Blockies too.
-export const isFrozen = (L, at) => Boolean(L.unlocked || (L.frozenAt && at >= L.frozenAt));
+// How many Blockies a wallet may keep: its grant (the team's reserve) and its `citizens` for good, plus
+// the newcomers its $BLOCKY still covers (what it holds, at what it paid per Blocky on average), never
+// more than its buys earned.
+export function allowance(a, citizens = 0) {
+  const grant = a.grant || 0, earned = Math.floor((a.credits || 0) + 1e-9);
+  if (!(a.tin > 0) || earned === 0) return grant;
+  let held = a.tin - a.tout;
+  if (a.bal != null) held = Math.min(held, a.bal); // tokens moved away count as sold
+  const covered = Math.floor((earned * Math.max(0, held)) / a.tin + 0.01);
+  return grant + Math.min(earned, citizens + covered);
+}
 
 function rebalance(L, at, cfg, touched, source) {
-  const added = {}, left = {}, s = sec(L, at), frozen = isFrozen(L, at);
-  // 1. wallets that sold lose their newest Blockies
+  const added = {}, left = {}, s = sec(L, at);
+  // 1. wallets that sold lose their newest newcomers (citizens and the reserve stay)
   for (const wi of touched) {
-    const a = L.acct[wi], keep = allowance(a);
-    while (!frozen && a.ids.length > keep) {
-      const n = a.ids.pop();
+    const a = L.acct[wi], keep = allowance(a, citizensOf(L, a, at, cfg));
+    while (a.ids.length > keep) {
+      let k = a.ids.length - 1;
+      while (k >= (a.grant || 0) && citizenAt(L, a.ids[k], cfg) <= at) k--;
+      if (k < (a.grant || 0)) break;
+      const [n] = a.ids.splice(k, 1);
       L.blockies[n - 1][2] = s;
       L.departures.push([n, s]);
       left[wi] = (left[wi] || 0) + 1;
@@ -87,7 +96,7 @@ function rebalance(L, at, cfg, touched, source) {
   let active = L.blockies.length - L.departures.length;
   while (L.waiting.length && active < cfg.supply) {
     const wi = L.waiting[0], a = L.acct[wi];
-    if (a.ids.length >= allowance(a)) { L.waiting.shift(); continue; }
+    if (a.ids.length >= allowance(a, citizensOf(L, a, at, cfg))) { L.waiting.shift(); continue; }
     const n = L.blockies.length + 1;
     L.blockies.push([wi, s, null, rollSeed(n, source)]);
     a.ids.push(n);
@@ -154,9 +163,6 @@ export function snapshot(L, cfg, since = 0, dsince = 0) {
     boughtUsd: L.bought,
     recentBuys: L.recent,
     cityStart: L.start,
-    frozenAt: L.frozenAt || null, // when the city froze (ms): selling no longer sends Blockies away
-    unlockAt: L.unlockAt || null, // when Blockies trade (ms): the market opens sooner if anyone opens it
-    unlocked: Boolean(L.unlocked), // they trade now
-    openedBy: L.openedBy || null, // the wallet that opened the market
+    citizenDays: cfg.citizenDays ?? null, // a Blocky's newcomer days: then a citizen, an NFT
   };
 }

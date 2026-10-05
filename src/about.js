@@ -23,7 +23,7 @@ const reserve = CONFIG.nft.reserve;
 if (reserve?.count > 0 && reserve.wallet) {
   const line = $('reserve-line');
   line.hidden = false;
-  line.innerHTML = `<b>Team reserve: ${CONFIG.citizenPlural} #1 to #${fmt(reserve.count)}</b> belong to the team wallet ${link(basescan(`address/${reserve.wallet}`), `${reserve.wallet.slice(0, 6)}…${reserve.wallet.slice(-4)}`)} from day one, for giveaways and partners. They were not bought, they count toward the ${fmt(CONFIG.supply)}, they never leave the city, and their metadata says "Team reserve".`;
+  line.innerHTML = `<b>Team reserve: ${CONFIG.citizenPlural} #1 to #${fmt(reserve.count)}</b> belong to the team wallet ${link(basescan(`address/${reserve.wallet}`), `${reserve.wallet.slice(0, 6)}…${reserve.wallet.slice(-4)}`)} from day one, for giveaways and partners. They were not bought, they count toward the ${fmt(CONFIG.supply)}, they never leave the city, they become citizens (claimable NFTs) ${CONFIG.citizenDays} days after the city starts like the first buyers' Blockies, and their metadata says "Team reserve".`;
 }
 function contracts(nft) {
   const rows = [[`${CONFIG.ticker} token`, link(basescan(`token/${CONFIG.tokenAddress}`), CONFIG.tokenAddress)]];

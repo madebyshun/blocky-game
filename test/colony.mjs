@@ -1,15 +1,14 @@
 // The live ledger API (api/colony.js, buys mode) against a fake trade feed, Base and KV: a trade whose
 // receipt can't be read waits (with every later one) instead of going to the bundler, one instance at
-// a time updates the ledger, and the ledger freezes when the NFT contract does (with a last balance
-// check at the freeze block) and learns who opened the market.
+// a time updates the ledger, and citizens stay when their wallets sell.
 // Run: npm test
 import assert from 'node:assert/strict';
 
 for (const k of Object.keys(process.env)) if (/^(KV_|UPSTASH_)/.test(k)) delete process.env[k];
 Object.assign(process.env, {
   KV_REST_API_URL: 'https://kv.test', KV_REST_API_TOKEN: 'test', KV_KEY: 'test',
-  NFT_CONTRACT: '0x00000000000000000000000000000000000000c1', USD_PER_BLOCKY: '10', TEAM_RESERVE_COUNT: '0',
-  CACHE_MS: '0', LAUNCH_TIME_MS: String(Date.now() - 86400e3),
+  USD_PER_BLOCKY: '10', CITIZEN_DAYS: '14', TEAM_RESERVE_COUNT: '0',
+  CACHE_MS: '0', LAUNCH_TIME_MS: String(Date.now() - 30 * 86400e3),
 });
 const TOKEN = '0xe72a0c42b584a3e7a4503a82d1337deb52ade885';
 const { client } = await import('../api/_store.js');
@@ -34,9 +33,6 @@ globalThis.fetch = async (url, opts) => {
 // Base: receipts move the $BLOCKY to the real wallet (`real`) on a buy, from it on a sell; `failing`
 // receipts can't be read
 const failing = new Set();
-const nft = { frozenAt: 0n, frozenBlock: 0n, unlockAt: 0n, unlocked: false };
-const balances = {}, atFreeze = {}; // $BLOCKY held now and at the freeze block (not listed: plenty)
-const balanceReads = [];
 const topic = (a) => `0x${a.slice(2).padStart(64, '0')}`;
 client.getTransactionReceipt = async ({ hash }) => {
   if (failing.has(hash)) throw new Error('RPC down');
@@ -49,16 +45,8 @@ client.readContract = async ({ functionName }) => {
   if (functionName === 'decimals') return 18;
   throw new Error(`unexpected read ${functionName}`);
 };
-client.multicall = async ({ contracts, blockNumber }) => contracts.map(({ functionName, args }) => {
-  if (functionName in nft) return { status: 'success', result: nft[functionName] };
-  if (functionName !== 'balanceOf') return { status: 'failure', error: new Error('not here') };
-  balanceReads.push(blockNumber);
-  const held = (blockNumber ? atFreeze : balances)[args[0]] ?? 1e6;
-  return { status: 'success', result: BigInt(held) * 10n ** 18n };
-});
+client.multicall = async ({ contracts }) => contracts.map(({ functionName }) => (functionName === 'balanceOf' ? { status: 'success', result: 10n ** 24n } : { status: 'failure', error: new Error('not here') }));
 client.getBlock = async () => ({ hash: '0xhead' });
-const OPENER = '0x00000000000000000000000000000000000000e1';
-client.getContractEvents = async ({ eventName }) => (eventName === 'Unlocked' ? [{ args: { by: OPENER } }] : []);
 
 const BUNDLER = '0x000000000000000000000000000000000000beef';
 let n = 0;
@@ -103,33 +91,16 @@ r = await get();
 assert.equal(owners(r).at(-1), BUNDLER);
 failing.clear();
 
-// the city freezes (the claim of the last Blocky, 3 minutes ago): trades before it still count, the
-// ones after it don't, and the last balance check reads the freeze block, between the two
-assert.deepEqual([r.body.frozenAt, r.body.unlockAt, r.body.unlocked], [null, null, false]);
+// newcomers leave when their wallet sells; citizens (here 14 days) stay
+assert.equal(r.body.citizenDays, 14);
 trade(A, 5, 1000, 'sell');
 r = await get();
-assert.equal(r.body.departed, 2, 'before the freeze a sell still costs Blockies');
-const frozenAt = Math.floor(Date.now() / 1000) - 180;
-Object.assign(nft, { frozenAt: BigInt(frozenAt), frozenBlock: 123n, unlockAt: BigInt(frozenAt + 6 * 3600) });
-trade(A, 5, 190e3, 'sell'); // 10 s before the freeze: one more of A's leaves
-trade(A, 5, 170e3, 'sell'); // 10 s after: free
-atFreeze[B] = 0; // B moved its $BLOCKY away before the freeze: its 3 Blockies leave
-balanceReads.length = 0;
+assert.equal(r.body.departed, 2, 'a sell costs newcomers');
+const D = '0x00000000000000000000000000000000000000d1';
+trade(D, 20, 15 * 86400e3); // reported now, bought 15 days ago: two citizens
 r = await get();
-assert.deepEqual([r.body.frozenAt, r.body.unlockAt, r.body.unlocked], [frozenAt * 1000, (frozenAt + 6 * 3600) * 1000, false]);
-assert.ok(balanceReads.length && balanceReads.every((b) => b === 123n), 'the last balance check reads the freeze block');
-assert.equal(r.body.departed, 6);
-assert.deepEqual(r.body.departures.slice(-4).map((d) => owners({ body: { blockies: [r.body.blockies[d[0] - 1]] } })[0]), [A, B, B, B]);
-const saved = JSON.parse(redis.get('test:ledger:v5'));
-assert.ok(saved.finalCheck && saved.syncedTo >= frozenAt * 1000, 'the ledger is synced past the freeze: the market can open');
-trade(A, 5, 1000, 'sell');
-balances[A] = 0;
+assert.equal(r.body.issued, 10);
+trade(D, 20, 1000, 'sell');
 r = await get();
-assert.equal(r.body.departed, 6, 'a sell after the freeze kept its Blockies');
-
-// someone opens the market: the ledger learns who, and a sell from before the freeze reported late is free
-Object.assign(nft, { unlockAt: BigInt(Math.floor(Date.now() / 1000)), unlocked: true });
-trade(BUNDLER, 10, 200e3, 'sell'); // its one Blocky would leave
-r = await get();
-assert.deepEqual([r.body.unlocked, r.body.openedBy, r.body.departed], [true, OPENER, 6]);
-console.log('colony: waits for receipts, one writer, freezes with the contract: all checks pass');
+assert.equal(r.body.departed, 2, 'citizens stay');
+console.log('colony: waits for receipts, one writer, citizens stay: all checks pass');

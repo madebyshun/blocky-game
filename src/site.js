@@ -58,17 +58,15 @@ export async function downloadSvgPng(svg, name, size = 1024) {
   a.click();
 }
 
-// Whether NFT claims are open, the contract (from the API; the config as a fallback), and the market:
-// frozenAt (every Blocky is claimed), unlockAt (trading opens by itself), unlocked, and market ('ready'
-// when anyone can open it, 'settling' while the ledger catches up).
+// Whether NFT claims are open, the contract (from the API; the config as a fallback), and how many days a
+// Blocky is a newcomer before it is a citizen (an NFT its wallet claims).
 export async function nftInfo() {
   try {
     const res = await fetch('/api/claim', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
-    const ms = (v) => (typeof v === 'number' ? v : null);
-    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, frozenAt: ms(s.frozenAt), unlockAt: ms(s.unlockAt), unlocked: Boolean(s.unlocked), market: s.market || null, live: true };
+    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, citizenDays: typeof s.citizenDays === 'number' ? s.citizenDays : CONFIG.citizenDays, live: true };
   } catch {
-    return { open: false, contract: CONFIG.nft.contract || null, frozenAt: null, unlockAt: null, unlocked: false, market: null, live: false };
+    return { open: false, contract: CONFIG.nft.contract || null, citizenDays: CONFIG.citizenDays, live: false };
   }
 }

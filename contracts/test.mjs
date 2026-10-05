@@ -1,25 +1,23 @@
-// Tests BaseCityBlockies on an in-memory EVM (Cancun, chain id 8453): claims, signatures, the lock,
-// evictions, the supply cap, the freeze and opening the market. Run: npm test (in contracts/).
+// Tests BaseCityBlockies on an in-memory EVM (Cancun, chain id 8453): signed claims, the supply cap,
+// free trading from the start, owner tools. Run: npm test (in contracts/).
 import assert from 'node:assert/strict';
 import { chain, account } from './evm.mjs';
-import { claimTypedData, openMarketTypedData } from '../api/_sig.js';
+import { claimTypedData } from '../api/_sig.js';
 
-const evm = await chain(); // evm.now: the block time, moved forward below
+const evm = await chain(); // evm.now: the block time
 const [owner, signer, alice, bob, carol, treasury, eve] = [11, 12, 13, 14, 15, 16, 17].map(account);
 let C; // the contract
 const deploy = async (maxSupply = 5) => (C = await evm.deploy(owner, [owner.address, signer.address, treasury.address, 500, BigInt(maxSupply), 'https://basecity.test/api/nft/', 'https://basecity.test/api/nft/collection']));
 const send = (from, fn, args) => evm.send(from, fn, args);
 const read = (fn, args) => evm.read(fn, args);
-// a claim as the ledger signs it: for the contract's side of the freeze, unless `frozen` says otherwise
-async function sign(to, ids, evict = [], { deadline = evm.now + 1800, by = signer, frozen } = {}) {
-  frozen ??= (await read('frozenAt')) !== 0n;
-  const sig = await by.signTypedData(claimTypedData({ chainId: 8453, contract: C, to: to.address, ids, evict, deadline, frozen }));
-  return [ids.map(BigInt), evict.map(BigInt), BigInt(deadline), sig];
+// a claim as the ledger signs it (only ever for citizens)
+async function sign(to, ids, { deadline = evm.now + 1800, by = signer } = {}) {
+  const sig = await by.signTypedData(claimTypedData({ chainId: 8453, contract: C, to: to.address, ids, deadline }));
+  return [ids.map(BigInt), BigInt(deadline), sig];
 }
-const market = async (evict, { deadline = evm.now + 1800, by = signer } = {}) =>
-  [evict.map(BigInt), BigInt(deadline), await by.signTypedData(openMarketTypedData({ chainId: 8453, contract: C, evict, deadline }))];
 const ok = (r) => { assert.equal(r.error, undefined, r.error); return r; };
 const reverts = (r, name) => assert.equal(r.error, name);
+const claimed = (r) => r.events.find((e) => e.eventName === 'Claimed')?.args.count ?? 0n;
 
 // --- deploy and metadata
 await deploy(5);
@@ -30,133 +28,68 @@ for (const id of ['0x80ac58cd', '0x5b5e139f', '0x2a55205a', '0x49064906', '0x01f
 assert.equal(await read('contractURI'), 'https://basecity.test/api/nft/collection');
 assert.equal(await read('MAX_SUPPLY'), 5n);
 
-// --- a buyer claims their Blockies with the ledger's signature
+// --- a wallet claims its citizens with the ledger's signature
 const aliceSig = await sign(alice, [1, 2]);
 let r = ok(await send(alice, 'claim', aliceSig));
 assert.equal(await read('ownerOf', [1n]), alice.address);
 assert.equal(await read('ownerOf', [2n]), alice.address);
 assert.equal(await read('totalSupply'), 2n);
 assert.equal(await read('tokenURI', [2n]), 'https://basecity.test/api/nft/2');
-assert.ok(r.events.some((e) => e.eventName === 'Claimed' && e.args.count === 2n));
+assert.equal(claimed(r), 2n);
 console.log(`claim 2 Blockies: ${r.gas} gas`);
 
-// someone else can't use it, a forged or expired one fails, a replay mints nothing
+// someone else can't use it, a forged, tampered or expired one fails, a replay mints nothing
 reverts(await send(bob, 'claim', aliceSig), 'BadSignature');
-reverts(await send(bob, 'claim', await sign(bob, [3], [], { by: eve })), 'BadSignature');
-reverts(await send(bob, 'claim', await sign(bob, [3], [], { deadline: evm.now - 1 })), 'Expired');
-reverts(await send(bob, 'claim', await sign(bob, [3], [], { frozen: true })), 'BadSignature'); // not frozen yet
+reverts(await send(bob, 'claim', await sign(bob, [3], { by: eve })), 'BadSignature');
+reverts(await send(bob, 'claim', await sign(bob, [3], { deadline: evm.now - 1 })), 'Expired');
 const tampered = await sign(bob, [3]); tampered[0] = [3n, 4n];
 reverts(await send(bob, 'claim', tampered), 'BadSignature');
-ok(await send(alice, 'claim', aliceSig));
+r = ok(await send(alice, 'claim', aliceSig));
+assert.equal(claimed(r), 0n);
 assert.equal(await read('totalSupply'), 2n);
 
-// --- locked: no transfers, no approvals
-reverts(await send(alice, 'transferFrom', [alice.address, bob.address, 1n]), 'Locked');
-reverts(await send(alice, 'safeTransferFrom', [alice.address, bob.address, 1n]), 'Locked');
-reverts(await send(alice, 'approve', [bob.address, 1n]), 'Locked');
-reverts(await send(alice, 'setApprovalForAll', [bob.address, true]), 'Locked');
-ok(await send(alice, 'setApprovalForAll', [bob.address, false]));
-
-// --- alice sells: Blocky #2 leaves, burned in the next claim, and its number never comes back
-r = ok(await send(bob, 'claim', await sign(bob, [3], [2])));
-assert.equal(await read('exists', [2n]), false);
-assert.equal(await read('evicted', [2n]), true);
-assert.equal(await read('ownerOf', [3n]), bob.address);
-assert.equal(await read('totalSupply'), 2n);
-assert.equal(await read('totalMinted'), 3n);
-assert.ok(r.events.some((e) => e.eventName === 'Evicted' && e.args.id === 2n && e.args.from === alice.address));
-ok(await send(alice, 'claim', aliceSig)); // her old signature can't bring it back
-assert.equal(await read('exists', [2n]), false);
-ok(await send(carol, 'claim', await sign(carol, [4], [2, 99]))); // evicting a gone or unknown Blocky is a no-op
-assert.equal(await read('ownerOf', [4n]), carol.address);
-
-// --- owner tools while locked
-reverts(await send(eve, 'evict', [[1n]]), 'OwnableUnauthorizedAccount');
-reverts(await send(eve, 'setSigner', [eve.address]), 'OwnableUnauthorizedAccount');
-reverts(await send(eve, 'unlock'), 'OwnableUnauthorizedAccount');
-r = ok(await send(owner, 'setBaseURI', ['https://basecity.xyz/api/nft/']));
-assert.ok(r.events.some((e) => e.eventName === 'BatchMetadataUpdate'));
-assert.equal(await read('tokenURI', [1n]), 'https://basecity.xyz/api/nft/1');
-
-// --- the supply cap: the claim that makes MAX_SUPPLY freezes the city; still locked
-assert.equal(await read('totalSupply'), 3n); // #1 alice, #3 bob, #4 carol
-reverts(await send(eve, 'openMarket', await market([])), 'NotFrozen');
-const early = await sign(bob, [9]); // signed before the freeze
-r = ok(await send(carol, 'claim', await sign(carol, [5, 6, 7, 8])));
-assert.equal(await read('totalSupply'), 5n);
-assert.equal(await read('exists', [7n]), false);
-assert.equal(await read('frozenAt'), BigInt(evm.now));
-assert.equal(await read('frozenBlock'), 1n);
-const unlockAt = await read('unlockAt');
-assert.equal(unlockAt, BigInt(evm.now + 6 * 3600));
-assert.ok(r.events.some((e) => e.eventName === 'Frozen' && e.args.unlockAt === unlockAt));
-assert.equal(await read('unlocked'), false);
-reverts(await send(alice, 'transferFrom', [alice.address, bob.address, 1n]), 'Locked');
-reverts(await send(alice, 'approve', [bob.address, 1n]), 'Locked');
-// a claim signed before the freeze stops working; one signed after still burns and claims
-evm.now += 60;
-reverts(await send(bob, 'claim', early), 'BadSignature');
-ok(await send(bob, 'claim', await sign(bob, [7], [6])));
-assert.equal(await read('exists', [6n]), false);
-assert.equal(await read('ownerOf', [7n]), bob.address);
-assert.equal(await read('totalSupply'), 5n);
-assert.equal(await read('unlockAt'), unlockAt, 'the unlock is not pushed back');
-
-// --- anyone opens the market with the ledger's signed list (#5's wallet sold before the freeze)
-reverts(await send(eve, 'openMarket', await market([5], { by: eve })), 'BadSignature');
-reverts(await send(eve, 'openMarket', await market([5], { deadline: evm.now - 1 })), 'Expired');
-const tamperedList = await market([5]); tamperedList[0] = [7n];
-reverts(await send(eve, 'openMarket', tamperedList), 'BadSignature');
-evm.now += 60;
-r = ok(await send(eve, 'openMarket', await market([5])));
-assert.equal(await read('exists', [5n]), false);
-assert.equal(await read('unlocked'), true);
-assert.equal(await read('unlockAt'), BigInt(evm.now));
-assert.ok(r.events.some((e) => e.eventName === 'Unlocked' && e.args.by === eve.address));
-console.log(`open the market: ${r.gas} gas`);
-reverts(await send(eve, 'openMarket', await market([])), 'AlreadyUnlocked');
-
-// --- unlocked: transfers and approvals work, nobody can be evicted
+// --- citizens are ordinary NFTs: transfers and approvals work from the start
 ok(await send(alice, 'transferFrom', [alice.address, bob.address, 1n]));
 assert.equal(await read('ownerOf', [1n]), bob.address);
 ok(await send(bob, 'approve', [carol.address, 1n]));
 ok(await send(carol, 'transferFrom', [bob.address, carol.address, 1n]));
-ok(await send(carol, 'claim', await sign(carol, [9, 10], [1]))); // nobody can be evicted now
 assert.equal(await read('ownerOf', [1n]), carol.address);
-assert.equal(await read('exists', [9n]), true); // #5's place is free: one more fits
-assert.equal(await read('exists', [10n]), false); // and then it's full
-reverts(await send(owner, 'evict', [[1n]]), 'AlreadyUnlocked');
-reverts(await send(owner, 'unlock'), 'AlreadyUnlocked');
+ok(await send(alice, 'setApprovalForAll', [bob.address, true]));
+ok(await send(bob, 'safeTransferFrom', [alice.address, bob.address, 2n]));
+assert.equal(await read('ownerOf', [2n]), bob.address);
 
-// --- nobody opens the market: transfers open by themselves UNLOCK_DELAY after the freeze
-await deploy(2);
-ok(await send(alice, 'claim', await sign(alice, [1, 2])));
-evm.now += 6 * 3600 - 1;
-assert.equal(await read('unlocked'), false);
-evm.now += 1;
-assert.equal(await read('unlocked'), true);
-ok(await send(alice, 'transferFrom', [alice.address, bob.address, 1n]));
+// --- the supply cap: ids that exist are skipped, claims stop at MAX_SUPPLY
+r = ok(await send(bob, 'claim', await sign(bob, [2, 3, 4])));
+assert.equal(claimed(r), 2n);
+r = ok(await send(carol, 'claim', await sign(carol, [5, 6, 7])));
+assert.equal(claimed(r), 1n);
+assert.equal(await read('totalSupply'), 5n);
+assert.equal(await read('exists', [5n]), true);
+assert.equal(await read('exists', [6n]), false);
+r = ok(await send(carol, 'claim', await sign(carol, [8])));
+assert.equal(claimed(r), 0n);
 
-// --- a fresh collection: the owner can evict and unlock early, rotate the signer, change royalties
+// --- owner tools: metadata, royalties, a new signer key
+for (const [fn, args] of [['setSigner', [eve.address]], ['setBaseURI', ['x']], ['setContractURI', ['x']], ['setRoyalty', [eve.address, 1000]]]) {
+  reverts(await send(eve, fn, args), 'OwnableUnauthorizedAccount');
+}
+r = ok(await send(owner, 'setBaseURI', ['https://basecity.xyz/api/nft/']));
+assert.ok(r.events.some((e) => e.eventName === 'BatchMetadataUpdate'));
+assert.equal(await read('tokenURI', [1n]), 'https://basecity.xyz/api/nft/1');
+r = ok(await send(owner, 'setContractURI', ['https://basecity.xyz/api/nft/collection']));
+assert.ok(r.events.some((e) => e.eventName === 'ContractURIUpdated'));
+ok(await send(owner, 'setRoyalty', [owner.address, 250]));
+assert.deepEqual(await read('royaltyInfo', [1n, 10000n]), [owner.address, 250n]);
+reverts(await send(owner, 'setSigner', ['0x0000000000000000000000000000000000000000']), 'ZeroAddress');
 await deploy(10000);
-ok(await send(alice, 'claim', await sign(alice, [1, 2, 3])));
-ok(await send(owner, 'evict', [[3n]]));
-assert.equal(await read('exists', [3n]), false);
 const newSigner = account(21);
 ok(await send(owner, 'setSigner', [newSigner.address]));
 reverts(await send(bob, 'claim', await sign(bob, [4])), 'BadSignature');
-ok(await send(bob, 'claim', await sign(bob, [4], [], { by: newSigner })));
-ok(await send(owner, 'setRoyalty', [owner.address, 250]));
-assert.deepEqual(await read('royaltyInfo', [1n, 10000n]), [owner.address, 250n]);
-const beforeUnlock = await sign(carol, [5], [], { by: newSigner });
-r = ok(await send(owner, 'unlock')); // also freezes the city
-assert.equal(await read('frozenAt'), BigInt(evm.now));
-assert.ok(r.events.some((e) => e.eventName === 'Frozen') && r.events.some((e) => e.eventName === 'Unlocked' && e.args.by === owner.address));
-reverts(await send(carol, 'claim', beforeUnlock), 'BadSignature');
-ok(await send(alice, 'transferFrom', [alice.address, carol.address, 1n]));
+ok(await send(bob, 'claim', await sign(bob, [4], { by: newSigner })));
+
 // a big claim: 50 Blockies in one transaction
 const big = Array.from({ length: 50 }, (_, i) => 100 + i);
-r = ok(await send(carol, 'claim', await sign(carol, big, [], { by: newSigner })));
-assert.equal(await read('balanceOf', [carol.address]), 51n);
+r = ok(await send(carol, 'claim', await sign(carol, big, { by: newSigner })));
+assert.equal(await read('balanceOf', [carol.address]), 50n);
 console.log(`claim 50 Blockies: ${r.gas} gas`);
 console.log('BaseCityBlockies: all tests pass');

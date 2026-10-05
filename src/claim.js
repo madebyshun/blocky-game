@@ -1,5 +1,6 @@
-// The claim page: connect the wallet that bought $BLOCKY, see its Blockies, claim them as NFTs.
-// The API signs what the ledger says the wallet owns; the wallet sends the claim and pays the gas.
+// The claim page: connect the wallet that bought $BLOCKY, see its Blockies, claim its citizens as NFTs
+// (a Blocky is a newcomer for its first `citizenDays` days in the city). The API signs what the ledger
+// says the wallet owns; the wallet sends the claim and pays the gas.
 import { encodeFunctionData, getAddress, isAddress } from 'viem';
 import { CONFIG } from './config.js';
 import { CLAIM_ABI } from '../api/_sig.js';
@@ -14,9 +15,9 @@ const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.tk')) el.textContent = CONFIG.ticker;
 for (const el of document.querySelectorAll('.supply')) el.textContent = fmt(CONFIG.supply);
 
-let info = { open: false, contract: null, live: false, frozenAt: null, unlockAt: null, unlocked: false, market: null };
+let info = { open: false, contract: null, live: false, citizenDays: CONFIG.citizenDays };
 const when = (ms) => new Date(ms).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-let openedTx = null; // this visitor opened the market
+const days = (ms) => Math.max(1, Math.ceil((ms - Date.now()) / 86400e3));
 let provider = null; // the connected wallet
 let account = null; // its address
 let viewing = null; // the address on screen (connected or looked up)
@@ -28,22 +29,12 @@ function status() {
   if (!info.live) {
     s.className = 'note';
     s.textContent = 'Live data is not reachable here, so wallets can\'t be checked yet. Claims work on the live BaseCity site.';
-  } else if (info.unlocked) {
-    s.className = 'note ok';
-    s.innerHTML = `${openedTx ? `<b>You opened the market!</b> <a href="${basescan(`tx/${openedTx}`)}" target="_blank" rel="noopener">Your transaction ↗</a> ` : ''}The market is open: Blockies trade freely now. ${sea}`;
-  } else if (info.frozenAt) {
-    // every Blocky is claimed: the first visitor to send the ledger's list opens the market
-    s.className = 'note ok';
-    s.innerHTML = info.market === 'ready'
-      ? `<b>Full house: every Blocky is claimed.</b> Anyone can open the market now: one transaction burns the Blockies of wallets that sold before the city filled, and trading starts. You pay the gas, a few cents. <span class="market-row"><button class="btn primary" id="open-market" type="button">Open the market</button><span class="claim-msg" id="market-msg" aria-live="polite"></span></span>`
-      : `<b>Full house: every Blocky is claimed.</b> The ledger is settling the last trades before the city filled: the market can open in a minute or two${info.unlockAt ? `, and opens by itself ${when(info.unlockAt)} at the latest` : ''}.`;
-    $('open-market')?.addEventListener('click', openMarket);
   } else if (info.open) {
     s.className = 'note ok';
-    s.innerHTML = `Claims are open. You pay the gas, a few cents on Base. ${sea}`;
+    s.innerHTML = `Claims are open. A Blocky that stays ${info.citizenDays} days in the city becomes a citizen: claim it here as an NFT, free to trade at once. You pay the gas, a few cents on Base. ${sea}`;
   } else {
     s.className = 'note';
-    s.textContent = `Claims open soon. Every Blocky your wallet brings is saved in the ledger: keep holding ${CONFIG.ticker} and claim here when the contract goes live.`;
+    s.textContent = `Claims open soon. Every Blocky your wallet brings is saved in the ledger: keep holding ${CONFIG.ticker} while they're newcomers, and claim your citizens here when the contract goes live.`;
   }
 }
 
@@ -135,6 +126,7 @@ async function show(address) {
   }
 }
 
+const citizenNow = (entry) => entry.citizenAt != null && entry.citizenAt <= Date.now();
 function tile(entry, gone) {
   const b = makeBlocky(entry.n, entry.at, viewing, entry.seed);
   const el = document.createElement('a');
@@ -143,21 +135,25 @@ function tile(entry, gone) {
   el.innerHTML = `<div class="pic"><img alt="${esc(b.name)}" width="256" height="256" /></div>
     <div class="info"><div class="name">${esc(b.name)}</div>
     <div class="sub"><span class="rarity ${b.rarity.id}">${b.rarity.label}</span><span>${b.trait ? esc(TRAIT_LABEL[b.trait]) : ''}</span></div></div>
-    <span class="flag ${gone ? 'gone' : entry.claimed ? 'ok' : ''}">${gone ? 'Left' : entry.claimed ? 'Claimed ✓' : 'To claim'}</span>`;
+    <span class="flag ${gone ? 'gone' : entry.claimed ? 'ok' : citizenNow(entry) ? 'claim' : ''}">${gone ? 'Left' : entry.claimed ? 'Claimed ✓' : citizenNow(entry) ? 'To claim' : `Citizen in ${days(entry.citizenAt)}d`}</span>`;
   lazyPortrait(el.querySelector('img'), b);
   return el;
 }
 
 function render(j) {
   const list = j?.blockies || [], left = j?.left || [];
-  const claimed = list.filter((x) => x.claimed).length, unclaimed = list.length - claimed;
+  const claimed = list.filter((x) => x.claimed).length;
+  const claimable = list.filter((x) => !x.claimed && citizenNow(x)).length;
+  const newcomers = list.filter((x) => !citizenNow(x));
+  const nextCitizen = Math.min(...newcomers.map((x) => x.citizenAt));
   const price = j?.price || CONFIG.usdPerBlocky, usd = j?.boughtUsd || 0;
   const toNext = j?.toNext ?? price;
   $('mystats').innerHTML = !j ? '' : [
     [`${CONFIG.citizenPlural} in the city`, fmt(list.length)],
+    ['Newcomers', newcomers.length ? `${fmt(newcomers.length)} <small class="line">next citizen ${when(nextCitizen)}</small>` : '0'],
     ['Claimed', fmt(claimed)],
-    ['To claim', fmt(unclaimed)],
-    ...(j.waiting && !j.frozenAt ? [['Waiting for a place', fmt(j.waiting)]] : []),
+    ['To claim', fmt(claimable)],
+    ...(j.waiting ? [['Waiting for a place', fmt(j.waiting)]] : []),
     ...(left.length ? [['Left the city', fmt(left.length)]] : []),
     ['Bought', `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="line">next ${CONFIG.citizen} in $${toNext.toFixed(2)}</small>`],
   ].map(([k, v]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
@@ -172,14 +168,15 @@ function render(j) {
 
   const btn = $('claim');
   const mineNow = account && viewing && account.toLowerCase() === viewing.toLowerCase();
-  const n = Math.min(50, unclaimed);
+  const n = Math.min(50, claimable);
   btn.textContent = n ? `Claim ${n} ${n > 1 ? CONFIG.citizenPlural : CONFIG.citizen}` : 'Claim';
   btn.disabled = busy || !j || !info.open || !mineNow || !n;
   if (!j) return;
   if (!info.open) say('Claims open soon: these Blockies stay saved for this wallet while it holds.');
+  else if (!n && newcomers.length) say(`${claimed ? 'Every citizen claimed ✓ ' : ''}Next citizen ${when(nextCitizen)}: keep holding ${CONFIG.ticker} until then, or newcomers leave the city.`);
   else if (!n) say(list.length ? `All claimed ✓ ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>` : ''}` : '', list.length ? 'ok' : '');
   else if (!mineNow) say('Connect this wallet to claim. Only the wallet that brought a Blocky can claim it.');
-  else say(unclaimed > 50 ? `Claims go 50 at a time: ${fmt(unclaimed)} to claim.` : 'Ready. You pay the gas.');
+  else say(claimable > 50 ? `Claims go 50 at a time: ${fmt(claimable)} to claim.` : 'Ready. You pay the gas.');
 }
 
 async function claim() {
@@ -191,7 +188,7 @@ async function claim() {
     const res = await fetch('/api/claim', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ address: account }) });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-    const data = encodeFunctionData({ abi: CLAIM_ABI, functionName: 'claim', args: [j.ids.map(BigInt), j.evict.map(BigInt), BigInt(j.deadline), j.signature] });
+    const data = encodeFunctionData({ abi: CLAIM_ABI, functionName: 'claim', args: [j.ids.map(BigInt), BigInt(j.deadline), j.signature] });
     say('Confirm in your wallet…');
     const hash = await sendTx(provider, { from: account, to: j.contract, data });
     say(`Claiming ${j.ids.length} ${j.ids.length > 1 ? CONFIG.citizenPlural : CONFIG.citizen}… <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">View on Basescan ↗</a>`);
@@ -210,54 +207,12 @@ async function claim() {
 }
 $('claim').onclick = claim;
 
-// ---------- opening the market (once every Blocky is claimed) ----------
-
-async function openMarket() {
-  const msg = (html, tone = '') => { const m = $('market-msg'); if (m) { m.className = `claim-msg ${tone}`; m.innerHTML = html; } };
-  if (busy) return;
-  if (!account || !provider) { msg('Connect a wallet below first: any wallet can open it.'); return; }
-  busy = true;
-  $('open-market').disabled = true;
-  try {
-    msg('Getting the ledger\'s list…');
-    const res = await fetch('/api/claim?market=1', { cache: 'no-store' });
-    const j = await res.json();
-    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-    const data = encodeFunctionData({ abi: CLAIM_ABI, functionName: 'openMarket', args: [j.evict.map(BigInt), BigInt(j.deadline), j.signature] });
-    msg('Confirm in your wallet…');
-    const hash = await sendTx(provider, { from: account, to: j.contract, data });
-    msg(`Opening the market… <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">View on Basescan ↗</a>`);
-    const done = await waitTx(hash, provider);
-    busy = false;
-    if (done.ok) openedTx = hash;
-    info = await nftInfo();
-    status();
-    if (done.ok === false) msg(`The transaction failed: someone may have opened it first. <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">Details ↗</a>`, 'bad');
-  } catch (e) {
-    busy = false;
-    msg(rejected(e) ? 'Cancelled.' : esc(e.shortMessage || e.message || String(e)), rejected(e) ? '' : 'bad');
-    if ($('open-market')) $('open-market').disabled = false;
-  }
-}
-
-// while every Blocky is claimed but the market isn't open, check again every 30 seconds
-let watching = null;
-function watchMarket() {
-  clearTimeout(watching);
-  if (!info.frozenAt || info.unlocked) return;
-  watching = setTimeout(async () => {
-    if (!busy) { info = await nftInfo(); status(); }
-    watchMarket();
-  }, 30000);
-}
-
 (async () => {
   onWallets(renderWallets);
   renderWallets();
   fetchColony().catch(() => null); // also brings the ledger up to date with the latest buys
   info = await nftInfo();
   status();
-  watchMarket();
   const q = new URLSearchParams(location.search).get('address');
   if (q && isAddress(q, { strict: false })) show(getAddress(q));
   else if (q && BASENAME.test(q)) show(q.toLowerCase()); // ?address=name.base.eth

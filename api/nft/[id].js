@@ -4,7 +4,8 @@
 //   GET /api/nft/collection      collection metadata (the contract's contractURI)
 //   GET /api/nft/collection.svg  the collection's picture
 // Everything comes from the Blocky ledger (api/colony.js keeps it up to date), so the metadata says
-// what the city shows: rarity, look, status and the blocks each Blocky has placed so far.
+// what the city shows: rarity, look, status (newcomer, citizen, gone) and the blocks each Blocky has
+// placed so far. Only citizens are ever minted; the site shows the others too.
 
 import { CONFIG } from '../../src/config.js';
 import { cityCrew, makeBlocky, makeFounder, CitySim, TRAIT_LABEL } from '../../src/sim.js';
@@ -40,16 +41,18 @@ const plain = (b) => b.name.replace(/ #\d+$/, '');
 function metadata(b, sim, site) {
   const now = Date.now();
   const here = !Number.isFinite(b.leftAt);
+  const citizenAt = b.arrivedAt + LEDGER.citizenDays * 86400e3;
   const blocks = Math.floor(sim.blocksBy(b, now));
   const attributes = [
     { trait_type: 'Rarity', value: b.rarity.label },
     { trait_type: 'Trait', value: b.trait ? TRAIT_LABEL[b.trait] : 'None' },
     { trait_type: 'Role', value: b.role.label },
     { trait_type: 'Name', value: plain(b) },
-    { trait_type: 'Status', value: here ? 'In the city' : 'Left the city' },
+    { trait_type: 'Status', value: !here ? 'Left the city' : now >= citizenAt ? 'Citizen' : 'Newcomer' },
     { trait_type: 'Origin', value: b.id <= RESERVE.count && b.from === RESERVE.wallet.toLowerCase() ? 'Team reserve' : 'Bought' },
     { trait_type: 'Blocks placed', value: blocks, display_type: 'number' },
     { trait_type: 'Arrived', value: Math.floor(b.arrivedAt / 1000), display_type: 'date' },
+    ...(here ? [{ trait_type: 'Citizen since', value: Math.floor(citizenAt / 1000), display_type: 'date' }] : []),
   ];
   return {
     name: b.name,
@@ -65,7 +68,7 @@ function collection(site) {
   return {
     name: NFT.name,
     symbol: NFT.symbol,
-    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, and the buyer claims it as an NFT. At most ${LEDGER.supply.toLocaleString('en-US')} live in the city; sell your ${CONFIG.ticker} before every Blocky is claimed and your Blockies leave. Trading opens minutes after all ${LEDGER.supply.toLocaleString('en-US')} are claimed, when anyone opens the market.`,
+    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, at most ${LEDGER.supply.toLocaleString('en-US')} at once. A newcomer leaves if its wallet sells; after ${LEDGER.citizenDays} days in the city it is a citizen for good, and its wallet claims it as an NFT, free to trade from the start.`,
     image: `${site}/api/nft/collection.svg`,
     featured_image: `${site}/api/nft/collection.svg`,
     banner_image: `${site}/og.png`,

@@ -19,7 +19,9 @@ const RANK = { legendary: 0, rare: 1, uncommon: 2, common: 3 };
 const here = (b) => !Number.isFinite(b.leftAt);
 const teamReserve = (b) => b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
 const filters = { q: '', rarity: 'all', trait: 'all', status: 'here', sort: 'new' };
-let all = [], sim = null, info = { contract: null }, list = [], shown = 0;
+let all = [], sim = null, info = { contract: null, citizenDays: CONFIG.citizenDays }, list = [], shown = 0;
+// a Blocky in the city is a citizen (an NFT its wallet can claim) `citizenDays` after it arrived
+const citizenAt = (b) => b.arrivedAt + info.citizenDays * 86400e3;
 
 function stats(state) {
   const inCity = all.filter(here);
@@ -135,21 +137,22 @@ function open(b) {
   const end = here(b) ? now : b.leftAt;
   d.querySelector('img').src = portraitUrl(b, { size: 1024, label: true });
   d.querySelector('img').alt = `${b.name}, a ${b.rarity.label} Blocky`;
-  $('d-eyebrow').textContent = `${CONFIG.citizen.toUpperCase()} #${b.id} · ${here(b) ? 'IN THE CITY' : 'LEFT THE CITY'}`;
+  const citizen = citizenAt(b) <= now;
+  $('d-eyebrow').textContent = `${CONFIG.citizen.toUpperCase()} #${b.id} · ${!here(b) ? 'LEFT THE CITY' : citizen ? 'CITIZEN' : 'NEWCOMER'}`;
   $('d-name').textContent = b.name;
   $('d-tags').innerHTML = `<span class="rarity ${b.rarity.id}">${b.rarity.label}</span>${b.trait ? `<span>${esc(TRAIT_LABEL[b.trait])}</span>` : ''}<span>· ${esc(b.role.label)}</span>`;
   const rows = [
     ['Blocks placed', fmt(blocks)],
     [here(b) ? 'Building for' : 'Built for', `${fmt((end - b.arrivedAt) / 3600000)} hours`],
     ['Arrived', day(b.arrivedAt)],
-    ...(here(b) ? [] : [['Left', day(b.leftAt)]]),
+    ...(here(b) ? [[citizen ? 'Citizen since' : 'Citizen on', day(citizenAt(b))]] : [['Left', day(b.leftAt)]]),
     [teamReserve(b) ? 'Team reserve' : 'Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener" title="${esc(b.from)}">${esc(who(b.from, 30))}</a>` : '—'],
   ];
   $('d-dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const site = CONFIG.siteUrl || location.origin;
   const text = `${b.name} is a ${b.rarity.label}${b.trait ? ` (${TRAIT_LABEL[b.trait]})` : ''} Blocky building ${CONFIG.cityName} on Base: ${fmt(blocks)} blocks placed so far.`;
   $('d-actions').innerHTML = `<button class="btn primary" type="button" data-act="png">⬇ PNG</button>
-    ${info.contract && here(b) ? `<a class="btn" href="${opensea(info.contract, b.id)}" target="_blank" rel="noopener">OpenSea ↗</a><a class="btn" href="${basescan(`nft/${info.contract}/${b.id}`)}" target="_blank" rel="noopener">Basescan ↗</a>` : ''}
+    ${info.contract && here(b) && citizen ? `<a class="btn" href="${opensea(info.contract, b.id)}" target="_blank" rel="noopener">OpenSea ↗</a><a class="btn" href="${basescan(`nft/${info.contract}/${b.id}`)}" target="_blank" rel="noopener">Basescan ↗</a>` : ''}
     <a class="btn" href="https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${site}/collection.html#${b.id}`)}" target="_blank" rel="noopener">Share on 𝕏</a>
     <a class="btn" href="/claim.html${b.from ? `?address=${b.from}` : ''}">Claim page</a>`;
   d.querySelector('[data-act="png"]').onclick = () => downloadSvgPng(blockySvg(b, { size: 1024 }), b.name);

@@ -1,7 +1,7 @@
 // The Blocky ledger's rules (src/ledger.js): $ per Blocky per wallet, the hold rule, the waitlist,
-// whales, incremental snapshots, fair rarity seeds, and the unlock. Run: npm test
+// whales, incremental snapshots, fair rarity seeds, and citizens. Run: npm test
 import assert from 'node:assert/strict';
-import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, isFrozen } from '../src/ledger.js';
+import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, citizenAt, citizensOf } from '../src/ledger.js';
 import { rarityOf } from '../src/sim.js';
 
 const cfg = { per: 5, supply: 10000, whaleUsd: 1000 };
@@ -67,27 +67,43 @@ L = JSON.parse(JSON.stringify(L));
 applyTrade(L, { who: '0xW', kind: 'sell', usd: 600, tokens: 6000, at: at() }, cfg);
 assert.equal(snapshot(L, cfg).minted, 120);
 
-// 5. once the city freezes (the NFT contract's frozenAt), selling no longer sends Blockies away
-L = newLedger(0);
-applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);
-L.frozenAt = t + 10000;
-applyTrade(L, { who: '0xE', kind: 'sell', usd: 10, tokens: 100, at: at() }, cfg);
-assert.equal(snapshot(L, cfg).minted, 8, 'a sell before the freeze still costs Blockies');
-assert.equal(isFrozen(L, L.frozenAt - 1), false);
-t = L.frozenAt;
-applyTrade(L, { who: '0xE', kind: 'sell', usd: 20, tokens: 200, at: t }, cfg);
-assert.equal(snapshot(L, cfg).minted, 8, 'a sell from the freeze on kept its Blockies');
-applyBalances(L, { '0xe': 0 }, at(), cfg);
-assert.equal(snapshot(L, cfg).minted, 8);
-applyBalances(L, { '0xe': 0 }, L.frozenAt - 1, cfg); // the last balance check, at the freeze block
-assert.equal(snapshot(L, cfg).minted, 0, 'tokens moved away before the freeze still count as sold');
-applyTrade(L, { who: '0xF', kind: 'buy', usd: 10, tokens: 100, at: at() }, cfg);
-assert.equal(snapshot(L, cfg).minted, 2, 'new buyers still get Blockies while there is room');
-// once the collection is unlocked, even a late-reported sell from before the freeze keeps its Blockies
-L.unlocked = true;
-applyTrade(L, { who: '0xF', kind: 'sell', usd: 10, tokens: 100, at: L.frozenAt - 5000 }, cfg);
-assert.equal(snapshot(L, cfg).minted, 2);
-assert.deepEqual([snapshot(L, cfg).frozenAt, snapshot(L, cfg).unlocked], [L.frozenAt, true]);
+// 5. citizens: after `citizenDays` in the city a Blocky stays for good; the hold rule is for newcomers
+{
+  const DAY = 86400e3, c = { ...cfg, citizenDays: 14 };
+  L = newLedger(0);
+  applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: 1000 }, c); // #1-#10
+  assert.equal(citizenAt(L, 1, c), 1000 + 14 * DAY);
+  applyTrade(L, { who: '0xE', kind: 'sell', usd: 10, tokens: 100, at: 2 * DAY }, c);
+  assert.deepEqual(walletBlockies(L, '0xe').active, [1, 2, 3, 4, 5, 6, 7, 8], 'newcomers: a sell costs the newest');
+  applyTrade(L, { who: '0xE', kind: 'buy', usd: 25, tokens: 250, at: 10 * DAY }, c); // #11-#15
+  assert.equal(walletBlockies(L, '0xe').active.length, 13);
+  // day 15: #1-#8 are citizens; selling everything sends only the newcomers away
+  applyTrade(L, { who: '0xE', kind: 'sell', usd: 60, tokens: 650, at: 15 * DAY }, c);
+  assert.deepEqual(walletBlockies(L, '0xe').active, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.equal(citizensOf(L, L.acct[0], 15 * DAY, c), 8);
+  applyBalances(L, { '0xe': 0 }, 16 * DAY, c);
+  assert.equal(walletBlockies(L, '0xe').active.length, 8, 'citizens stay whatever the wallet holds');
+  // tokens kept back newcomers first: citizens free the rest
+  L = newLedger(0);
+  applyTrade(L, { who: '0xG', kind: 'buy', usd: 50, tokens: 1000, at: 1000 }, c); // #1-#10, citizens on day 14
+  applyTrade(L, { who: '0xG', kind: 'buy', usd: 25, tokens: 500, at: 20 * DAY }, c); // #11-#15, newcomers
+  applyTrade(L, { who: '0xG', kind: 'sell', usd: 50, tokens: 1000, at: 21 * DAY }, c);
+  assert.equal(walletBlockies(L, '0xg').active.length, 15, '500 left still cover the 5 newcomers');
+  applyTrade(L, { who: '0xG', kind: 'sell', usd: 15, tokens: 300, at: 22 * DAY }, c);
+  assert.deepEqual(walletBlockies(L, '0xg').active.slice(10), [11, 12], '200 cover 2: the 3 newest leave');
+  // a newcomer that arrived out of order (a late trade) never pushes a citizen out
+  L = newLedger(0);
+  applyTrade(L, { who: '0xH', kind: 'buy', usd: 5, tokens: 100, at: 5 * DAY }, c); // #1, citizen on day 19
+  applyTrade(L, { who: '0xH', kind: 'buy', usd: 5, tokens: 100, at: 1 * DAY }, c); // #2, reported late: citizen on day 15
+  applyTrade(L, { who: '0xH', kind: 'sell', usd: 10, tokens: 200, at: 16 * DAY }, c); // sells it all: #1 leaves, #2 is the last id but a citizen
+  assert.deepEqual(walletBlockies(L, '0xh').active, [2]);
+  // no setting, no citizens: the plain hold rule
+  L = newLedger(0);
+  applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);
+  applyTrade(L, { who: '0xE', kind: 'sell', usd: 50, tokens: 500, at: at() + 365 * DAY }, cfg);
+  assert.equal(snapshot(L, cfg).minted, 0);
+  assert.equal(snapshot(L, c).citizenDays, 14);
+}
 
 // 6. each buy counts at the price of its day: raising the price later keeps what was earned
 L = newLedger(0);

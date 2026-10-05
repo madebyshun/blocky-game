@@ -28,9 +28,8 @@
 
 import { erc20Abi, parseAbi, getAddress } from 'viem';
 import { base } from 'viem/chains';
-import { applyTrade, applyBalances, snapshot, holders, isFrozen } from '../src/ledger.js';
-import { env, TOKEN, LEDGER, LAUNCH, NFT, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
-import { CLAIM_ABI } from './_sig.js';
+import { applyTrade, applyBalances, snapshot, holders } from '../src/ledger.js';
+import { env, TOKEN, LEDGER, LAUNCH, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
 import { namesFor } from './_names.js';
 import { fetchMarket } from '../src/market.js';
 import { CONFIG } from '../src/config.js';
@@ -48,7 +47,6 @@ const EXCLUDED = new Set((env.EXCLUDE_TOKENS || '').split(',').map((s) => s.trim
 const CACHE_MS = Number(env.CACHE_MS || 20000); // one feed read per 20s, however many visitors
 const STALE_MS = 10 * 60 * 1000; // on errors, keep serving the last good answer this long
 const HOLD_CHECK_MS = Number(env.HOLD_CHECK_MINUTES || 15) * 60000;
-const FEED_LAG_MS = 2 * 60000; // a trade shows up in the pool's trade feed within this long
 const RESOLVE = env.RESOLVE_WALLETS !== '0';
 
 const WETH = '0x4200000000000000000000000000000000000006';
@@ -172,51 +170,20 @@ async function inBatches(list, size, fn) {
   return out;
 }
 
-// The NFT contract's freeze (the claim of the last Blocky, or the owner's early unlock) and unlock,
-// read every run until it unlocks, and who opened the market. Returns whether anything changed.
-async function readNft(L) {
-  if (!NFT || L.unlocked) return false;
-  const fns = ['frozenAt', 'frozenBlock', 'unlockAt', 'unlocked'];
-  const res = await client.multicall({ allowFailure: true, contracts: fns.map((functionName) => ({ address: NFT, abi: CLAIM_ABI, functionName })) }).catch(() => []);
-  if (res.length !== fns.length || res.some((r) => r.status !== 'success')) return false;
-  const [frozenAt, frozenBlock, unlockAt, unlocked] = res.map((r) => r.result);
-  if (!frozenAt) return false;
-  const was = [L.frozenAt, L.unlockAt, L.unlocked].join();
-  Object.assign(L, { frozenAt: Number(frozenAt) * 1000, frozenBlock: Number(frozenBlock), unlockAt: Number(unlockAt) * 1000 });
-  if (unlocked) {
-    L.unlocked = true;
-    const logs = await client.getContractEvents({ address: NFT, abi: CLAIM_ABI, eventName: 'Unlocked', fromBlock: BigInt(L.frozenBlock) }).catch(() => []);
-    L.openedBy = logs[0]?.args?.by?.toLowerCase() || null; // none if it opened by itself
-  }
-  return was !== [L.frozenAt, L.unlockAt, L.unlocked].join();
-}
-
-// Tokens moved away count as sold: read every holder's balance (Multicall3, 500 per call), now or at
-// `blockNumber` (then counted at `at`). Once the ledger freezes, Blockies stay whatever their wallets do.
-async function checkBalances(L, { blockNumber, at = Date.now() } = {}) {
-  if (isFrozen(L, at)) return;
+// Tokens moved away count as sold: read every holder's balance (Multicall3, 500 per call). Citizens
+// stay whatever their wallets do; newcomers leave if the $BLOCKY no longer covers them.
+async function checkBalances(L) {
   const wallets = holders(L);
   if (!wallets.length) return;
   L.decimals ??= Number(await client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'decimals' }));
   const balances = {};
   for (let i = 0; i < wallets.length; i += 500) {
     const chunk = wallets.slice(i, i + 500);
-    const res = await client.multicall({ allowFailure: true, blockNumber, contracts: chunk.map((w) => ({ address: TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [w] })) });
+    const res = await client.multicall({ allowFailure: true, contracts: chunk.map((w) => ({ address: TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [w] })) });
     res.forEach((r, k) => { if (r.status === 'success') balances[chunk[k]] = Number(r.result) / 10 ** L.decimals; });
   }
-  const head = await client.getBlock(blockNumber ? { blockNumber } : {}).catch(() => null);
-  applyBalances(L, balances, at, LEDGER, head?.hash);
-}
-
-// The freeze: one last balance check at its block, before any trade after it counts, so tokens moved
-// away just before the freeze still count as sold. One try: an RPC without that block's state skips it.
-async function finalCheck(L) {
-  try {
-    await checkBalances(L, { blockNumber: BigInt(L.frozenBlock), at: L.frozenAt - 1 });
-  } catch (e) {
-    console.warn('[colony] final balance check skipped:', e.shortMessage || e.message);
-  }
-  L.finalCheck = true;
+  const head = await client.getBlock().catch(() => null);
+  applyBalances(L, balances, Date.now(), LEDGER, head?.hash);
 }
 
 // One instance at a time updates the ledger: two writers starting from the same copy could number the
@@ -242,48 +209,33 @@ async function updateLedger() {
   const wallets = await inBatches(fresh, 6, realWallet);
   // a trade whose wallet isn't known yet waits, and every later one with it: the order decides numbers
   const wait = wallets.indexOf(null);
-  const trades = fresh.slice(0, wait < 0 ? fresh.length : wait).map((t, i) => ({ ...t, ...wallets[i] }));
-  // every trade before this has been applied (the feed shows a trade within a couple of minutes)
-  L.syncedTo = Math.min(now - FEED_LAG_MS, wait < 0 ? Infinity : fresh[wait].at - 1);
-  if (await readNft(L)) changed = true;
-  const apply = (list) => list.forEach((t) => {
+  fresh.slice(0, wait < 0 ? fresh.length : wait).forEach((t, i) => {
     seen.add(t.id);
     changed = true;
     if (t.kind === 'buy' && t.usd < MIN_BUY) return; // dust buys don't count; every sell does
-    applyTrade(L, t, LEDGER);
+    applyTrade(L, { ...t, ...wallets[i] }, LEDGER);
   });
-  if (L.frozenAt && !L.finalCheck && !L.unlocked) {
-    // the run that finds the city frozen: the trades before it, its last balance check, the rest
-    apply(trades.filter((t) => t.at < L.frozenAt));
-    await finalCheck(L);
-    apply(trades.filter((t) => t.at >= L.frozenAt));
-    changed = true;
-  } else {
-    apply(trades);
-  }
   if (now - (L.checkedAt || 0) > HOLD_CHECK_MS) {
     try { await checkBalances(L); changed = true; } catch (e) { console.warn('[colony] balance check skipped:', e.shortMessage || e.message); }
     L.checkedAt = now;
   }
   L.seen = [...seen].slice(-1000);
-  if (L.frozenAt && !L.unlocked) changed = true; // the claim API opens the market once syncedTo passes the freeze
   if (changed) await saveLedger(L);
   return L;
 }
 
 async function answer(L) {
   const snap = snapshot(L, LEDGER);
-  // Basenames of the wallets people see: Blockies in the city, whales, the latest trades, the market's opener
-  const seenWallets = [...snap.blockies.filter((b) => b[2] == null).map((b) => b[0]), ...snap.whales.map((w) => w.from), ...snap.recentBuys.map((b) => b.from), snap.openedBy].filter(Boolean);
+  // Basenames of the wallets people see: Blockies in the city, whales, the latest trades
+  const seenWallets = [...snap.blockies.filter((b) => b[2] == null).map((b) => b[0]), ...snap.whales.map((w) => w.from), ...snap.recentBuys.map((b) => b.from)];
   const names = await namesFor(seenWallets).catch(() => ({}));
   return { ...snap, names, source: 'onchain' };
 }
 
-// the Basenames a partial answer needs: its new Blockies' wallets, the whales, the latest trades and
-// the market's opener
+// the Basenames a partial answer needs: its new Blockies' wallets, the whales and the latest trades
 function namesIn(body, blockies) {
   if (!body.names) return undefined;
-  const want = new Set([...blockies.map((b) => b[0]), ...(body.whales || []).map((w) => w.from), ...(body.recentBuys || []).map((b) => b.from), body.openedBy].filter(Boolean).map((a) => a.toLowerCase()));
+  const want = new Set([...blockies.map((b) => b[0]), ...(body.whales || []).map((w) => w.from), ...(body.recentBuys || []).map((b) => b.from)].filter(Boolean).map((a) => a.toLowerCase()));
   return Object.fromEntries(Object.entries(body.names).filter(([a]) => want.has(a)));
 }
 
