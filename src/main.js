@@ -9,7 +9,7 @@ import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
-import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL } from './sim.js';
+import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
@@ -172,8 +172,8 @@ let sim = null;
 let cityStart = 0;
 const crew = []; // every builder in arrival order: the founder, the Base Builders, then Blocky #1, #2, ...
 const byId = new Map();
-const views = new Map(); // id -> BuilderView; only some Blockies are drawn, every one of them builds
-const MAX_VIEWS = 120, OG = 20; // drawn: founder, Base Builders, the first OG Blockies, Legendaries, the newest
+const views = new Map(); // id -> BuilderView; only some builders are drawn, every one of them builds
+const OG = 10; // the first Blockies stay in view for good
 let minted = 0; // Blockies in the city now
 let known = 0; // Blockies the API has told us about (some may still be on the airship)
 let knownGone = 0; // departures the API has told us about
@@ -190,7 +190,6 @@ function draw(b, arriving = false) {
   if (!views.has(b.id)) views.set(b.id, new BuilderView(b, city, { arriving }));
   return views.get(b.id);
 }
-const kept = (b) => b.kind !== 'blocky' || b.id <= OG || b.rarity?.id === 'legendary' || selected?.b === b;
 const inCity = (b) => !Number.isFinite(b.leftAt);
 const countMinted = () => crew.reduce((n, b) => n + (b.kind === 'blocky' && inCity(b) ? 1 : 0), 0);
 function undraw(id) {
@@ -200,14 +199,40 @@ function undraw(id) {
   city.root.remove(v.group);
   views.delete(id);
 }
-function trimViews() { // drop the oldest ordinary Blockies once too many are drawn (they keep building off screen)
-  if (views.size <= MAX_VIEWS) return;
-  for (const [id, v] of views) {
-    if (views.size <= MAX_VIEWS) break;
-    if (kept(v.b)) continue;
-    city.root.remove(v.group);
-    views.delete(id);
+// How many builders walk the streets grows with the city, so a small town never gets packed; the
+// rest build off screen (the HUD, the leaderboard and every card still count them).
+const viewCap = () => Math.round(Math.min(110, Math.max(36, 24 + city.built.length * 0.6)));
+// In a small town the Base Builders work in shifts: who is in town changes every 15 minutes, the same
+// for every visitor. Once the town is big enough, all of them are.
+const SHIFT_MS = 15 * 60000;
+let shift = { key: '', ids: new Set() };
+function onShift(cap) {
+  const t = now(), slot = Math.floor(t / SHIFT_MS), quota = Math.max(6, Math.round(cap * 0.25));
+  const team = crew.filter((b) => b.kind === 'legend' && b.arrivedAt <= t);
+  const key = `${slot}|${quota}|${team.length}`;
+  if (shift.key !== key) {
+    const pick = team.length <= quota ? team : team.slice().sort((a, b) => hash(a.id, slot, 9) - hash(b.id, slot, 9)).slice(0, quota);
+    shift = { key, ids: new Set(pick.map((b) => b.id)) };
   }
+  return shift.ids;
+}
+// Draw: the founder, the Base Builders on shift, the first OG Blockies, every Legendary, the one you
+// follow, then the newest arrivals up to the cap.
+function syncViews() {
+  if (!sim) return;
+  const t = now(), cap = viewCap(), legends = onShift(cap), want = new Set();
+  for (const b of crew) {
+    if (b.arrivedAt > t || !inCity(b)) continue;
+    if (b.kind === 'founder' || legends.has(b.id) || (b.kind === 'blocky' && (b.id <= OG || b.rarity?.id === 'legendary'))) want.add(b.id);
+  }
+  for (let i = crew.length - 1; i >= 0 && want.size < cap; i--) {
+    const b = crew[i];
+    if (b.kind === 'blocky' && inCity(b) && b.arrivedAt <= t) want.add(b.id);
+  }
+  if (selected) want.add(selected.b.id);
+  city.drawn = want.size; // before drawing: new builders decide whether it's their turn on the site
+  for (const id of [...views.keys()]) if (!want.has(id)) undraw(id);
+  for (const id of want) if (!views.has(id)) draw(byId.get(id));
 }
 
 // community goals: landmarks and the metro, unlocked by the Blocky count
@@ -269,16 +294,12 @@ function applyState(s, first) {
   if (first) {
     cityStart = s.cityStart ?? (CONFIG.cityStart ? Date.parse(CONFIG.cityStart) : now());
     sim = new CitySim(cityStart);
-    for (const b of cityCrew(cityStart)) { join(b); draw(b); }
+    for (const b of cityCrew(cityStart)) join(b);
     fresh.forEach((e, i) => join(blocky(i + 1, e)));
     known = fresh.length;
     knownGone = s.departed ?? 0; // already folded into each Blocky's leftAt
     minted = countMinted();
-    // draw the first OG Blockies, every Legendary and the newest arrivals still in the city
-    const here = crew.filter((b) => b.kind === 'blocky' && inCity(b));
-    for (const b of here.filter((x) => kept(x)).slice(0, MAX_VIEWS - views.size)) draw(b);
-    for (const b of here.slice().reverse()) { if (views.size >= MAX_VIEWS) break; draw(b); }
-    sim.setCrew(crew, whales);
+    sim.setCrew(crew, whales); // drawn once the city is laid out (syncViews after the first stepCity)
   } else {
     let changed = whalesChanged;
     fresh.forEach((e, i) => {
@@ -302,7 +323,7 @@ function applyState(s, first) {
       log(`👋 ${nums} left the city: ${leaving.length > 1 ? 'their wallets' : 'its wallet'} sold ${CONFIG.ticker}`, now(), leaving[0].id);
       news.unshift(`<b>MOVING OUT:</b> ${nums} left ${CONFIG.cityName} after ${leaving.length > 1 ? 'their wallets' : 'its wallet'} sold ${CONFIG.ticker}. Their places go to the next buyers`);
     }
-    if (changed) { minted = countMinted(); sim.setCrew(crew, whales); }
+    if (changed) { minted = countMinted(); sim.setCrew(crew, whales); syncViews(); }
   }
   nextUnlockText();
   renderHud();
@@ -317,8 +338,8 @@ let flight = null;
 function land(batch) {
   const arrived = batch.map(({ n, from, at, seed }) => { const b = makeBlocky(n, Math.max(cityStart, at), from, seed); join(b); draw(b, true); return b; });
   minted = countMinted();
-  trimViews();
   sim.setCrew(crew, whales);
+  syncViews();
   const rares = arrived.filter((b) => b.rarity && b.rarity.id !== 'common');
   const best = rares.sort((a, b) => a.rarity.chance - b.rarity.chance)[0];
   const first = arrived[0], last = arrived[arrived.length - 1];
@@ -655,6 +676,8 @@ function frame() {
   const s = await fetchColony();
   applyState(s, true);
   stepCity(false);
+  syncViews();
+  setInterval(syncViews, 60000); // shifts change, the town grows
   resize();
   for (const p of sim.done.slice(-5)) log(logLine(p), p.at);
   renderLeaders();

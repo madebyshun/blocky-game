@@ -1288,6 +1288,7 @@ export function createCity(scene) {
   let developed = new Set();
   let roadSig = '';
   let snapshot = { land: 0, next: null, placed: 0 };
+  let drawn = 1; // builders drawn in the city (set by main.js)
   let counts = {}; // finished buildings by type (service vehicles read it)
   let built = []; // finished lots: { x, z, h, type } (the AI agent drones fly between them)
   const graph = { nodes: new Map(), adj: new Map(), version: 0 };
@@ -1655,24 +1656,34 @@ export function createCity(scene) {
   }
 
   // ----- spots for Blockies to walk to -----
-  const depotSpot = (seed) => {
+  const home = (seed) => {
     const a = hash(seed, 1) * Math.PI * 2;
     return [-1.9 + Math.cos(a) * 1.5, -1.9 + Math.sin(a) * 1.5];
   };
-  function siteSpot(seed) {
+  // who: the builder, so each one keeps to one side of a long site (the land's border, the metro loop)
+  function siteSpot(seed, who = seed) {
     const p = snapshot.next;
-    if (!p) return depotSpot(seed);
+    if (!p) return home(seed);
     if (p.kind === 'expand' || p.kind === 'metro') { // reclaim land along the border / raise the metro over the ring road
       const e = p.kind === 'metro' ? PITCH * (land - 1) + PITCH / 2 : land * PITCH + 2.5, s = (hash(seed, 5) - 0.5) * 2 * e;
-      return [[s, e], [s, -e], [e, s], [-e, s]][Math.floor(hash(seed, 6) * 4)];
+      return [[s, e], [s, -e], [e, s], [-e, s]][Math.floor(hash(who, 6) * 4)];
     }
     const [x, z] = lotPos(p.lot);
     const side = Math.floor(hash(seed, 2) * 4), off = (hash(seed, 3) - 0.5) * 4.5, e = 3.5;
     return [[x + off, z + e], [x + off, z - e], [x + e, z + off], [x - e, z + off]][side];
   }
-  function chillSpot(seed) { // somewhere pleasant while the crew waits for more Blockies
+  // The crew's block pile sits right by the site (the crossroads at its corner facing the town centre),
+  // so trips stay short and the streets stay clear.
+  function depotSpot(seed, who = seed) {
+    const p = snapshot.next;
+    if (!p) return home(seed);
+    if (p.kind === 'expand' || p.kind === 'metro') { const [x, z] = siteSpot(seed, who); return [x * 0.86, z * 0.86]; }
+    const [x, z] = lotPos(p.lot), a = hash(seed, 1) * Math.PI * 2;
+    return [x + (x > 0 ? -1 : 1) * (PITCH / 2) + Math.cos(a) * 0.9, z + (z > 0 ? -1 : 1) * (PITCH / 2) + Math.sin(a) * 0.9];
+  }
+  function chillSpot(seed) { // somewhere in town for Blockies off the site crew, or waiting for more Blockies
     const built = [...lots.entries()].filter(([, v]) => v.kind === 'built');
-    if (!built.length) return depotSpot(seed);
+    if (!built.length) return home(seed);
     const [key] = built[Math.floor(hash(seed, 7) * built.length)];
     const [i, j] = key.split(',').map(Number);
     return [i * PITCH + (hash(seed, 8) - 0.5) * 4, j * PITCH + 3.5];
@@ -1695,6 +1706,13 @@ export function createCity(scene) {
     get counts() { return counts; },
     get built() { return built; },
     get siteVersion() { return siteVersion; },
+    // A site has room for a crew of about 12 (20 along the border or the metro): the share of the drawn
+    // builders on it at any time. The others walk around town and take turns (see BuilderView).
+    get crewShare() {
+      const p = snapshot.next, room = !p ? 0 : p.kind === 'expand' || p.kind === 'metro' ? 20 : 12;
+      return Math.min(1, room / Math.max(1, drawn));
+    },
+    set drawn(n) { drawn = n; },
     helipad: [1.8, 1.8],
   };
 }

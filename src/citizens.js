@@ -708,27 +708,38 @@ export class BuilderView {
     if (arriving) {
       g.position.set(city.helipad[0], 0, city.helipad[1]);
       this.go('toDepot');
-    } else {
+    } else if (this.onCrew()) {
       // start somewhere along the loop so the crew is spread out on load
       const loaded = hash(b.id, 33) < 0.5;
-      const [x, z] = loaded ? city.siteSpot(b.id * 97) : city.depotSpot(b.id);
+      const [x, z] = loaded ? city.siteSpot(b.id * 97, b.id) : city.depotSpot(b.id, b.id);
       g.position.set(x, 0, z);
       this.go(loaded ? 'toDepot' : 'toSite');
       this.wait = hash(b.id, 34) * 2;
+    } else {
+      const [x, z] = city.chillSpot(b.id * 31);
+      g.position.set(x, 0, z);
+      this.mode = 'break';
+      this.wait = hash(b.id, 34) * 8;
     }
     city.root.add(g);
   }
 
   get status() {
     if (this.city.waiting && (this.mode === 'toBreak' || this.mode === 'break')) return 'Waiting for more Blockies';
-    return { toDepot: 'Fetching blocks', load: 'Loading blocks', toSite: 'Carrying blocks', place: 'Placing blocks', toBreak: 'Taking a break', break: 'Taking a break' }[this.mode];
+    return { toDepot: 'Fetching blocks', load: 'Loading blocks', toSite: 'Carrying blocks', place: 'Placing blocks', toBreak: 'Walking around town', break: 'Taking a break' }[this.mode];
+  }
+
+  // A site only has room for a small crew: builders take turns on it (a new draw every 90 seconds) and
+  // walk around town in between. Every Blocky is credited its blocks either way (see CitySim).
+  onCrew() {
+    return hash(this.b.id, Math.floor(Date.now() / 90000), 52) < this.city.crewShare;
   }
 
   go(mode) {
     const p = this.group.position, s = this.b.id * 1000 + this.step++;
-    if (this.city.waiting && (mode === 'toSite' || mode === 'toDepot')) mode = 'toBreak'; // land is full: chill until it can expand
+    if ((mode === 'toSite' || mode === 'toDepot') && (this.city.waiting || !this.onCrew())) mode = 'toBreak'; // land is full, or not their turn on the site
     this.mode = mode;
-    const target = mode === 'toDepot' ? this.city.depotSpot(s) : mode === 'toSite' ? this.city.siteSpot(s) : this.city.chillSpot(s);
+    const target = mode === 'toDepot' ? this.city.depotSpot(s, this.b.id) : mode === 'toSite' ? this.city.siteSpot(s, this.b.id) : this.city.chillSpot(s);
     this.path = route(p.x, p.z, target[0], target[1], Math.max(2, this.city.land));
     this.carry.visible = mode === 'toSite';
   }
