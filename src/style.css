@@ -139,6 +139,7 @@ html, body {
 .board li b, .feed li b { font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); font-weight: 600; }
 .board .rank { color: var(--muted); width: 18px; display: inline-block; }
+.board .muted { font-size: 12px; }
 .feed li { animation: slidein 0.35s ease; }
 @keyframes slidein { from { opacity: 0; transform: translateY(-6px); } }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--up); box-shadow: 0 0 8px var(--up); animation: pulse 1.6s infinite; }

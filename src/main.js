@@ -14,7 +14,7 @@ import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
 import { now } from './time.js';
-import { addNames, who, whoHtml } from './names.js';
+import { addNames, who, whoHtml, esc } from './names.js';
 import { createCinematic } from './cinematic.js';
 import { watchLive } from './live.js';
 
@@ -477,13 +477,21 @@ function renderHud() {
   for (const el of document.querySelectorAll('#feed [data-at]')) el.textContent = ago(+el.dataset.at);
 }
 
+// the buyers' Blockies that placed the most blocks, one per wallet (its best): not the founder, the
+// Base Builders (they have their own page) or the team reserve, who were all there from the first day;
+// everyone until a buyer arrives
+const reserved = (b) => b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve?.wallet?.toLowerCase();
+const owner = (a) => { const w = whoHtml(a, 15); return w.startsWith('0x') ? w.slice(0, 7) : w; }; // a Basename, or 0x1234…
 function topBuilders(n) {
-  const ts = now();
-  return crew.filter(inCity).map((b) => [b, sim.blocksBy(b, ts)]).sort((a, b) => b[1] - a[1]).slice(0, n);
+  const ts = now(), here = crew.filter(inCity);
+  const bought = here.filter((b) => b.kind === 'blocky' && !reserved(b));
+  const ranked = (bought.length ? bought : here).map((b) => [b, sim.blocksBy(b, ts)]).sort((a, b) => b[1] - a[1]);
+  const wallets = new Set();
+  return ranked.filter(([b]) => !b.from || (!wallets.has(b.from) && wallets.add(b.from))).slice(0, n);
 }
 function renderLeaders() {
   $('leaders').innerHTML = topBuilders(5)
-    .map(([b, blocks], i) => `<li data-id="${b.id}"><span><span class="rank">${i + 1}</span>${badge(b)}${b.name} <span class="muted">· ${b.kind === 'legend' && b.office ? b.office.label : b.role.label}</span></span><b>${fmt(blocks)} 🧱</b></li>`)
+    .map(([b, blocks], i) => `<li data-id="${b.id}"${b.from ? ` title="${esc(b.name)} · brought by ${whoHtml(b.from, 42)}"` : ''}><span><span class="rank">${i + 1}</span>${badge(b)}${b.name} <span class="muted">· ${b.kind === 'blocky' ? (b.from ? owner(b.from) : `#${b.id}`) : b.office ? b.office.label : b.role.label}</span></span><b>${fmt(blocks)} 🧱</b></li>`)
     .join('');
 }
 
