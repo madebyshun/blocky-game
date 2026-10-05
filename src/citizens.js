@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hash, PITCH } from './sim.js';
 
 const BOX = new THREE.BoxGeometry(1, 1, 1);
@@ -551,6 +552,39 @@ function applyTrait(g, arms, b, skin) {
   }
 }
 
+// Merge a part's boxes into as few meshes as possible (one vertex-coloured mesh for the plain
+// colours, one per special material), so a Blocky costs a handful of draw calls instead of dozens.
+const BODY = new THREE.MeshLambertMaterial({ vertexColors: true });
+function mergeParts(parent) {
+  const plain = [], special = new Map();
+  for (const o of parent.children) {
+    if (!o.isMesh || o.children.length) continue;
+    const m = o.material;
+    if (m.isMeshLambertMaterial && !m.transparent && !m.vertexColors && m.emissive.getHex() === 0) plain.push(o);
+    else { if (!special.has(m)) special.set(m, []); special.get(m).push(o); }
+  }
+  const bake = (list, material, colored) => {
+    const geos = list.map((o) => {
+      o.updateMatrix();
+      const g = o.geometry.clone().applyMatrix4(o.matrix);
+      if (colored) {
+        const c = o.material.color, n = g.attributes.position.count, arr = new Float32Array(n * 3);
+        for (let i = 0; i < n * 3; i += 3) { arr[i] = c.r; arr[i + 1] = c.g; arr[i + 2] = c.b; }
+        g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+      }
+      return g;
+    });
+    const mesh = new THREE.Mesh(mergeGeometries(geos), material);
+    geos.forEach((g) => g.dispose());
+    mesh.castShadow = true;
+    for (const o of list) parent.remove(o);
+    parent.add(mesh);
+  };
+  if (plain.length > 1) bake(plain, BODY, true);
+  for (const [m, list] of special) if (list.length > 1) bake(list, m, false);
+}
+function finish(g, legs, arms) { mergeParts(g); for (const p of [...legs, ...arms]) mergeParts(p); }
+
 // One Blocky: a little builder in a safety vest, dressed for its role.
 // Returns the group plus the parts that animate (legs, arms) and the block it carries.
 export function buildBlocky(b) {
@@ -590,6 +624,7 @@ export function buildBlocky(b) {
   if (look || uniform) {
     if (look) look.dress(g, arms); else tierUniform(g, tier === 'whale' ? 'whale' : 'base', hair, !!b.legend);
     if (b.trait) applyTrait(g, arms, b, skin);
+    finish(g, legs, arms);
     const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
     carry.visible = false;
     return { group: g, legs, arms, carry };
@@ -634,6 +669,7 @@ export function buildBlocky(b) {
   }
 
   if (b.trait) applyTrait(g, arms, b, skin);
+  finish(g, legs, arms);
   const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
   carry.visible = false;
   return { group: g, legs, arms, carry };
@@ -653,6 +689,7 @@ export class BuilderView {
     this.ring.visible = false;
     const hit = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.6, 0.9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
     hit.position.y = 0.8;
+    hit.visible = false; // still hit by the raycaster, never drawn
     hit.userData.builder = this;
     g.add(hit);
     this.hit = hit;

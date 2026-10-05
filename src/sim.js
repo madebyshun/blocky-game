@@ -36,73 +36,58 @@ const NAMES = [
 const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac, 0xf5d0a9];
 const SHIRT = [0x3fa34d, 0x2e86de, 0xe67e22, 0x9b59b6, 0xe74c3c, 0x1abc9c, 0xf1c40f, 0x34495e];
 const HOUR = 3600000;
-const FOUNDER_TIER = { id: 'founder', label: 'Founder', skill: [CONFIG.founderSkill, CONFIG.founderSkill] };
-
-// One buy = one Blocky; the buy's size picks the tier and the skill inside it.
-export function tierOf(usd) {
-  let tier = CONFIG.tiers[0];
-  for (const t of CONFIG.tiers) if (usd >= t.min) tier = t;
-  return tier;
-}
-export function skillFor(usd) {
-  const t = tierOf(usd), next = CONFIG.tiers[CONFIG.tiers.indexOf(t) + 1];
-  const f = next ? Math.min(1, Math.max(0, (usd - t.min) / (next.min - t.min))) : 0;
-  return t.skill[0] + (t.skill[1] - t.skill[0]) * f;
-}
+const FOUNDER_TIER = { id: 'founder', label: 'Founder' };
+const BUILDER_TIER = { id: 'base', label: 'Base Builder', pro: true };
+const BLOCKY_TIER = { id: 'blocky', label: 'Blocky' };
 
 export const TRAIT_LABEL = {
   shades: 'Shades', basecap: 'Base Cap', goldhat: 'Gold Hard Hat', lasereyes: 'Laser Eyes',
   astronaut: 'Astronaut', diamond: 'Diamond Skin', crown: 'Crown',
 };
 // Rarity from the Blocky's number alone: the same roll for every visitor, checkable by anyone.
-export function rarityOf(id) {
-  const roll = hash(id, 222);
+export function rarityOf(n) {
+  const roll = hash(n, 222);
   let acc = 0;
   for (const r of [...CONFIG.rarity].reverse()) { // rarest first
     acc += r.chance;
-    if (roll < acc) return { rarity: r, trait: r.traits.length ? r.traits[Math.floor(hash(id, 223) * r.traits.length)] : null };
+    if (roll < acc) return { rarity: r, trait: r.traits.length ? r.traits[Math.floor(hash(n, 223) * r.traits.length)] : null };
   }
   return { rarity: CONFIG.rarity[0], trait: null };
 }
 
-// Which legend (index into CONFIG.legends) a new Blocky becomes, if any: a legend's own wallet
-// buying brings that legend; otherwise the next wallet-less legend goes to the next Base Builder.
-function legendFor(info, tier, taken) {
-  const list = CONFIG.legends || [];
-  const from = info?.from?.toLowerCase();
-  let i = from ? list.findIndex((l, k) => !taken.has(k) && l.wallet?.toLowerCase() === from) : -1;
-  if (i < 0 && tier.pro && !tier.wonder) i = list.findIndex((l, k) => !taken.has(k) && !l.wallet);
-  return i;
-}
+const base = (id) => ({ id, skin: pick(SKIN, id, 15), shirt: pick(SHIRT, id, 16), rarity: null, trait: null, legendIdx: -1 });
 
-// info: who brought it ({ from, usd, tx, pot }) from the API; taken: legend indexes already in the city.
-export function makeBuilder(id, arrivedAt, info = null, taken = new Set()) {
-  const founder = id === 1;
-  const usd = founder ? 0 : info?.usd ?? CONFIG.usdPerBlocky;
-  const tier = founder ? FOUNDER_TIER : tierOf(usd);
-  const legendIdx = founder ? -1 : legendFor(info, tier, taken);
-  const legend = founder ? CONFIG.founder ?? null : CONFIG.legends?.[legendIdx] ?? null;
-  let role = founder ? ROLES[0] : ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))];
-  if (legend?.title) role = { ...role, label: legend.title };
-  const { rarity, trait } = founder || legend ? { rarity: null, trait: null } : rarityOf(id);
+// The founder: you, building from the city's first day.
+export function makeFounder(start) {
   return {
-    id,
-    name: `${legend ? legend.name : pick(NAMES, id, 14)} #${id}`,
-    role,
-    tier,
-    legend,
-    legendIdx,
-    arrivedAt,
-    from: founder ? null : info?.from ?? null,
-    usd,
-    pot: !!info?.pot,
-    skin: pick(SKIN, id, 15),
-    shirt: pick(SHIRT, id, 16),
-    skill: founder ? CONFIG.founderSkill : skillFor(usd),
-    rarity,
-    trait,
+    ...base(0), kind: 'founder', name: CONFIG.founder?.name ?? 'Founder', legend: CONFIG.founder ?? null,
+    role: { ...ROLES[0], label: CONFIG.founder?.title ?? 'Founder' }, tier: FOUNDER_TIER, arrivedAt: start, skill: CONFIG.founderSkill,
   };
 }
+
+// A Base Builder: a real builder from CONFIG.legends, added by hand.
+export function makeLegend(i, start) {
+  const legend = CONFIG.legends[i], id = 100000 + i;
+  const joined = legend.joined ? Date.parse(legend.joined) : NaN;
+  return {
+    ...base(id), kind: 'legend', name: legend.name, legend, legendIdx: i,
+    role: { ...ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))], label: legend.title || 'Base Builder' },
+    tier: BUILDER_TIER, arrivedAt: Number.isFinite(joined) ? Math.max(start, joined) : start, skill: CONFIG.builderSkill,
+  };
+}
+
+// Blocky #n: brought by `from`'s buys, one per $5. Its look and rarity follow from n alone.
+export function makeBlocky(n, arrivedAt, from = null) {
+  const { rarity, trait } = rarityOf(n);
+  return {
+    ...base(n), kind: 'blocky', name: `${pick(NAMES, n, 14)} #${n}`, legend: null,
+    role: ROLES[1 + Math.floor(hash(n, 11) * (ROLES.length - 1))], tier: BLOCKY_TIER,
+    arrivedAt, from, skill: CONFIG.blockySkill, rarity, trait,
+  };
+}
+
+// The founder and every Base Builder, building from the start (or their `joined` date).
+export const cityCrew = (start) => [makeFounder(start), ...(CONFIG.legends || []).map((_, i) => makeLegend(i, start))];
 
 // The crew shares one site, so speed grows with the square root of total skill (no instant cities),
 // and each Blocky is credited its share of it.
@@ -228,10 +213,14 @@ export const WONDER_COST = 300;
 // ---------- the build plan, replayed over time ----------
 
 export class CitySim {
-  constructor(start) { this.start = start; this.setBuilders([]); }
+  constructor(start) { this.start = start; this.whaleList = []; this.setBuilders([]); }
+
+  // whales: buys of CONFIG.whaleUsd+ ({ from, usd, at }), each gets a Whale Fountain
+  setCrew(builders, whales = this.whaleList) { this.whaleList = whales.slice().sort((a, b) => a.at - b.at); this.setBuilders(builders); }
 
   setBuilders(builders) {
     this.builders = builders.slice().sort((a, b) => a.arrivedAt - b.arrivedAt);
+    this.blockyTimes = this.builders.filter((b) => b.kind === 'blocky').map((b) => b.arrivedAt); // sorted
     // Crew segments between arrivals: total skill S, crew speed, and the running totals at the
     // segment start (W: blocks placed, P: blocks per unit of skill, to credit each Blocky its share).
     this.segs = [];
@@ -272,7 +261,7 @@ export class CitySim {
     this.done = []; // completed projects, each with .at
     this.lastT = this.start;
     this.builtLandmarks = new Set();
-    this.wonders = new Set(); // whale Blocky ids whose wonder is planned
+    this.wonders = new Set(); // whale buys (index in whaleList) whose wonder is planned
     this.metroPlanned = false;
     this.metroBuilt = false;
     this.reserved = new Set(CONFIG.landmarks.map((l) => l.lot.join(',')));
@@ -293,10 +282,10 @@ export class CitySim {
     return lots.sort((a, b) => Math.hypot(...a) + hash(...a, 7) * 0.9 - (Math.hypot(...b) + hash(...b, 7) * 0.9));
   }
 
-  popAt(t) {
-    let n = 0;
-    for (const b of this.builders) if (b.arrivedAt <= t) n++;
-    return n;
+  popAt(t) { // Blockies arrived by t (Base Builders and the founder don't count toward goals)
+    let lo = 0, hi = this.blockyTimes.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (this.blockyTimes[m] <= t) lo = m + 1; else hi = m; }
+    return lo;
   }
   proAt(t) { return this.builders.some((b) => b.tier.pro && b.arrivedAt <= t); }
 
@@ -304,10 +293,11 @@ export class CitySim {
     const k = this.k++;
     const pop = this.popAt(t), pro = this.proAt(t);
     // a whale's wonder jumps the queue, on the nearest free lot
-    const whale = this.builders.find((b) => b.tier.wonder && b.arrivedAt <= t && !this.wonders.has(b.id));
-    if (whale && this.queue.length) {
-      this.wonders.add(whale.id);
-      return { k, kind: 'wonder', type: 'wonder', lot: this.queue.shift(), w: 6, d: 6, h: 7, cost: WONDER_COST, color: 0xf4c542, whale: { id: whale.id, from: whale.from, usd: whale.usd }, name: `Whale Fountain #${whale.id}` };
+    const wi = this.whaleList.findIndex((w, i) => w.at <= t && !this.wonders.has(i));
+    if (wi >= 0 && this.queue.length) {
+      this.wonders.add(wi);
+      const w = this.whaleList[wi];
+      return { k, kind: 'wonder', type: 'wonder', lot: this.queue.shift(), w: 6, d: 6, h: 7, cost: WONDER_COST, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd }, name: `Whale Fountain #${wi + 1}` };
     }
     const lm = CONFIG.landmarks.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land);
     if (lm) {
@@ -327,7 +317,7 @@ export class CitySim {
   // A project starts when the previous one is done (an expansion also waits for enough Blockies)
   // and is finished once the crew has placed its cost in blocks since then.
   startOf(p) {
-    return p.need ? Math.max(this.lastT, this.builders[p.need - 1]?.arrivedAt ?? Infinity) : this.lastT;
+    return p.need ? Math.max(this.lastT, this.blockyTimes[p.need - 1] ?? Infinity) : this.lastT;
   }
 
   // Replay every project finished by `now`. Returns the newly finished ones.

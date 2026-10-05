@@ -1,56 +1,76 @@
 import { CONFIG } from './config.js';
 
-// Colony state = { boughtUsd, potUsd, population, arrivals[], crew[], recentBuys[], market, cityStart, source, mode }.
-// Live mode reads it from the API; demo mode fakes buys locally.
+// Colony state = { minted, supply, blockies: [[from, at]...] (only new ones after the first fetch),
+//   since, whales[], boughtUsd, recentBuys[], market, cityStart, source, mode }.
+// Live mode reads it from the API; demo mode fakes buys locally with the same counting rules.
 
 const forceDemo = new URLSearchParams(location.search).has('demo');
 const demoStart = Date.now();
+const HOUR = 3600000;
 
-// Demo: a city with 3 days of history (10 Blockies), then a new buyer every 30s.
-// Buys are mostly $5-$60, a Base Builder every 6th Blocky, a Whale as #14.
-const HOUR = 3600000, HISTORY = 11;
-const demoCityStart = demoStart - 72 * HOUR;
-const demoAt = (id) => (id === 1 ? demoCityStart : id <= HISTORY ? demoCityStart + (id - 1) * 6.5 * HOUR : demoStart + (id - HISTORY) * 30000);
-function demoBuy(id) {
-  const r = Math.abs((Math.sin(id * 12.9898) * 43758.5453) % 1);
-  const usd = id === 14 ? 1500 : id % 6 === 0 ? 120 + r * 300 : 5 + r * 55;
-  return { from: `0xdemo${((id * 2654435761) >>> 0).toString(16).padStart(8, '0')}${'0'.repeat(26)}${id.toString(16).padStart(2, '0')}`, usd: Math.round(usd * 100) / 100, at: demoAt(id) };
+// Same rule as the API: every $usdPerBlocky a wallet buys (added up) brings one Blocky, up to supply.
+function count(buys) {
+  const credit = new Map(), blockies = [], whales = [], recent = [];
+  let bought = 0;
+  for (const b of buys) {
+    bought += b.usd;
+    const c = credit.get(b.from) || { usd: 0, n: 0 };
+    c.usd += b.usd;
+    let added = 0;
+    while (c.n < Math.floor(c.usd / CONFIG.usdPerBlocky) && blockies.length < CONFIG.supply) { blockies.push([b.from, b.at]); c.n++; added++; }
+    credit.set(b.from, c);
+    if (b.usd >= CONFIG.whaleUsd) whales.push({ from: b.from, usd: b.usd, at: b.at });
+    recent.unshift({ ...b, blockies: added });
+  }
+  return { blockies, whales, bought, recent: recent.slice(0, 10) };
 }
 
-function demoState() {
+// Demo: three days of history, then a buy every 30s (a whale at 2 minutes).
+const demoCityStart = demoStart - 72 * HOUR;
+const wallet = (k) => `0xdemo${((k * 2654435761) >>> 0).toString(16).padStart(8, '0')}${'0'.repeat(28)}`;
+function demoBuys(t) {
+  const buys = [];
+  for (let i = 0; i < 40; i++) { // history
+    const r = Math.abs((Math.sin(i * 12.9898) * 43758.5453) % 1);
+    buys.push({ from: wallet(i % 23), usd: Math.round((3 + r * 45) * 100) / 100, at: demoCityStart + (i + 1) * 1.7 * HOUR });
+  }
+  for (let i = 0; i <= Math.floor(t / 30); i++) { // live
+    const r = Math.abs((Math.sin((i + 50) * 12.9898) * 43758.5453) % 1);
+    buys.push({ from: wallet(30 + (i % 9)), usd: i === 4 ? 1000 : Math.round((5 + r * 40) * 100) / 100, at: demoStart + i * 30000 });
+  }
+  return buys;
+}
+
+function demoState(since) {
   const t = (Date.now() - demoStart) / 1000;
-  const population = HISTORY + Math.floor(t / 30);
-  const crew = [null], arrivals = [demoCityStart];
-  for (let id = 2; id <= population; id++) { crew.push(demoBuy(id)); arrivals.push(demoAt(id)); }
+  const { blockies, whales, bought, recent } = count(demoBuys(t));
   // the market swings slowly so every kind of weather shows up while you watch
   const market = { priceUsd: 0.00003, change1h: Math.sin(t / 9) * 3, change24h: Math.sin(t / 25) * 22, volume24h: 1200, stocks: [{ symbol: 'NVDAc', priceUsd: 180 + Math.sin(t / 40) * 4 }] };
-  const recentBuys = crew.slice(-4).filter(Boolean).map((c) => ({ ...c, blockies: 1 }));
-  const boughtUsd = crew.reduce((s, c) => s + (c?.usd || 0), 0);
-  return { progressUsd: boughtUsd, boughtUsd, potUsd: (t * 0.07) % 5, population, arrivals, crew, recentBuys, market, cityStart: demoCityStart, source: 'demo', mode: 'buys' };
+  return { minted: blockies.length, supply: CONFIG.supply, blockies: blockies.slice(since), since, whales, boughtUsd: bought, recentBuys: recent, market, cityStart: demoCityStart, source: 'demo', mode: 'buys' };
 }
 
 let mode = forceDemo || !CONFIG.apiUrl ? 'demo' : null; // decided by the first fetch
 
-// Returns the latest state, or null if a live refresh failed (keep the last one).
-export async function fetchColony() {
-  if (mode === 'demo') return demoState();
+// Returns the latest state with the Blockies after the first `since`, or null if a live refresh
+// failed (keep the last one).
+export async function fetchColony(since = 0) {
+  if (mode === 'demo') return demoState(since);
   try {
-    const res = await fetch(CONFIG.apiUrl, { cache: 'no-store' });
+    const res = await fetch(`${CONFIG.apiUrl}${since ? `?since=${since}` : ''}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
-    const progressUsd = s.progressUsd ?? s.feesUsd;
-    if (typeof progressUsd !== 'number') throw new Error(s.error || 'bad payload');
+    if (!Array.isArray(s.blockies)) throw new Error(s.error || 'bad payload');
     mode = 'live';
     return {
-      progressUsd,
-      boughtUsd: s.boughtUsd ?? progressUsd,
-      potUsd: typeof s.potUsd === 'number' ? s.potUsd : 0,
-      mode: s.mode || 'fees',
-      crew: Array.isArray(s.crew) ? s.crew : null,
+      minted: s.minted ?? s.blockies.length,
+      supply: s.supply ?? CONFIG.supply,
+      blockies: s.blockies,
+      since: s.since ?? 0, // a stale full answer comes back with since 0
+      whales: Array.isArray(s.whales) ? s.whales : [],
+      boughtUsd: s.boughtUsd ?? 0,
+      mode: s.mode || 'buys',
       recentBuys: Array.isArray(s.recentBuys) ? s.recentBuys : [],
       market: s.market && typeof s.market.change24h === 'number' ? { ...s.market, stocks: Array.isArray(s.market.stocks) ? s.market.stocks.filter((x) => x && typeof x.priceUsd === 'number' && x.priceUsd > 0) : [] } : null,
-      population: s.population ?? 1 + Math.floor(progressUsd / CONFIG.usdPerBlocky),
-      arrivals: Array.isArray(s.arrivals) ? s.arrivals : null,
       cityStart: typeof s.cityStart === 'number' ? s.cityStart : null,
       source: s.source || 'live',
     };
@@ -58,6 +78,6 @@ export async function fetchColony() {
     if (mode === 'live') return null;
     console.warn('[colony] live data unavailable, using demo mode:', e.message);
     mode = 'demo';
-    return demoState();
+    return demoState(since);
   }
 }

@@ -1,13 +1,14 @@
 // Vercel serverless function: GET /api/colony
 // Returns the live state every visitor renders:
-//   { population, arrivals: [ms...], crew: [{ from, usd, tx, pot? }...], potUsd, boughtUsd, cityStart, source, mode, updatedAt }
+//   { minted, supply, blockies: [[from, at]...], whales: [{ from, usd, at }], boughtUsd, recentBuys,
+//     cityStart, market, source, mode, updatedAt }
+// `?since=N` returns only blockies after the first N (clients poll with the count they have).
 //
-// COUNT_MODE=buys (default): one buy of at least $USD_PER_BLOCKY brings one Blocky, and the client
-//   picks its tier from the buy size (CONFIG.tiers: Blocky, Base Builder at $100+, Whale at $1k+).
-//   Buys between MIN_BUY_USD and $USD_PER_BLOCKY add up in a community pot; every full pot brings a
-//   Blocky too. Buys come from the pool's public trade feed (GeckoTerminal). Counting starts at
-//   LAUNCH_TIME_MS, or the first time this API runs (BACKFILL_HOURS reaches back for testing).
-//   Each Blocky remembers the wallet whose buy brought it.
+// COUNT_MODE=buys (default): every $USD_PER_BLOCKY of $BLOCKY a wallet buys (added up per wallet)
+//   brings one Blocky: #1, #2, ... up to MAX_SUPPLY, then no more. Each Blocky remembers its wallet
+//   (it is meant to become that wallet's NFT). A single buy of WHALE_USD+ also builds a Whale
+//   Fountain. Buys come from the pool's public trade feed (GeckoTerminal), counted from
+//   LAUNCH_TIME_MS or the first time this API runs (BACKFILL_HOURS reaches back for testing).
 //
 // COUNT_MODE=fees: every $USD_PER_BLOCKY of creator fees brings a Blocky. Fee sources:
 //   FEES_USD_OVERRIDE  fixed number, handy for testing
@@ -16,8 +17,8 @@
 //                      and its paired tokens (DexScreener), plus FEE_TOKENS, minus EXCLUDE_TOKENS.
 //
 // Upstash Redis / Vercel KV (KV_REST_API_URL + KV_REST_API_TOKEN) stores the running totals and
-// each Blocky's arrival, so the city never shrinks and every visitor sees the same one. Without KV
-// the state lives in memory (fine for `npm run dev`, not for production).
+// every Blocky, so the city never shrinks and every visitor sees the same one. Without KV the state
+// lives in memory (fine for `npm run dev`, not for production).
 
 import { createPublicClient, http, erc20Abi, parseAbi, getAddress } from 'viem';
 import { base } from 'viem/chains';
@@ -27,6 +28,8 @@ const RPC = env.BASE_RPC_URL || 'https://mainnet.base.org';
 const MODE = env.COUNT_MODE || 'buys';
 const FEE_PER = Number(env.USD_PER_BLOCKY || env.FEE_PER_CITIZEN || 5);
 const MIN_BUY = Number(env.MIN_BUY_USD || 1);
+const SUPPLY = Number(env.MAX_SUPPLY || 10000);
+const WHALE_USD = Number(env.WHALE_USD || 1000);
 const BACKFILL_MS = Number(env.BACKFILL_HOURS || 0) * 3600000;
 const POOL = env.POOL_ID || '0x61ccc84e302c1a95fb66435a285e95581134bfc2a11d4fbb88ed07e68ca2e4c0'; // BLOCKY/NVDAc
 const OFFSET = Number(env.FEES_OFFSET_USD || 0);
@@ -34,7 +37,7 @@ const LAUNCH = Number(env.LAUNCH_TIME_MS || 0) || null; // when the city starts 
 const KV_URL = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
 const KV_TOKEN = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
 const KEY_BASE = env.KV_KEY || 'blocky:colony';
-const KEY = MODE === 'fees' ? KEY_BASE : `${KEY_BASE}:buys:v2`; // separate state per counting mode (v2: one Blocky per buy)
+const KEY = MODE === 'fees' ? KEY_BASE : `${KEY_BASE}:buys:v3`; // separate state per counting mode (v3: $5 per Blocky, per wallet)
 const TOKEN = env.TOKEN_ADDRESS || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885';
 const EXTRA_TOKENS = (env.FEE_TOKENS || '').split(',').map((s) => s.trim()).filter(Boolean);
 // Tokens shown in the breakdown but NOT counted as fees (e.g. the creator's own $BLOCKY bag).
@@ -147,11 +150,12 @@ async function recentBuys() {
 
 const cents = (v) => Math.round(v * 100) / 100;
 
+// State, kept compact for KV: wallets[] holds each address once; blockies[] is [walletIndex, secondsSinceStart].
 async function computeBuys() {
   const now = Date.now();
   const loaded = await load();
-  const state = loaded || { start: LAUNCH ?? now - BACKFILL_MS, pot: 0, bought: 0, arrivals: [], crew: [], seen: [], recent: [] };
-  if (!state.arrivals.length) { state.arrivals.push(state.start); state.crew.push(null); }
+  const state = loaded || { start: LAUNCH ?? now - BACKFILL_MS, bought: 0, wallets: [], credit: {}, blockies: [], whales: [], seen: [], recent: [] };
+  const index = new Map(state.wallets.map((w, i) => [w, i]));
   const seen = new Set(state.seen);
   let changed = false;
   for (const b of await recentBuys()) {
@@ -160,30 +164,28 @@ async function computeBuys() {
     changed = true;
     if (b.usd < MIN_BUY) continue;
     state.bought += b.usd;
-    let blockies = 0;
-    if (b.usd >= FEE_PER) { // one buy, one Blocky; its size sets the tier
-      state.arrivals.push(b.at); state.crew.push({ from: b.from, usd: cents(b.usd), tx: b.tx });
-      blockies = 1;
-    } else { // small buys fill the community pot
-      state.pot += b.usd;
-      while (state.pot >= FEE_PER) {
-        state.pot -= FEE_PER;
-        state.arrivals.push(b.at); state.crew.push({ from: b.from, usd: FEE_PER, tx: b.tx, pot: true });
-        blockies++;
-      }
+    const from = (b.from || '').toLowerCase();
+    if (!index.has(from)) { index.set(from, state.wallets.length); state.wallets.push(from); }
+    const w = index.get(from);
+    const c = state.credit[w] || { usd: 0, n: 0 };
+    c.usd += b.usd;
+    let added = 0;
+    while (c.n < Math.floor(c.usd / FEE_PER) && state.blockies.length < SUPPLY) {
+      state.blockies.push([w, Math.round((b.at - state.start) / 1000)]);
+      c.n++; added++;
     }
-    state.recent = [{ from: b.from, usd: cents(b.usd), at: b.at, tx: b.tx, blockies, pot: b.usd < FEE_PER }, ...state.recent].slice(0, 10);
+    state.credit[w] = c;
+    if (b.usd >= WHALE_USD) state.whales.push({ from, usd: cents(b.usd), at: b.at, tx: b.tx });
+    state.recent = [{ from, usd: cents(b.usd), at: b.at, tx: b.tx, blockies: added }, ...state.recent].slice(0, 10);
   }
   state.seen = [...seen].slice(-600);
   if (changed || !loaded) await save(state);
   return {
-    progressUsd: state.bought, // older clients read these names
-    feesUsd: state.bought,
+    minted: state.blockies.length,
+    supply: SUPPLY,
+    blockies: state.blockies.map(([w, sec]) => [state.wallets[w], state.start + sec * 1000]),
+    whales: state.whales,
     boughtUsd: state.bought,
-    potUsd: cents(state.pot),
-    population: state.arrivals.length,
-    arrivals: state.arrivals,
-    crew: state.crew,
     recentBuys: state.recent,
     cityStart: state.start,
     source: 'onchain',
@@ -225,7 +227,9 @@ async function computeFees() {
     }
     cityStart = start;
   }
-  return { progressUsd: feesUsd, feesUsd, population: 1 + Math.floor(feesUsd / FEE_PER), arrivals, cityStart, source, breakdown };
+  const minted = Math.min(SUPPLY, Math.floor(feesUsd / FEE_PER));
+  const blockies = Array.from({ length: minted }, (_, i) => [null, arrivals?.[i + 1] ?? cityStart ?? Date.now()]);
+  return { minted, supply: SUPPLY, blockies, whales: [], boughtUsd: feesUsd, feesUsd, cityStart, source, breakdown };
 }
 
 // Price moves drive the city's weather; the Base Stock Exchange shows the quotes. Best-liquidity pair
@@ -267,11 +271,12 @@ export default async function handler(req, res) {
       inflight ??= compute().then((body) => (cache = { at: Date.now(), body })).finally(() => (inflight = null));
       await inflight;
     }
-    res.status(200).json(cache.body);
+    const since = Math.max(0, Number(new URL(req.url, 'http://x').searchParams.get('since')) || 0);
+    res.status(200).json(since ? { ...cache.body, blockies: cache.body.blockies.slice(since), since } : cache.body);
   } catch (e) {
     const msg = String(e.shortMessage || e.message || e);
     console.warn('[colony]', msg);
-    if (cache && Date.now() - cache.at < STALE_MS) return res.status(200).json({ ...cache.body, stale: true });
+    if (cache && Date.now() - cache.at < STALE_MS) return res.status(200).json({ ...cache.body, stale: true }); // full list: the client resyncs
     res.status(502).json({ error: msg });
   }
 }

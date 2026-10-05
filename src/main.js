@@ -9,7 +9,7 @@ import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
-import { makeBuilder, CitySim, PITCH, tierOf, TRAIT_LABEL } from './sim.js';
+import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
@@ -23,10 +23,9 @@ const HOUR = 3600000;
 const size = (L) => `${2 * L + 1}×${2 * L + 1}`;
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
 const PER = CONFIG.usdPerBlocky;
-const TIERS = CONFIG.tiers;
 const money = (v) => (v >= 1000 ? `$${v / 1000}k` : `$${v}`);
-const BADGE = { base: '🔷', whale: '🐋' };
-const badge = (b) => (b.legend ? '★ ' : BADGE[b.tier.id] ? `${BADGE[b.tier.id]} ` : '');
+const badge = (b) => (b.kind === 'legend' ? '★ ' : b.rarity && b.rarity.id !== 'common' && b.rarity.id !== 'uncommon' ? '✨ ' : '');
+const rareText = (b) => (b.trait ? `${b.rarity.label} · ${TRAIT_LABEL[b.trait]}` : '');
 function dur(ms) {
   const m = Math.max(1, Math.round(ms / 60000));
   if (m < 60) return `${m}m`;
@@ -47,7 +46,7 @@ function ago(ms) {
 document.title = `${CONFIG.cityName} · ${CONFIG.tagline}`;
 $('title').textContent = CONFIG.cityName;
 $('tagline').textContent = CONFIG.tagline;
-$('pop-label').textContent = plural;
+$('pop-label').textContent = `${plural} minted`;
 $('leaders-title').textContent = `Top ${plural}`;
 if (CONFIG.buyUrl) { $('buy').hidden = false; $('buy').href = CONFIG.buyUrl; $('buy').textContent = `Buy ${CONFIG.ticker}`; }
 if (CONFIG.chartUrl) { $('chart').hidden = false; $('chart').href = CONFIG.chartUrl; }
@@ -63,11 +62,12 @@ if (CONFIG.tokenAddress) {
 }
 
 const CAPTIONS = [
+  `Every <em>${money(PER)}</em> of ${CONFIG.ticker} you buy brings <em>1 ${CONFIG.citizen}</em> to the city`,
+  `Only <em>${fmt(CONFIG.supply)}</em> ${plural} will ever exist`,
+  `<em>1%</em> of ${plural} are Legendary: Diamond Skin or a Crown`,
+  `Real Base builders build here as <em>Base Builders</em>`,
+  `A <em>${money(CONFIG.whaleUsd)}+</em> buy builds a fountain with your name`,
   `Every buy shows up in the <em>city log</em>`,
-  `Buy <em>${money(PER)}+</em> of ${CONFIG.ticker}, bring a <em>new ${CONFIG.citizen}</em>`,
-  `<em>${money(TIERS[1].min)}+</em> brings a <em>${TIERS[1].label}</em>: ${TIERS[1].skill[0]}× skill, builds skyscrapers`,
-  `<em>${money(TIERS[2].min)}+</em> brings a <em>${TIERS[2].label}</em> and a fountain with its name`,
-  `Real Base builders live here as <em>legends</em>`,
   `${plural} build <em>24/7</em>, even when no one is watching`,
   `Land full? More ${plural} <em>expand the land</em>`,
   `The ${plural} are <em>simulated</em>. The buys are <em>real</em>.`,
@@ -163,38 +163,46 @@ addEventListener('resize', resize);
 
 let sim = null;
 let cityStart = 0;
-const builders = []; // data, index = id - 1
-const views = [];
+const crew = []; // every builder in arrival order: the founder, the Base Builders, then Blocky #1, #2, ...
+const byId = new Map();
+const views = new Map(); // id -> BuilderView; only some Blockies are drawn, every one of them builds
+const MAX_VIEWS = 120, OG = 20; // drawn: founder, Base Builders, the first OG Blockies, Legendaries, the newest
+let minted = 0; // Blockies in the city
+let known = 0; // Blockies the API has told us about (some may still be on the airship)
+let supply = CONFIG.supply;
+let whales = [];
 let bought = 0; // USD bought (or fees earned in fee mode)
-let pot = 0; // small buys waiting to add up to one Blocky
-let crewInfo = []; // who brought each Blocky
 const loggedBuys = new Set();
-let population = 0;
-let lastQueued = 0; // highest Blocky id already spawned or waiting for the airship
 const arrivalQueue = [];
 let selected = null;
 let following = false;
 
-function addBuilder(id, arrivedAt, arriving) {
-  const taken = new Set(builders.filter(Boolean).map((x) => x.legendIdx).filter((i) => i >= 0));
-  const b = makeBuilder(id, id === 1 ? cityStart : Math.max(cityStart, arrivedAt), crewInfo[id - 1], taken);
-  builders[id - 1] = b;
-  views[id - 1] = new BuilderView(b, city, { arriving });
-  return views[id - 1];
+function join(b) { crew.push(b); byId.set(b.id, b); }
+function draw(b, arriving = false) {
+  if (!views.has(b.id)) views.set(b.id, new BuilderView(b, city, { arriving }));
+  return views.get(b.id);
+}
+const kept = (b) => b.kind !== 'blocky' || b.id <= OG || b.rarity?.id === 'legendary' || selected?.b === b;
+function trimViews() { // drop the oldest ordinary Blockies once too many are drawn (they keep building off screen)
+  if (views.size <= MAX_VIEWS) return;
+  for (const [id, v] of views) {
+    if (views.size <= MAX_VIEWS) break;
+    if (kept(v.b)) continue;
+    city.root.remove(v.group);
+    views.delete(id);
+  }
 }
 
 // community goals: landmarks and the metro, unlocked by the Blocky count
-const GOALS = [...CONFIG.landmarks, ...(CONFIG.metro ? [CONFIG.metro] : [])].sort((a, b) => a.at - b.at);
-const nextGoal = () => GOALS.find((l) => l.at > population);
+const GOALS = [...CONFIG.landmarks, ...(CONFIG.metro ? [CONFIG.metro] : [])].filter((l) => l.at > 0).sort((a, b) => a.at - b.at);
+const nextGoal = () => GOALS.find((l) => l.at > minted);
 function nextUnlockText() {
   const next = nextGoal();
   $('goal-name').textContent = next ? next.label : 'Every landmark unlocked';
-  $('goal-count').textContent = next ? `${population}/${next.at}` : '';
-  $('bar-fill').style.width = `${next ? (population / next.at) * 100 : 100}%`;
-  const bits = [`Land ${size(sim.land)}`];
-  if (!sim.pro) bits.push(`🔒 Skyscrapers &amp; big rides need a <b>${TIERS[1].label}</b> (${money(TIERS[1].min)}+ buy)`);
-  if (pot > 0.009) bits.push(`Pot ${usd(pot)}/${usd(PER)}`);
-  $('next-unlock').innerHTML = bits.join(' · ');
+  $('goal-count').textContent = next ? `${fmt(minted)}/${fmt(next.at)}` : '';
+  $('bar-fill').style.width = `${next ? (minted / next.at) * 100 : 100}%`;
+  const left = Math.max(0, supply - minted);
+  $('next-unlock').innerHTML = `Land ${size(sim.land)} · ${left ? `<b>${fmt(left)}</b> of ${fmt(supply)} ${plural} left` : `all ${fmt(supply)} ${plural} are here`}`;
 }
 
 function applyState(s, first) {
@@ -206,56 +214,86 @@ function applyState(s, first) {
   check.classList.toggle('demo', s.source in labels);
   $('fees-label').textContent = buys ? 'Bought' : 'Fees earned';
 
-  const total = s.boughtUsd ?? s.progressUsd;
-  if (!first && total - bought > 0.0001) city.feePulse();
-  bought = Math.max(bought, total);
-  pot = s.potUsd ?? 0;
-  if (s.crew) crewInfo = s.crew;
+  if (!first && s.boughtUsd - bought > 0.0001) city.feePulse();
+  bought = Math.max(bought, s.boughtUsd);
+  supply = s.supply || supply;
   if (s.market) { market = s.market; weather.setMarket(market); }
-  updateBoards({ market, population: Math.max(population, s.population || 0) });
+  updateBoards({ market, population: Math.max(minted, s.minted || 0) });
   for (const b of [...(s.recentBuys || [])].reverse()) {
     const key = `${b.at}|${b.from}|${b.usd}`;
     if (loggedBuys.has(key)) continue;
     loggedBuys.add(key);
     if (first) continue;
-    const small = b.pot ?? b.usd < PER, tier = tierOf(b.usd);
-    const what = small ? (b.blockies ? `, the pot is full: +1 ${CONFIG.citizen}` : ' → community pot') : ` → ${tier.id === 'blocky' ? `+1 ${CONFIG.citizen}` : `${BADGE[tier.id] || ''} ${tier.label}`}`;
+    const what = b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : minted >= supply ? '' : ' → adds up to the next one';
     log(`🛒 ${short(b.from)} bought ${usd(b.usd)}${what}`, b.at);
-    if (!small && tier.pro) {
-      const whale = tier.wonder;
+    if (b.usd >= CONFIG.whaleUsd) {
+      weather.celebrate(); setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800);
+      news.unshift(`<b>WHALE ALERT:</b> ${short(b.from)} just bought ${usd(b.usd)}: ${b.blockies} ${plural} are flying in and the city starts a fountain in their name!`);
+    } else if (b.blockies >= 10) {
       weather.celebrate();
-      if (whale) { setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800); }
-      news.unshift(whale
-        ? `<b>WHALE ALERT:</b> ${short(b.from)} just bought ${usd(b.usd)}. A Whale is flying in and the city starts a fountain in its name!`
-        : `<b>BIG BUY:</b> ${short(b.from)} just bought ${usd(b.usd)}. A ${tier.label} is on the way. Fireworks over the Statue of Blockerty!`);
+      news.unshift(`<b>BIG BUY:</b> ${short(b.from)} just bought ${usd(b.usd)}, bringing ${b.blockies} ${plural}. Fireworks over the Statue of Blockerty!`);
     }
   }
 
-  const target = Math.max(1, s.population);
+  // the API sends only the Blockies after `known` (a stale answer may resend all of them)
+  const fresh = (s.since ?? 0) === known ? s.blockies : s.blockies.slice(Math.max(0, known - (s.since ?? 0)));
+  const whalesChanged = (s.whales?.length || 0) !== whales.length;
+  if (whalesChanged) whales = s.whales || [];
   if (first) {
     cityStart = s.cityStart ?? (CONFIG.cityStart ? Date.parse(CONFIG.cityStart) : now());
     sim = new CitySim(cityStart);
-    const ts = now();
-    for (let id = 1; id <= target; id++) addBuilder(id, s.arrivals?.[id - 1] ?? ts - (target - id + 1) * 30 * 60 * 1000, false);
-    population = lastQueued = target;
-    sim.setBuilders(builders.filter(Boolean));
+    for (const b of cityCrew(cityStart)) { join(b); draw(b); }
+    fresh.forEach(([from, at], i) => join(makeBlocky(i + 1, Math.max(cityStart, at), from)));
+    minted = known = fresh.length;
+    // draw the first OG Blockies, every Legendary and the newest arrivals
+    const blockies = crew.filter((b) => b.kind === 'blocky');
+    for (const b of blockies.filter((x) => kept(x)).slice(0, MAX_VIEWS - views.size)) draw(b);
+    for (const b of blockies.slice().reverse()) { if (views.size >= MAX_VIEWS) break; draw(b); }
+    sim.setCrew(crew, whales);
   } else {
-    for (let id = lastQueued + 1; id <= target; id++) arrivalQueue.push({ id, at: s.arrivals?.[id - 1] ?? now() });
-    lastQueued = Math.max(lastQueued, target);
+    fresh.forEach(([from, at], i) => arrivalQueue.push({ n: known + i + 1, from, at: at ?? now() }));
+    known += fresh.length;
+    if (whalesChanged) sim.setCrew(crew, whales);
   }
   nextUnlockText();
   renderHud();
 }
 
-// ---------- airship arrivals ----------
+// ---------- airship arrivals: big buys come in batches ----------
 
 const PAD = new THREE.Vector3(city.helipad[0], 1.6, city.helipad[1]);
 const FROM = new THREE.Vector3(70, 24, 46);
 let flight = null;
 
+function land(batch) {
+  const arrived = batch.map(({ n, from, at }) => { const b = makeBlocky(n, Math.max(cityStart, at), from); join(b); draw(b, true); return b; });
+  minted = Math.max(minted, arrived[arrived.length - 1].id);
+  trimViews();
+  sim.setCrew(crew, whales);
+  const rares = arrived.filter((b) => b.rarity && b.rarity.id !== 'common');
+  const best = rares.sort((a, b) => a.rarity.chance - b.rarity.chance)[0];
+  const first = arrived[0], last = arrived[arrived.length - 1];
+  const nums = arrived.length > 1 ? `#${first.id}–#${last.id}` : `#${first.id}`;
+  if (arrived.length === 1) {
+    toast(best ? `✨ ${best.rarity.label.toUpperCase()} ${CONFIG.citizen.toUpperCase()}!` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`, first.name, `${best ? `${TRAIT_LABEL[best.trait]} · ` : ''}${first.role.label}${first.from ? ` · brought by ${short(first.from)}` : ''}`);
+  } else {
+    toast(`+${arrived.length} ${plural.toUpperCase()} ARRIVED`, `${CONFIG.citizen} ${nums}`, best ? `incl. ✨ ${best.rarity.label} ${TRAIT_LABEL[best.trait]} (${best.name})` : first.from ? `brought by ${short(first.from)}` : '');
+  }
+  if (best && best.rarity.id !== 'uncommon') {
+    weather.celebrate();
+    news.unshift(`<b>RARE ${CONFIG.citizen.toUpperCase()}:</b> ${best.name} arrived with ${TRAIT_LABEL[best.trait]} (${best.rarity.label}, ${+(best.rarity.chance * 100).toFixed(1)}% chance)`);
+  }
+  const owners = [...new Set(arrived.map((b) => b.from))];
+  log(`👷 ${arrived.length > 1 ? `${plural} ${nums} joined` : `${first.name} joined`}${owners.length === 1 && owners[0] ? `, brought by ${short(owners[0])}` : ''}`, now(), first.id);
+  stepCity(true);
+  nextUnlockText();
+  renderHud();
+}
+
 function updateAirship(dt) {
   if (!flight && arrivalQueue.length) {
-    flight = { ...arrivalQueue.shift(), t: 0, phase: 'in' };
+    const take = Math.max(1, Math.min(12, Math.ceil(arrivalQueue.length / 6)));
+    flight = { batch: arrivalQueue.splice(0, take), t: 0, phase: 'in' };
     airship.visible = true;
   }
   if (!flight) return;
@@ -266,22 +304,7 @@ function updateAirship(dt) {
     const t = Math.min(1, flight.t), k = 1 - Math.pow(1 - t, 3);
     airship.position.copy(FROM).lerp(PAD, k);
     airship.rotation.y = Math.atan2(FROM.z - PAD.z, PAD.x - FROM.x);
-    if (t >= 1) {
-      flight.phase = 'dock'; flight.t = 0;
-      const v = addBuilder(flight.id, flight.at, true);
-      population = flight.id;
-      sim.setBuilders(builders.filter(Boolean));
-      const b = v.b, by = crewInfo[flight.id - 1];
-      const rareNow = b.rarity && b.rarity.id !== 'common';
-      const head = b.legend ? '★ LEGEND ARRIVED' : b.tier.id === 'whale' ? '🐋 WHALE ARRIVED' : b.tier.pro ? `🔷 ${b.tier.label.toUpperCase()} ARRIVED` : rareNow ? `✨ ${b.rarity.label.toUpperCase()} ${CONFIG.citizen.toUpperCase()}!` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`;
-      toast(head, b.name, `${rareNow ? `${TRAIT_LABEL[b.trait]} · ` : ''}${b.role.label} · ${b.skill.toFixed(1)}× skill${by ? ` · brought by ${short(by.from)}` : ''}`);
-      if (rareNow && b.rarity.id !== 'uncommon') { weather.celebrate(); news.unshift(`<b>RARE ${CONFIG.citizen.toUpperCase()}:</b> ${b.name} arrived with ${TRAIT_LABEL[b.trait]} (${b.rarity.label}, ${Math.round(b.rarity.chance * 100)}% chance)`); }
-      if (b.tier.pro) weather.celebrate();
-      log(`${b.legend ? '★' : b.tier.pro ? BADGE[b.tier.id] : '👷'} ${b.name} joined${b.tier.pro ? ` as ${b.tier.label}` : ''}${by ? `, brought by ${short(by.from)}` : ''}`, now(), b.id);
-      stepCity(true);
-      nextUnlockText();
-      renderHud();
-    }
+    if (t >= 1) { flight.phase = 'dock'; flight.t = 0; land(flight.batch); }
   } else if (flight.phase === 'dock') {
     airship.position.copy(PAD);
     if (flight.t > 0.5) { flight.phase = 'out'; flight.t = 0; }
@@ -327,7 +350,7 @@ const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.le
 
 function renderHud() {
   if (!sim) return;
-  $('pop').textContent = population;
+  $('pop').textContent = `${fmt(minted)} / ${fmt(supply)}`;
   $('fees').textContent = usd(bought);
   $('buildings').textContent = fmt(sim.buildingCount);
   $('blocks').textContent = fmt(sim.work ?? 0);
@@ -354,35 +377,37 @@ function renderHud() {
   for (const el of document.querySelectorAll('#feed [data-at]')) el.textContent = ago(+el.dataset.at);
 }
 
-function renderLeaders() {
+function topBuilders(n) {
   const ts = now();
-  const top = views.filter(Boolean).sort((a, b) => sim.blocksBy(b.b, ts) - sim.blocksBy(a.b, ts)).slice(0, 5);
-  $('leaders').innerHTML = top
-    .map((v, i) => `<li data-id="${v.b.id}"><span><span class="rank">${i + 1}</span>${badge(v.b)}${v.b.name} <span class="muted">· ${v.b.role.label}</span></span><b>${fmt(sim.blocksBy(v.b, ts))} 🧱</b></li>`)
+  return crew.map((b) => [b, sim.blocksBy(b, ts)]).sort((a, b) => b[1] - a[1]).slice(0, n);
+}
+function renderLeaders() {
+  $('leaders').innerHTML = topBuilders(5)
+    .map(([b, blocks], i) => `<li data-id="${b.id}"><span><span class="rank">${i + 1}</span>${badge(b)}${b.name} <span class="muted">· ${b.role.label}</span></span><b>${fmt(blocks)} 🧱</b></li>`)
     .join('');
 }
 
 for (const id of ['leaders', 'feed']) {
   $(id).addEventListener('click', (ev) => {
     const li = ev.target.closest('li[data-id]');
-    if (li) select(views[li.dataset.id - 1], true);
+    const b = li && byId.get(Number(li.dataset.id));
+    if (b) select(draw(b), true);
   });
 }
 
 function renderCard() {
   if (!selected) return;
   const b = selected.b, ts = now(), placed = sim.blocksBy(b, ts);
-  const rare = b.trait ? ` · ${b.rarity.label.toUpperCase()}: ${TRAIT_LABEL[b.trait].toUpperCase()}` : '';
-  $('card-eyebrow').textContent = `${CONFIG.citizen.toUpperCase()} #${b.id}${b.id === 1 ? ' · FOUNDER' : b.legend ? ' · ★ LEGEND' : b.tier.pro ? ` · ${b.tier.label.toUpperCase()}` : ''}${rare}`;
+  const rare = b.trait ? ` · ${rareText(b).toUpperCase()}` : '';
+  $('card-eyebrow').textContent = `${b.kind === 'founder' ? 'FOUNDER' : b.kind === 'legend' ? '★ BASE BUILDER' : `${CONFIG.citizen.toUpperCase()} #${b.id} OF ${fmt(supply)}`}${rare}`;
   $('card-name').textContent = b.name;
-  $('card-role').textContent = [b.role.label, b.id !== 1 && b.tier.label !== b.role.label ? b.tier.label : null, `${b.skill.toFixed(1)}× skill`].filter(Boolean).join(' · ');
+  $('card-role').textContent = [b.role.label, `${b.skill.toFixed(1)}× skill`].join(' · ');
   $('card-status').textContent = selected.status;
   $('card-blocks').textContent = fmt(placed);
   $('card-hours').textContent = fmt((ts - b.arrivedAt) / HOUR);
   $('card-share').textContent = `${sim.work ? ((placed / sim.work) * 100).toFixed(1) : 0}%`;
   $('card-joined').textContent = ago(b.arrivedAt);
-  const by = crewInfo[b.id - 1];
-  $('card-by').textContent = b.id === 1 ? 'Founder' : by?.pot ? `the community pot (filled by ${short(by.from)})` : by ? `${short(by.from)} (${usd(by.usd)} buy)` : '—';
+  $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : b.from ? short(b.from) : '—';
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
   const img = $('card-pfp');
   if (img.dataset.id !== String(b.id)) { img.dataset.id = b.id; img.src = renderPfp(b, { size: 256, mark: false }); img.alt = `Voxel PFP of ${b.name}`; }
@@ -401,8 +426,7 @@ $('card-pfp-dl').onclick = () => selected && downloadPfp(selected.b);
 
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
-  const crew = `${population} ${population === 1 ? CONFIG.citizen : plural}`;
-  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${crew}, the builders of Base. Buy ${money(PER)}+ of ${CONFIG.ticker} to bring a ${CONFIG.citizen}, ${money(TIERS[1].min)}+ for a ${TIERS[1].label}.`
+  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${fmt(minted)} of ${fmt(supply)} ${plural} and ${CONFIG.legends?.length || 0} Base builders. Every ${money(PER)} of ${CONFIG.ticker} you buy brings a ${CONFIG.citizen}.`
     + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '');
   const via = CONFIG.xHandle ? `&via=${CONFIG.xHandle}` : '';
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}${via}`, '_blank', 'noopener');
@@ -417,7 +441,7 @@ canvas.addEventListener('pointerup', (e) => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
   const p = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(p, camera);
-  const hits = ray.intersectObjects(views.filter(Boolean).map((v) => v.hit), false);
+  const hits = ray.intersectObjects([...views.values()].map((v) => v.hit), false);
   if (hits[0]) return select(hits[0].object.userData.builder);
   const board = ray.intersectObjects(city.billboards, false)[0]?.object.userData.sponsor;
   if (board?.url) { open(board.url, '_blank', 'noopener'); return; }
@@ -427,8 +451,11 @@ canvas.addEventListener('pointerup', (e) => {
 // ---------- the 24/7 build ----------
 
 let shownLand = 0;
+let announced = -Infinity; // completion time of the last project we announced
 function stepCity(animate) {
-  const finished = sim.advance(now());
+  // a new crew replays the whole city: only announce what finished after the last announcement
+  const finished = sim.advance(now()).filter((p) => p.at > announced);
+  for (const p of finished) announced = Math.max(announced, p.at);
   city.sync(sim, animate);
   metro.sync(sim);
   city.waiting = !!sim.blocked;
@@ -510,19 +537,18 @@ function headlines() {
   if (sim.metroBuilt) out.push(`<b>TRANSIT:</b> ${CONFIG.metro.label} trains run every few minutes around the ring road`);
   const services = Object.entries({ firestation: 'fire trucks', police: 'police cars', hospital: 'ambulances', recycling: 'garbage trucks' }).filter(([t]) => city.counts[t]);
   if (services.length) out.push(`<b>CITY SERVICES:</b> ${services.map(([, v]) => v).join(', ')} on patrol in ${CONFIG.cityName}`);
-  if (!sim.pro) out.push(`<b>HELP WANTED:</b> ${CONFIG.cityName} needs a ${TIERS[1].label} for its first skyscraper. ${money(TIERS[1].min)}+ buys bring one`);
-  const legends = builders.filter((b) => b?.legendIdx >= 0).length;
-  if (CONFIG.legends?.length) out.push(`<b>LEGENDS:</b> ${legends} of ${CONFIG.legends.length} real Base builders live in ${CONFIG.cityName}${legends < CONFIG.legends.length ? `. The next ${TIERS[1].label} arrives as ${CONFIG.legends.find((l, i) => !l.wallet && !builders.some((b) => b?.legendIdx === i))?.name ?? 'a legend'}` : ''}`);
-  const top = views.filter(Boolean).sort((a, b) => sim.blocksBy(b.b, now()) - sim.blocksBy(a.b, now()))[0];
-  const topBlocks = top ? sim.blocksBy(top.b, now()) : 0;
-  if (topBlocks >= 2) out.push(`<b>BUILDER OF THE DAY:</b> ${top.b.name}, ${fmt(topBlocks)} blocks placed`);
+  out.push(`<b>MINT:</b> ${fmt(minted)} of ${fmt(supply)} ${plural} are in ${CONFIG.cityName}. ${minted < supply ? `Only ${fmt(supply - minted)} left` : 'Sold out'}`);
+  const builders = crew.filter((b) => b.kind === 'legend' && b.arrivedAt <= now()).length;
+  if (builders) out.push(`<b>BASE BUILDERS:</b> ${builders} real Base builders are building ${CONFIG.cityName} with the ${plural}`);
+  const [top] = topBuilders(1);
+  if (top && top[1] >= 2) out.push(`<b>BUILDER OF THE DAY:</b> ${top[0].name}, ${fmt(top[1])} blocks placed`);
   const big = [...districts].sort((a, b) => b.buildings - a.buildings)[0];
   if (big && districts.length > 1) out.push(`<b>DISTRICTS:</b> ${big.name} leads with ${big.buildings} buildings`);
   for (let i = 0; i < 2; i++) out.push(FILLER[Math.floor(Math.random() * FILLER.length)]);
   const sponsors = CONFIG.sponsors || [];
   if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>${sp.sponsored ? 'SPONSORED' : 'BUILT ON BASE'}:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
   if (Math.random() < 0.5 || !sponsors.length) out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);
-  out.push(`<b>${CONFIG.ticker}:</b> buy ${money(PER)}+ for a ${CONFIG.citizen}, ${money(TIERS[1].min)}+ for a ${TIERS[1].label}, ${money(TIERS[2].min)}+ for a ${TIERS[2].label} and a fountain`);
+  out.push(`<b>${CONFIG.ticker}:</b> every ${money(PER)} you buy brings a ${CONFIG.citizen}; only ${fmt(supply)} will ever exist. ${money(CONFIG.whaleUsd)}+ in one buy builds a fountain with your name`);
   return out;
 }
 function refreshTicker() {
@@ -550,7 +576,7 @@ function frame() {
   agents.update(t, dt);
   sky.update(t, dt);
   weather.update(t, dt);
-  for (const v of views) v?.update(t, dt);
+  for (const v of views.values()) v.update(t, dt);
   updateAirship(dt);
 
   simAcc += dt;
@@ -586,7 +612,7 @@ function frame() {
   refreshTicker();
   welcomeBack();
   requestAnimationFrame(frame);
-  setInterval(async () => applyState(await fetchColony(), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
+  setInterval(async () => applyState(await fetchColony(known), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
 })();
 
-window.blocky = { city, builders, views, agents, camera, controls, get sim() { return sim; } };
+window.blocky = { city, crew, views, agents, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };

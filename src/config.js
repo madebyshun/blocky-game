@@ -6,19 +6,16 @@ export const CONFIG = {
   tagline: 'A city built 24/7 by Blockies, the builders of Base',
   citizen: 'Blocky', // one inhabitant (a builder on Base)
   citizenPlural: 'Blockies',
-  usdPerBlocky: 5, // a buy of $5+ brings one Blocky; smaller buys add up in the community pot (USD_PER_BLOCKY on the API)
-
-  // One buy = one Blocky. The size of the buy decides who arrives and how skilled they are
-  // (skill grows linearly from skill[0] at `min` to skill[1] at the next tier). Base Builders can
-  // build what regular Blockies can't (towers, skyscrapers, big rides); a Whale also gets a wonder.
-  tiers: [
-    { id: 'blocky', label: 'Blocky', min: 5, skill: [1, 2] },
-    { id: 'base', label: 'Base Builder', min: 100, skill: [3, 4], pro: true },
-    { id: 'whale', label: 'Whale', min: 1000, skill: [5, 5], pro: true, wonder: true },
-  ],
+  // Every $5 of $BLOCKY a wallet buys (added up per wallet) brings one Blocky to the city: Blocky #1,
+  // #2, ... up to `supply`, then no more. Each one is meant to become that wallet's NFT.
+  usdPerBlocky: 5, // must match USD_PER_BLOCKY on the API
+  supply: 10000, // must match MAX_SUPPLY on the API
+  whaleUsd: 1000, // a single buy this big also builds a Whale Fountain signed with the wallet (WHALE_USD on the API)
+  blockySkill: 1, // work speed of a Blocky
+  builderSkill: 1.5, // work speed of a Base Builder (the legends below)
   founderSkill: 2,
 
-  // Every Blocky (not the founder or legends) rolls a rarity from its number, so anyone can verify it.
+  // Every Blocky rolls a rarity from its number, so anyone can verify it.
   // Rare looks walk around the city, show on the Blocky card and in its PFP.
   rarity: [
     { id: 'common', label: 'Common', chance: 0.70, traits: [] },
@@ -35,10 +32,10 @@ export const CONFIG = {
   blocksPerHour: 14,
   dayLengthMin: 20, // one day/night cycle in real minutes (same for every visitor)
 
-  // Square land of (2*startLand+1)^2 lots. When every lot is built, the Blockies expand the land
-  // by one ring, but only once enough Blockies live in the city.
+  // Square land of (2*startLand+1)^2 lots. When every lot is built, the crew expands the land by one
+  // ring, but only once enough Blockies have arrived (Base Builders don't count).
   startLand: 2,
-  expandNeeds: [0, 0, 0, 3, 6, 10, 16, 25, 40, 60, 90], // Blockies needed to reach land level L
+  expandNeeds: [0, 0, 0, 10, 30, 75, 150, 300, 600, 1000, 1600, 2500, 4000, 6000, 8000, 10000], // Blockies needed for land level L
   expandCost: 120, // blocks per land level for an expansion
 
   // Live state (see api/colony.js). If it fails, the game falls back to demo mode.
@@ -68,19 +65,19 @@ export const CONFIG = {
   adContact: '', // shown on empty billboards, e.g. 'DM @blockyfun'; defaults to xHandle
   siteUrl: '', // canonical URL used in share text
 
-  // Blocky #1: you.
+  // You: the city's first builder.
   founder: { look: 'founder', name: 'Founder', title: 'Founder' },
 
-  // Real Base builders who live in the city as legends. Add as many as you like:
-  //   { name, title, look?, wallet? }
-  // - wallet: when this wallet buys (any size), its Blocky arrives as this legend.
-  // - no wallet: the next Base Builder or Whale (a $100+ buy) arrives as this legend, in list order.
-  // - look: a hand-made outfit from LEGEND_LOOKS in src/citizens.js (halo, punk, spartan, robo, hoodie).
-  //   Without one they wear the Base Builder uniform with a gold star.
-  // - x: their X handle (shows an 𝕏 link on the Base Builders page); bg: their PFP background colour.
+  // Base Builders: real Base builders you add by hand. They build the city alongside the Blockies
+  // from the day they join. Add as many as you like:
+  //   { name, title, look?, joined?, x?, bg? }
+  // - look: a hand-made outfit from LEGEND_LOOKS in src/citizens.js. Without one they wear the Base
+  //   Builder uniform with a gold star.
+  // - joined: 'YYYY-MM-DD' when they start building (default: from the city's first day).
+  // - x: their X handle (an 𝕏 link on the Base Builders page); bg: their PFP background colour.
   legends: [
-    { name: 'Nibel', title: 'Base Builder', look: 'halo' },
     { name: 'Jesse', title: 'Builder 001', look: 'punk' },
+    { name: 'Nibel', title: 'Base Builder', look: 'halo' },
     { name: 'Xen', title: 'Base Builder', look: 'spartan' },
     { name: 'Poet', title: 'Base Builder', look: 'robo' },
     { name: 'Brian', title: 'CEO', look: 'hoodie' },
@@ -105,25 +102,25 @@ export const CONFIG = {
     { name: 'Joey', title: 'Base Builder', look: 'mintcap' },
   ],
 
-  // Landmarks: once the Blocky count reaches `at`, the crew builds it next on its reserved lot [x, z].
+  // Landmarks: once `at` Blockies have arrived, the crew builds it next on its reserved lot [x, z].
   landmarks: [
-    { at: 1, id: 'garage', label: "Founder's Garage", lot: [0, 1] },
-    { at: 1, id: 'square', label: 'Town Square', lot: [0, 0] },
-    { at: 2, id: 'liberty', label: 'Statue of Blockerty', lot: [2, 1] }, // the city icon, on a riverside point
-    { at: 3, id: 'cafe', label: 'gm Café', lot: [-1, 0] },
-    { at: 5, id: 'hq', label: 'Builder HQ', lot: [0, -1] },
-    { at: 6, id: 'exchange', label: 'Base Stock Exchange', lot: [1, -1] }, // live $BLOCKY + stock ticker, bull or bear out front
-    { at: 7, id: 'agenthub', label: 'AI Agent Hub', lot: [-1, 1] }, // launches the city's AI agent drones
-    { at: 8, id: 'hackathon', label: 'Hackathon Hall', lot: [-1, -2] },
-    { at: 10, id: 'airport', label: 'Base Airport', lot: [-3, -3] }, // community goal: planes take off and land
-    { at: 12, id: 'studio', label: 'Design Studio', lot: [-2, 1] },
-    { at: 20, id: 'datalab', label: 'Data Lab', lot: [-3, -1] },
-    { at: 35, id: 'launchpad', label: 'Launchpad Tower', lot: [-1, 3], pro: true }, // pro: needs a Base Builder in the crew
-    { at: 50, id: 'stadium', label: 'Demo Day Stadium', lot: [-3, 2], pro: true },
-    { at: 100, id: 'beacon', label: 'Onchain Beacon', lot: [-2, -4], pro: true },
+    { at: 0, id: 'garage', label: "Founder's Garage", lot: [0, 1] },
+    { at: 0, id: 'square', label: 'Town Square', lot: [0, 0] },
+    { at: 1, id: 'liberty', label: 'Statue of Blockerty', lot: [2, 1] }, // the city icon, on a riverside point
+    { at: 5, id: 'cafe', label: 'gm Café', lot: [-1, 0] },
+    { at: 15, id: 'hq', label: 'Builder HQ', lot: [0, -1] },
+    { at: 25, id: 'exchange', label: 'Base Stock Exchange', lot: [1, -1] }, // live $BLOCKY + stock ticker, bull or bear out front
+    { at: 40, id: 'agenthub', label: 'AI Agent Hub', lot: [-1, 1] }, // launches the city's AI agent drones
+    { at: 60, id: 'hackathon', label: 'Hackathon Hall', lot: [-1, -2] },
+    { at: 100, id: 'airport', label: 'Base Airport', lot: [-3, -3] }, // community goal: planes take off and land
+    { at: 150, id: 'studio', label: 'Design Studio', lot: [-2, 1] },
+    { at: 300, id: 'datalab', label: 'Data Lab', lot: [-3, -1] },
+    { at: 500, id: 'launchpad', label: 'Launchpad Tower', lot: [-1, 3], pro: true }, // pro: needs a Base Builder in the crew
+    { at: 1000, id: 'stadium', label: 'Demo Day Stadium', lot: [-3, 2], pro: true },
+    { at: 2500, id: 'beacon', label: 'Onchain Beacon', lot: [-2, -4], pro: true },
   ],
 
   // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`.
   // It grows with the land and its train stops at a station on every side.
-  metro: { at: 15, label: 'BaseCity Metro', cost: 700 },
+  metro: { at: 200, label: 'BaseCity Metro', cost: 700 },
 };

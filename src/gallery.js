@@ -1,7 +1,7 @@
 // Dev tool: every building design side by side. Open /gallery.html while `npm run dev` runs.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CATALOG, ROLES, makeBuilder, TRAIT_LABEL } from './sim.js';
+import { CATALOG, ROLES, cityCrew, TRAIT_LABEL } from './sim.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
 import { buildingGroup, adWall, updateBoards } from './city.js';
@@ -84,19 +84,16 @@ const crew = [];
 if (showBlockies) {
   const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac, 0xf5d0a9];
   const SHIRT = [0x3fa34d, 0x2e86de, 0xe67e22, 0x9b59b6, 0xe74c3c, 0x1abc9c];
-  const noLegend = new Set((CONFIG.legends || []).map((_, i) => i));
-  const tier0 = CONFIG.tiers[0];
+  const tier0 = { id: 'blocky', label: 'Blocky' };
   const people = ROLES.filter((r) => r.id !== 'founder') // the founder is a legend
     .map((role, i) => ({ id: i + 2, role, tier: tier0, skin: SKIN[i], shirt: SHIRT[i], label: role.label, pose: 'stand' }));
-  for (const t of CONFIG.tiers.slice(1)) people.push({ ...makeBuilder(20 + people.length, 0, { usd: t.min }, noLegend), label: `${t.wonder ? '🐋' : '🔷'} ${t.label}`, pose: 'stand' });
+  // a Base Builder without a hand-made look wears the uniform with a gold star
+  people.push({ id: 21, role: ROLES[3], tier: { id: 'base', label: 'Base Builder', pro: true }, legend: { name: 'Base Builder' }, skin: SKIN[1], shirt: SHIRT[1], label: '🔷 Base Builder uniform', pose: 'stand' });
   people.push({ id: 7, role: ROLES[1], tier: tier0, skin: SKIN[4], shirt: SHIRT[2], label: 'Walking', pose: 'walk' });
   people.push({ id: 8, role: ROLES[2], tier: tier0, skin: SKIN[2], shirt: SHIRT[5], label: 'Carrying a block', pose: 'carry' });
   // the founder and every legend (real Base builders), in even rows in front of the crew
-  const legends = [makeBuilder(1, 0), ...(CONFIG.legends || []).map((legend, i) => {
-    const b = makeBuilder(100 + i, 0, { usd: CONFIG.tiers[1].min }, noLegend);
-    return { ...b, legend, legendIdx: i, name: legend.name };
-  })].map((b) => ({ ...b, label: `★ ${b.legend.name}`, pose: 'stand' }))
-    .filter((b) => !pickedLegends.length || pickedLegends.includes(b.legend.name.toLowerCase()));
+  const legends = cityCrew(0).map((b) => ({ ...b, label: `★ ${b.name}`, pose: 'stand' }))
+    .filter((b) => !pickedLegends.length || pickedLegends.includes(b.name.toLowerCase()));
   // one Blocky per rare trait, labelled with its odds
   const rares = CONFIG.rarity.flatMap((r) => r.traits.map((trait, i) => ({
     id: 40 + i, role: ROLES[1 + (i % 5)], tier: tier0, skin: SKIN[(i + 2) % 6], shirt: SHIRT[(i + 3) % 6], rarity: r, trait, pose: 'stand',
