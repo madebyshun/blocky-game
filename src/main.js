@@ -237,7 +237,8 @@ function syncViews() {
 
 // community goals: landmarks and the metro, unlocked by the Blocky count
 const GOALS = [...CONFIG.landmarks, ...(CONFIG.metro ? [CONFIG.metro] : [])].filter((l) => l.at > 0).sort((a, b) => a.at - b.at);
-const nextGoal = () => GOALS.find((l) => l.at > minted);
+// (one that is built already stays built when Blockies leave and the count drops below it again)
+const nextGoal = () => GOALS.find((l) => l.at > minted && !(l.id ? sim?.builtLandmarks.has(l.id) : sim?.metroBuilt));
 function nextUnlockText() {
   const next = nextGoal();
   $('goal-name').textContent = next ? next.label : 'Every landmark unlocked';
@@ -418,8 +419,13 @@ const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.le
   : p.kind === 'landmark' ? `🏛️ ${p.name} built`
   : p.kind === 'wonder' ? `⛲ Whale Fountain built, gifted by ${short(p.whale.from) || 'a whale'}`
   : p.kind === 'metro' ? `🚇 ${p.name} opened`
+  : p.restores ? `🏗️ ${p.name} rebuilt on the ruins of ${p.rebuilds}`
   : p.rebuilds ? `🏗️ ${p.name} completed, replacing ${p.rebuilds}`
   : `🏗️ ${p.name} completed`);
+// what departures did to the city (CitySim.depart)
+const eventLine = (e) => (e.kind === 'ruin'
+  ? `🏚️ ${e.p.name} abandoned: ${fmt(e.n)} ${plural} left at once`
+  : `🧱 ${e.n ? `${fmt(e.n)} ${e.n > 1 ? plural : CONFIG.citizen} walked off` : 'Builders walked off'} ${e.p.name}: −${fmt(e.blocks)} blocks`);
 
 function renderHud() {
   if (!sim) return;
@@ -440,7 +446,10 @@ function renderHud() {
     $('site-name').textContent = a.name;
     $('site-pct').textContent = `${pct}%`;
     $('site-fill').style.width = `${pct}%`;
-    $('site-eta').textContent = `${a.rebuilds ? `Rebuilding ${a.rebuilds} · ` : ''}${sim.eta != null ? `~${dur(sim.eta)} left · crew speed ${Math.round(sim.rate)} blocks/h` : ''}`;
+    // a site that just lost blocks says so for a while
+    const hit = sim.events.findLast((e) => e.kind === 'setback' && e.p === a);
+    const lost = hit && now() - hit.at < HOUR ? `−${fmt(hit.blocks)} blocks: ${hit.n > 1 ? `${fmt(hit.n)} ${plural}` : 'a builder'} walked off · ` : '';
+    $('site-eta').textContent = `${lost}${a.restores ? `Rebuilding the ruins of ${a.rebuilds} · ` : a.rebuilds ? `Rebuilding ${a.rebuilds} · ` : ''}${sim.eta != null ? `~${dur(sim.eta)} left · crew speed ${Math.round(sim.rate)} blocks/h` : ''}`;
   }
   const day = Math.floor((now() - cityStart) / 86400000) + 1;
   $('clock').textContent = `Day ${day} · ${city.env.daylight < 0.5 ? '🌙 Night shift' : '☀️ Day shift'}`;
@@ -528,15 +537,25 @@ canvas.addEventListener('pointerup', (e) => {
 
 let shownLand = 0;
 let announced = -Infinity; // completion time of the last project we announced
+let heard = -Infinity; // time of the last departure effect we announced
 function stepCity(animate) {
   // a new crew replays the whole city: only announce what finished after the last announcement
   const finished = sim.advance(now()).filter((p) => p.at > announced);
   for (const p of finished) announced = Math.max(announced, p.at);
+  const effects = [];
+  for (let i = sim.events.length - 1; i >= 0 && sim.events[i].at > heard; i--) effects.unshift(sim.events[i]);
+  if (effects.length) heard = effects[effects.length - 1].at;
   city.sync(sim, animate);
   metro.sync(sim);
   city.waiting = !!sim.blocked;
   if (city.land !== shownLand) { shownLand = city.land; resize(); }
   if (!animate) return;
+  for (const e of effects) {
+    log(eventLine(e), e.at);
+    if (e.kind !== 'ruin') continue;
+    toast('🏚️ ABANDONED', e.p.name, `${fmt(e.n)} ${plural} left at once. The crew rebuilds it next`);
+    news.unshift(`<b>GHOST TOWN?</b> ${e.p.name} stands abandoned after ${fmt(e.n)} ${plural} left ${CONFIG.cityName} at once. Crews will rebuild it first`);
+  }
   for (const p of finished) {
     log(logLine(p));
     if (p.kind === 'expand') toast('LAND EXPANDED', size(p.level), `${plural} reclaimed a new ring of land`);
@@ -602,6 +621,8 @@ function headlines() {
   const w = WEATHER[weather.kind];
   if (market) out.push(`<b>WEATHER:</b> ${w.label} over ${CONFIG.cityName} as ${CONFIG.ticker} ${market.change24h >= 0 ? 'climbs' : 'slips'} ${Math.abs(market.change24h).toFixed(1)}% in 24h`);
   if (sim.blocked) out.push(`<b>CITY HALL:</b> the land is full. ${sim.blocked.need - sim.blocked.have} more ${plural} needed to expand`);
+  const ruins = sim.ruinCount;
+  if (ruins) out.push(`<b>CITY HALL:</b> ${ruins} abandoned building${ruins > 1 ? 's' : ''} after big exits. Crews rebuild ${ruins > 1 ? 'them' : 'it'} before anything else`);
   const next = nextGoal();
   if (next) out.push(`<b>COMING SOON:</b> ${next.label} breaks ground at ${next.at} ${plural}`);
   if (market) {
@@ -683,7 +704,8 @@ function frame() {
   syncViews();
   setInterval(syncViews, 60000); // shifts change, the town grows
   resize();
-  for (const p of sim.done.slice(-5)) log(logLine(p), p.at);
+  const past = [...sim.done.slice(-5).map((p) => [p.at, logLine(p)]), ...sim.events.slice(-3).map((e) => [e.at, eventLine(e)])];
+  for (const [at, line] of past.sort((x, y) => x[0] - y[0]).slice(-6)) log(line, at);
   renderLeaders();
   updateDistricts();
   renderHud();

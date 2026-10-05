@@ -62,6 +62,11 @@ export const CONFIG = {
     landmark: 4, wonder: 2, expand: 3, metro: 3,
   },
 
+  // When Blockies leave (their wallets sold): the construction site loses the blocks they placed on it,
+  // and a big exit (ruinAt+ Blockies at the same moment) leaves the newest home, shop or office abandoned
+  // (one per ruinAt, at most maxRuins) until the crew rebuilds it, first thing.
+  departures: { ruinAt: 20, maxRuins: 3 },
+
   // Live state (see api/colony.js). If it fails, the game falls back to demo mode.
   apiUrl: '/api/colony',
   pollMs: 15000,

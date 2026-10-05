@@ -12,7 +12,8 @@ const demoStart = Date.now();
 const HOUR = 3600000;
 const RULES = { per: CONFIG.usdPerBlocky, supply: CONFIG.supply, whaleUsd: CONFIG.whaleUsd };
 
-// Demo: three days of history (one trader sells half), then a trade every 30s: a $1,000 whale at
+// Demo: three days of history (one trader sells half, and a $350 buyer dumps everything half an hour
+// before you arrive: a big exit, so the city shows a ruin), then a trade every 30s: a $1,000 whale at
 // two minutes and a seller at three and a half.
 const demoCityStart = demoStart - 72 * HOUR;
 const wallet = (k) => `0x${[1, 2, 3, 4, 5].map((s) => ((Math.imul(k + 1, 2654435761) ^ Math.imul(s, 0x9e3779b9)) >>> 0).toString(16).padStart(8, '0')).join('')}`;
@@ -23,7 +24,9 @@ function demoTrades(t) {
     const usd = Math.round((3 + roll(i) * 45) * 100) / 100;
     trades.push({ who: wallet(i % 23), kind: 'buy', usd, tokens: usd * 33000, at: demoCityStart + (i + 1) * 1.7 * HOUR, tx: `0xdemo-history-${i}` });
     if (i === 30) trades.push({ who: wallet(7), kind: 'sell', usd: 20, tokens: 600000, at: demoCityStart + (i + 1.5) * 1.7 * HOUR, tx: '0xdemo-sell' });
+    if (i === 11) trades.push({ who: wallet(40), kind: 'buy', usd: 350, tokens: 350 * 33000, at: demoCityStart + 20.5 * HOUR, tx: '0xdemo-big-buy' });
   }
+  trades.push({ who: wallet(40), kind: 'sell', usd: 310, tokens: 1e12, at: demoStart - 0.5 * HOUR, tx: '0xdemo-big-exit' });
   for (let i = 0; i <= Math.floor(t / 30); i++) {
     const at = demoStart + i * 30000;
     if (i === 7) { trades.push({ who: wallet(31), kind: 'sell', usd: 25, tokens: 1e9, at, tx: '0xdemo-live-sell' }); continue; }

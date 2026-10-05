@@ -1309,6 +1309,55 @@ export const buildingGroup = (p) => kitFor((k) => {
   }
 });
 
+// ---------- ruins: a home, shop or office abandoned after a big exit (src/sim.js depart) ----------
+// The same building gone grey and dark, rubble at its feet, weeds, caution tape and a keep-out sign,
+// until the crew rebuilds it.
+const RUIN_SHUT = new THREE.MeshLambertMaterial({ color: 0x37332f }); // dark windows, dead signs
+// the doors of each kind of home, shop or office, as [x, z of the front wall]: boarded up on a ruin
+const DOORS = {
+  cottage: (p) => [[-p.w / 5, -0.6 + p.d / 2]], house: (p) => [[0, -0.8 + p.d / 2]],
+  shop: (p) => [[0, p.d / 2]], cafe: (p) => [[0, -0.5 + p.d / 2]], villa: (p) => [[-0.6, -1.2 + p.d / 2]],
+  townhouses: (p) => [[-p.w / 3, p.d / 2], [0, p.d / 2], [p.w / 3, p.d / 2]], suburb: () => [[-1.15, 1.72], [1.15, 1.72]],
+  apartment: (p) => [[0, p.d / 2]], office: (p) => [[0, p.d / 2]], devhub: (p) => [[0, p.d / 2]],
+  aistartup: () => [[0, 1.4]], brokerage: () => [[0, 0.3]], tower: (p) => [[0, p.d / 2]], skyscraper: (p) => [[0, p.w / 2]],
+};
+export function ruinGroup(p) {
+  const g = kitFor((k) => DESIGN[p.type](k, p)); // no rooftop ad: nobody rents a board on a ruin
+  g.traverse((o) => {
+    delete o.userData.animate;
+    if (!o.isMesh) return;
+    if (o.material !== BODY_MAT) { o.material = RUIN_SHUT; return; }
+    const c = o.geometry.attributes.color; // dusty grey
+    for (let i = 0; i < c.count; i++) {
+      const r = c.getX(i), gr = c.getY(i), b = c.getZ(i), l = 0.3 * r + 0.59 * gr + 0.11 * b;
+      c.setXYZ(i, (r * 0.2 + l * 0.8) * 0.64, (gr * 0.2 + l * 0.8) * 0.61, (b * 0.2 + l * 0.8) * 0.56);
+    }
+    c.needsUpdate = true;
+  });
+  g.add(kitFor((k) => {
+    const s = p.k;
+    for (let i = 0; i < 9; i++) { // rubble and fallen blocks along the lot's edge
+      const side = i % 4, t = -2.6 + hash(s, i, 1) * 5.2, w = 0.3 + hash(s, i, 2) * 0.45;
+      const [x, z] = [[t, 2.75], [2.75, t], [t, -2.75], [-2.75, t]][side];
+      k.boxR(w, 0.2 + hash(s, i, 3) * 0.35, w * 0.8, i % 3 ? 0x8d8a85 : 0x6e5d4b, x, Y, z, hash(s, i, 4) * 3);
+    }
+    for (let i = 0; i < 5; i++) k.box(0.3, 0.3 + hash(s, i, 5) * 0.3, 0.3, C.leaf[i % 4], -2.9 + hash(s, i, 6) * 5.8, Y, i % 2 ? 2.95 : -2.95); // weeds
+    for (const [x, z] of [[-3.05, 3.05], [3.05, 3.05], [3.05, -3.05], [-3.05, -3.05]]) k.box(0.1, 0.75, 0.1, 0x7f8c8d, x, Y, z); // caution tape
+    for (let a = -3; a < 3; a += 0.5) {
+      const c = Math.round((a + 3) / 0.5) % 2 ? 0x2b2f36 : 0xf4c542;
+      k.box(0.5, 0.1, 0.03, c, a + 0.25, Y + 0.6, 3.05); k.box(0.5, 0.1, 0.03, c, a + 0.25, Y + 0.6, -3.05);
+      k.box(0.03, 0.1, 0.5, c, 3.05, Y + 0.6, a + 0.25); k.box(0.03, 0.1, 0.5, c, -3.05, Y + 0.6, a + 0.25);
+    }
+    for (const [x, z] of DOORS[p.type]?.(p) || []) { // boarded-up doors
+      [0.22, 0.55, 0.88].forEach((y, i) => k.box(0.8 + hash(s, x, i) * 0.3, 0.16, 0.05, i % 2 ? 0x8a6a45 : C.wood, x + (hash(s, x, i, 1) - 0.5) * 0.2, Y + y, z + 0.08));
+    }
+    k.box(0.08, 1.1, 0.08, C.trunk, 2.3, Y, 3.25); // keep out
+    k.boxR(1, 0.55, 0.06, 0xc0392b, 2.3, Y + 0.85, 3.3, 0.12);
+    k.boxR(0.75, 0.09, 0.07, C.white, 2.3, Y + 1.08, 3.31, 0.12);
+  }));
+  return g;
+}
+
 // ---------- city ----------
 
 const lotPos = ([i, j]) => [i * PITCH, j * PITCH];
@@ -1656,17 +1705,17 @@ export function createCity(scene) {
     const dev = new Set(sim.standing.keys());
     for (const [key, p] of sim.standing) {
       if (key === busy) continue;
-      const cur = lots.get(key);
-      if (cur?.kind === 'built' && cur.k === p.k) continue;
+      const cur = lots.get(key), kind = p.ruinedAt ? 'ruin' : 'built';
+      if (cur?.kind === kind && cur.k === p.k) continue;
       if (site && site.k === p.k) site = null;
-      setLot(key, p.lot, 'built', p.k, buildingGroup(p), animate);
+      setLot(key, p.lot, kind, p.k, kind === 'ruin' ? ruinGroup(p) : buildingGroup(p), animate && kind === 'built');
     }
     if (busy) dev.add(busy);
     developed = dev;
     counts = {};
     built = [];
     for (const [key, p] of sim.standing) {
-      if (key === busy) continue;
+      if (key === busy || p.ruinedAt) continue;
       counts[p.type] = (counts[p.type] || 0) + 1;
       built.push({ x: p.lot[0] * PITCH, z: p.lot[1] * PITCH, h: p.h ?? 2, type: p.type });
     }

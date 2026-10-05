@@ -267,6 +267,18 @@ export class CitySim {
       if (Number.isFinite(b.leftAt)) events.push([Math.max(b.arrivedAt, b.leftAt), -b.skill]);
     }
     events.sort((x, y) => x[0] - y[0]);
+    // Departures by moment, oldest first: { t, n: Blockies leaving, who: [[arrivedAt, skill]...] }. Each one
+    // takes the blocks its Blockies placed off the site, and a big one leaves buildings abandoned (advance).
+    const out = new Map();
+    for (const b of this.builders) {
+      if (!Number.isFinite(b.leftAt)) continue;
+      const t = Math.max(b.arrivedAt, b.leftAt);
+      if (!out.has(t)) out.set(t, { t, n: 0, who: [] });
+      const e = out.get(t);
+      e.n += b.kind === 'blocky' ? 1 : 0;
+      e.who.push([b.arrivedAt, b.skill]);
+    }
+    this.departs = [...out.values()].sort((x, y) => x.t - y.t);
     this.segs = [];
     let S = 0, W = 0, P = 0;
     events.forEach(([t, ds], i) => {
@@ -300,10 +312,13 @@ export class CitySim {
   }
   workAt(t) { const g = this.seg(t); return g ? g.W + (g.rate * (t - g.t0)) / HOUR : 0; }
   rateAt(t) { return this.seg(t)?.rate ?? 0; }
+  perAt(t) { // blocks placed by one unit of skill since the start
+    const g = this.seg(t);
+    return g && g.S > 1e-9 ? g.P + ((g.rate / g.S) * (t - g.t0)) / HOUR : g ? g.P : 0;
+  }
   blocksBy(b, t) {
-    const per = (x) => { const g = this.seg(x); return g && g.S > 1e-9 ? g.P + ((g.rate / g.S) * (x - g.t0)) / HOUR : g ? g.P : 0; };
     const end = Math.min(t, Number.isFinite(b.leftAt) ? b.leftAt : Infinity);
-    return end <= b.arrivedAt ? 0 : b.skill * (per(end) - per(b.arrivedAt));
+    return end <= b.arrivedAt ? 0 : b.skill * (this.perAt(end) - this.perAt(b.arrivedAt));
   }
   // first moment the crew's total reaches w blocks (W(t) is piecewise linear and increasing)
   timeAtWork(w) {
@@ -330,6 +345,11 @@ export class CitySim {
     // homes, shops and offices in the order they were finished, as [lot key, project k] (see redevelop):
     // the ones that can still grow, and the ones already as big as their zone allows
     this.renew = { grow: [], top: [], at: { grow: 0, top: 0 } };
+    this.fresh = []; // the same buildings as [lot key, k], newest last: a big exit abandons the newest
+    this.ruins = []; // abandoned buildings, in order: the crew rebuilds them first
+    this.ruinAt = 0;
+    this.events = []; // { kind: 'setback' | 'ruin', at, ... } in time order, for the city log
+    this.di = 0; // departures handled so far
     this.k = 0;
     this.next = this.plan(this.start);
   }
@@ -361,6 +381,16 @@ export class CitySim {
       this.wonders.add(wi);
       const w = this.whaleList[wi];
       return { k, kind: 'wonder', type: 'wonder', lot: wlot, w: 6, d: 6, h: 7, cost: WONDER_COST * CONFIG.buildTime.wonder, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd }, name: `Whale Fountain #${wi + 1}` };
+    }
+    // a building left abandoned by a big exit is rebuilt next: the same kind of building, from scratch
+    while (this.ruinAt < this.ruins.length) {
+      const old = this.ruins[this.ruinAt++];
+      if (this.standing.get(old.lot.join(',')) !== old) continue; // a whale's fountain took the lot
+      const p = buildingProject(k, old.lot, pro, { only: new Set([old.type]) }) || buildingProject(k, old.lot, pro, { only: RENEW });
+      if (!p) continue;
+      p.rebuilds = old.name;
+      p.restores = true;
+      return p;
     }
     const lm = CONFIG.landmarks.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land);
     if (lm) {
@@ -414,12 +444,19 @@ export class CitySim {
 
   // Replay every project finished by `now`. Returns the newly finished ones.
   advance(now) {
-    const finished = [];
+    const finished = [], D = this.departs;
     for (let guard = 0; guard < 1e6; guard++) { // the city never stops, so a long history means many projects (~8µs each)
       const p = this.next;
       const start = this.startOf(p);
+      // Blockies leaving before the project starts take nothing off its site (a big exit still leaves ruins)
+      while (this.di < D.length && D[this.di].t <= Math.min(start, now)) this.depart(D[this.di++], null, 0);
       if (start > now) break;
-      const t = this.timeAtWork(this.workAt(start) + p.cost);
+      // the site loses the blocks the leaving Blockies placed on it, so it needs that much more work
+      let t = this.timeAtWork(this.workAt(start) + p.cost + (p.lost || 0));
+      while (this.di < D.length && D[this.di].t < t && D[this.di].t <= now) {
+        this.depart(D[this.di++], p, start);
+        t = this.timeAtWork(this.workAt(start) + p.cost + (p.lost || 0));
+      }
       if (t > now) break;
       p.startedAt = start;
       p.at = t;
@@ -432,6 +469,8 @@ export class CitySim {
           const list = canGrow(p) ? 'grow' : 'top', q = this.renew[list];
           q.push([key, p.k]);
           if (this.renew.at[list] > 4096) { this.renew[list] = q.slice(this.renew.at[list]); this.renew.at[list] = 0; }
+          this.fresh.push([key, p.k]);
+          if (this.fresh.length > 8192) this.fresh = this.fresh.slice(-4096);
         }
       }
       if (p.kind === 'expand') { this.land = p.level; this.queue.push(...this.ringLots(p.level)); }
@@ -442,7 +481,7 @@ export class CitySim {
     }
     this.work = this.workAt(now);
     const start = this.startOf(this.next);
-    this.placed = start > now ? 0 : Math.max(0, Math.min(this.next.cost, this.work - this.workAt(start)));
+    this.placed = start > now ? 0 : Math.max(0, Math.min(this.next.cost, this.work - this.workAt(start) - (this.next.lost || 0)));
     const pop = this.popAt(now), rate = this.rateAt(now);
     this.blocked = this.next.need && pop < this.next.need ? { need: this.next.need, have: pop } : null;
     this.eta = this.blocked || !rate ? null : ((this.next.cost - this.placed) / rate) * HOUR; // ms left at today's crew speed
@@ -451,6 +490,38 @@ export class CitySim {
     return finished;
   }
 
-  // lots that hold a finished building/landmark
-  get buildingCount() { return this.standing.size; }
+  // Blockies leave (their wallets sold). p: the project on the site then, started at `start`.
+  depart(e, p, start) {
+    // the blocks they placed on the site come down with them (the rest of the crew's stay)
+    if (p) {
+      let lost = 0;
+      for (const [arrived, skill] of e.who) if (arrived < e.t) lost += skill * (this.perAt(e.t) - this.perAt(Math.max(start, arrived)));
+      if (lost >= 0.5) {
+        p.lost = (p.lost || 0) + lost;
+        this.events.push({ kind: 'setback', at: e.t, n: e.n, blocks: Math.round(lost), p });
+      }
+    }
+    // a big exit leaves the newest homes, shops or offices abandoned until the crew rebuilds them
+    const ruins = Math.min(CONFIG.departures.maxRuins, Math.floor(e.n / CONFIG.departures.ruinAt));
+    const busy = this.next.lot?.join(',');
+    for (let r = 0; r < ruins && this.fresh.length;) {
+      const [key, k] = this.fresh.pop();
+      const b = this.standing.get(key);
+      if (!b || b.k !== k || b.ruinedAt || key === busy) continue;
+      b.ruinedAt = e.t;
+      this.ruins.push(b);
+      this.events.push({ kind: 'ruin', at: e.t, n: e.n, p: b });
+      r++;
+    }
+  }
+
+  // abandoned buildings standing now (the one being rebuilt included)
+  get ruinCount() {
+    let n = 0;
+    for (let i = Math.max(0, this.ruinAt - 1); i < this.ruins.length; i++) if (this.standing.get(this.ruins[i].lot.join(',')) === this.ruins[i]) n++;
+    return n;
+  }
+
+  // lots that hold a finished building/landmark (not counting ruins)
+  get buildingCount() { return this.standing.size - this.ruinCount; }
 }
