@@ -62,7 +62,7 @@ export const CONFIG = {
   cityStart: null,
   // A 1x Blocky alone places this many blocks per hour. A crew shares one site, so speed grows with
   // the square root of the crew's total skill: 4x the skill = 2x faster. Big buildings take hours.
-  blocksPerHour: 14,
+  blocksPerHour: 40,
   dayLengthMin: 20, // one day/night cycle in real minutes (same for every visitor)
 
   // Square land of (2*startLand+1)^2 lots. When every lot is built, the crew expands the land by one
@@ -79,7 +79,7 @@ export const CONFIG = {
   },
   // A new city goes up fast so it looks alive from its first hour: the first project takes `start` of
   // its time, and each next one a bit more, up to the full time from project `projects` on.
-  launchBoost: { start: 0.08, projects: 50 },
+  launchBoost: { start: 0.08, projects: 80 },
 
   // When Blockies leave (their wallets sold): the construction site loses the blocks they placed on it,
   // and a big exit (ruinAt+ Blockies at the same moment) leaves the newest home, shop or office abandoned
