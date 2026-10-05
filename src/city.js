@@ -1706,14 +1706,14 @@ export function createCity(scene) {
 
   let land = 0;
   const lots = new Map(); // key -> { kind, k, group }
-  let site = null;
+  const sites = new Map(); // project k -> its construction site (one per crew, see CONFIG.sites)
   let siteVersion = 0;
   const rising = []; // groups animating out of the ground
   const animated = []; // objects with userData.animate(t, dt): rides, turbines, planes
   const billboards = []; // clickable billboard panels (userData.sponsor)
   let developed = new Set();
   let roadSig = '';
-  let snapshot = { land: 0, next: null, placed: 0 };
+  let snapshot = { land: 0, next: null, placed: 0, sites: [] };
   let drawn = 1; // builders drawn in the city (set by main.js)
   let counts = {}; // finished buildings by type (service vehicles read it)
   let built = []; // finished lots: { x, z, h, type } (the AI agent drones fly between them)
@@ -1986,12 +1986,11 @@ export function createCity(scene) {
   }
 
   function updateSite(p, placed) {
-    if (!p.lot) { // land expansion, metro: no construction site on a lot
-      if (site) { if (lots.get(lotKey(site.p.lot))?.kind === 'site') setLot(lotKey(site.p.lot), site.p.lot, 'wild', -1, kitFor((kk) => wildLot(kk, ...site.p.lot))); site = null; }
-      return;
-    }
-    if (!site || site.k !== p.k) {
+    if (!p.lot) return; // land expansion, metro: no construction site on a lot
+    let site = sites.get(p.k);
+    if (!site) {
       site = makeSite(p);
+      sites.set(p.k, site);
       siteVersion++;
       setLot(lotKey(p.lot), p.lot, 'site', p.k, site.group);
     }
@@ -2028,30 +2027,39 @@ export function createCity(scene) {
   function sync(sim, animate) {
     if (sim.land !== land) buildLand(sim.land, animate && land > 0);
     // what stands on each lot now; a lot being rebuilt shows its construction site instead
-    const busy = sim.next.lot ? lotKey(sim.next.lot) : null;
+    const now = sim.sites || [{ p: sim.next, placed: sim.placed }];
+    const busy = new Set(now.filter((x) => x.p.lot).map((x) => lotKey(x.p.lot)));
     const dev = new Set(sim.standing.keys());
     for (const [key, p] of sim.standing) {
-      if (key === busy) continue;
+      if (busy.has(key)) continue;
       // a whale's building shows its name, until its whale sells (then it goes dark)
       const dark = p.whale?.lostAt <= sim.now, kind = p.ruinedAt ? 'ruin' : 'built', sig = `${p.whale?.name || ''}${dark ? '|dark' : ''}`;
       const cur = lots.get(key);
       if (cur?.kind === kind && cur.k === p.k && cur.sig === sig) continue;
-      if (site && site.k === p.k) site = null;
+      sites.delete(p.k);
       const group = kind === 'ruin' ? ruinGroup(p) : dark ? darken(buildingGroup({ ...p, dark })) : buildingGroup(p);
       setLot(key, p.lot, kind, p.k, group, animate && kind === 'built' && cur?.k !== p.k, sig);
     }
-    if (busy) dev.add(busy);
+    for (const key of busy) dev.add(key);
     developed = dev;
     counts = {};
     built = [];
     for (const [key, p] of sim.standing) {
-      if (key === busy || p.ruinedAt) continue;
+      if (busy.has(key) || p.ruinedAt) continue;
       counts[p.type] = (counts[p.type] || 0) + 1;
       built.push({ x: p.lot[0] * PITCH, z: p.lot[1] * PITCH, h: p.h ?? 2, type: p.type });
     }
-    updateSite(sim.next, sim.placed);
+    // sites whose project is gone without a building (an expansion took over...): back to wild land
+    const live = new Set(now.map((x) => x.p.k));
+    for (const [k, st] of sites) {
+      if (live.has(k)) continue;
+      const key = lotKey(st.p.lot);
+      if (lots.get(key)?.kind === 'site' && lots.get(key).k === k) setLot(key, st.p.lot, 'wild', -1, kitFor((kk) => wildLot(kk, ...st.p.lot)));
+      sites.delete(k);
+    }
+    for (const x of now) updateSite(x.p, x.placed);
     buildRoads();
-    snapshot = { land: sim.land, next: sim.next, placed: sim.placed };
+    snapshot = { land: sim.land, next: sim.next, placed: sim.placed, sites: now };
   }
 
   // ----- day / night, same phase for every visitor -----
@@ -2107,9 +2115,11 @@ export function createCity(scene) {
     }
     for (const o of animated) o.userData.animate(t, dt);
 
-    if (site?.jib) {
-      site.jib.rotation.y = 0.8 + Math.sin(t * 0.4) * 0.5;
-      const reach = 4.2 + Math.sin(t * 0.7) * 0.8;
+    for (const site of sites.values()) {
+      if (!site.jib) continue;
+      const o = site.k * 1.7; // each crane on its own swing
+      site.jib.rotation.y = 0.8 + Math.sin(t * 0.4 + o) * 0.5;
+      const reach = 4.2 + Math.sin(t * 0.7 + o) * 0.8;
       const drop = Math.max(1, site.ch - site.topY + 0.5);
       site.hook.position.set(0, -drop, reach);
       site.cable.scale.set(0.04, drop, 0.04);
@@ -2123,8 +2133,10 @@ export function createCity(scene) {
     return [-1.9 + Math.cos(a) * 1.5, -1.9 + Math.sin(a) * 1.5];
   };
   // who: the builder, so each one keeps to one side of a long site (the land's border, the metro loop)
+  // which site a builder works on: each keeps to one while the number of sites stays the same
+  const siteOf = (who) => { const list = snapshot.sites || []; return list.length ? list[Math.floor(hash(who, 13) * list.length)].p : snapshot.next; };
   function siteSpot(seed, who = seed) {
-    const p = snapshot.next;
+    const p = siteOf(who);
     if (!p) return home(seed);
     if (p.kind === 'expand' || p.kind === 'metro') { // reclaim land along the border / raise the metro over the ring road
       const e = p.kind === 'metro' ? PITCH * (land - 1) + PITCH / 2 : land * PITCH + 2.5, s = (hash(seed, 5) - 0.5) * 2 * e;
@@ -2137,7 +2149,7 @@ export function createCity(scene) {
   // The crew's block pile sits right by the site (the crossroads at its corner facing the town centre),
   // so trips stay short and the streets stay clear.
   function depotSpot(seed, who = seed) {
-    const p = snapshot.next;
+    const p = siteOf(who);
     if (!p) return home(seed);
     if (p.kind === 'expand' || p.kind === 'metro') { const [x, z] = siteSpot(seed, who); return [x * 0.86, z * 0.86]; }
     const [x, z] = lotPos(p.lot), a = hash(seed, 1) * Math.PI * 2;
@@ -2181,7 +2193,7 @@ export function createCity(scene) {
     // A site has room for a crew of about 12 (20 along the border or the metro): the share of the drawn
     // builders on it at any time. The others walk around town and take turns (see BuilderView).
     get crewShare() {
-      const p = snapshot.next, room = !p ? 0 : p.kind === 'expand' || p.kind === 'metro' ? 20 : 12;
+      const room = (snapshot.sites || []).reduce((n, { p }) => n + (p.kind === 'expand' || p.kind === 'metro' ? 20 : 12), 0);
       return Math.min(1, room / Math.max(1, drawn));
     },
     set drawn(n) { drawn = n; },

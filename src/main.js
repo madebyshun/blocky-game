@@ -466,7 +466,7 @@ function renderHud() {
     // a site that just lost blocks says so for a while
     const hit = sim.events.findLast((e) => e.kind === 'setback' && e.p === a);
     const lost = hit && now() - hit.at < HOUR ? `−${fmt(hit.blocks)} blocks: ${hit.n > 1 ? `${fmt(hit.n)} ${plural}` : 'a builder'} walked off · ` : '';
-    $('site-eta').textContent = `${lost}${a.restores ? `Rebuilding the ruins of ${a.rebuilds} · ` : a.rebuilds ? `Rebuilding ${a.rebuilds} · ` : ''}${sim.eta != null ? `~${dur(sim.eta)} left · crew speed ${Math.round(sim.rate)} blocks/h` : ''}`;
+    $('site-eta').textContent = `${lost}${a.restores ? `Rebuilding the ruins of ${a.rebuilds} · ` : a.rebuilds ? `Rebuilding ${a.rebuilds} · ` : ''}${sim.eta != null ? `~${dur(sim.eta)} left · ${sim.sites?.length > 1 ? `${sim.sites.length} sites at once · ` : ''}crew speed ${Math.round(sim.rate)} blocks/h` : ''}`;
   }
   const day = Math.floor((now() - cityStart) / 86400000) + 1;
   $('clock').textContent = `Day ${day} · ${city.env.daylight < 0.5 ? '🌙 Night shift' : '☀️ Day shift'}`;

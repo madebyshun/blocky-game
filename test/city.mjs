@@ -69,7 +69,10 @@ const stay = city(150);
 stay.advance(t0 + 6 * DAY);
 const site = stay.next, T = t0 + 6 * DAY; // mid-project: the crew is on this site at T
 assert.ok(site.startedAt === undefined && stay.placed > 0, 'no site in progress at T');
-const per = stay.perAt(T) - stay.perAt(stay.startOf(site)); // blocks one Blocky placed on it so far
+// blocks one Blocky placed on it so far: its crew is spread over every site
+const per = (stay.perAt(T) - stay.perAt(stay.sites[0].start)) / stay.sitesAt(T);
+assert.equal(stay.sitesAt(T), 4, '150 Blockies: four sites');
+assert.equal(stay.sites.length, 4);
 for (const [gone, ruins] of [[5, 0], [30, 1], [65, 3]]) {
   const s = leaving(150, gone, T);
   s.advance(T);
@@ -85,9 +88,10 @@ for (const [gone, ruins] of [[5, 0], [30, 1], [65, 3]]) {
   // the newest homes, shops or offices go; landmarks, parks and services never do
   const newest = [...s.standing.values()].filter((b) => b.kind === 'building' && RENEW.has(b.type)).sort((a, b) => b.at - a.at)[0];
   assert.ok(ruined.includes(newest) || !newest, 'the newest building was spared');
-  // the crew finishes its site, then rebuilds every ruin before anything else
+  // the crews finish their sites, then the next projects planned rebuild every ruin first
+  const busyK = Math.max(...s.sites.map((x) => x.p.k));
   s.advance(T + 10 * DAY);
-  const after = s.done.filter((p) => p.k > site.k);
+  const after = s.done.filter((p) => p.k > busyK).sort((a, b) => a.k - b.k);
   assert.deepEqual(after.slice(0, ruins).map((p) => p.restores && p.rebuilds), ruined.map((r) => r.name), 'ruins are not rebuilt first');
   for (const r of ruined) {
     const p = after.find((x) => x.rebuilds === r.name);

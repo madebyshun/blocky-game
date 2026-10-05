@@ -38,7 +38,7 @@ export const CONFIG = {
     name: 'BaseCity Blockies',
     symbol: 'BCB',
     chainId: 8453,
-    contract: '',
+    contract: '0xD1C1655860eDdb6cCeC9AC986539B3b0E195d5a9', // BaseCity Blockies on Base (NFT_CONTRACT on the API wins)
     royaltyBps: 500,
     treasury: '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D', // the dev wallet: royalties, and it deploys and owns the contract
     // The team's reserve: Blockies #1 to #count belong to this wallet from day one (giveaways,
@@ -80,6 +80,9 @@ export const CONFIG = {
   // A new city goes up fast so it looks alive from its first hour: the first project takes `start` of
   // its time, and each next one a bit more, up to the full time from project `projects` on.
   launchBoost: { start: 0.08, projects: 80 },
+  // One construction site per `per` Blockies the city has had at once (at most `max`): the crew splits
+  // up, and several smaller crews build faster together than one crowd on one site.
+  sites: { per: 40, max: 6 },
 
   // When Blockies leave (their wallets sold): the construction site loses the blocks they placed on it,
   // and a big exit (ruinAt+ Blockies at the same moment) leaves the newest home, shop or office abandoned
