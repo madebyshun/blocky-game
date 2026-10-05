@@ -101,3 +101,27 @@ export function flash(t) {
   LIGHTS.blue.emissiveIntensity = 1.6 * (1 - a);
   LIGHTS.amber.emissiveIntensity = 0.4 + 1.2 * Math.max(0, Math.sin(t * 5));
 }
+
+// An AI agent drone: a quadcopter with a Base-blue light, spinning rotors and a parcel it can carry.
+const ROTOR = new THREE.MeshLambertMaterial({ color: 0xc9d1da, transparent: true, opacity: 0.7 });
+export function makeDrone() {
+  const g = new THREE.Group();
+  g.add(mesh([
+    [0.5, 0.16, 0.5, 0, 0, 0, 0x2b2f36],
+    [0.34, 0.08, 0.34, 0, 0.16, 0, 0xf4f4f0],
+    [1.1, 0.06, 0.08, 0, 0.05, 0, 0x3b4048], [0.08, 0.06, 1.1, 0, 0.05, 0, 0x3b4048],
+    ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => [0.04, 0.16, 0.04, a * 0.17, -0.16, b * 0.17, 0x2b2f36]),
+  ], BODY));
+  g.add(mesh([[0.1, 0.06, 0.1, 0.27, 0.02, 0]], LIGHTS.blue));
+  const rotors = [[0.55, 0], [-0.55, 0], [0, 0.55], [0, -0.55]].map(([x, z]) => {
+    const r = new THREE.Mesh(UNIT, ROTOR);
+    r.scale.set(0.5, 0.02, 0.07);
+    r.position.set(x, 0.14, z);
+    g.add(r);
+    return r;
+  });
+  const parcel = mesh([[0.3, 0.3, 0.3, 0, -0.5, 0, 0x0052ff], [0.31, 0.05, 0.08, 0, -0.38, 0, 0xf4c542], [0.02, 0.2, 0.02, 0, -0.2, 0, 0x2b2f36]], BODY);
+  g.add(parcel);
+  g.userData = { rotors, parcel, spin: (dt) => rotors.forEach((r, i) => (r.rotation.y += dt * (i % 2 ? -38 : 38))) };
+  return g;
+}

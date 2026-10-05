@@ -149,9 +149,12 @@ export const CATALOG = {
   hospital: { label: 'Hospital', min: 14, w: [0.1, 0.2, 0.1], cost: 220, size: [[6, 6], [6, 6], [5, 5]] },
   recycling: { label: 'Recycling Center', min: 18, w: [0, 0.1, 0.3], cost: 100, size: [[6, 6], [6, 6], [3, 3]] },
   solarfarm: { label: 'Solar Farm', min: 10, w: [0, 0.2, 0.6], cost: 90, size: [[6, 6], [6, 6], [1, 1]] },
+  // what Base is building: AI agents and onchain stocks
+  aistartup: { label: 'AI Startup', min: 8, w: [1, 0.8, 0.2], cost: 110, size: [[4, 4], [4, 4], [3, 4]] },
+  brokerage: { label: 'Brokerage', min: 6, w: [0.8, 0.6, 0.2], cost: 70, size: [[4, 4], [3, 3], [2, 2]] },
 };
 // Every city gets these early, then they keep appearing at random.
-const FEATURED = { 6: 'firestation', 8: 'carousel', 10: 'police', 11: 'lakepark', 13: 'ferris', 15: 'hospital', 17: 'coaster', 20: 'recycling', 23: 'solarfarm' };
+const FEATURED = { 6: 'firestation', 8: 'carousel', 9: 'brokerage', 10: 'police', 11: 'lakepark', 12: 'aistartup', 13: 'ferris', 15: 'hospital', 17: 'coaster', 20: 'recycling', 23: 'solarfarm' };
 const COLORS = {
   cottage: [0xf3e6d0, 0xe8d5c4, 0xd9e4ec, 0xf0d9da, 0xdfe8d5, 0xfff3c4],
   house: [0xf3e6d0, 0xd9e4ec, 0xf0d9da, 0xe3f1e1, 0xfde2c8],
@@ -169,6 +172,7 @@ const COLORS = {
   watertower: [0xd5d8dc],
   coaster: [0xe74c3c], ferris: [0xf4f4f0], carousel: [0xf5c518], stage: [0x2b2f36], icecream: [0xffd1dc],
   firestation: [0xc0392b], police: [0x2c3e66], hospital: [0xf4f6f8], recycling: [0x2e7d32], solarfarm: [0x1d3a6e],
+  aistartup: [0xdfe8f5], brokerage: [0x1b2a4a],
 };
 
 const zoneOf = (r) => (r <= 1 ? 0 : r <= 3 ? 1 : 2);
@@ -199,6 +203,7 @@ const LANDMARK_SIZE = {
   garage: [5, 4, 3, 60], square: [6, 6, 1, 40], cafe: [5, 4, 3, 90], hq: [6, 6, 12, 400],
   hackathon: [6, 5, 4, 260], studio: [4, 4, 6, 220], datalab: [6, 6, 5, 300],
   launchpad: [6, 6, 14, 900], stadium: [6, 6, 3, 1000], beacon: [3, 3, 20, 1400], liberty: [4, 4, 13, 320], airport: [6, 6, 4, 420],
+  exchange: [6, 5, 5, 360], agenthub: [6, 6, 8, 380],
 };
 export const WONDER_COST = 300;
 

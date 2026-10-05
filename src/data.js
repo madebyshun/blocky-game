@@ -23,7 +23,7 @@ function demoState() {
   const crew = [null], arrivals = [demoCityStart];
   for (let id = 2; id <= population; id++) { crew.push(demoBuy(id)); arrivals.push(demoAt(id)); }
   // the market swings slowly so every kind of weather shows up while you watch
-  const market = { priceUsd: 0.00003, change1h: Math.sin(t / 9) * 3, change24h: Math.sin(t / 25) * 22, volume24h: 1200 };
+  const market = { priceUsd: 0.00003, change1h: Math.sin(t / 9) * 3, change24h: Math.sin(t / 25) * 22, volume24h: 1200, stocks: [{ symbol: 'NVDAc', priceUsd: 180 + Math.sin(t / 40) * 4 }] };
   const recentBuys = crew.slice(-4).filter(Boolean).map((c) => ({ ...c, blockies: 1 }));
   const boughtUsd = crew.reduce((s, c) => s + (c?.usd || 0), 0);
   return { progressUsd: boughtUsd, boughtUsd, potUsd: (t * 0.07) % 5, population, arrivals, crew, recentBuys, market, cityStart: demoCityStart, source: 'demo', mode: 'buys' };
@@ -48,7 +48,7 @@ export async function fetchColony() {
       mode: s.mode || 'fees',
       crew: Array.isArray(s.crew) ? s.crew : null,
       recentBuys: Array.isArray(s.recentBuys) ? s.recentBuys : [],
-      market: s.market && typeof s.market.change24h === 'number' ? s.market : null,
+      market: s.market && typeof s.market.change24h === 'number' ? { ...s.market, stocks: Array.isArray(s.market.stocks) ? s.market.stocks.filter((x) => x && typeof x.priceUsd === 'number' && x.priceUsd > 0) : [] } : null,
       population: s.population ?? 1 + Math.floor(progressUsd / CONFIG.usdPerBlocky),
       arrivals: Array.isArray(s.arrivals) ? s.arrivals : null,
       cityStart: typeof s.cityStart === 'number' ? s.cityStart : null,

@@ -4,7 +4,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CATALOG, ROLES, makeBuilder } from './sim.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
-import { buildingGroup, adWall } from './city.js';
+import { buildingGroup, adWall, updateBoards } from './city.js';
+import { dronesSample } from './agents.js';
 import { FLEET, makeService, flash } from './fleet.js';
 import { metroSample } from './metro.js';
 
@@ -23,6 +24,9 @@ function fleetShowcase() {
   g.userData.animate = (t) => flash(t);
   return g;
 }
+
+// sample quotes so the exchange boards have something to show (the city shows live ones)
+updateBoards({ market: { priceUsd: 0.0000301, change24h: 4.2, volume24h: 1240, stocks: [{ symbol: 'NVDAc', priceUsd: 182.4 }] }, population: 19 });
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -49,12 +53,16 @@ const items = [
   { label: 'Billboards', p: { type: 'billboards' }, make: adWall },
   { label: 'Service vehicles', p: { type: 'vehicles' }, make: fleetShowcase },
   { label: 'BaseCity Metro', p: { type: 'metro' }, make: metroSample },
+  { label: 'AI agent drones', p: { type: 'drones' }, make: dronesSample },
   { label: 'Whale Fountain ($1k+ buy)', p: { k: 0, kind: 'wonder', type: 'wonder', whale: { from: '0x1234567890abcdef1234567890abcdef12345678', usd: 1500 } } },
 ];
 // ?only=liberty,coaster shows just those designs, up close
-const only = new URLSearchParams(location.search).get('only')?.split(',');
-const showBlockies = !only || only.includes('blockies') || only.includes('legends');
-const legendsOnly = only?.includes('legends') && !only.includes('blockies');
+// ?only=legends, ?only=blockies, or legend names: ?only=Jesse,Ahaan Raizada shows just those, up close
+const only = new URLSearchParams(location.search).get('only')?.split(',').map((x) => x.trim());
+const legendNames = new Set([CONFIG.founder?.name, ...(CONFIG.legends || []).map((l) => l.name)].filter(Boolean).map((n) => n.toLowerCase()));
+const pickedLegends = only?.filter((x) => legendNames.has(x.toLowerCase())).map((x) => x.toLowerCase()) ?? [];
+const showBlockies = !only || only.includes('blockies') || only.includes('legends') || pickedLegends.length > 0;
+const legendsOnly = (only?.includes('legends') || pickedLegends.length > 0) && !only.includes('blockies');
 if (only) items.splice(0, items.length, ...items.filter((it) => only.includes(it.p.type)));
 const cols = only ? Math.max(1, Math.min(3, items.length)) : 6, gap = 11;
 const rows = Math.ceil(items.length / cols);
@@ -86,7 +94,8 @@ if (showBlockies) {
   const legends = [makeBuilder(1, 0), ...(CONFIG.legends || []).map((legend, i) => {
     const b = makeBuilder(100 + i, 0, { usd: CONFIG.tiers[1].min }, noLegend);
     return { ...b, legend, legendIdx: i, name: legend.name };
-  })].map((b) => ({ ...b, label: `★ ${b.legend.name}`, pose: 'stand' }));
+  })].map((b) => ({ ...b, label: `★ ${b.legend.name}`, pose: 'stand' }))
+    .filter((b) => !pickedLegends.length || pickedLegends.includes(b.legend.name.toLowerCase()));
   const lines = [];
   if (!legendsOnly) lines.push(people);
   const perRow = Math.ceil(legends.length / Math.ceil(legends.length / 8)); // even rows of up to 8

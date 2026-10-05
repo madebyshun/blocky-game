@@ -228,15 +228,28 @@ async function computeFees() {
   return { progressUsd: feesUsd, feesUsd, population: 1 + Math.floor(feesUsd / FEE_PER), arrivals, cityStart, source, breakdown };
 }
 
-// Price moves drive the city's weather. Best-liquidity pair where $BLOCKY is the base token.
+// Price moves drive the city's weather; the Base Stock Exchange shows the quotes. Best-liquidity pair
+// where $BLOCKY is the base token, plus the token it trades against (NVDAc: its USD price follows
+// from the pair) and any STOCK_TOKENS (comma-separated token addresses on Base).
+const STOCKS = (env.STOCK_TOKENS || '').split(',').map((a) => a.trim().toLowerCase()).filter(Boolean);
+const bestPair = (pairs, address) => pairs
+  .filter((p) => p.chainId === 'base' && p.baseToken?.address?.toLowerCase() === address)
+  .sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
 async function market() {
   try {
-    const res = await fetch(`https://api.dexscreener.com/tokens/v1/base/${TOKEN}`);
+    const res = await fetch(`https://api.dexscreener.com/tokens/v1/base/${[TOKEN, ...STOCKS].join(',')}`);
     if (!res.ok) return null;
-    const pairs = (await res.json()).filter((p) => p.baseToken?.address?.toLowerCase() === TOKEN.toLowerCase());
-    const p = pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+    const pairs = await res.json();
+    const p = bestPair(pairs, TOKEN.toLowerCase());
     if (!p) return null;
-    return { priceUsd: Number(p.priceUsd), change1h: Number(p.priceChange?.h1 ?? 0), change24h: Number(p.priceChange?.h24 ?? 0), volume24h: Number(p.volume?.h24 ?? 0) };
+    const stocks = [];
+    const native = Number(p.priceNative);
+    if (p.quoteToken?.symbol && native > 0) stocks.push({ symbol: p.quoteToken.symbol, priceUsd: Number(p.priceUsd) / native });
+    for (const a of STOCKS) {
+      const s = bestPair(pairs, a);
+      if (s && !stocks.some((x) => x.symbol === s.baseToken.symbol)) stocks.push({ symbol: s.baseToken.symbol, priceUsd: Number(s.priceUsd), change24h: Number(s.priceChange?.h24 ?? 0) });
+    }
+    return { priceUsd: Number(p.priceUsd), change1h: Number(p.priceChange?.h1 ?? 0), change24h: Number(p.priceChange?.h24 ?? 0), volume24h: Number(p.volume?.h24 ?? 0), stocks };
   } catch {
     return null;
   }

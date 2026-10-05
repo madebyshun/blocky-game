@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { hash, PITCH, isWater } from './sim.js';
 import { now } from './time.js';
-import { makeService } from './fleet.js';
+import { makeService, makeDrone } from './fleet.js';
 
 // ---------- materials & merged-box kits ----------
 
@@ -240,6 +240,71 @@ function billboard(k, x, y, z, w, h, slot, posts = 0.6) {
   panel.position.set(x, y + posts + h / 2, z + 0.0);
   panel.userData.sponsor = sp;
   k.extras.push(panel);
+}
+
+// ---------- live market boards: the Base Stock Exchange ticker and big board ----------
+// Shared canvas textures, redrawn by updateBoards() whenever new market data arrives; every
+// exchange and brokerage in the city (and the gallery) shows the same live numbers.
+
+const MOOD = { up: true }; // bull or bear out front
+const tickerCanvas = document.createElement('canvas');
+tickerCanvas.width = 2048; tickerCanvas.height = 64;
+const TICKER_TEX = new THREE.CanvasTexture(tickerCanvas);
+TICKER_TEX.colorSpace = THREE.SRGBColorSpace;
+TICKER_TEX.wrapS = THREE.RepeatWrapping;
+TICKER_TEX.repeat.x = 0.45;
+const TICKER_MAT = new THREE.MeshBasicMaterial({ map: TICKER_TEX });
+const bigCanvas = document.createElement('canvas');
+bigCanvas.width = 512; bigCanvas.height = 256;
+const BIG_TEX = new THREE.CanvasTexture(bigCanvas);
+BIG_TEX.colorSpace = THREE.SRGBColorSpace;
+const BIG_MAT = new THREE.MeshBasicMaterial({ map: BIG_TEX });
+
+const price = (v) => (v >= 1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(4) : v.toPrecision(4));
+const compact = (v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : v.toFixed(0));
+const pct = (c) => `${c >= 0 ? '▲' : '▼'} ${Math.abs(c).toFixed(1)}%`;
+
+export function updateBoards({ market = null, population = 0 } = {}) {
+  MOOD.up = !market || market.change24h >= 0;
+  const items = [];
+  if (market) items.push([`${CONFIG.ticker} $${price(market.priceUsd)}`, market.change24h]);
+  for (const st of market?.stocks || []) items.push([`${st.symbol} $${price(st.priceUsd)}`, st.change24h]);
+  if (market?.volume24h) items.push([`VOL 24H $${compact(market.volume24h)}`]);
+  if (population) items.push([`${population} BLOCKIES BUILDING`]);
+  items.push([`${CONFIG.cityName.toUpperCase()} STOCK EXCHANGE`]);
+  const g = tickerCanvas.getContext('2d');
+  g.fillStyle = '#05070b'; g.fillRect(0, 0, 2048, 64);
+  g.font = '700 38px "Courier New", ui-monospace, monospace'; g.textBaseline = 'middle';
+  let x = 20;
+  while (x < 2048) {
+    for (const [label, change] of items) {
+      g.fillStyle = '#ffc83d'; g.fillText(label, x, 34); x += g.measureText(label).width + 16;
+      if (typeof change === 'number') { g.fillStyle = change >= 0 ? '#2ee87a' : '#ff5c5c'; const t = pct(change); g.fillText(t, x, 34); x += g.measureText(t).width + 16; }
+      g.fillStyle = '#4a5568'; g.fillText('◆', x, 34); x += 48;
+    }
+  }
+  TICKER_TEX.needsUpdate = true;
+  const b = bigCanvas.getContext('2d');
+  b.fillStyle = '#05070b'; b.fillRect(0, 0, 512, 256);
+  b.strokeStyle = '#1f2937'; b.lineWidth = 8; b.strokeRect(4, 4, 504, 248);
+  b.textAlign = 'center'; b.textBaseline = 'middle';
+  b.fillStyle = '#ffc83d'; b.font = '800 54px Inter, system-ui, sans-serif'; b.fillText(CONFIG.ticker, 256, 62);
+  if (market) {
+    b.fillStyle = MOOD.up ? '#2ee87a' : '#ff5c5c'; b.font = '800 84px Inter, system-ui, sans-serif'; b.fillText(pct(market.change24h), 256, 146);
+    b.fillStyle = '#9aa6b8'; b.font = '700 30px "Courier New", monospace'; b.fillText(`$${price(market.priceUsd)} · 24H`, 256, 214);
+  } else {
+    b.fillStyle = '#9aa6b8'; b.font = '700 34px Inter, system-ui, sans-serif'; b.fillText('MARKET OPENING', 256, 150);
+  }
+  BIG_TEX.needsUpdate = true;
+}
+updateBoards();
+
+// a scrolling LED strip on a facade (faces +z)
+function tickerStrip(k, w, h, x, y, z) {
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(w, h), TICKER_MAT);
+  strip.position.set(x, y, z);
+  strip.userData.animate = (t) => { TICKER_TEX.offset.x = (t * 0.035) % 1; };
+  k.extras.push(strip);
 }
 
 // ---------- building designs (local coords, lot centre = origin, door faces +z) ----------
@@ -820,7 +885,87 @@ Object.assign(DESIGN, {
     k.box(0.8, 0.8, 0.6, 0xd5d8dc, 2.6, Y, 2.75); k.green(0.12, 0.12, 0.06, 2.6, Y + 0.6, 3.06); // inverter
     fence(k, 6.2, 6.2, 0x9aa3ad, 1.2);
   },
+  // glass office with glowing floors, a robot-head logo and a drone pad on the roof
+  aistartup(k, p) {
+    sidewalk(k);
+    const h = Math.max(3, p.h || 3), oz = -0.6;
+    k.box(4, h, 4, 0xdfe8f5, 0, Y, oz);
+    for (let f = 0; f < h; f++) { // blue glass floors with lit desks at night
+      k.box(4.06, 0.72, 4.06, 0x7fb2e5, 0, Y + f + 0.18, oz);
+      for (const x of [-1.2, 0, 1.2]) { k.win(0.7, 0.3, 4.08, x, Y + f + 0.38, oz); k.win(4.08, 0.3, 0.7, 0, Y + f + 0.38, oz + x); }
+    }
+    k.box(4.2, 0.15, 4.2, 0xb8c4d6, 0, Y + h, oz);
+    k.box(0.9, 1.2, 0.06, 0x2b2f36, 0, Y, oz + 2.03);
+    k.box(2.2, 0.42, 0.08, 0x7c3aed, 0, Y + 1.3, oz + 2.05); // sign
+    for (let i = 0; i < 5; i++) k.box(0.22, 0.2, 0.02, C.white, -0.7 + i * 0.35, Y + 1.41, oz + 2.1);
+    const top = Y + h + 0.15;
+    k.box(1.2, 1, 1, C.white, -0.9, top, oz - 0.9); // robot-head logo
+    k.green(0.26, 0.2, 0.04, -1.15, top + 0.5, oz - 0.38); k.green(0.26, 0.2, 0.04, -0.65, top + 0.5, oz - 0.38);
+    k.box(0.06, 0.4, 0.06, C.dark, -0.9, top + 1, oz - 0.9); k.blue(0.16, 0.16, 0.16, -0.9, top + 1.4, oz - 0.9);
+    k.box(1.4, 0.05, 1.4, 0x3b4048, 0.9, top, oz + 0.8); k.blue(1.0, 0.02, 0.06, 0.9, top + 0.05, oz + 0.8); // drone pad
+    const d = makeDrone();
+    d.position.set(0.9, top + 0.22, oz + 0.8);
+    d.userData.parcel.visible = false;
+    k.extras.push(d);
+    for (const x of [-2.6, 2.6]) bush(k, x, 2.4, p.k + x);
+  },
+  // a small trading shop: glass front, LED ticker, green awning, a candlestick chart on the roof
+  brokerage(k, p) {
+    sidewalk(k);
+    const navy = 0x1b2a4a;
+    k.box(4, 2.3, 3, navy, 0, Y, -1.2);
+    k.win(3.4, 1.2, 0.06, 0, Y + 0.15, 0.33);
+    k.box(4.2, 0.2, 3.2, 0x111827, 0, Y + 2.3, -1.2);
+    k.box(4.2, 0.12, 0.9, 0x16a34a, 0, Y + 1.45, 0.75);
+    tickerStrip(k, 3.8, 0.34, 0, Y + 1.95, 0.32);
+    k.box(2.6, 1.3, 0.12, C.dark, 0, Y + 2.5, -0.8); // chart sign
+    [[0.4, 0.3, 1], [0.55, 0.45, 1], [0.35, 0.65, 0], [0.6, 0.6, 1], [0.7, 0.85, 1], [0.4, 0.75, 0]].forEach(([hh, y0, up], i) => {
+      const x = -1.0 + i * 0.4;
+      k.box(0.04, hh + 0.2, 0.04, up ? 0x2ee87a : 0xff5c5c, x, Y + 2.5 + y0 - 0.1, -0.72);
+      k.box(0.2, hh, 0.04, up ? 0x2ee87a : 0xff5c5c, x, Y + 2.5 + y0, -0.71);
+    });
+    k.box(1.2, 0.3, 0.4, C.wood, -2.3, Y, 2.4); bush(k, 2.5, 2.5, p.k);
+  },
 });
+
+// ---------- market statues: the bull when $BLOCKY is up over 24h, the bear when it is down ----------
+const bullKit = () => kitFor((k) => {
+  const gold = 0xd4a017, horn = 0xf3e2a0;
+  k.box(1.1, 0.5, 0.5, gold, 0, 0.32, 0);
+  k.box(0.5, 0.56, 0.54, gold, 0.3, 0.3, 0); // shoulders
+  k.box(0.36, 0.36, 0.4, gold, 0.68, 0.32, 0); // head, lowered to charge
+  k.box(0.1, 0.1, 0.72, horn, 0.72, 0.66, 0); k.box(0.08, 0.18, 0.08, horn, 0.76, 0.7, 0.34); k.box(0.08, 0.18, 0.08, horn, 0.76, 0.7, -0.34);
+  k.box(0.06, 0.1, 0.1, 0x3a2a10, 0.87, 0.42, 0);
+  for (const [x, z] of [[-0.4, -0.15], [-0.4, 0.15], [0.35, -0.15], [0.35, 0.15]]) k.box(0.14, 0.34, 0.14, gold, x, 0, z);
+  k.box(0.06, 0.3, 0.06, gold, -0.58, 0.5, 0); k.box(0.1, 0.1, 0.1, gold, -0.6, 0.78, 0);
+});
+const bearKit = () => kitFor((k) => {
+  const fur = 0x7a3b2a, snout = 0xc28a6a;
+  k.box(1.0, 0.58, 0.6, fur, -0.05, 0.3, 0);
+  k.box(0.44, 0.42, 0.46, fur, 0.6, 0.4, 0); k.box(0.2, 0.16, 0.24, snout, 0.85, 0.44, 0);
+  k.box(0.06, 0.06, 0.06, 0x111111, 0.96, 0.54, 0);
+  k.box(0.12, 0.12, 0.08, fur, 0.55, 0.84, 0.16); k.box(0.12, 0.12, 0.08, fur, 0.55, 0.84, -0.16); // ears
+  for (const [x, z] of [[-0.4, -0.18], [-0.4, 0.18], [0.35, -0.18], [0.35, 0.18]]) k.box(0.18, 0.3, 0.18, fur, x, 0, z);
+});
+function marketStatue(k, x, y, z, ry) {
+  const g = new THREE.Group(), bull = bullKit(), bear = bearKit();
+  g.add(bull, bear);
+  g.position.set(x, y, z);
+  g.rotation.y = ry;
+  g.userData.animate = () => { bull.visible = MOOD.up; bear.visible = !MOOD.up; };
+  k.extras.push(g);
+}
+
+// translucent holographic agent heads over the AI Agent Hub plaza
+const HOLO = new THREE.MeshLambertMaterial({ color: 0x66e0ff, emissive: 0x00b4ff, emissiveIntensity: 0.9, transparent: true, opacity: 0.55, depthWrite: false });
+function hologram() {
+  const g = new THREE.Group();
+  const part = (w, h, d, x, y, z) => { const m = new THREE.Mesh(UNIT, HOLO); m.scale.set(w, h, d); m.position.set(x, y, z); g.add(m); };
+  part(0.9, 0.75, 0.8, 0, 0, 0); part(0.14, 0.12, 0.05, -0.2, 0.08, 0.43); part(0.14, 0.12, 0.05, 0.2, 0.08, 0.43);
+  part(0.4, 0.06, 0.05, 0, -0.18, 0.43); part(0.06, 0.35, 0.06, 0, 0.55, 0); part(0.14, 0.14, 0.14, 0, 0.76, 0);
+  part(0.1, 0.3, 0.3, -0.5, 0, 0); part(0.1, 0.3, 0.3, 0.5, 0, 0);
+  return g;
+}
 
 // the coaster's track: a figure-loop with two drops (local lot coords)
 function coasterPoint(a) {
@@ -1009,6 +1154,58 @@ const LANDMARK = {
     };
     k.extras.push(plane);
   },
+  // a neoclassical exchange: columns, a live LED ticker on the frieze, a big board on the roof and
+  // the bull (or bear) out front, all following $BLOCKY
+  exchange(k) {
+    sidewalk(k);
+    const stone = 0xe9e4d8, stone2 = 0xd8d1bf;
+    k.box(5.6, 0.4, 4.4, stone2, 0, Y, -0.8);
+    k.box(3.6, 0.2, 0.6, stone2, 0, Y, 1.7); k.box(3.6, 0.1, 0.4, stone2, 0, Y, 2.1);
+    k.box(5.0, 3.4, 3.0, 0xdcd5c4, 0, Y + 0.4, -1.4);
+    windows(k, 5.0, 3.0, Y + 0.4, 3, false, 0, -1.4);
+    k.win(4.6, 2.2, 0.06, 0, Y + 0.5, 0.13); // the trading floor glowing behind the columns
+    for (let i = 0; i < 6; i++) k.box(0.32, 2.6, 0.32, 0xf7f4ec, -2.2 + i * 0.88, Y + 0.4, 1.0);
+    k.box(5.4, 0.45, 1.8, stone, 0, Y + 3.0, 0.35);
+    k.box(5.2, 0.3, 1.7, stone, 0, Y + 3.45, 0.35); k.box(3.8, 0.3, 1.6, stone, 0, Y + 3.75, 0.35); k.box(2.2, 0.3, 1.5, stone, 0, Y + 4.05, 0.35);
+    k.box(5.2, 0.2, 3.2, stone2, 0, Y + 3.8, -1.4);
+    tickerStrip(k, 5.2, 0.34, 0, Y + 3.22, 1.26);
+    k.box(2.8, 1.5, 0.15, C.dark, 0, Y + 4.0, -1.7); // big board
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), BIG_MAT);
+    board.position.set(0, Y + 4.75, -1.62);
+    k.extras.push(board);
+    for (const x of [-2.3, 2.3]) { k.box(0.06, 1.2, 0.06, C.dark, x, Y + 4.0, -2.6); k.box(0.6, 0.35, 0.03, C.base, x + 0.3, Y + 4.85, -2.6); }
+    k.box(0.9, 0.35, 1.5, 0x9aa3ad, 2.4, Y, 2.3); // plinth
+    marketStatue(k, 2.4, Y + 0.35, 2.3, -Math.PI / 2);
+  },
+  // the AI Agent Hub: a dark glass tower with glowing floors, server racks and a hologram plaza
+  agenthub(k) {
+    k.box(6.4, Y, 6.4, 0x2b2f36);
+    for (const v of [-1.6, 1.6]) { k.blue(6.4, 0.02, 0.05, 0, Y, v + 0.8); k.blue(0.05, 0.02, 6.4, v + 0.8, Y, 0); }
+    const glass = 0x1d2433;
+    k.box(3.2, 7.2, 3.2, glass, -1.2, Y, -1.2);
+    for (let f = 0; f < 7; f++) k.blue(3.24, 0.08, 3.24, -1.2, Y + 0.9 + f, -1.2);
+    for (const [x, z] of [[-2.8, -2.8], [0.4, -2.8], [-2.8, 0.4], [0.4, 0.4]]) k.box(0.14, 7.2, 0.14, 0x3b4458, x, Y, z);
+    k.box(3.4, 0.3, 3.4, 0x2b3242, -1.2, Y + 7.2, -1.2);
+    k.box(1.6, 0.05, 1.6, 0x3b4048, -1.2, Y + 7.5, -1.2); k.blue(1.2, 0.02, 0.06, -1.2, Y + 7.55, -1.2);
+    k.box(0.1, 1.6, 0.1, C.dark, -0.2, Y + 7.5, -2.3); k.green(0.18, 0.18, 0.18, -0.2, Y + 9.1, -2.3);
+    k.box(2.6, 0.55, 0.06, C.base, -1.2, Y + 5.4, 0.43); // AGENTS sign
+    for (let i = 0; i < 6; i++) k.box(0.24, 0.26, 0.02, C.white, -2.05 + i * 0.34, Y + 5.54, 0.47);
+    k.box(1.0, 1.4, 0.06, 0x111827, -1.2, Y, 0.42);
+    for (let i = 0; i < 3; i++) { // server racks
+      const x = 1.3 + i * 0.75;
+      k.box(0.55, 1.5, 1.8, 0x15181f, x, Y, -2.0);
+      for (let r = 0; r < 4; r++) k.green(0.4, 0.05, 0.02, x, Y + 0.3 + r * 0.3, -1.09);
+    }
+    k.box(1.3, 0.25, 1.3, 0x3b4048, 1.6, Y, 1.6); k.blue(1.0, 0.06, 1.0, 1.6, Y + 0.25, 1.6); // projector
+    const holo = hologram();
+    holo.position.set(1.6, Y + 1.5, 1.6);
+    holo.userData.animate = (t) => { holo.rotation.y = t * 0.8; holo.position.y = Y + 1.5 + Math.sin(t * 1.6) * 0.12; };
+    k.extras.push(holo);
+    const d = makeDrone();
+    d.position.set(-1.2, Y + 7.72, -1.2);
+    d.userData.parcel.visible = false;
+    k.extras.push(d);
+  },
   beacon(k) {
     k.box(3, 1, 3, C.stone, 0, 0, 0);
     k.box(1.6, 18, 1.6, 0xe9eef5, 0, 1, 0);
@@ -1091,6 +1288,7 @@ export function createCity(scene) {
   let roadSig = '';
   let snapshot = { land: 0, next: null, placed: 0 };
   let counts = {}; // finished buildings by type (service vehicles read it)
+  let built = []; // finished lots: { x, z, h, type } (the AI agent drones fly between them)
   const graph = { nodes: new Map(), adj: new Map(), version: 0 };
 
   function setLot(key, lot, kind, k, group, animate) {
@@ -1338,7 +1536,12 @@ export function createCity(scene) {
     if (sim.next.lot) dev.add(lotKey(sim.next.lot));
     developed = dev;
     counts = {};
-    for (const p of sim.done) if (p.lot) counts[p.type] = (counts[p.type] || 0) + 1;
+    built = [];
+    for (const p of sim.done) {
+      if (!p.lot) continue;
+      counts[p.type] = (counts[p.type] || 0) + 1;
+      built.push({ x: p.lot[0] * PITCH, z: p.lot[1] * PITCH, h: p.h ?? 2, type: p.type });
+    }
     updateSite(sim.next, sim.placed);
     buildRoads();
     snapshot = { land: sim.land, next: sim.next, placed: sim.placed };
@@ -1439,6 +1642,7 @@ export function createCity(scene) {
     feePulse: () => (pulse = 1),
     get land() { return land; },
     get counts() { return counts; },
+    get built() { return built; },
     get siteVersion() { return siteVersion; },
     helipad: [1.8, 1.8],
   };

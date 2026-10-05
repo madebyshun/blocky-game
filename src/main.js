@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG } from './config.js';
-import { createCity } from './city.js';
+import { createCity, updateBoards } from './city.js';
+import { createAgents } from './agents.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
@@ -135,6 +136,7 @@ if (qs.has('photo')) setPhoto(true);
 const city = createCity(scene);
 const traffic = createTraffic(city);
 const metro = createMetro(city);
+const agents = createAgents(city);
 const sky = createSky(city);
 const weather = createWeather(city);
 let market = null;
@@ -205,6 +207,7 @@ function applyState(s, first) {
   pot = s.potUsd ?? 0;
   if (s.crew) crewInfo = s.crew;
   if (s.market) { market = s.market; weather.setMarket(market); }
+  updateBoards({ market, population: Math.max(population, s.population || 0) });
   for (const b of [...(s.recentBuys || [])].reverse()) {
     const key = `${b.at}|${b.from}|${b.usd}`;
     if (loggedBuys.has(key)) continue;
@@ -487,6 +490,12 @@ function headlines() {
   if (sim.blocked) out.push(`<b>CITY HALL:</b> the land is full. ${sim.blocked.need - sim.blocked.have} more ${plural} needed to expand`);
   const next = nextGoal();
   if (next) out.push(`<b>COMING SOON:</b> ${next.label} breaks ground at ${next.at} ${plural}`);
+  if (market) {
+    const quotes = [[CONFIG.ticker, market.priceUsd, market.change24h], ...(market.stocks || []).map((st) => [st.symbol, st.priceUsd, st.change24h])];
+    const fmtP = (v) => (v >= 1 ? v.toFixed(2) : v.toPrecision(4));
+    out.push(`<b>MARKETS:</b> ${quotes.map(([sym, p, c]) => `${sym} $${fmtP(p)}${typeof c === 'number' ? ` <span class="${c >= 0 ? 'up' : 'down'}">${c >= 0 ? '▲' : '▼'}${Math.abs(c).toFixed(1)}%</span>` : ''}`).join(' · ')}`);
+  }
+  if (agents.count) out.push(`<b>AGENTS:</b> ${agents.count} AI agent drones are flying deliveries over ${CONFIG.cityName}${agents.deliveries ? `, ${fmt(agents.deliveries)} parcels delivered since you arrived` : ''}`);
   if (sim.metroBuilt) out.push(`<b>TRANSIT:</b> ${CONFIG.metro.label} trains run every few minutes around the ring road`);
   const services = Object.entries({ firestation: 'fire trucks', police: 'police cars', hospital: 'ambulances', recycling: 'garbage trucks' }).filter(([t]) => city.counts[t]);
   if (services.length) out.push(`<b>CITY SERVICES:</b> ${services.map(([, v]) => v).join(', ')} on patrol in ${CONFIG.cityName}`);
@@ -527,6 +536,7 @@ function frame() {
   city.update(t, dt);
   traffic.update(t, dt);
   metro.update(t, dt);
+  agents.update(t, dt);
   sky.update(t, dt);
   weather.update(t, dt);
   for (const v of views) v?.update(t, dt);
@@ -564,4 +574,4 @@ function frame() {
   setInterval(async () => applyState(await fetchColony(), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
 })();
 
-window.blocky = { city, builders, views, get sim() { return sim; } };
+window.blocky = { city, builders, views, agents, get sim() { return sim; } };

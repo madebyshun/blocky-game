@@ -4,7 +4,8 @@ import { hash, PITCH } from './sim.js';
 // The centre is always Downtown. Names stick once given, so the community can refer to places.
 
 const CATEGORY = {
-  tech: ['office', 'devhub', 'gpufarm', 'tower', 'skyscraper', 'school', 'hq', 'datalab', 'hackathon', 'launchpad', 'beacon', 'studio', 'airport'],
+  tech: ['office', 'devhub', 'gpufarm', 'tower', 'skyscraper', 'school', 'hq', 'datalab', 'hackathon', 'launchpad', 'beacon', 'studio', 'airport', 'agenthub', 'aistartup'],
+  finance: ['exchange', 'brokerage'],
   civic: ['firestation', 'police', 'hospital'],
   fun: ['coaster', 'ferris', 'carousel', 'park', 'lakepark', 'playground', 'pool', 'soccer', 'skatepark', 'stage', 'icecream', 'court', 'flowergarden', 'stadium', 'liberty', 'wonder'],
   home: ['cottage', 'house', 'townhouses', 'apartment', 'villa', 'garage'],
@@ -18,6 +19,7 @@ const NAMES = {
   green: ['Green Acres', 'Windy Fields', 'Sprout Meadows', 'Harvest Hollow'],
   shop: ['Market Street', 'Café Quarter', 'Shopside'],
   civic: ['Civic Center', 'Rescue Row', 'Safety Square'],
+  finance: ['Bull Street', 'Wall Block', 'Trading Row'],
 };
 const catOf = Object.fromEntries(Object.entries(CATEGORY).flatMap(([c, types]) => types.map((t) => [t, c])));
 

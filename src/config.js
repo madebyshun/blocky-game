@@ -102,6 +102,8 @@ export const CONFIG = {
     { at: 2, id: 'liberty', label: 'Statue of Blockerty', lot: [2, 1] }, // the city icon, on a riverside point
     { at: 3, id: 'cafe', label: 'gm Café', lot: [-1, 0] },
     { at: 5, id: 'hq', label: 'Builder HQ', lot: [0, -1] },
+    { at: 6, id: 'exchange', label: 'Base Stock Exchange', lot: [1, -1] }, // live $BLOCKY + stock ticker, bull or bear out front
+    { at: 7, id: 'agenthub', label: 'AI Agent Hub', lot: [-1, 1] }, // launches the city's AI agent drones
     { at: 8, id: 'hackathon', label: 'Hackathon Hall', lot: [-1, -2] },
     { at: 10, id: 'airport', label: 'Base Airport', lot: [-3, -3] }, // community goal: planes take off and land
     { at: 12, id: 'studio', label: 'Design Studio', lot: [-2, 1] },
