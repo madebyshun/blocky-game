@@ -6,12 +6,24 @@ export const CONFIG = {
   tagline: 'A city built 24/7 by Blockies, the builders of Base',
   citizen: 'Blocky', // one inhabitant (a builder on Base)
   citizenPlural: 'Blockies',
-  usdPerBlocky: 5, // every $5 of $BLOCKY bought brings one new Blocky (must match USD_PER_BLOCKY on the API)
+  usdPerBlocky: 5, // a buy of $5+ brings one Blocky; smaller buys add up in the community pot (USD_PER_BLOCKY on the API)
+
+  // One buy = one Blocky. The size of the buy decides who arrives and how skilled they are
+  // (skill grows linearly from skill[0] at `min` to skill[1] at the next tier). Base Builders can
+  // build what regular Blockies can't (towers, skyscrapers, big rides); a Whale also gets a wonder.
+  tiers: [
+    { id: 'blocky', label: 'Blocky', min: 5, skill: [1, 2] },
+    { id: 'base', label: 'Base Builder', min: 100, skill: [3, 4], pro: true },
+    { id: 'whale', label: 'Whale', min: 1000, skill: [5, 5], pro: true, wonder: true },
+  ],
+  founderSkill: 2,
 
   // When the city starts from empty land. Normally the API decides this (LAUNCH_TIME_MS, or the
   // first time the live API ran, stored in KV). Leave null to start "now" when no API value exists.
   cityStart: null,
-  blocksPerHour: 24, // work rate of one Blocky; more Blockies = faster city
+  // A 1x Blocky alone places this many blocks per hour. A crew shares one site, so speed grows with
+  // the square root of the crew's total skill: 4x the skill = 2x faster. Big buildings take hours.
+  blocksPerHour: 14,
   dayLengthMin: 20, // one day/night cycle in real minutes (same for every visitor)
 
   // Square land of (2*startLand+1)^2 lots. When every lot is built, the Blockies expand the land
@@ -32,24 +44,52 @@ export const CONFIG = {
   chartUrl: 'https://dexscreener.com/base/0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
   xHandle: '', // e.g. blockyfun (without @)
 
-  // Billboards around the city (Town Square + rooftops). Empty = "your project here" ads that sell the slot.
-  // Add a sponsor and redeploy: { name, tagline, color, url }. Clicking a billboard opens its url.
+  // Billboards around the city (Town Square + rooftops) rotate through this list plus one "YOUR PROJECT
+  // HERE" slot that sells the space. Clicking a billboard opens its url.
+  //   { name, tagline, color, textColor?, logo?, url, sponsored? }
+  // logo: a logo drawn in code (LOGOS in src/city.js). sponsored: true for paid placements; the news
+  // ticker then says SPONSORED instead of BUILT ON BASE.
   sponsors: [
-    // { name: 'YourProject', tagline: 'Built on Base', color: '#0052ff', url: 'https://yourproject.xyz' },
+    { name: 'Coinbase Wallet', tagline: 'Self-custody, built for Base', color: '#121a2b', logo: 'cbwallet', url: 'https://www.coinbase.com/wallet' },
+    { name: 'o1.exchange', tagline: 'Trade onchain', color: '#1b1b1b', logo: 'o1', url: 'https://o1.exchange' },
+    { name: 'Virtuals', tagline: 'AI agents on Base', color: '#d6f5e6', textColor: '#1f6f6c', logo: 'virtuals', url: 'https://app.virtuals.io' },
+    { name: 'bankrbot', tagline: 'Your AI banker on Base', color: '#7b2ff2', logo: 'bankr', url: 'https://bankr.bot' },
+    { name: 'Aero', tagline: 'Liquidity hub of Base', color: '#efefef', textColor: '#1f2a44', logo: 'aero', url: 'https://aerodrome.finance' },
   ],
   adContact: '', // shown on empty billboards, e.g. 'DM @blockyfun'; defaults to xHandle
   siteUrl: '', // canonical URL used in share text
 
-  // Legendary Blockies with a hand-made look, by Blocky number. `title` replaces the random role name. #1 is the founder (you); #2-#6 go
-  // to the first buyers. Looks: founder, halo, punk, spartan, robo, hoodie (LEGEND_LOOKS in src/citizens.js).
-  legends: {
-    1: { look: 'founder', name: 'Founder', label: 'The Founder', title: 'Founder' },
-    2: { look: 'halo', name: 'Nibel', label: 'Nibel', title: 'Base Builder' },
-    3: { look: 'punk', name: 'Jesse', label: 'Jesse', title: 'Builder 001' },
-    4: { look: 'spartan', name: 'Xen', label: 'Xen', title: 'Base Builder' },
-    5: { look: 'robo', name: 'Poet', label: 'Poet', title: 'Base Builder' },
-    6: { look: 'hoodie', name: 'Brian', label: 'Brian', title: 'CEO' },
-  },
+  // Blocky #1: you.
+  founder: { look: 'founder', name: 'Founder', title: 'Founder' },
+
+  // Real Base builders who live in the city as legends. Add as many as you like:
+  //   { name, title, look?, wallet? }
+  // - wallet: when this wallet buys (any size), its Blocky arrives as this legend.
+  // - no wallet: the next Base Builder or Whale (a $100+ buy) arrives as this legend, in list order.
+  // - look: a hand-made outfit from LEGEND_LOOKS in src/citizens.js (halo, punk, spartan, robo, hoodie).
+  //   Without one they wear the Base Builder uniform with a gold star.
+  legends: [
+    { name: 'Nibel', title: 'Base Builder', look: 'halo' },
+    { name: 'Jesse', title: 'Builder 001', look: 'punk' },
+    { name: 'Xen', title: 'Base Builder', look: 'spartan' },
+    { name: 'Poet', title: 'Base Builder', look: 'robo' },
+    { name: 'Brian', title: 'CEO', look: 'hoodie' },
+    { name: 'Saumya Saxena', title: 'Base Builder', look: 'pixelspike' },
+    { name: 'Jerry Pan', title: 'Base Builder', look: 'goat' },
+    { name: 'Ahaan Raizada', title: 'Base Builder', look: 'pixelhat' },
+    { name: 'Jeremy Grinberg', title: 'Base Builder', look: 'crewneck' },
+    { name: 'Jon Roethke', title: 'Base Builder', look: 'blazer' },
+    { name: 'Kien Nguyen', title: 'Base Builder', look: 'kimono' },
+    { name: 'Toady Hawk', title: 'Base Builder', look: 'frog' },
+    { name: 'mleejr', title: 'Base Builder', look: 'doodle' },
+    { name: 'Kevin', title: 'Base Builder', look: 'skyblue' },
+    { name: 'deployer', title: 'Base Builder', look: 'floatie' },
+    { name: 'David Tso', title: 'Base Builder', look: 'pixelpunk' },
+    { name: 'mrtdlgc', title: 'Base Builder', look: 'dreamer' },
+    { name: 'Quigley', title: 'Base Builder', look: 'hoodbot' },
+    { name: 'DonJohnson', title: 'Base Builder', look: 'apeslime' },
+    { name: 'everythingempty', title: 'Base Builder', look: 'dragonrider' },
+  ],
 
   // Landmarks: once the Blocky count reaches `at`, the crew builds it next on its reserved lot [x, z].
   landmarks: [
@@ -62,8 +102,8 @@ export const CONFIG = {
     { at: 10, id: 'airport', label: 'Base Airport', lot: [-3, -3] }, // community goal: planes take off and land
     { at: 12, id: 'studio', label: 'Design Studio', lot: [-2, 1] },
     { at: 20, id: 'datalab', label: 'Data Lab', lot: [-3, -1] },
-    { at: 35, id: 'launchpad', label: 'Launchpad Tower', lot: [-1, 3] },
-    { at: 50, id: 'stadium', label: 'Demo Day Stadium', lot: [-3, 2] },
-    { at: 100, id: 'beacon', label: 'Onchain Beacon', lot: [-2, -4] },
+    { at: 35, id: 'launchpad', label: 'Launchpad Tower', lot: [-1, 3], pro: true }, // pro: needs a Base Builder in the crew
+    { at: 50, id: 'stadium', label: 'Demo Day Stadium', lot: [-3, 2], pro: true },
+    { at: 100, id: 'beacon', label: 'Onchain Beacon', lot: [-2, -4], pro: true },
   ],
 };

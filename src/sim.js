@@ -36,35 +36,59 @@ const NAMES = [
 const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac, 0xf5d0a9];
 const SHIRT = [0x3fa34d, 0x2e86de, 0xe67e22, 0x9b59b6, 0xe74c3c, 0x1abc9c, 0xf1c40f, 0x34495e];
 const HOUR = 3600000;
+const FOUNDER_TIER = { id: 'founder', label: 'Founder', skill: [CONFIG.founderSkill, CONFIG.founderSkill] };
 
-export function makeBuilder(id, arrivedAt) {
-  const legend = CONFIG.legends?.[id] ?? null;
-  let role = id === 1 ? ROLES[0] : ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))];
+// One buy = one Blocky; the buy's size picks the tier and the skill inside it.
+export function tierOf(usd) {
+  let tier = CONFIG.tiers[0];
+  for (const t of CONFIG.tiers) if (usd >= t.min) tier = t;
+  return tier;
+}
+export function skillFor(usd) {
+  const t = tierOf(usd), next = CONFIG.tiers[CONFIG.tiers.indexOf(t) + 1];
+  const f = next ? Math.min(1, Math.max(0, (usd - t.min) / (next.min - t.min))) : 0;
+  return t.skill[0] + (t.skill[1] - t.skill[0]) * f;
+}
+
+// Which legend (index into CONFIG.legends) a new Blocky becomes, if any: a legend's own wallet
+// buying brings that legend; otherwise the next wallet-less legend goes to the next Base Builder.
+function legendFor(info, tier, taken) {
+  const list = CONFIG.legends || [];
+  const from = info?.from?.toLowerCase();
+  let i = from ? list.findIndex((l, k) => !taken.has(k) && l.wallet?.toLowerCase() === from) : -1;
+  if (i < 0 && tier.pro && !tier.wonder) i = list.findIndex((l, k) => !taken.has(k) && !l.wallet);
+  return i;
+}
+
+// info: who brought it ({ from, usd, tx, pot }) from the API; taken: legend indexes already in the city.
+export function makeBuilder(id, arrivedAt, info = null, taken = new Set()) {
+  const founder = id === 1;
+  const usd = founder ? 0 : info?.usd ?? CONFIG.usdPerBlocky;
+  const tier = founder ? FOUNDER_TIER : tierOf(usd);
+  const legendIdx = founder ? -1 : legendFor(info, tier, taken);
+  const legend = founder ? CONFIG.founder ?? null : CONFIG.legends?.[legendIdx] ?? null;
+  let role = founder ? ROLES[0] : ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))];
   if (legend?.title) role = { ...role, label: legend.title };
   return {
     id,
     name: `${legend ? legend.name : pick(NAMES, id, 14)} #${id}`,
     role,
+    tier,
     legend,
+    legendIdx,
     arrivedAt,
+    from: founder ? null : info?.from ?? null,
+    usd,
+    pot: !!info?.pot,
     skin: pick(SKIN, id, 15),
     shirt: pick(SHIRT, id, 16),
-    rate: CONFIG.blocksPerHour * role.rate * (0.85 + 0.3 * hash(id, 13)), // blocks per hour
+    skill: founder ? CONFIG.founderSkill : skillFor(usd),
   };
 }
 
-export const blocksBy = (b, t) => (Math.max(0, t - b.arrivedAt) / HOUR) * b.rate;
-export const totalWork = (builders, t) => builders.reduce((s, b) => s + blocksBy(b, t), 0);
-
-// When did the crew's combined work first reach `w` blocks? (W(t) is monotonic)
-function timeAtWork(builders, w, lo, hi) {
-  if (totalWork(builders, lo) >= w) return lo;
-  for (let i = 0; i < 44; i++) {
-    const mid = (lo + hi) / 2;
-    if (totalWork(builders, mid) < w) lo = mid; else hi = mid;
-  }
-  return hi;
-}
+// The crew shares one site, so speed grows with the square root of total skill (no instant cities),
+// and each Blocky is credited its share of it.
+export const crewRate = (skill) => CONFIG.blocksPerHour * Math.sqrt(skill); // blocks per hour
 
 // ---------- land: a square grid of lots with a river ----------
 
@@ -85,6 +109,7 @@ export const needFor = (L) => {
 
 // ---------- building catalog ----------
 // w: weight per zone [downtown (ring<=1), midtown (ring<=3), outskirts], min: projects built before it appears.
+// pro: only a crew with a Base Builder (a $100+ buy) can build it.
 
 export const CATALOG = {
   cottage: { label: 'Cottage', min: 0, w: [2, 2.5, 2.5], cost: 24, size: [[3, 4], [3, 4], [2, 2]] },
@@ -105,8 +130,8 @@ export const CATALOG = {
   devhub: { label: 'Dev Hub', min: 10, w: [1.6, 1, 0.2], cost: 160, size: [[5, 6], [5, 6], [4, 7]] },
   school: { label: 'Builder School', min: 12, w: [0.4, 0.9, 0.4], cost: 150, size: [[6, 6], [5, 5], [3, 3]] },
   gpufarm: { label: 'GPU Farm', min: 14, w: [0.4, 0.9, 1], cost: 180, size: [[6, 6], [5, 6], [2, 3]] },
-  tower: { label: 'Tower', min: 18, w: [2, 0.5, 0], cost: 320, size: [[4, 5], [4, 5], [12, 18]] },
-  skyscraper: { label: 'Skyscraper', min: 30, w: [1.4, 0.2, 0], cost: 520, size: [[5, 5], [5, 5], [20, 30]] },
+  tower: { label: 'Tower', min: 18, w: [2, 0.5, 0], cost: 480, size: [[4, 5], [4, 5], [12, 18]], pro: true },
+  skyscraper: { label: 'Skyscraper', min: 30, w: [1.4, 0.2, 0], cost: 900, size: [[5, 5], [5, 5], [20, 30]], pro: true },
   // leisure: parks and rides
   flowergarden: { label: 'Flower Garden', min: 2, w: [0.5, 1, 1], cost: 35, size: [[6, 6], [6, 6], [1, 1]] },
   icecream: { label: 'Ice Cream Stand', min: 3, w: [0.8, 0.8, 0.4], cost: 30, size: [[3, 3], [3, 3], [3, 3]] },
@@ -116,8 +141,8 @@ export const CATALOG = {
   pool: { label: 'Public Pool', min: 7, w: [0.4, 0.8, 0.6], cost: 70, size: [[6, 6], [6, 6], [1, 1]] },
   carousel: { label: 'Carousel', min: 8, w: [0.4, 0.6, 0.4], cost: 90, size: [[5, 5], [5, 5], [3, 3]] },
   stage: { label: 'Concert Stage', min: 9, w: [0.6, 0.6, 0.3], cost: 80, size: [[6, 6], [5, 5], [3, 3]] },
-  ferris: { label: 'Ferris Wheel', min: 12, w: [0.1, 0.25, 0.2], cost: 220, size: [[6, 6], [6, 6], [8, 8]] },
-  coaster: { label: 'Roller Coaster', min: 16, w: [0.1, 0.25, 0.25], cost: 260, size: [[6, 6], [6, 6], [5, 5]] },
+  ferris: { label: 'Ferris Wheel', min: 12, w: [0.1, 0.25, 0.2], cost: 320, size: [[6, 6], [6, 6], [8, 8]], pro: true },
+  coaster: { label: 'Roller Coaster', min: 16, w: [0.1, 0.25, 0.25], cost: 380, size: [[6, 6], [6, 6], [5, 5]], pro: true },
 };
 // Every city gets these early, then they keep appearing at random.
 const FEATURED = { 8: 'carousel', 11: 'lakepark', 13: 'ferris', 17: 'coaster' };
@@ -141,19 +166,19 @@ const COLORS = {
 
 const zoneOf = (r) => (r <= 1 ? 0 : r <= 3 ? 1 : 2);
 
-function chooseType(k, r) {
-  if (FEATURED[k]) return FEATURED[k];
+function chooseType(k, r, pro) {
+  if (FEATURED[k] && (pro || !CATALOG[FEATURED[k]].pro)) return FEATURED[k];
   const z = zoneOf(r);
-  const options = Object.entries(CATALOG).filter(([, t]) => t.min <= k && t.w[z] > 0);
+  const options = Object.entries(CATALOG).filter(([, t]) => t.min <= k && t.w[z] > 0 && (pro || !t.pro));
   const total = options.reduce((s, [, t]) => s + t.w[z], 0);
   let x = hash(k, 31) * total;
   for (const [id, t] of options) { x -= t.w[z]; if (x <= 0) return id; }
   return options[options.length - 1][0];
 }
 
-function buildingProject(k, lot) {
+function buildingProject(k, lot, pro) {
   const r = ring(...lot);
-  const type = chooseType(k, r);
+  const type = chooseType(k, r, pro);
   const t = CATALOG[type];
   const [W, D, H] = t.size;
   const p = { k, kind: 'building', type, lot, w: range(W, k, 1), d: range(D, k, 2), h: range(H, k, 3) };
@@ -166,25 +191,58 @@ function buildingProject(k, lot) {
 const LANDMARK_SIZE = {
   garage: [5, 4, 3, 60], square: [6, 6, 1, 40], cafe: [5, 4, 3, 90], hq: [6, 6, 12, 400],
   hackathon: [6, 5, 4, 260], studio: [4, 4, 6, 220], datalab: [6, 6, 5, 300],
-  launchpad: [6, 6, 14, 600], stadium: [6, 6, 3, 700], beacon: [3, 3, 20, 900], liberty: [4, 4, 13, 320], airport: [6, 6, 4, 420],
+  launchpad: [6, 6, 14, 900], stadium: [6, 6, 3, 1000], beacon: [3, 3, 20, 1400], liberty: [4, 4, 13, 320], airport: [6, 6, 4, 420],
 };
+export const WONDER_COST = 300;
 
 // ---------- the build plan, replayed over time ----------
 
 export class CitySim {
-  constructor(start) { this.start = start; this.builders = []; this.reset(); }
+  constructor(start) { this.start = start; this.setBuilders([]); }
 
   setBuilders(builders) {
     this.builders = builders.slice().sort((a, b) => a.arrivedAt - b.arrivedAt);
+    // Crew segments between arrivals: total skill S, crew speed, and the running totals at the
+    // segment start (W: blocks placed, P: blocks per unit of skill, to credit each Blocky its share).
+    this.segs = [];
+    let S = 0, W = 0, P = 0;
+    this.builders.forEach((b, i) => {
+      S += b.skill;
+      const rate = crewRate(S), seg = { t0: b.arrivedAt, S, rate, W, P };
+      this.segs.push(seg);
+      const t1 = this.builders[i + 1]?.arrivedAt;
+      if (t1 !== undefined) { const h = (t1 - b.arrivedAt) / HOUR; W += rate * h; P += (rate / S) * h; }
+    });
     this.reset();
+  }
+
+  seg(t) { // last segment that started at or before t
+    let lo = 0, hi = this.segs.length - 1, at = -1;
+    while (lo <= hi) { const m = (lo + hi) >> 1; if (this.segs[m].t0 <= t) { at = m; lo = m + 1; } else hi = m - 1; }
+    return this.segs[at];
+  }
+  workAt(t) { const g = this.seg(t); return g ? g.W + (g.rate * (t - g.t0)) / HOUR : 0; }
+  rateAt(t) { return this.seg(t)?.rate ?? 0; }
+  blocksBy(b, t) {
+    const per = (x) => { const g = this.seg(x); return g ? g.P + ((g.rate / g.S) * (x - g.t0)) / HOUR : 0; };
+    return t <= b.arrivedAt ? 0 : b.skill * (per(t) - per(b.arrivedAt));
+  }
+  // first moment the crew's total reaches w blocks (W(t) is piecewise linear and increasing)
+  timeAtWork(w) {
+    const s = this.segs;
+    let lo = 0, hi = s.length - 1, at = -1;
+    while (lo <= hi) { const m = (lo + hi) >> 1; if (s[m].W <= w) { at = m; lo = m + 1; } else hi = m - 1; }
+    if (at < 0) return Infinity;
+    const g = s[at];
+    return g.t0 + ((w - g.W) / g.rate) * HOUR;
   }
 
   reset() {
     this.land = CONFIG.startLand;
     this.done = []; // completed projects, each with .at
-    this.consumed = 0; // work used by completed projects
     this.lastT = this.start;
     this.builtLandmarks = new Set();
+    this.wonders = new Set(); // whale Blocky ids whose wonder is planned
     this.reserved = new Set(CONFIG.landmarks.map((l) => l.lot.join(',')));
     this.queue = [];
     for (let r = 0; r <= this.land; r++) this.queue.push(...this.ringLots(r));
@@ -208,18 +266,31 @@ export class CitySim {
     for (const b of this.builders) if (b.arrivedAt <= t) n++;
     return n;
   }
+  proAt(t) { return this.builders.some((b) => b.tier.pro && b.arrivedAt <= t); }
 
   plan(t) {
     const k = this.k++;
-    const pop = this.popAt(t);
-    const lm = CONFIG.landmarks.find((l) => l.at <= pop && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land);
+    const pop = this.popAt(t), pro = this.proAt(t);
+    // a whale's wonder jumps the queue, on the nearest free lot
+    const whale = this.builders.find((b) => b.tier.wonder && b.arrivedAt <= t && !this.wonders.has(b.id));
+    if (whale && this.queue.length) {
+      this.wonders.add(whale.id);
+      return { k, kind: 'wonder', type: 'wonder', lot: this.queue.shift(), w: 6, d: 6, h: 7, cost: WONDER_COST, color: 0xf4c542, whale: { id: whale.id, from: whale.from, usd: whale.usd }, name: `Whale Fountain #${whale.id}` };
+    }
+    const lm = CONFIG.landmarks.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land);
     if (lm) {
       const [w, d, h, cost] = LANDMARK_SIZE[lm.id];
       return { k, kind: 'landmark', type: lm.id, lot: lm.lot, w, d, h, cost, color: 0xd5d8dc, name: lm.label };
     }
-    if (this.queue.length) return buildingProject(k, this.queue.shift());
+    if (this.queue.length) return buildingProject(k, this.queue.shift(), pro);
     const L = this.land + 1;
     return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land, need: needFor(L), name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };
+  }
+
+  // A project starts when the previous one is done (an expansion also waits for enough Blockies)
+  // and is finished once the crew has placed its cost in blocks since then.
+  startOf(p) {
+    return p.need ? Math.max(this.lastT, this.builders[p.need - 1]?.arrivedAt ?? Infinity) : this.lastT;
   }
 
   // Replay every project finished by `now`. Returns the newly finished ones.
@@ -227,23 +298,27 @@ export class CitySim {
     const finished = [];
     for (let guard = 0; guard < 5000; guard++) {
       const p = this.next;
-      const end = this.consumed + p.cost;
-      let t = totalWork(this.builders, now) >= end ? timeAtWork(this.builders, end, this.lastT, now) : Infinity;
-      if (p.need) t = Math.max(t, this.builders[p.need - 1]?.arrivedAt ?? Infinity);
+      const start = this.startOf(p);
+      if (start > now) break;
+      const t = this.timeAtWork(this.workAt(start) + p.cost);
       if (t > now) break;
+      p.startedAt = start;
       p.at = t;
       this.done.push(p);
-      this.consumed = end;
       this.lastT = t;
       if (p.kind === 'expand') { this.land = p.level; this.queue.push(...this.ringLots(p.level)); }
       if (p.kind === 'landmark') this.builtLandmarks.add(p.type);
       finished.push(p);
       this.next = this.plan(t);
     }
-    this.work = totalWork(this.builders, now);
-    this.placed = Math.max(0, Math.min(this.next.cost, this.work - this.consumed));
-    const pop = this.popAt(now);
+    this.work = this.workAt(now);
+    const start = this.startOf(this.next);
+    this.placed = start > now ? 0 : Math.max(0, Math.min(this.next.cost, this.work - this.workAt(start)));
+    const pop = this.popAt(now), rate = this.rateAt(now);
     this.blocked = this.next.need && pop < this.next.need ? { need: this.next.need, have: pop } : null;
+    this.eta = this.blocked || !rate ? null : ((this.next.cost - this.placed) / rate) * HOUR; // ms left at today's crew speed
+    this.rate = rate;
+    this.pro = this.proAt(now);
     return finished;
   }
 

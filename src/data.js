@@ -1,20 +1,32 @@
 import { CONFIG } from './config.js';
 
-// Colony state = { progressUsd, boughtUsd, population, arrivals[], crew[], recentBuys[], cityStart, source, mode }.
-// Live mode reads it from the API; demo mode fakes fee growth locally.
+// Colony state = { boughtUsd, potUsd, population, arrivals[], crew[], recentBuys[], market, cityStart, source, mode }.
+// Live mode reads it from the API; demo mode fakes buys locally.
 
 const forceDemo = new URLSearchParams(location.search).has('demo');
 const demoStart = Date.now();
 
+// Demo: a city with 3 days of history (10 Blockies), then a new buyer every 30s.
+// Buys are mostly $5-$60, a Base Builder every 6th Blocky, a Whale as #14.
+const HOUR = 3600000, HISTORY = 11;
+const demoCityStart = demoStart - 72 * HOUR;
+const demoAt = (id) => (id === 1 ? demoCityStart : id <= HISTORY ? demoCityStart + (id - 1) * 6.5 * HOUR : demoStart + (id - HISTORY) * 30000);
+function demoBuy(id) {
+  const r = Math.abs((Math.sin(id * 12.9898) * 43758.5453) % 1);
+  const usd = id === 14 ? 1500 : id % 6 === 0 ? 120 + r * 300 : 5 + r * 55;
+  return { from: `0xdemo${((id * 2654435761) >>> 0).toString(16).padStart(8, '0')}${'0'.repeat(26)}${id.toString(16).padStart(2, '0')}`, usd: Math.round(usd * 100) / 100, at: demoAt(id) };
+}
+
 function demoState() {
   const t = (Date.now() - demoStart) / 1000;
-  // ~1 new citizen every 30s so the loop is visible while developing/pitching
-  const progressUsd = 21.3 + t * 0.17;
-  const population = 1 + Math.floor(progressUsd / CONFIG.usdPerBlocky);
+  const population = HISTORY + Math.floor(t / 30);
+  const crew = [null], arrivals = [demoCityStart];
+  for (let id = 2; id <= population; id++) { crew.push(demoBuy(id)); arrivals.push(demoAt(id)); }
   // the market swings slowly so every kind of weather shows up while you watch
   const market = { priceUsd: 0.00003, change1h: Math.sin(t / 9) * 3, change24h: Math.sin(t / 25) * 22, volume24h: 1200 };
-  const recentBuys = t > 20 && Math.floor(t) % 45 < 2 ? [{ from: '0xdemo00000000000000000000000000000000beef', usd: 60, at: demoStart + Math.floor(t / 45) * 45000, blockies: 12 }] : [];
-  return { progressUsd, boughtUsd: progressUsd, population, arrivals: null, crew: null, recentBuys, market, source: 'demo', mode: 'buys' };
+  const recentBuys = crew.slice(-4).filter(Boolean).map((c) => ({ ...c, blockies: 1 }));
+  const boughtUsd = crew.reduce((s, c) => s + (c?.usd || 0), 0);
+  return { progressUsd: boughtUsd, boughtUsd, potUsd: (t * 0.07) % 5, population, arrivals, crew, recentBuys, market, cityStart: demoCityStart, source: 'demo', mode: 'buys' };
 }
 
 let mode = forceDemo || !CONFIG.apiUrl ? 'demo' : null; // decided by the first fetch
@@ -32,6 +44,7 @@ export async function fetchColony() {
     return {
       progressUsd,
       boughtUsd: s.boughtUsd ?? progressUsd,
+      potUsd: typeof s.potUsd === 'number' ? s.potUsd : 0,
       mode: s.mode || 'fees',
       crew: Array.isArray(s.crew) ? s.crew : null,
       recentBuys: Array.isArray(s.recentBuys) ? s.recentBuys : [],

@@ -71,6 +71,17 @@ html, body {
 .clock { display: inline-block; background: var(--panel); color: var(--text); padding: 5px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; }
 .progress .sub { margin-top: 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .progress .sub b { color: var(--accent); }
+.progress .sub.eta { margin-top: 6px; }
+.progress .sub.eta:empty { display: none; }
+.progress .value b.goal { font-size: 15px; color: var(--accent); }
+
+/* buy tiers: one buy = one Blocky, bigger buys bring better builders */
+.stats > .tiers { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 5px; }
+.tier { font-size: 11px; font-weight: 700; color: var(--muted); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--panel-border); padding: 3px 7px; border-radius: 99px; white-space: nowrap; }
+.stats .tier b { font-size: 11px; color: var(--text); }
+.stats .tier.base b { color: #6fa8ff; }
+.stats .tier.whale b { color: var(--accent); }
+.tier em { font-style: normal; color: var(--up); }
 
 /* stats */
 .stats { position: fixed; top: 16px; right: 16px; padding: 12px 16px; display: grid; gap: 8px; width: 290px; }
@@ -111,12 +122,13 @@ html, body {
 .down { color: var(--down); }
 
 /* side */
-.side { position: fixed; right: 16px; top: 250px; width: 290px; display: grid; gap: 10px; }
+.side { position: fixed; right: 16px; top: 296px; bottom: 112px; width: 290px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; overflow: hidden; }
 .side h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .board, .feed { padding: 12px 14px; }
 .board ol, .feed ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 13px; }
 .board li, .feed li { display: flex; justify-content: space-between; gap: 8px; cursor: pointer; white-space: nowrap; }
-.board li span:first-child, .feed li span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.board li span:first-child, .feed li span:first-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.board li b, .feed li b { flex-shrink: 0; }
 .board li b, .feed li b { font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); font-weight: 600; }
 .board .rank { color: var(--muted); width: 18px; display: inline-block; }
@@ -184,7 +196,11 @@ body.photo .photo-exit { display: block; }
   .district { font-size: 12px; }
   .stats { top: 196px; left: 16px; right: 16px; width: auto; grid-template-columns: repeat(4, 1fr); padding: 10px 12px; }
   .stats > div { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .stats .cta, .stats .ca { grid-column: 1 / -1; flex-direction: row; }
+  .stats .cta, .stats .ca, .stats > .tiers { grid-column: 1 / -1; flex-direction: row; }
+  .stats > .tiers { flex-wrap: nowrap; gap: 4px; }
+  .tier { padding: 2px 6px; font-size: 10px; }
+  .tier em { display: none; }
+  #next-unlock { display: none; }
   .stats b { font-size: 15px; }
   .card { top: auto; bottom: 96px; left: 16px; right: 16px; width: auto; padding: 12px 14px; }
   .card dl { grid-template-columns: 1fr auto 1fr auto; font-size: 13px; }

@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>BaseCity · a city built 24/7 by Blockies, the builders of Base</title>
-    <meta name="description" content="Every $5 of $BLOCKY bought brings a new Blocky. Blockies build the city 24/7." />
+    <meta name="description" content="Every $BLOCKY buy brings a Blocky to BaseCity: $5+ a Blocky, $100+ a Base Builder, $1k+ a Whale. Blockies build the city 24/7." />
     <meta property="og:title" content="BaseCity" />
-    <meta property="og:description" content="A city built 24/7 by Blockies, the builders of Base. Every $5 of $BLOCKY bought brings a new Blocky." />
+    <meta property="og:description" content="A city built 24/7 by Blockies, the builders of Base. Every $BLOCKY buy brings a Blocky; bigger buys bring Base Builders and Whales." />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,6 +15,7 @@
   </head>
   <body>
     <canvas id="scene"></canvas>
+    <div id="districts" class="districts"></div>
 
     <header class="brand">
       <h1 id="title">BaseCity</h1>
@@ -28,9 +29,10 @@
         <span class="value"><b id="site-name" class="blue">Office #1</b> <span id="site-pct">0%</span></span>
       </div>
       <div class="bar"><div class="fill blue" id="site-fill"></div></div>
+      <div class="sub eta" id="site-eta"></div>
       <div class="row gap">
-        <span class="label" id="next-label">Next Blocky</span>
-        <span class="value"><b id="fee-progress">$0.00</b> / <span id="fee-target">$5.00</span></span>
+        <span class="label">Next landmark</span>
+        <span class="value"><b id="goal-name" class="goal">Statue of Blockerty</b> <span id="goal-count">1/2</span></span>
       </div>
       <div class="bar"><div class="fill" id="bar-fill"></div></div>
       <div class="sub" id="next-unlock"></div>
@@ -41,6 +43,7 @@
       <div><span class="label">Buildings</span><b id="buildings">0</b></div>
       <div><span class="label">Blocks placed</span><b id="blocks">0</b></div>
       <div><span class="label" id="fees-label">Bought</span><b id="fees">$0.00</b></div>
+      <div class="tiers" id="tiers"></div>
       <div class="cta">
         <a id="buy" class="btn primary" target="_blank" rel="noopener" hidden>Buy</a>
         <a id="chart" class="btn" target="_blank" rel="noopener" hidden>Chart</a>
@@ -95,7 +98,6 @@
       <span class="ticker-badge">BASECITY NEWS</span>
       <div class="ticker-window"><div class="ticker-track" id="ticker"></div></div>
     </div>
-    <div id="districts" class="districts"></div>
 
     <div id="toast" class="toast" hidden></div>
     <script type="module" src="/src/main.js"></script>

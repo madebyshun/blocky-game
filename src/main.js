@@ -7,7 +7,7 @@ import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
-import { makeBuilder, blocksBy, CitySim, PITCH } from './sim.js';
+import { makeBuilder, CitySim, PITCH, tierOf } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { now } from './time.js';
@@ -20,6 +20,16 @@ const HOUR = 3600000;
 const size = (L) => `${2 * L + 1}×${2 * L + 1}`;
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');
 const PER = CONFIG.usdPerBlocky;
+const TIERS = CONFIG.tiers;
+const money = (v) => (v >= 1000 ? `$${v / 1000}k` : `$${v}`);
+const BADGE = { base: '🔷', whale: '🐋' };
+const badge = (b) => (b.legend ? '★ ' : BADGE[b.tier.id] ? `${BADGE[b.tier.id]} ` : '');
+function dur(ms) {
+  const m = Math.max(1, Math.round(ms / 60000));
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`;
+}
 
 function ago(ms) {
   const s = Math.max(0, (now() - ms) / 1000);
@@ -34,10 +44,10 @@ function ago(ms) {
 document.title = `${CONFIG.cityName} · ${CONFIG.tagline}`;
 $('title').textContent = CONFIG.cityName;
 $('tagline').textContent = CONFIG.tagline;
-$('next-label').textContent = `Next ${CONFIG.citizen}`;
 $('pop-label').textContent = plural;
 $('leaders-title').textContent = `Top ${plural}`;
-$('fee-target').textContent = usd(PER);
+$('tiers').innerHTML = TIERS.map((t) => `<span class="tier ${t.id}"><b>${money(t.min)}+</b> ${BADGE[t.id] || ''}${t.id === 'blocky' ? CONFIG.citizen : t.label} <em>${t.skill[0]}${t.skill[1] > t.skill[0] ? `–${t.skill[1]}` : ''}×</em></span>`).join('');
+$('tiers').title = 'One buy brings one Blocky. Bigger buys bring more skilled builders.';
 if (CONFIG.buyUrl) { $('buy').hidden = false; $('buy').href = CONFIG.buyUrl; $('buy').textContent = `Buy ${CONFIG.ticker}`; }
 if (CONFIG.chartUrl) { $('chart').hidden = false; $('chart').href = CONFIG.chartUrl; }
 if (CONFIG.tokenAddress) {
@@ -53,7 +63,10 @@ if (CONFIG.tokenAddress) {
 
 const CAPTIONS = [
   `Every buy shows up in the <em>city log</em>`,
-  `Buy <em>${usd(PER)}</em> of ${CONFIG.ticker}, bring a <em>new ${CONFIG.citizen}</em>`,
+  `Buy <em>${money(PER)}+</em> of ${CONFIG.ticker}, bring a <em>new ${CONFIG.citizen}</em>`,
+  `<em>${money(TIERS[1].min)}+</em> brings a <em>${TIERS[1].label}</em>: ${TIERS[1].skill[0]}× skill, builds skyscrapers`,
+  `<em>${money(TIERS[2].min)}+</em> brings a <em>${TIERS[2].label}</em> and a fountain with its name`,
+  `Real Base builders live here as <em>legends</em>`,
   `${plural} build <em>24/7</em>, even when no one is watching`,
   `Land full? More ${plural} <em>expand the land</em>`,
   `The ${plural} are <em>simulated</em>. The buys are <em>real</em>.`,
@@ -145,8 +158,8 @@ let sim = null;
 let cityStart = 0;
 const builders = []; // data, index = id - 1
 const views = [];
-let fees = 0; // USD counted toward new Blockies (buys, or fees in fee mode)
-let bought = 0;
+let bought = 0; // USD bought (or fees earned in fee mode)
+let pot = 0; // small buys waiting to add up to one Blocky
 let crewInfo = []; // who brought each Blocky
 const loggedBuys = new Set();
 let population = 0;
@@ -156,18 +169,23 @@ let selected = null;
 let following = false;
 
 function addBuilder(id, arrivedAt, arriving) {
-  const b = makeBuilder(id, id === 1 ? cityStart : Math.max(cityStart, arrivedAt));
+  const taken = new Set(builders.filter(Boolean).map((x) => x.legendIdx).filter((i) => i >= 0));
+  const b = makeBuilder(id, id === 1 ? cityStart : Math.max(cityStart, arrivedAt), crewInfo[id - 1], taken);
   builders[id - 1] = b;
   views[id - 1] = new BuilderView(b, city, { arriving });
   return views[id - 1];
 }
 
+// the community goal: the next landmark unlocked by the Blocky count
 function nextUnlockText() {
   const next = CONFIG.landmarks.find((l) => l.at > population);
-  const landTxt = `Land ${size(sim.land)}`;
-  $('next-unlock').innerHTML = next
-    ? `${landTxt} · Next landmark: <b>${next.label}</b> at ${next.at} ${plural}`
-    : `${landTxt} · Every landmark unlocked`;
+  $('goal-name').textContent = next ? next.label : 'Every landmark unlocked';
+  $('goal-count').textContent = next ? `${population}/${next.at}` : '';
+  $('bar-fill').style.width = `${next ? (population / next.at) * 100 : 100}%`;
+  const bits = [`Land ${size(sim.land)}`];
+  if (!sim.pro) bits.push(`🔒 Skyscrapers &amp; big rides need a <b>${TIERS[1].label}</b> (${money(TIERS[1].min)}+ buy)`);
+  if (pot > 0.009) bits.push(`Pot ${usd(pot)}/${usd(PER)}`);
+  $('next-unlock').innerHTML = bits.join(' · ');
 }
 
 function applyState(s, first) {
@@ -179,9 +197,10 @@ function applyState(s, first) {
   check.classList.toggle('demo', s.source in labels);
   $('fees-label').textContent = buys ? 'Bought' : 'Fees earned';
 
-  if (!first && s.progressUsd - fees > 0.0001) city.feePulse();
-  fees = Math.max(fees, s.progressUsd);
-  bought = Math.max(bought, s.boughtUsd ?? fees);
+  const total = s.boughtUsd ?? s.progressUsd;
+  if (!first && total - bought > 0.0001) city.feePulse();
+  bought = Math.max(bought, total);
+  pot = s.potUsd ?? 0;
   if (s.crew) crewInfo = s.crew;
   if (s.market) { market = s.market; weather.setMarket(market); }
   for (const b of [...(s.recentBuys || [])].reverse()) {
@@ -189,8 +208,17 @@ function applyState(s, first) {
     if (loggedBuys.has(key)) continue;
     loggedBuys.add(key);
     if (first) continue;
-    log(`🛒 ${short(b.from)} bought ${usd(b.usd)}${b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : ''}`, b.at);
-    if (b.usd >= 50) { weather.celebrate(); news.unshift(`<b>BIG BUY:</b> ${short(b.from)} just bought ${usd(b.usd)}. Fireworks over the Statue of Blockerty!`); }
+    const small = b.pot ?? b.usd < PER, tier = tierOf(b.usd);
+    const what = small ? (b.blockies ? `, the pot is full: +1 ${CONFIG.citizen}` : ' → community pot') : ` → ${tier.id === 'blocky' ? `+1 ${CONFIG.citizen}` : `${BADGE[tier.id] || ''} ${tier.label}`}`;
+    log(`🛒 ${short(b.from)} bought ${usd(b.usd)}${what}`, b.at);
+    if (!small && tier.pro) {
+      const whale = tier.wonder;
+      weather.celebrate();
+      if (whale) { setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800); }
+      news.unshift(whale
+        ? `<b>WHALE ALERT:</b> ${short(b.from)} just bought ${usd(b.usd)}. A Whale is flying in and the city starts a fountain in its name!`
+        : `<b>BIG BUY:</b> ${short(b.from)} just bought ${usd(b.usd)}. A ${tier.label} is on the way. Fireworks over the Statue of Blockerty!`);
+    }
   }
 
   const target = Math.max(1, s.population);
@@ -233,9 +261,11 @@ function updateAirship(dt) {
       const v = addBuilder(flight.id, flight.at, true);
       population = flight.id;
       sim.setBuilders(builders.filter(Boolean));
-      const by = crewInfo[flight.id - 1];
-      toast(`NEW ${CONFIG.citizen.toUpperCase()} JOINED`, v.b.name, by ? `${v.b.role.label} · brought by ${short(by.from)}` : v.b.role.label);
-      log(`👷 ${v.b.name} joined${by ? `, brought by ${short(by.from)}` : ` as ${v.b.role.label}`}`, now(), v.b.id);
+      const b = v.b, by = crewInfo[flight.id - 1];
+      const head = b.legend ? '★ LEGEND ARRIVED' : b.tier.id === 'whale' ? '🐋 WHALE ARRIVED' : b.tier.pro ? `🔷 ${b.tier.label.toUpperCase()} ARRIVED` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`;
+      toast(head, b.name, `${b.role.label} · ${b.skill.toFixed(1)}× skill${by ? ` · brought by ${short(by.from)}` : ''}`);
+      if (b.tier.pro) weather.celebrate();
+      log(`${b.legend ? '★' : b.tier.pro ? BADGE[b.tier.id] : '👷'} ${b.name} joined${b.tier.pro ? ` as ${b.tier.label}` : ''}${by ? `, brought by ${short(by.from)}` : ''}`, now(), b.id);
       stepCity(true);
       nextUnlockText();
       renderHud();
@@ -277,14 +307,13 @@ function log(html, when = now(), id) {
   while (ul.children.length > 7) ul.lastChild.remove();
 }
 
-const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.level)}` : p.kind === 'landmark' ? `🏛️ ${p.name} built` : `🏗️ ${p.name} completed`);
+const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.level)}`
+  : p.kind === 'landmark' ? `🏛️ ${p.name} built`
+  : p.kind === 'wonder' ? `⛲ Whale Fountain built, gifted by ${short(p.whale.from) || 'a whale'}`
+  : `🏗️ ${p.name} completed`);
 
 function renderHud() {
   if (!sim) return;
-  const per = PER;
-  const progress = Math.max(0, Math.min(per, fees - (lastQueued - 1) * per));
-  $('fee-progress').textContent = usd(progress);
-  $('bar-fill').style.width = `${(progress / per) * 100}%`;
   $('pop').textContent = population;
   $('fees').textContent = usd(bought);
   $('buildings').textContent = fmt(sim.buildingCount);
@@ -297,10 +326,12 @@ function renderHud() {
     $('site-name').textContent = `Land full: need ${sim.blocked.need} ${plural}`;
     $('site-pct').textContent = `${sim.blocked.have}/${sim.blocked.need}`;
     $('site-fill').style.width = `${(sim.blocked.have / sim.blocked.need) * 100}%`;
+    $('site-eta').textContent = `${sim.blocked.need - sim.blocked.have} more ${plural} to reclaim new land`;
   } else {
     $('site-name').textContent = a.name;
     $('site-pct').textContent = `${pct}%`;
     $('site-fill').style.width = `${pct}%`;
+    $('site-eta').textContent = sim.eta != null ? `~${dur(sim.eta)} left · crew speed ${Math.round(sim.rate)} blocks/h` : '';
   }
   const day = Math.floor((now() - cityStart) / 86400000) + 1;
   $('clock').textContent = `Day ${day} · ${city.env.daylight < 0.5 ? '🌙 Night shift' : '☀️ Day shift'}`;
@@ -312,9 +343,9 @@ function renderHud() {
 
 function renderLeaders() {
   const ts = now();
-  const top = views.filter(Boolean).sort((a, b) => blocksBy(b.b, ts) - blocksBy(a.b, ts)).slice(0, 5);
+  const top = views.filter(Boolean).sort((a, b) => sim.blocksBy(b.b, ts) - sim.blocksBy(a.b, ts)).slice(0, 5);
   $('leaders').innerHTML = top
-    .map((v, i) => `<li data-id="${v.b.id}"><span><span class="rank">${i + 1}</span>${v.b.name} <span class="muted">· ${v.b.role.label}</span></span><b>${fmt(blocksBy(v.b, ts))} 🧱</b></li>`)
+    .map((v, i) => `<li data-id="${v.b.id}"><span><span class="rank">${i + 1}</span>${badge(v.b)}${v.b.name} <span class="muted">· ${v.b.role.label}</span></span><b>${fmt(sim.blocksBy(v.b, ts))} 🧱</b></li>`)
     .join('');
 }
 
@@ -327,17 +358,17 @@ for (const id of ['leaders', 'feed']) {
 
 function renderCard() {
   if (!selected) return;
-  const b = selected.b, ts = now(), placed = blocksBy(b, ts);
-  $('card-eyebrow').textContent = `${CONFIG.citizen.toUpperCase()} #${b.id}${b.id === 1 ? ' · FOUNDER' : ''}`;
+  const b = selected.b, ts = now(), placed = sim.blocksBy(b, ts);
+  $('card-eyebrow').textContent = `${CONFIG.citizen.toUpperCase()} #${b.id}${b.id === 1 ? ' · FOUNDER' : b.legend ? ' · ★ LEGEND' : b.tier.pro ? ` · ${b.tier.label.toUpperCase()}` : ''}`;
   $('card-name').textContent = b.name;
-  $('card-role').textContent = `${b.legend ? `★ ${b.legend.label} · ` : ''}${b.role.label} · ${b.rate.toFixed(0)} blocks/h`;
+  $('card-role').textContent = [b.role.label, b.id !== 1 && b.tier.label !== b.role.label ? b.tier.label : null, `${b.skill.toFixed(1)}× skill`].filter(Boolean).join(' · ');
   $('card-status').textContent = selected.status;
   $('card-blocks').textContent = fmt(placed);
   $('card-hours').textContent = fmt((ts - b.arrivedAt) / HOUR);
   $('card-share').textContent = `${sim.work ? ((placed / sim.work) * 100).toFixed(1) : 0}%`;
   $('card-joined').textContent = ago(b.arrivedAt);
   const by = crewInfo[b.id - 1];
-  $('card-by').textContent = b.id === 1 ? 'Founder' : by ? `${short(by.from)} (${usd(by.usd)} buy)` : '—';
+  $('card-by').textContent = b.id === 1 ? 'Founder' : by?.pot ? `the community pot (filled by ${short(by.from)})` : by ? `${short(by.from)} (${usd(by.usd)} buy)` : '—';
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
 }
 
@@ -354,7 +385,7 @@ $('card-follow').onclick = () => { following = !following; renderCard(); };
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
   const crew = `${population} ${population === 1 ? CONFIG.citizen : plural}`;
-  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${crew}, the builders of Base. Buy ${usd(PER)} of ${CONFIG.ticker} to bring a new ${CONFIG.citizen}.`
+  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${crew}, the builders of Base. Buy ${money(PER)}+ of ${CONFIG.ticker} to bring a ${CONFIG.citizen}, ${money(TIERS[1].min)}+ for a ${TIERS[1].label}.`
     + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '');
   const via = CONFIG.xHandle ? `&via=${CONFIG.xHandle}` : '';
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}${via}`, '_blank', 'noopener');
@@ -389,6 +420,7 @@ function stepCity(animate) {
     log(logLine(p));
     if (p.kind === 'expand') toast('LAND EXPANDED', size(p.level), `${plural} reclaimed a new ring of land`);
     if (p.kind === 'landmark') toast('LANDMARK BUILT', p.name);
+    if (p.kind === 'wonder') { toast('⛲ WONDER BUILT', 'Whale Fountain', `gifted by ${short(p.whale.from) || 'a whale'}`); weather.celebrate(); }
   }
 }
 
@@ -450,16 +482,19 @@ function headlines() {
   if (sim.blocked) out.push(`<b>CITY HALL:</b> the land is full. ${sim.blocked.need - sim.blocked.have} more ${plural} needed to expand`);
   const next = CONFIG.landmarks.find((l) => l.at > population);
   if (next) out.push(`<b>COMING SOON:</b> ${next.label} breaks ground at ${next.at} ${plural}`);
-  const top = views.filter(Boolean).sort((a, b) => blocksBy(b.b, now()) - blocksBy(a.b, now()))[0];
-  const topBlocks = top ? blocksBy(top.b, now()) : 0;
+  if (!sim.pro) out.push(`<b>HELP WANTED:</b> ${CONFIG.cityName} needs a ${TIERS[1].label} for its first skyscraper. ${money(TIERS[1].min)}+ buys bring one`);
+  const legends = builders.filter((b) => b?.legendIdx >= 0).length;
+  if (CONFIG.legends?.length) out.push(`<b>LEGENDS:</b> ${legends} of ${CONFIG.legends.length} real Base builders live in ${CONFIG.cityName}${legends < CONFIG.legends.length ? `. The next ${TIERS[1].label} arrives as ${CONFIG.legends.find((l, i) => !l.wallet && !builders.some((b) => b?.legendIdx === i))?.name ?? 'a legend'}` : ''}`);
+  const top = views.filter(Boolean).sort((a, b) => sim.blocksBy(b.b, now()) - sim.blocksBy(a.b, now()))[0];
+  const topBlocks = top ? sim.blocksBy(top.b, now()) : 0;
   if (topBlocks >= 2) out.push(`<b>BUILDER OF THE DAY:</b> ${top.b.name}, ${fmt(topBlocks)} blocks placed`);
   const big = [...districts].sort((a, b) => b.buildings - a.buildings)[0];
   if (big && districts.length > 1) out.push(`<b>DISTRICTS:</b> ${big.name} leads with ${big.buildings} buildings`);
   for (let i = 0; i < 2; i++) out.push(FILLER[Math.floor(Math.random() * FILLER.length)]);
   const sponsors = CONFIG.sponsors || [];
-  if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>SPONSORED:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
-  else out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);
-  out.push(`<b>${CONFIG.ticker}:</b> buy ${usd(PER)} to bring a new ${CONFIG.citizen} to ${CONFIG.cityName}`);
+  if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>${sp.sponsored ? 'SPONSORED' : 'BUILT ON BASE'}:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
+  if (Math.random() < 0.5 || !sponsors.length) out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);
+  out.push(`<b>${CONFIG.ticker}:</b> buy ${money(PER)}+ for a ${CONFIG.citizen}, ${money(TIERS[1].min)}+ for a ${TIERS[1].label}, ${money(TIERS[2].min)}+ for a ${TIERS[2].label} and a fountain`);
   return out;
 }
 function refreshTicker() {

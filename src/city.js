@@ -38,9 +38,9 @@ class Kit {
   }
   box(w, h, d, color, x = 0, y = 0, z = 0) { this.add('body', w, h, d, x, y, z, color); }
   // box turned around the vertical axis
-  boxR(w, h, d, color, x, y, z, ry) {
+  boxR(w, h, d, color, x, y, z, ry, list = 'body') {
     const g = UNIT.clone(); g.scale(w, h, d); g.rotateY(ry); g.translate(x, y + h / 2, z);
-    this.lists.body.push(colored(g, color));
+    this.lists[list].push(color === undefined ? g : colored(g, color));
   }
   // a beam from point a to point b (rails, spokes, struts)
   beam(a, b, tw, th, color, list = 'body') {
@@ -122,26 +122,107 @@ function gableRoof(k, w, d, y, color, ox = 0, oz = 0) {
 // ---------- billboards ----------
 
 const BOARD_MATS = new Map();
-function sponsorFor(slot) {
-  const list = CONFIG.sponsors || [];
-  if (list.length) return list[slot % list.length];
+const AD_SLOT = () => {
   const contact = CONFIG.adContact || (CONFIG.xHandle ? `DM @${CONFIG.xHandle}` : 'Advertise on BaseCity');
   return { name: 'YOUR PROJECT HERE', tagline: contact, color: '#1b2233', url: CONFIG.xHandle ? `https://x.com/${CONFIG.xHandle}` : '', placeholder: true };
+};
+// Billboards rotate through CONFIG.sponsors plus one "your project here" slot, so ad space stays for sale.
+export function sponsorFor(slot) {
+  const list = CONFIG.sponsors || [];
+  if (!list.length) return AD_SLOT();
+  const i = slot % (list.length + 1);
+  return i < list.length ? list[i] : AD_SLOT();
 }
+
+// Logos drawn in code (no image files to host), each into a square of size s at (x, y).
+const rr = (g, x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); };
+export const LOGOS = {
+  // a gradient ring with a slot cut on its right
+  cbwallet(g, x, y, s) {
+    g.fillStyle = '#121a2b'; rr(g, x, y, s, s, s * 0.12);
+    const grad = g.createLinearGradient(x + s * 0.2, y + s * 0.15, x + s * 0.8, y + s * 0.85);
+    grad.addColorStop(0, '#1238ff'); grad.addColorStop(0.55, '#00d9ff'); grad.addColorStop(1, '#a6ffb3');
+    g.strokeStyle = grad; g.lineWidth = s * 0.19;
+    g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.27, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#121a2b'; g.fillRect(x + s * 0.5, y + s * 0.44, s * 0.42, s * 0.12);
+  },
+  // two overlapping rounded squares and a "1"
+  o1(g, x, y, s) {
+    g.fillStyle = '#1b1b1b'; rr(g, x, y, s, s, s * 0.12);
+    const grad = g.createLinearGradient(x + s * 0.2, 0, x + s * 0.78, 0);
+    grad.addColorStop(0, '#ffffff'); grad.addColorStop(1, '#9fd0ff');
+    g.fillStyle = grad;
+    rr(g, x + s * 0.2, y + s * 0.4, s * 0.28, s * 0.28, s * 0.03);
+    rr(g, x + s * 0.3, y + s * 0.5, s * 0.28, s * 0.28, s * 0.03);
+    rr(g, x + s * 0.64, y + s * 0.2, s * 0.09, s * 0.48, s * 0.02);
+    rr(g, x + s * 0.55, y + s * 0.29, s * 0.18, s * 0.09, s * 0.02);
+    g.fillStyle = '#1b1b1b'; g.fillRect(x + s * 0.3, y + s * 0.5, s * 0.18, s * 0.18);
+  },
+  // a teal swoosh: a V with a loop and a dot
+  virtuals(g, x, y, s) {
+    const bg = g.createLinearGradient(x, y, x + s, y + s);
+    bg.addColorStop(0, '#bdeff0'); bg.addColorStop(1, '#eafbd0');
+    g.fillStyle = bg; rr(g, x, y, s, s, s * 0.12);
+    g.strokeStyle = '#2b9a96'; g.lineCap = 'round'; g.lineJoin = 'round'; g.lineWidth = s * 0.075;
+    g.beginPath();
+    g.moveTo(x + s * 0.2, y + s * 0.42);
+    g.quadraticCurveTo(x + s * 0.34, y + s * 0.44, x + s * 0.42, y + s * 0.68);
+    g.lineTo(x + s * 0.52, y + s * 0.47);
+    g.arc(x + s * 0.57, y + s * 0.4, s * 0.085, Math.PI * 0.7, Math.PI * 2.55);
+    g.quadraticCurveTo(x + s * 0.7, y + s * 0.47, x + s * 0.78, y + s * 0.42);
+    g.stroke();
+    g.fillStyle = '#2b9a96'; g.beginPath(); g.arc(x + s * 0.84, y + s * 0.39, s * 0.03, 0, Math.PI * 2); g.fill();
+  },
+  // a retro computer with a pixel smiley
+  bankr(g, x, y, s) {
+    g.fillStyle = '#7b2ff2'; rr(g, x, y, s, s, s * 0.12);
+    const ink = '#1b1b1b';
+    g.fillStyle = ink; rr(g, x + s * 0.18, y + s * 0.24, s * 0.66, s * 0.54, s * 0.05);
+    g.fillStyle = '#efe6d2'; rr(g, x + s * 0.2, y + s * 0.22, s * 0.62, s * 0.5, s * 0.04);
+    g.fillStyle = ink; rr(g, x + s * 0.245, y + s * 0.275, s * 0.37, s * 0.33, s * 0.05);
+    g.fillStyle = '#ff5a36'; rr(g, x + s * 0.26, y + s * 0.29, s * 0.34, s * 0.3, s * 0.045);
+    g.fillStyle = '#ffd400';
+    const px = s * 0.025;
+    g.fillRect(x + s * 0.36, y + s * 0.38, px, px * 2); g.fillRect(x + s * 0.49, y + s * 0.38, px, px * 2);
+    g.fillRect(x + s * 0.33, y + s * 0.48, px, px); g.fillRect(x + s * 0.54, y + s * 0.48, px, px);
+    g.fillRect(x + s * 0.355, y + s * 0.505, s * 0.185, px);
+    g.fillStyle = ink;
+    for (const yy of [0.31, 0.35, 0.39]) g.fillRect(x + s * 0.65, y + s * yy, s * 0.12, s * 0.018);
+    for (const xx of [0.68, 0.74]) { g.fillRect(x + s * xx, y + s * 0.46, s * 0.012, s * 0.12); g.fillRect(x + s * (xx - 0.015), y + s * (xx === 0.68 ? 0.52 : 0.49), s * 0.042, s * 0.02); }
+    g.fillRect(x + s * 0.27, y + s * 0.65, s * 0.08, s * 0.018);
+  },
+  // three tilted rings: blue, light blue, red
+  aero(g, x, y, s) {
+    g.fillStyle = '#efefef'; rr(g, x, y, s, s, s * 0.12);
+    g.lineWidth = s * 0.055;
+    [['#1f4fe6', 0.4], ['#93a6f5', 0.5], ['#ff1a12', 0.6]].forEach(([c, cx]) => {
+      g.strokeStyle = c;
+      g.beginPath(); g.ellipse(x + s * cx, y + s * 0.5, s * 0.13, s * 0.3, 0.55, 0, Math.PI * 2); g.stroke();
+    });
+  },
+};
+
 function boardMaterial(slot) {
   const sp = sponsorFor(slot);
-  const key = `${sp.name}|${sp.color}`;
+  const key = `${sp.name}|${sp.color}|${sp.logo || ''}`;
   if (BOARD_MATS.has(key)) return { mat: BOARD_MATS.get(key), sp };
   const cv = document.createElement('canvas');
   cv.width = 512; cv.height = 200;
   const g = cv.getContext('2d');
   g.fillStyle = sp.color || '#0052ff'; g.fillRect(0, 0, 512, 200);
+  const logo = LOGOS[sp.logo];
+  if (logo) logo(g, 22, 22, 156);
   g.strokeStyle = sp.placeholder ? '#ffc83d' : 'rgba(255,255,255,0.85)'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 190);
-  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const cx = logo ? 345 : 256, maxW = logo ? 300 : 470;
+  g.fillStyle = sp.textColor || '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
   let size = 84;
-  do { g.font = `800 ${size}px "Lilita One", Inter, system-ui, sans-serif`; size -= 4; } while (g.measureText(sp.name).width > 470 && size > 24);
-  g.fillText(sp.name, 256, sp.tagline ? 82 : 100);
-  if (sp.tagline) { g.font = '700 30px Inter, system-ui, sans-serif'; g.fillStyle = sp.placeholder ? '#ffc83d' : 'rgba(255,255,255,0.9)'; g.fillText(sp.tagline, 256, 156); }
+  do { g.font = `800 ${size}px "Lilita One", Inter, system-ui, sans-serif`; size -= 4; } while (g.measureText(sp.name).width > maxW && size > 24);
+  g.fillText(sp.name, cx, sp.tagline ? 82 : 100);
+  if (sp.tagline) {
+    size = 30;
+    do { g.font = `700 ${size}px Inter, system-ui, sans-serif`; size -= 2; } while (g.measureText(sp.tagline).width > maxW && size > 14);
+    g.fillStyle = sp.placeholder ? '#ffc83d' : sp.textColor ? sp.textColor : 'rgba(255,255,255,0.9)'; g.fillText(sp.tagline, cx, 150);
+  }
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
@@ -582,6 +663,75 @@ const DESIGN = {
   },
 };
 
+// ---------- the Whale Fountain: a wonder for every $1k+ buy, signed with the whale's wallet ----------
+
+function plaqueMaterial(p) {
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 180;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#14213d'; g.fillRect(0, 0, 512, 180);
+  g.strokeStyle = '#f4c542'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 170);
+  g.fillStyle = '#f4c542'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const fit = (text, weight, size, family, y) => {
+    do { g.font = `${weight} ${size}px ${family}`; size -= 2; } while (g.measureText(text).width > 460 && size > 12);
+    g.fillText(text, 256, y);
+  };
+  fit('WHALE FOUNTAIN', 800, 56, '"Lilita One", Inter, system-ui, sans-serif', 62);
+  const w = p.whale, who = w?.from ? `${w.from.slice(0, 6)}…${w.from.slice(-4)}` : 'a whale';
+  g.fillStyle = '#ffffff';
+  fit(`gifted by ${who}${w?.usd ? ` · $${Math.round(w.usd).toLocaleString('en-US')}` : ''}`, 700, 32, 'Inter, system-ui, sans-serif', 128);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 });
+}
+
+function wonder(k, p) {
+  const stone = 0xe9e4d8, rim = 0xd5d8dc;
+  k.box(6.4, Y, 6.4, stone);
+  for (const s of [-1, 1]) { k.box(6.4, 0.04, 0.18, C.gold, 0, Y, s * 3.1); k.box(0.18, 0.04, 6.4, C.gold, s * 3.1, Y, 0); }
+  // octagonal basin
+  k.boxR(3.6, 0.5, 3.6, rim, 0, Y, -0.2, 0); k.boxR(3.6, 0.5, 3.6, rim, 0, Y, -0.2, Math.PI / 4);
+  k.boxR(3.2, 0.06, 3.2, undefined, 0, Y + 0.48, -0.2, 0, 'water'); k.boxR(3.2, 0.06, 3.2, undefined, 0, Y + 0.48, -0.2, Math.PI / 4, 'water');
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + Math.PI / 8; k.box(0.2, 0.12, 0.2, C.gold, Math.cos(a) * 2.25, Y + 0.5, -0.2 + Math.sin(a) * 2.25); }
+  // lamps on the corners
+  for (const [x, z] of [[-2.8, -2.8], [2.8, -2.8], [-2.8, 2.5], [2.8, 2.5]]) { k.box(0.12, 1.4, 0.12, C.dark, x, Y, z); k.box(0.3, 0.1, 0.3, C.gold, x, Y + 1.4, z); k.win(0.22, 0.24, 0.22, x, Y + 1.5, z); }
+  // the plaque, signed by the whale
+  k.box(2.7, 0.9, 0.14, C.dark, 0, Y, 2.9);
+  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.88), plaqueMaterial(p));
+  plaque.position.set(0, Y + 0.48, 2.98);
+  k.extras.push(plaque);
+  // a voxel whale in Base blue, leaping out of the water and spouting
+  const whale = new THREE.Group();
+  whale.add(kitFor((wk) => {
+    const blue = 0x1f5fe0, belly = 0xdbe8ff, dark = 0x163fa8;
+    wk.box(2.4, 1.3, 1.5, blue, 0, 0, 0); // body
+    wk.box(1.0, 1.15, 1.35, blue, 1.6, 0.05, 0); // head
+    wk.box(3.0, 0.32, 1.2, belly, 0.4, -0.1, 0); // belly
+    wk.box(1.0, 0.85, 1.0, blue, -1.6, 0.3, 0); // tail stock
+    wk.box(0.7, 0.55, 0.7, blue, -2.3, 0.65, 0);
+    wk.box(0.5, 0.16, 2.0, dark, -2.65, 1.1, 0); // flukes
+    wk.box(0.95, 0.06, 1.37, dark, 1.6, 0.35, 0); // mouth line
+    for (const z of [-0.69, 0.69]) { wk.box(0.18, 0.18, 0.03, 0xffffff, 1.75, 0.68, z); wk.box(0.1, 0.1, 0.035, 0x111111, 1.78, 0.68, z); }
+    for (const z of [-0.95, 0.95]) wk.box(0.6, 0.12, 0.45, dark, 0.7, 0.25, z); // flippers
+  }));
+  const spout = kitFor((sk) => {
+    sk.water(0.22, 1.5, 0.22, 0, 0, 0);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; sk.water(0.18, 0.18, 0.18, Math.cos(a) * 0.4, 1.35 + (i % 2) * 0.15, Math.sin(a) * 0.4); }
+  });
+  spout.position.set(1.0, 1.3, 0);
+  whale.add(spout);
+  whale.scale.setScalar(0.82);
+  whale.rotation.y = 0.55;
+  const base = Y + 0.15;
+  whale.position.set(0.1, base, -0.3);
+  whale.userData.animate = (t) => {
+    whale.position.y = base + Math.sin(t * 1.4) * 0.12;
+    whale.rotation.z = Math.sin(t * 1.4 + 0.6) * 0.05;
+    spout.scale.y = 0.75 + 0.35 * Math.abs(Math.sin(t * 2.2));
+  };
+  k.extras.push(whale);
+}
+
 // the coaster's track: a figure-loop with two drops (local lot coords)
 function coasterPoint(a) {
   return [
@@ -630,6 +780,7 @@ const LANDMARK = {
     k.blue(2, 2, 2, 0, Y + 11.5, 0);
     k.box(0.1, 3, 0.1, C.dark, 2.6, Y + 3, 2.6);
     k.box(1.2, 0.7, 0.06, C.base, 3.2, Y + 5.2, 2.6);
+    billboard(k, -0.6, Y + 3, 2.45, 3.2, 1.28, 2, 0.35);
   },
   hackathon(k) {
     sidewalk(k);
@@ -732,6 +883,7 @@ const LANDMARK = {
     k.win(3.4, 0.6, 0.06, -0.8, Y + 0.5, -1.38);
     k.box(4.1, 0.2, 1.9, C.base, -0.8, Y + 1.4, -2.2);
     k.box(2.2, 0.4, 0.1, C.base, -0.8, Y + 1.6, -1.4);
+    billboard(k, -0.8, Y + 1.6, -2.5, 3.0, 1.2, 3, 0.45);
     k.box(0.7, 3.2, 0.7, 0xdfe6ee, 2.3, Y, -2.2);
     k.box(1.3, 0.8, 1.3, 0x2b2f36, 2.3, Y + 3.2, -2.2);
     k.win(1.34, 0.4, 1.34, 2.3, Y + 3.4, -2.2);
@@ -775,6 +927,14 @@ const LANDMARK = {
   },
 };
 
+// Every billboard design side by side (for the gallery).
+export const adWall = () => kitFor((k) => {
+  sidewalk(k);
+  const n = Math.min(6, (CONFIG.sponsors?.length || 0) + 1), rows = Math.ceil(n / 2);
+  for (const x of [-3.15, 0, 3.15]) k.box(0.16, 0.5 + rows * 1.5, 0.16, C.dark, x, Y, -0.2);
+  for (let i = 0; i < n; i++) billboard(k, (i % 2 ? 1 : -1) * 1.58, Y + 0.45 + (rows - 1 - Math.floor(i / 2)) * 1.5, 0, 2.9, 1.13, i, 0.05);
+});
+
 // Untouched land: forest, meadow, rocks. Lot (0,0) starts with the founder's pile of blocks.
 function wildLot(k, i, j) {
   if (i === 0 && j === 0) {
@@ -802,6 +962,7 @@ function wildLot(k, i, j) {
 const ROOF_BOARD = { office: 0.35, apartment: 0.3, devhub: 0.25, shop: 0.25 }; // roof height above the body
 export const buildingGroup = (p) => kitFor((k) => {
   if (p.kind === 'landmark') return LANDMARK[p.type](k);
+  if (p.kind === 'wonder') return wonder(k, p);
   DESIGN[p.type](k, p);
   if (ROOF_BOARD[p.type] !== undefined && hash(p.k, 77) < 0.5) {
     billboard(k, 0, Y + p.h + ROOF_BOARD[p.type], -p.d / 2 + 0.35, Math.min(p.w - 0.4, 3.4), Math.min(p.w - 0.4, 3.4) * 0.4, 1 + p.k, 0.45);

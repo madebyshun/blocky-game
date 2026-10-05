@@ -1,10 +1,11 @@
 // Vercel serverless function: GET /api/colony
 // Returns the live state every visitor renders:
-//   { progressUsd, population, arrivals: [ms...], crew: [...], cityStart, usdPerBlocky, source, mode, updatedAt }
+//   { population, arrivals: [ms...], crew: [{ from, usd, tx, pot? }...], potUsd, boughtUsd, cityStart, source, mode, updatedAt }
 //
-// COUNT_MODE=buys (default): every $USD_PER_BLOCKY of $BLOCKY *bought* brings a new Blocky.
-//   Buys come from the pool's public trade feed (GeckoTerminal). Only buys count, at least
-//   MIN_BUY_USD each, capped at MAX_USD_PER_BUY per trade; small buys add up. Counting starts at
+// COUNT_MODE=buys (default): one buy of at least $USD_PER_BLOCKY brings one Blocky, and the client
+//   picks its tier from the buy size (CONFIG.tiers: Blocky, Base Builder at $100+, Whale at $1k+).
+//   Buys between MIN_BUY_USD and $USD_PER_BLOCKY add up in a community pot; every full pot brings a
+//   Blocky too. Buys come from the pool's public trade feed (GeckoTerminal). Counting starts at
 //   LAUNCH_TIME_MS, or the first time this API runs (BACKFILL_HOURS reaches back for testing).
 //   Each Blocky remembers the wallet whose buy brought it.
 //
@@ -26,7 +27,6 @@ const RPC = env.BASE_RPC_URL || 'https://mainnet.base.org';
 const MODE = env.COUNT_MODE || 'buys';
 const FEE_PER = Number(env.USD_PER_BLOCKY || env.FEE_PER_CITIZEN || 5);
 const MIN_BUY = Number(env.MIN_BUY_USD || 1);
-const MAX_PER_BUY = Number(env.MAX_USD_PER_BUY || 100);
 const BACKFILL_MS = Number(env.BACKFILL_HOURS || 0) * 3600000;
 const POOL = env.POOL_ID || '0x61ccc84e302c1a95fb66435a285e95581134bfc2a11d4fbb88ed07e68ca2e4c0'; // BLOCKY/NVDAc
 const OFFSET = Number(env.FEES_OFFSET_USD || 0);
@@ -34,7 +34,7 @@ const LAUNCH = Number(env.LAUNCH_TIME_MS || 0) || null; // when the city starts 
 const KV_URL = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
 const KV_TOKEN = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
 const KEY_BASE = env.KV_KEY || 'blocky:colony';
-const KEY = MODE === 'fees' ? KEY_BASE : `${KEY_BASE}:buys`; // separate state per counting mode
+const KEY = MODE === 'fees' ? KEY_BASE : `${KEY_BASE}:buys:v2`; // separate state per counting mode (v2: one Blocky per buy)
 const TOKEN = env.TOKEN_ADDRESS || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885';
 const EXTRA_TOKENS = (env.FEE_TOKENS || '').split(',').map((s) => s.trim()).filter(Boolean);
 // Tokens shown in the breakdown but NOT counted as fees (e.g. the creator's own $BLOCKY bag).
@@ -145,10 +145,12 @@ async function recentBuys() {
     .sort((a, b) => a.at - b.at);
 }
 
+const cents = (v) => Math.round(v * 100) / 100;
+
 async function computeBuys() {
   const now = Date.now();
   const loaded = await load();
-  const state = loaded || { start: LAUNCH ?? now - BACKFILL_MS, credited: 0, bought: 0, arrivals: [], crew: [], seen: [], recent: [] };
+  const state = loaded || { start: LAUNCH ?? now - BACKFILL_MS, pot: 0, bought: 0, arrivals: [], crew: [], seen: [], recent: [] };
   if (!state.arrivals.length) { state.arrivals.push(state.start); state.crew.push(null); }
   const seen = new Set(state.seen);
   let changed = false;
@@ -157,20 +159,28 @@ async function computeBuys() {
     seen.add(b.id);
     changed = true;
     if (b.usd < MIN_BUY) continue;
-    const credit = Math.min(b.usd, MAX_PER_BUY);
-    const before = Math.floor(state.credited / FEE_PER);
-    state.credited += credit;
     state.bought += b.usd;
-    const after = Math.floor(state.credited / FEE_PER);
-    for (let n = before; n < after; n++) { state.arrivals.push(b.at); state.crew.push({ from: b.from, usd: Math.round(b.usd * 100) / 100, tx: b.tx }); }
-    state.recent = [{ from: b.from, usd: Math.round(b.usd * 100) / 100, at: b.at, blockies: after - before }, ...state.recent].slice(0, 10);
+    let blockies = 0;
+    if (b.usd >= FEE_PER) { // one buy, one Blocky; its size sets the tier
+      state.arrivals.push(b.at); state.crew.push({ from: b.from, usd: cents(b.usd), tx: b.tx });
+      blockies = 1;
+    } else { // small buys fill the community pot
+      state.pot += b.usd;
+      while (state.pot >= FEE_PER) {
+        state.pot -= FEE_PER;
+        state.arrivals.push(b.at); state.crew.push({ from: b.from, usd: FEE_PER, tx: b.tx, pot: true });
+        blockies++;
+      }
+    }
+    state.recent = [{ from: b.from, usd: cents(b.usd), at: b.at, tx: b.tx, blockies, pot: b.usd < FEE_PER }, ...state.recent].slice(0, 10);
   }
   state.seen = [...seen].slice(-600);
   if (changed || !loaded) await save(state);
   return {
-    progressUsd: state.credited,
-    feesUsd: state.credited, // older clients read this name
+    progressUsd: state.bought, // older clients read these names
+    feesUsd: state.bought,
     boughtUsd: state.bought,
+    potUsd: cents(state.pot),
     population: state.arrivals.length,
     arrivals: state.arrivals,
     crew: state.crew,

@@ -5,7 +5,7 @@ import { hash, PITCH } from './sim.js';
 
 const CATEGORY = {
   tech: ['office', 'devhub', 'gpufarm', 'tower', 'skyscraper', 'school', 'hq', 'datalab', 'hackathon', 'launchpad', 'beacon', 'studio', 'airport'],
-  fun: ['coaster', 'ferris', 'carousel', 'park', 'lakepark', 'playground', 'pool', 'soccer', 'skatepark', 'stage', 'icecream', 'court', 'flowergarden', 'stadium', 'liberty'],
+  fun: ['coaster', 'ferris', 'carousel', 'park', 'lakepark', 'playground', 'pool', 'soccer', 'skatepark', 'stage', 'icecream', 'court', 'flowergarden', 'stadium', 'liberty', 'wonder'],
   home: ['cottage', 'house', 'townhouses', 'apartment', 'villa', 'garage'],
   green: ['farm', 'garden', 'windmill', 'watertower'],
   shop: ['shop', 'cafe', 'square'],

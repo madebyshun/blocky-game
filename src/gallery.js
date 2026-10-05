@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CATALOG, ROLES, makeBuilder } from './sim.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
-import { buildingGroup } from './city.js';
+import { buildingGroup, adWall } from './city.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -28,6 +28,8 @@ const items = [
     return { label: t.label, p: { k: k + 3, kind: 'building', type, w: t.size[0][1], d: t.size[1][1], h: mid(t.size[2]), color: 0xe8dcc8 } };
   }),
   ...CONFIG.landmarks.map((l) => ({ label: l.label, p: { k: 0, kind: 'landmark', type: l.id } })),
+  { label: 'Billboards', p: { type: 'billboards' }, make: adWall },
+  { label: 'Whale Fountain ($1k+ buy)', p: { k: 0, kind: 'wonder', type: 'wonder', whale: { from: '0x1234567890abcdef1234567890abcdef12345678', usd: 1500 } } },
 ];
 // ?only=liberty,coaster shows just those designs, up close
 const only = new URLSearchParams(location.search).get('only')?.split(',');
@@ -36,13 +38,9 @@ const legendsOnly = only?.includes('legends') && !only.includes('blockies');
 if (only) items.splice(0, items.length, ...items.filter((it) => only.includes(it.p.type)));
 const cols = only ? Math.max(1, Math.min(3, items.length)) : 6, gap = 11;
 const rows = Math.ceil(items.length / cols);
-const ground = new THREE.Mesh(new THREE.BoxGeometry(Math.max(cols * gap + 4, 64), 0.2, rows * gap + 4 + 14), new THREE.MeshLambertMaterial({ color: 0x6cc24a }));
-ground.position.set(0, -0.1, 7);
-ground.receiveShadow = true;
-scene.add(ground);
 const tags = [];
 items.forEach((it, n) => {
-  const g = buildingGroup(it.p);
+  const g = it.make ? it.make() : buildingGroup(it.p);
   g.position.set(((n % cols) - (cols - 1) / 2) * gap, 0, (Math.floor(n / cols) - (Math.ceil(items.length / cols) - 1) / 2) * gap);
   scene.add(g);
   const tag = document.createElement('div');
@@ -52,27 +50,32 @@ items.forEach((it, n) => {
   tags.push([tag, g.position.clone().add(new THREE.Vector3(0, 0, 4))]);
 });
 
-// ----- the Blockies: one per role, plus one walking and one carrying a block -----
+// ----- the Blockies: one per role, the tier uniforms, a walker and a carrier; then the legends -----
 const crew = [];
 if (showBlockies) {
   const SKIN = [0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0xffdbac, 0xf5d0a9];
   const SHIRT = [0x3fa34d, 0x2e86de, 0xe67e22, 0x9b59b6, 0xe74c3c, 0x1abc9c];
-  const roles = CONFIG.legends?.[1] ? ROLES.filter((r) => r.id !== 'founder') : ROLES; // the founder is a legend
-  const people = roles.map((role, i) => ({ id: i + 1, role, skin: SKIN[i], shirt: SHIRT[i], label: role.label, pose: 'stand' }));
-  people.push({ id: 7, role: ROLES[1], skin: SKIN[4], shirt: SHIRT[2], label: 'Walking', pose: 'walk' });
-  people.push({ id: 8, role: ROLES[2], skin: SKIN[2], shirt: SHIRT[5], label: 'Carrying a block', pose: 'carry' });
-  const rowZ = items.length ? (Math.ceil(items.length / cols) / 2) * gap + 4 : 0;
-  const scale = items.length ? 2.6 : 3.2, step = items.length ? 7 : 3.4;
-  // a second row behind: the founder and the legendary Blockies
-  const legends = Object.entries(CONFIG.legends || {}).map(([id]) => { const b = makeBuilder(Number(id), 0); return { ...b, label: `★ ${b.legend.label}`, pose: 'stand', row: 1 }; });
-  if (legendsOnly) people.length = 0;
-  people.push(...legends);
-  people.forEach((b, i) => {
+  const noLegend = new Set((CONFIG.legends || []).map((_, i) => i));
+  const tier0 = CONFIG.tiers[0];
+  const people = ROLES.filter((r) => r.id !== 'founder') // the founder is a legend
+    .map((role, i) => ({ id: i + 2, role, tier: tier0, skin: SKIN[i], shirt: SHIRT[i], label: role.label, pose: 'stand' }));
+  for (const t of CONFIG.tiers.slice(1)) people.push({ ...makeBuilder(20 + people.length, 0, { usd: t.min }, noLegend), label: `${t.wonder ? '🐋' : '🔷'} ${t.label}`, pose: 'stand' });
+  people.push({ id: 7, role: ROLES[1], tier: tier0, skin: SKIN[4], shirt: SHIRT[2], label: 'Walking', pose: 'walk' });
+  people.push({ id: 8, role: ROLES[2], tier: tier0, skin: SKIN[2], shirt: SHIRT[5], label: 'Carrying a block', pose: 'carry' });
+  // the founder and every legend (real Base builders), 8 per row in front of the crew
+  const legends = [makeBuilder(1, 0), ...(CONFIG.legends || []).map((legend, i) => {
+    const b = makeBuilder(100 + i, 0, { usd: CONFIG.tiers[1].min }, noLegend);
+    return { ...b, legend, legendIdx: i, name: legend.name };
+  })].map((b) => ({ ...b, label: `★ ${b.legend.name}`, pose: 'stand' }));
+  const lines = [];
+  if (!legendsOnly) lines.push(people);
+  for (let i = 0; i < legends.length; i += 8) lines.push(legends.slice(i, i + 8));
+  const rowZ = items.length ? (rows / 2) * gap + 4 : 0;
+  const scale = items.length ? 2.6 : 3.2, step = items.length ? 7 : 3.4, rowGap = items.length ? 8 : step * 2.6;
+  lines.forEach((row, r) => row.forEach((b, i) => {
     const m = buildBlocky(b);
-    const inRow = b.row ? legends.indexOf(b) : i, rowLen = b.row ? legends.length : people.length - legends.length;
-    const back = b.row && !legendsOnly ? step * 2.4 : 0; // legends stand in their own row behind the crew
     m.group.scale.setScalar(scale);
-    m.group.position.set((inRow - (rowLen - 1) / 2) * step, 0, rowZ - back);
+    m.group.position.set((i - (row.length - 1) / 2) * step, 0, rowZ + r * rowGap);
     m.carry.visible = b.pose === 'carry';
     scene.add(m.group);
     crew.push({ ...m, pose: b.pose, phase: i });
@@ -81,14 +84,33 @@ if (showBlockies) {
     tag.textContent = b.label;
     document.body.appendChild(tag);
     tags.push([tag, m.group.position.clone().add(new THREE.Vector3(0, 0, 1.6))]);
-  });
+  }));
 }
 
-const span = items.length ? 16 + 6 * Math.ceil(items.length / 3) : 14;
-const aspect = innerWidth / innerHeight, s = only ? Math.max(span, (items.length ? 0 : 32) / aspect) : 82;
-const camera = new THREE.OrthographicCamera((-s * aspect) / 2, (s * aspect) / 2, s / 2, -s / 2, -300, 300);
-camera.position.set(40, 40, 40);
+// a lawn under everything, then frame it all from the city's isometric angle
+const box = new THREE.Box3();
+for (const o of scene.children) if (!o.isLight) box.expandByObject(o);
+const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+const ground = new THREE.Mesh(new THREE.BoxGeometry(size.x + 8, 0.2, size.z + 8), new THREE.MeshLambertMaterial({ color: 0x6cc24a }));
+ground.position.set(center.x, -0.1, center.z);
+ground.receiveShadow = true;
+scene.add(ground);
+Object.assign(sun.shadow.camera, { left: -size.x, right: size.x, top: size.z, bottom: -size.z });
+sun.position.set(center.x + 30, 50, center.z + 20);
+sun.target.position.copy(center);
+scene.add(sun.target);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -300, 300);
+camera.position.copy(center).add(new THREE.Vector3(40, 40, 40));
+camera.lookAt(center);
+camera.updateMatrixWorld();
+const view = new THREE.Box3();
+for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) view.expandByPoint(new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse));
+const aspect = innerWidth / innerHeight;
+const fitH = Math.max(view.max.y - view.min.y, (view.max.x - view.min.x) / aspect) * 1.08 + 3;
+Object.assign(camera, { left: (-fitH * aspect) / 2, right: (fitH * aspect) / 2, top: fitH / 2, bottom: -fitH / 2 });
+camera.updateProjectionMatrix();
 const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(center);
 const animated = [];
 scene.traverse((o) => { if (o.userData.animate) animated.push(o); });
 const clock = new THREE.Timer();
