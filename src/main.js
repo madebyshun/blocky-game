@@ -94,9 +94,11 @@ camera.position.set(40, 34, 40);
 camera.zoom = innerWidth < innerHeight ? 1.5 : 1.05;
 const controls = new OrbitControls(camera, canvas);
 Object.assign(controls, {
-  enableDamping: true, enablePan: false, autoRotate: true, autoRotateSpeed: 0.3,
+  enableDamping: true, enablePan: true, screenSpacePanning: false, autoRotate: true, autoRotateSpeed: 0.3,
   minZoom: 0.6, maxZoom: 6, minPolarAngle: 0.5, maxPolarAngle: 1.2,
 });
+// drag: rotate · shift+drag, right-drag or two fingers: move around the city (eases back home when idle)
+let goHome = true;
 // Auto-rotate is a preference (button or R key) and always stops in photo mode, so screenshots
 // and screen recordings hold still. ?still starts without rotation, ?photo starts in photo mode.
 const qs = new URLSearchParams(location.search);
@@ -119,8 +121,8 @@ function setPhoto(on) {
   document.body.classList.toggle('photo', on);
   syncRotate();
 }
-controls.addEventListener('start', () => { controls.autoRotate = false; clearTimeout(idleTimer); });
-controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); });
+controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); });
+controls.addEventListener('end', () => { idleTimer = setTimeout(() => { goHome = true; syncRotate(); }, 8000); });
 $('rotate-btn').onclick = () => setRotate(!rotatePref);
 $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
@@ -137,7 +139,7 @@ const city = createCity(scene);
 const traffic = createTraffic(city);
 const metro = createMetro(city);
 const agents = createAgents(city);
-const sky = createSky(city);
+const sky = createSky(city, camera);
 const weather = createWeather(city);
 let market = null;
 const airship = createAirship();
@@ -148,7 +150,8 @@ function resize() {
   const w = innerWidth, h = innerHeight, aspect = w / h;
   const H = Math.max(2, city.land) * PITCH + 4; // isometric square of half-width H: ~2.9H wide, ~1.9H tall
   const s = Math.max(H * 1.9, (H * 2.9) / aspect, 30) * 1.05;
-  Object.assign(camera, { left: (-s * aspect) / 2, right: (s * aspect) / 2, top: s / 2, bottom: -s / 2, near: -400, far: 400 });
+  const lift = aspect < 0.8 ? s * 0.12 : 0; // phones: the HUD covers the top, so show the city a little lower
+  Object.assign(camera, { left: (-s * aspect) / 2, right: (s * aspect) / 2, top: s / 2 + lift, bottom: -s / 2 + lift, near: -400, far: 400 });
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
 }
@@ -550,9 +553,13 @@ function frame() {
   if (selected && following) {
     selected.group.getWorldPosition(tmp);
     controls.target.lerp(tmp, Math.min(1, dt * 3));
-  } else {
+  } else if (goHome) {
     controls.target.lerp(home, Math.min(1, dt * 2));
   }
+  const lim = city.land * PITCH + 4; // panning stays over the city
+  const tg = controls.target, before = tg.clone();
+  tg.set(THREE.MathUtils.clamp(tg.x, -lim, lim), THREE.MathUtils.clamp(tg.y, 0, 12), THREE.MathUtils.clamp(tg.z, -lim, lim));
+  camera.position.add(tg.clone().sub(before));
   controls.update();
   renderer.render(scene, camera);
   updateDistricts();

@@ -1271,6 +1271,7 @@ export function createCity(scene) {
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0008;
   scene.add(hemi, sun, sun.target);
+  scene.fog = new THREE.Fog(0xd6efff, 120, 260); // distant countryside fades into haze
 
   const groundGroup = new THREE.Group();
   const roadGroup = new THREE.Group();
@@ -1329,36 +1330,85 @@ export function createCity(scene) {
     }
   }
 
-  // ----- square land slab with a river, banks, bridges and waterfalls -----
+  // ----- square city land with a river, set in open countryside -----
+  // A river lot: sand bed, water, grass banks where the neighbours are dry.
+  function riverCell(k, i, j) {
+    const x = i * PITCH, z = j * PITCH;
+    const wet = (di, dj) => isWater(i + di, j + dj);
+    k.box(PITCH, 0.12, PITCH, C.sand, x, -0.42, z);
+    const x0 = wet(-1, 0) ? -4 : -3, x1 = wet(1, 0) ? 4 : 3, z0 = wet(0, -1) ? -4 : -3, z1 = wet(0, 1) ? 4 : 3;
+    k.water(x1 - x0, 0.15, z1 - z0, x + (x0 + x1) / 2, -0.32, z + (z0 + z1) / 2);
+    if (!wet(-1, 0)) k.box(1, 0.3, PITCH, C.grass2, x - 3.5, -0.3, z);
+    if (!wet(1, 0)) k.box(1, 0.3, PITCH, C.grass2, x + 3.5, -0.3, z);
+    if (!wet(0, -1)) k.box(PITCH, 0.3, 1, C.grass2, x, -0.3, z - 3.5);
+    if (!wet(0, 1)) k.box(PITCH, 0.3, 1, C.grass2, x, -0.3, z + 3.5);
+    for (const [cx, cz] of [[-3.5, -3.5], [3.5, -3.5], [-3.5, 3.5], [3.5, 3.5]]) {
+      const sx = Math.sign(cx), sz = Math.sign(cz);
+      if (!wet(sx, sz) || !wet(sx, 0) || !wet(0, sz)) k.box(1, 0.3, 1, C.grass2, x + cx, -0.3, z + cz);
+    }
+    if (hash(i, j, 80) < 0.5) k.box(0.5, 0.05, 0.5, 0x4caf50, x + hash(i, j, 81) * 3 - 1.5, -0.18, z + hash(i, j, 82) * 3 - 1.5);
+  }
+
+  // The countryside around the city, level with it: crop fields, meadows, woods and farms.
+  const FIELD = [0xd9c45a, 0x9ccc65, 0xc8b46a, 0x8bc34a, 0xe0b85a];
+  function countryCell(k, i, j, road) {
+    const x = i * PITCH, z = j * PITCH, r = hash(i, j, 90);
+    k.box(PITCH, 0.3, PITCH, (i + j) % 2 ? 0x66b046 : 0x5fa942, x, -0.3, z);
+    if (road) return;
+    if (r < 0.34) { // a crop field in rows
+      const crop = FIELD[Math.floor(hash(i, j, 91) * FIELD.length)], alongX = hash(i, j, 92) < 0.5;
+      k.box(6.6, 0.05, 6.6, crop, x, 0, z);
+      for (let s = -2.8; s <= 2.81; s += 0.8) {
+        if (alongX) k.box(6.6, 0.07, 0.14, 0x7a6a3a, x, 0, z + s); else k.box(0.14, 0.07, 6.6, 0x7a6a3a, x + s, 0, z);
+      }
+    } else if (r < 0.6) { // woods
+      const n = 3 + Math.floor(hash(i, j, 93) * 4);
+      for (let t = 0; t < n; t++) tree(k, x - 2.6 + hash(i, j, t, 94) * 5.2, z - 2.6 + hash(i, j, t, 95) * 5.2, i * 41 + j * 13 + t, 0);
+    } else if (r < 0.67) { // a farm: barn, silo, a tree
+      k.box(2.2, 1.4, 1.6, 0xb03a2e, x - 0.8, 0, z - 0.6); gableRoof(k, 2.2, 1.6, 1.4, 0x6e2f22, x - 0.8, z - 0.6);
+      k.box(0.9, 2.4, 0.9, 0xd5d8dc, x + 1.6, 0, z - 1.2); k.box(1.0, 0.3, 1.0, 0x9aa3ad, x + 1.6, 2.4, z - 1.2);
+      k.box(3.2, 0.05, 2.2, 0xc8b46a, x + 0.2, 0, z + 2.0);
+      tree(k, x + 2.4, z + 2.4, i * 7 + j, 0);
+    } else { // meadow
+      for (let t = 0; t < 5; t++) k.box(0.22, 0.22, 0.22, C.flower[t % 5], x - 2.8 + hash(i, j, t, 96) * 5.6, 0, z - 2.8 + hash(i, j, t, 97) * 5.6);
+      if (hash(i, j, 98) < 0.4) bush(k, x - 2 + hash(i, j, 99) * 4, z - 2 + hash(i, j, 100) * 4, i + j * 3, 0);
+    }
+  }
+
   function buildLand(L, animateRing) {
     groundGroup.clear();
-    const H = L * PITCH + 4;
+    const H = L * PITCH + 4, RC = L + 7; // city half-size; countryside drawn out to RC lots
     const k = new Kit();
     for (let i = -L; i <= L; i++) for (let j = -L; j <= L; j++) {
       const x = i * PITCH, z = j * PITCH;
-      if (!isWater(i, j)) { k.box(PITCH, 0.3, PITCH, (i + j) % 2 ? C.grass : C.grass2, x, -0.3, z); continue; }
-      const wet = (di, dj) => isWater(i + di, j + dj);
-      k.box(PITCH, 0.12, PITCH, C.sand, x, -0.42, z);
-      const x0 = wet(-1, 0) ? -4 : -3, x1 = wet(1, 0) ? 4 : 3, z0 = wet(0, -1) ? -4 : -3, z1 = wet(0, 1) ? 4 : 3;
-      k.water(x1 - x0, 0.15, z1 - z0, x + (x0 + x1) / 2, -0.32, z + (z0 + z1) / 2);
-      if (!wet(-1, 0)) k.box(1, 0.3, PITCH, C.grass2, x - 3.5, -0.3, z);
-      if (!wet(1, 0)) k.box(1, 0.3, PITCH, C.grass2, x + 3.5, -0.3, z);
-      if (!wet(0, -1)) k.box(PITCH, 0.3, 1, C.grass2, x, -0.3, z - 3.5);
-      if (!wet(0, 1)) k.box(PITCH, 0.3, 1, C.grass2, x, -0.3, z + 3.5);
-      for (const [cx, cz] of [[-3.5, -3.5], [3.5, -3.5], [-3.5, 3.5], [3.5, 3.5]]) {
-        const sx = Math.sign(cx), sz = Math.sign(cz);
-        if (!wet(sx, sz) || !wet(sx, 0) || !wet(0, sz)) k.box(1, 0.3, 1, C.grass2, x + cx, -0.3, z + cz);
-      }
-      if (hash(i, j, 80) < 0.5) k.box(0.5, 0.05, 0.5, 0x4caf50, x + hash(i, j, 81) * 3 - 1.5, -0.18, z + hash(i, j, 82) * 3 - 1.5);
-      // waterfall down the side where the river leaves the land
-      if (Math.abs(j) === L && wet(0, Math.sign(j))) k.water(6, 4.6, 0.3, x, -4.9, Math.sign(j) * (H + 0.15));
-      if (Math.abs(i) === L && wet(Math.sign(i), 0)) k.water(0.3, 4.6, 6, Math.sign(i) * (H + 0.15), -4.9, z);
+      if (isWater(i, j)) riverCell(k, i, j);
+      else k.box(PITCH, 0.3, PITCH, (i + j) % 2 ? C.grass : C.grass2, x, -0.3, z);
     }
-    k.box(2 * H, 0.12, 2 * H, C.base, 0, -0.55, 0);
-    k.box(2 * H, 2.6, 2 * H, C.dirt, 0, -3.15, 0);
-    k.box(2 * H, 1.6, 2 * H, 0x8a8f98, 0, -4.75, 0);
+    // highways into town from the west and the south, clear of the river
+    const westZ = PITCH / 2, southX = -1.5 * PITCH;
+    const onRoad = (i, j) => (i < -L && (j === 0 || j === 1)) || (j > L && (i === -2 || i === -1));
+    for (let i = -RC; i <= RC; i++) for (let j = -RC; j <= RC; j++) {
+      if (Math.abs(i) <= L && Math.abs(j) <= L) continue;
+      if (isWater(i, j)) riverCell(k, i, j); else countryCell(k, i, j, onRoad(i, j));
+    }
+    const far = RC * PITCH + 4, len = far - H;
+    k.box(len, 0.06, 2.4, C.road, -(H + far) / 2, 0, westZ);
+    k.box(2.4, 0.06, len, C.road, southX, 0, (H + far) / 2);
+    for (let d = H + 1; d < far; d += 2.2) { k.box(1, 0.02, 0.12, C.white, -d, 0.06, westZ); k.box(0.12, 0.02, 1, C.white, southX, 0.06, d); }
+    for (let d = H + 6; d < far; d += 12) { // street lights along the highways
+      k.box(0.1, 1.8, 0.1, C.dark, -d, 0, westZ + 1.5); k.win(0.3, 0.2, 0.3, -d, 1.8, westZ + 1.5);
+      k.box(0.1, 1.8, 0.1, C.dark, southX + 1.5, 0, d); k.win(0.3, 0.2, 0.3, southX + 1.5, 1.8, d);
+    }
+    // the city limits: a gravel path around the land (the river runs under it)
+    const lim = H - 0.55;
+    for (let t = -L; t <= L; t++) for (const sgn of [-1, 1]) {
+      if (!isWater(t, sgn * L) && !isWater(t, sgn * (L + 1))) k.box(PITCH, 0.04, 0.7, 0xd9cfb8, t * PITCH, 0, sgn * lim);
+      if (!isWater(sgn * L, t) && !isWater(sgn * (L + 1), t)) k.box(0.7, 0.04, PITCH, 0xd9cfb8, sgn * lim, 0, t * PITCH);
+    }
+    k.box(4000, 0.1, 4000, 0x5fa942, 0, -0.56, 0); // and the rest of the world
+    if (scene.fog) { scene.fog.near = 70 + H * 1.1; scene.fog.far = scene.fog.near + 140; }
     groundGroup.add(k.build());
-    Object.assign(sun.shadow.camera, { left: -H - 6, right: H + 6, top: H + 6, bottom: -H - 6, near: 1, far: 300 });
+    Object.assign(sun.shadow.camera, { left: -H - 24, right: H + 24, top: H + 24, bottom: -H - 24, near: 1, far: 300 });
     sun.shadow.camera.updateProjectionMatrix();
 
     for (let i = -L; i <= L; i++) for (let j = -L; j <= L; j++) {
@@ -1578,6 +1628,7 @@ export function createCity(scene) {
       if (flash > 0) { top.lerp(new THREE.Color('#e8ecff'), flash * 0.7); bot.lerp(new THREE.Color('#ffffff'), flash * 0.7); }
       document.documentElement.style.setProperty('--sky-top', `#${top.getHexString()}`);
       document.documentElement.style.setProperty('--sky-bottom', `#${bot.getHexString()}`);
+      scene.fog.color.copy(bot);
     }
 
     for (let i = rising.length - 1; i >= 0; i--) {

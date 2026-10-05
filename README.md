@@ -16,7 +16,8 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - `gallery.html` (dev only) shows every design and Blocky side by side; `?only=blockies` or `?only=coaster,ferris` to zoom in.
 - **The land is a square that expands**: when every lot is built, the Blockies reclaim a new ring of land, but only once enough Blockies live in the city (3, 6, 10, 16…). Until then the city waits, which is where new buys come in.
 - Landmarks are built as the crew grows: Founder's Garage → Town Square → **Statue of Blockerty** (the city icon, on a riverside point, unlocked by the first buy) → gm Café → Builder HQ → … → Onchain Beacon.
-- Day/night cycle, clouds drifting around the city, flocks of birds and river gulls (they sleep at night), a city log with exact completion times, and a "while you were away" recap.
+- The city sits in open countryside (crop fields, farms, woods, the river running on past the city limits, highways into town) that fades into haze; no floating island.
+- Day/night cycle, clouds drifting high over the countryside, flocks of birds and river gulls (they sleep at night), a city log with exact completion times, and a "while you were away" recap.
 - **Market weather**: the sky follows `$BLOCKY`'s 24h price change: storm with lightning (≤ -15%), rain, cloudy, sunny, and a fireworks bull run (≥ +15%). Base Builder buys fire a volley over the Statue of Blockerty, whales fire three. `?weather=storm` forces a look for recording.
 - **Named districts**: 3×3-lot neighbourhoods are named after what was built there (Downtown, GPU Valley, Fun Pier, Builder Heights…) and labelled on the map.
 - **BaseCity News**: a SimCity-style ticker with buys, completions, weather, City Hall notices and the builder of the day.
@@ -28,6 +29,7 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - **City services**: a Fire Station, Police Station, Hospital, Recycling Center and Solar Farm arrive early in every city (more as it grows). Each sends its vehicles out on the roads with flashing light bars: fire trucks, police cars, ambulances and garbage trucks.
 - **BaseCity Metro** (community goal at 15 Blockies): an elevated loop over the ring road, on pillars between the car lanes. It rises piece by piece while the crew builds it, then a three-car train runs the loop and stops at a station on every side. The loop grows with the land. Set it in `metro` in `src/config.js`.
 - **Billboards** on the Town Square, Builder HQ, the airport and some rooftops show Base projects (Coinbase Wallet, o1.exchange, Virtuals, bankrbot, Aero, logos drawn in code) plus one "YOUR PROJECT HERE" slot that sells the space. Edit `sponsors` in `src/config.js` (`{ name, tagline, color, logo?, url, sponsored? }`); clicking a board opens its link.
+- **Camera**: drag to rotate, scroll or pinch to zoom, shift+drag / right-drag / two fingers to move around the city (it eases back to the centre when idle).
 - **Photo mode** for screenshots and recordings: 📷 button or `P` hides the panels and holds the camera still (`Esc` to exit); `R` toggles auto-rotate (remembered). `?photo` / `?still` start that way.
 - Same city for every visitor. No wallet needed. **The Blockies are simulated; the buys are real.**
 

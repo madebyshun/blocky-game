@@ -5,7 +5,7 @@ import { hash, PITCH, riverCol } from './sim.js';
 // Clouds drifting past the city and flocks of birds circling it (birds sleep at night).
 
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
-const CLOUD_MAT = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xb8c4d6, transparent: true, opacity: 0.92 });
+const CLOUD_MAT = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xb8c4d6, transparent: true, opacity: 0.85 });
 const DAY_CLOUD = new THREE.Color(0xffffff), NIGHT_CLOUD = new THREE.Color(0x5b6a8f);
 const DAY_GLOW = new THREE.Color(0xb8c4d6), NIGHT_GLOW = new THREE.Color(0x1a2033), STORM_CLOUD = new THREE.Color(0x7d8796);
 
@@ -19,7 +19,7 @@ function cloud(seed) {
     g.translate((i - n / 2) * 1.6 + hash(seed, i, 5), h / 2 + (i % 2) * 0.5, hash(seed, i, 6) * 2 - 1);
     geos.push(g);
   }
-  return new THREE.Mesh(mergeGeometries(geos), CLOUD_MAT);
+  return new THREE.Mesh(mergeGeometries(geos), CLOUD_MAT.clone()); // own material: each fades on its own
 }
 
 const BIRD_MAT = { dark: new THREE.MeshLambertMaterial({ color: 0x2b2f36 }), white: new THREE.MeshLambertMaterial({ color: 0xf4f4f0 }) };
@@ -41,7 +41,8 @@ function bird(kind) {
   return g;
 }
 
-export function createSky(city) {
+// camera: clouds only show on the far side of the city, so they never hide the streets
+export function createSky(city, camera) {
   const group = new THREE.Group();
   city.root.add(group);
   const clouds = [];
@@ -55,11 +56,11 @@ export function createSky(city) {
     flocks.length = 0;
     const R = city.land * PITCH + 4;
 
-    // clouds circle slowly around the outside of the city, at many heights, never over the streets
+    // clouds drift high over the countryside around the city, never over the streets
     const n = 8 + city.land * 2;
     for (let i = 0; i < n; i++) {
       const c = cloud(i + 1);
-      c.userData = { a: (i / n) * Math.PI * 2 + hash(i, 8), r: R * (1.55 + hash(i, 7) * 0.5), y: -4 + hash(i, 9) * 14, speed: 0.015 + hash(i, 10) * 0.015 };
+      c.userData = { a: (i / n) * Math.PI * 2 + hash(i, 8), r: R * (1.3 + hash(i, 7) * 0.9), y: 15 + hash(i, 9) * 8, speed: 0.015 + hash(i, 10) * 0.015 };
       group.add(c);
       clouds.push(c);
     }
@@ -82,7 +83,7 @@ export function createSky(city) {
     }
   }
 
-  const pos = new THREE.Vector3(), ahead = new THREE.Vector3();
+  const pos = new THREE.Vector3(), ahead = new THREE.Vector3(), view = new THREE.Vector3();
   function flockPoint(fl, a, out) {
     if (fl.gull) { // glide up and down the river
       const j = Math.sin(a) * city.land;
@@ -97,10 +98,17 @@ export function createSky(city) {
     const gloom = city.env.gloom || 0; // rain clouds turn grey
     CLOUD_MAT.color.copy(NIGHT_CLOUD).lerp(DAY_CLOUD, dl).lerp(STORM_CLOUD, gloom * 0.7);
     CLOUD_MAT.emissive.copy(NIGHT_GLOW).lerp(DAY_GLOW, dl).multiplyScalar(1 - gloom * 0.6);
+    if (camera) camera.getWorldDirection(view).setY(0).normalize();
     for (const c of clouds) {
       const u = c.userData;
       u.a += u.speed * dt;
       c.position.set(Math.cos(u.a) * u.r, u.y, Math.sin(u.a) * u.r);
+      // fade in behind the city (seen from the camera), out as they drift round to the front
+      const behind = camera ? (c.position.x * view.x + c.position.z * view.z) / u.r : 1;
+      const m = c.material;
+      m.opacity = 0.85 * THREE.MathUtils.smoothstep(behind, 0.15, 0.6);
+      c.visible = m.opacity > 0.01;
+      m.color.copy(CLOUD_MAT.color); m.emissive.copy(CLOUD_MAT.emissive);
     }
     const awake = dl > 0.25 && (city.env.gloom || 0) < 0.5; // birds sleep at night and shelter from the rain
     for (const fl of flocks) {
