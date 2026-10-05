@@ -20,20 +20,25 @@ import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 /// - Until the collection unlocks, Blockies can't be transferred or approved, and a Blocky whose
 ///   wallet sold its $BLOCKY leaves the city: the ledger lists it for eviction (burned, its number
 ///   never comes back) and its place goes to the next buyer.
-/// - The collection unlocks by itself UNLOCK_DELAY after MAX_SUPPLY Blockies exist (or when the owner
-///   unlocks it). The delay leaves time to burn Blockies whose wallets sold just before (a claim
-///   signature lasts 30 minutes). From then on Blockies are ordinary NFTs, free to trade, and none can
-///   be evicted.
+/// - The claim that makes MAX_SUPPLY freezes the city (frozenAt): selling no longer costs Blockies,
+///   and claim signatures from before stop working, so none can mint a Blocky whose wallet sold.
+///   Then anyone can open the market with openMarket() and the ledger's signed list: it burns the
+///   Blockies whose wallets sold before the freeze and unlocks transfers at once, usually minutes
+///   after the freeze. If nobody does, transfers open by themselves UNLOCK_DELAY after it. The owner
+///   can also unlock early. From then on Blockies are ordinary NFTs and none can be evicted.
 contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
     bytes32 public constant CLAIM_TYPEHASH =
-        keccak256("Claim(address to,bytes32 ids,bytes32 evict,uint256 deadline)");
+        keccak256("Claim(address to,bytes32 ids,bytes32 evict,uint256 deadline,bool frozen)");
+    bytes32 public constant OPEN_MARKET_TYPEHASH = keccak256("OpenMarket(bytes32 evict,uint256 deadline)");
 
-    /// @notice Transfers open this long after the MAX_SUPPLY-th Blocky is claimed.
-    uint256 public constant UNLOCK_DELAY = 1 days;
+    /// @notice If nobody opens the market, transfers open by themselves this long after the freeze.
+    uint256 public constant UNLOCK_DELAY = 6 hours;
 
     uint256 public immutable MAX_SUPPLY;
     address public signer;
-    uint256 public unlockAt; // when transfers open; 0 until MAX_SUPPLY Blockies exist or the owner unlocks
+    uint256 public frozenAt; // when the city froze (the MAX_SUPPLY-th claim, or the owner's unlock); 0 before
+    uint256 public frozenBlock; // the block it froze in
+    uint256 public unlockAt; // when transfers open (or opened); 0 until the freeze
     uint256 public totalSupply; // Blockies that exist now
     uint256 public totalMinted; // Blockies ever claimed
     mapping(uint256 => bool) public evicted;
@@ -43,8 +48,8 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
 
     event Claimed(address indexed to, uint256 count);
     event Evicted(uint256 indexed id, address indexed from);
-    event UnlockScheduled(uint256 at);
-    event Unlocked();
+    event Frozen(uint256 unlockAt);
+    event Unlocked(address by);
     event SignerUpdated(address signer);
     event ContractURIUpdated();
 
@@ -52,6 +57,7 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
     error BadSignature();
     error Locked();
     error AlreadyUnlocked();
+    error NotFrozen();
     error ZeroAddress();
 
     constructor(
@@ -75,7 +81,8 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
 
     /// @notice Claim the Blockies the ledger signed for you. `evictIds` lists Blockies that left the city
     /// (their wallets sold); while the collection is locked they are burned first. Ids that already
-    /// exist or were evicted are skipped, so an old signature never reverts on them.
+    /// exist or were evicted are skipped, so an old signature never reverts on them. A signature only
+    /// works on the side of the freeze it was made for (`frozen`).
     function claim(uint256[] calldata ids, uint256[] calldata evictIds, uint256 deadline, bytes calldata signature)
         external
     {
@@ -87,7 +94,8 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
                     msg.sender,
                     keccak256(abi.encodePacked(ids)),
                     keccak256(abi.encodePacked(evictIds)),
-                    deadline
+                    deadline,
+                    frozenAt != 0
                 )
             )
         );
@@ -102,13 +110,23 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
             ++count;
         }
         if (count > 0) emit Claimed(msg.sender, count);
-        if (unlockAt == 0 && totalSupply >= MAX_SUPPLY) {
-            unlockAt = block.timestamp + UNLOCK_DELAY;
-            emit UnlockScheduled(unlockAt);
-        }
+        if (frozenAt == 0 && totalSupply >= MAX_SUPPLY) _freeze(block.timestamp + UNLOCK_DELAY);
     }
 
-    /// @notice True once transfers are open (see UNLOCK_DELAY).
+    /// @notice Open the market once the city is frozen: burns the Blockies whose wallets sold before the
+    /// freeze (the list the ledger signed) and opens transfers now. Anyone can send it.
+    function openMarket(uint256[] calldata evictIds, uint256 deadline, bytes calldata signature) external {
+        if (frozenAt == 0) revert NotFrozen();
+        if (unlocked()) revert AlreadyUnlocked();
+        if (block.timestamp > deadline) revert Expired();
+        bytes32 digest =
+            _hashTypedDataV4(keccak256(abi.encode(OPEN_MARKET_TYPEHASH, keccak256(abi.encodePacked(evictIds)), deadline)));
+        if (ECDSA.recover(digest, signature) != signer) revert BadSignature();
+        for (uint256 i; i < evictIds.length; ++i) _evict(evictIds[i]);
+        _open();
+    }
+
+    /// @notice True once transfers are open.
     function unlocked() public view returns (bool) {
         return unlockAt != 0 && block.timestamp >= unlockAt;
     }
@@ -126,12 +144,12 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
         for (uint256 i; i < ids.length; ++i) _evict(ids[i]);
     }
 
-    /// @notice Open transfers now: before every Blocky is claimed, or before the unlock delay ends.
-    /// Can't be undone.
+    /// @notice Open transfers now, before every Blocky is claimed or before the market opens. Freezes the
+    /// city too. Burn the ledger's eviction list first: nothing can be burned after. Can't be undone.
     function unlock() external onlyOwner {
         if (unlocked()) revert AlreadyUnlocked();
-        unlockAt = block.timestamp;
-        emit Unlocked();
+        if (frozenAt == 0) _freeze(block.timestamp);
+        _open();
     }
 
     function setSigner(address signer_) external onlyOwner {
@@ -187,6 +205,18 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
         } else if (to == address(0)) {
             --totalSupply;
         }
+    }
+
+    function _freeze(uint256 unlockAt_) private {
+        frozenAt = block.timestamp;
+        frozenBlock = block.number;
+        unlockAt = unlockAt_;
+        emit Frozen(unlockAt_);
+    }
+
+    function _open() private {
+        unlockAt = block.timestamp;
+        emit Unlocked(msg.sender);
     }
 
     function _evict(uint256 id) private {

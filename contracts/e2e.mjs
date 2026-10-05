@@ -1,13 +1,14 @@
 // End to end: the ledger hands out Blockies, /api/claim signs them, the wallet claims them on the
-// contract (in-memory EVM), sellers' claimed Blockies get burned by the next claims, and /api/nft
-// serves the metadata and portraits. Chain reads go to the in-memory EVM; $BLOCKY balances are faked.
+// contract (in-memory EVM, 20 Blockies at most), sellers' claimed Blockies get burned by the next
+// claims, /api/nft serves the metadata and portraits, and once the city fills anyone opens the market.
+// Chain reads go to the in-memory EVM; $BLOCKY balances are faked.
 import assert from 'node:assert/strict';
 import { verifyTypedData, getAddress } from 'viem';
 import { chain, account } from './evm.mjs';
 
 const evm = await chain();
-const [owner, signer, alice, bob, dave, erin, frank] = [11, 12, 13, 14, 18, 19, 20].map(account);
-const C = await evm.deploy(owner, [owner.address, signer.address, owner.address, 500, 10000n, 'https://basecity.test/api/nft/', '']);
+const [owner, signer, alice, bob, dave, erin, frank, gina, anyone] = [11, 12, 13, 14, 18, 19, 20, 22, 40].map(account);
+const C = await evm.deploy(owner, [owner.address, signer.address, owner.address, 500, 20n, 'https://basecity.test/api/nft/', '']);
 for (const k of Object.keys(process.env)) if (/^(KV_|UPSTASH_)/.test(k)) delete process.env[k];
 Object.assign(process.env, { NFT_CONTRACT: C, CLAIM_SIGNER_KEY: `0x${'12'.padStart(64, '0')}`, SITE_URL: 'https://basecity.test', USD_PER_BLOCKY: '5', TEAM_RESERVE_COUNT: '0' });
 
@@ -42,6 +43,7 @@ const call = (handler, { method = 'GET', url, query = {}, body } = {}) => new Pr
 const get = (address) => call(claimApi, { url: `/api/claim?address=${address}`, query: { address } });
 const info = () => call(claimApi, { url: '/api/claim' });
 const evictList = () => call(claimApi, { url: '/api/claim?evictions=1', query: { evictions: '1' } });
+const market = () => call(claimApi, { url: '/api/claim?market=1', query: { market: '1' } });
 const post = (address) => call(claimApi, { method: 'POST', url: '/api/claim', body: { address } });
 const submit = async (who, r) => evm.send(who, 'claim', [r.ids.map(BigInt), r.evict.map(BigInt), BigInt(r.deadline), r.signature]);
 
@@ -138,7 +140,7 @@ fakeSupply = 10000n;
 r = await post(dave.address);
 assert.equal(r.code, 409);
 assert.match(r.body.error, /full right now/);
-fakeSupply = 9999n;
+fakeSupply = 19n;
 r = await post(dave.address);
 assert.deepEqual(r.body.ids, [16]);
 fakeSupply = null;
@@ -150,9 +152,8 @@ assert.equal((await post(dave.address)).code, 503);
 assert.equal((await evictList()).code, 503);
 delete process.env.VERCEL_ENV;
 r = await info();
-assert.equal(r.body.open, true);
-assert.equal(r.body.unlocked, false);
-assert.equal(r.body.unlockAt, null);
+assert.deepEqual([r.body.open, r.body.frozenAt, r.body.unlockAt, r.body.unlocked, r.body.market], [true, null, null, false, null]);
+assert.equal((await market()).code, 409); // not full yet
 
 // the NFT metadata and portraits
 r = await call(nftApi, { url: '/api/nft/3', query: { id: '3' } });
@@ -180,13 +181,51 @@ assert.equal(r.body.fee_recipient, '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D')
 r = await call(nftApi, { url: '/api/nft/collection.svg', query: { id: 'collection.svg' } });
 assert.match(r.body, /^<svg/);
 
-// the owner unlocks: no more evictions, and a complete collection signs nothing
-assert.equal((await evm.send(owner, 'unlock')).error, undefined);
+// the city fills: gina's claim makes 20 (12 exist), while frank has just sold (his two are still
+// NFTs) and dave holds a claim signed before the freeze
+assert.equal(await evm.read('totalSupply'), 12n);
+const early = await post(dave.address);
+applyTrade(L, { who: gina.address, kind: 'buy', usd: 40, tokens: 800, at: Date.now(), tx: '0x08' }, LEDGER);
+balances[gina.address.toLowerCase()] = 800;
+await saveLedger(L);
+r = await post(gina.address);
+assert.deepEqual([r.body.ids, r.body.evict], [[28, 29, 30, 31, 32, 33, 34, 35], []]);
+applyTrade(L, { who: frank.address, kind: 'sell', usd: 10, tokens: 200, at: Date.now(), tx: '0x09' }, LEDGER);
+balances[frank.address.toLowerCase()] = 0;
+await saveLedger(L);
+assert.equal((await submit(gina, r.body)).error, undefined);
+assert.equal(await evm.read('totalSupply'), 20n);
+assert.equal(await evm.read('frozenAt'), BigInt(evm.now));
+assert.equal((await submit(dave, early.body)).error, 'BadSignature', 'a claim signed before the freeze');
+
+// frozen, still locked: the market waits until the ledger has caught up with the freeze
 r = await info();
-assert.equal(r.body.unlocked, true);
-assert.equal(r.body.unlockAt, evm.now * 1000);
+assert.deepEqual([r.body.frozenAt, r.body.unlockAt, r.body.unlocked, r.body.market], [evm.now * 1000, (evm.now + 6 * 3600) * 1000, false, 'settling']);
+assert.equal((await evm.send(alice, 'transferFrom', [alice.address, bob.address, 1n])).error, 'Locked');
+r = await market();
+assert.deepEqual([r.code, r.body.market], [409, 'settling']);
+Object.assign(L, { frozenAt: evm.now * 1000, finalCheck: true, syncedTo: Date.now() }); // what api/colony.js does
+await saveLedger(L);
+assert.equal((await info()).body.market, 'ready');
+r = await market();
+assert.equal(r.code, 200, JSON.stringify(r.body));
+assert.deepEqual([...r.body.evict].sort((a, b) => a - b), [26, 27]);
+
+// anyone opens it: frank's two are burned, transfers open
+evm.now += 90;
+const opened = await evm.send(anyone, 'openMarket', [r.body.evict.map(BigInt), BigInt(r.body.deadline), r.body.signature]);
+assert.equal(opened.error, undefined);
+assert.ok(opened.events.some((e) => e.eventName === 'Unlocked' && e.args.by === anyone.address));
+assert.equal(await evm.read('balanceOf', [frank.address]), 0n);
+assert.equal(await evm.read('totalSupply'), 18n);
+r = await info();
+assert.deepEqual([r.body.unlocked, r.body.unlockAt, r.body.market], [true, evm.now * 1000, null]);
+assert.equal((await market()).code, 409);
 assert.deepEqual((await evictList()).body.evict, []);
-fakeSupply = 10000n;
+assert.equal((await evm.send(alice, 'transferFrom', [alice.address, bob.address, 1n])).error, undefined);
+
+// after it: claims fill the free places, and a complete collection signs nothing
+fakeSupply = 20n;
 r = await post(dave.address);
 assert.equal(r.code, 409);
 assert.match(r.body.error, /complete/);

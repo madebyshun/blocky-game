@@ -58,14 +58,17 @@ export async function downloadSvgPng(svg, name, size = 1024) {
   a.click();
 }
 
-// Whether NFT claims are open, and the contract (from the API; the config as a fallback).
+// Whether NFT claims are open, the contract (from the API; the config as a fallback), and the market:
+// frozenAt (every Blocky is claimed), unlockAt (trading opens by itself), unlocked, and market ('ready'
+// when anyone can open it, 'settling' while the ledger catches up).
 export async function nftInfo() {
   try {
     const res = await fetch('/api/claim', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
-    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, unlocked: Boolean(s.unlocked), unlockAt: typeof s.unlockAt === 'number' ? s.unlockAt : null, live: true };
+    const ms = (v) => (typeof v === 'number' ? v : null);
+    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, frozenAt: ms(s.frozenAt), unlockAt: ms(s.unlockAt), unlocked: Boolean(s.unlocked), market: s.market || null, live: true };
   } catch {
-    return { open: false, contract: CONFIG.nft.contract || null, unlocked: false, unlockAt: null, live: false };
+    return { open: false, contract: CONFIG.nft.contract || null, frozenAt: null, unlockAt: null, unlocked: false, market: null, live: false };
   }
 }

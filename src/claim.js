@@ -14,8 +14,9 @@ const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.tk')) el.textContent = CONFIG.ticker;
 for (const el of document.querySelectorAll('.supply')) el.textContent = fmt(CONFIG.supply);
 
-let info = { open: false, contract: null, live: false, unlocked: false, unlockAt: null };
+let info = { open: false, contract: null, live: false, frozenAt: null, unlockAt: null, unlocked: false, market: null };
 const when = (ms) => new Date(ms).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+let openedTx = null; // this visitor opened the market
 let provider = null; // the connected wallet
 let account = null; // its address
 let viewing = null; // the address on screen (connected or looked up)
@@ -23,12 +24,23 @@ let busy = false;
 
 function status() {
   const s = $('status');
+  const sea = info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">BaseCity Blockies on OpenSea ↗</a>` : '';
   if (!info.live) {
     s.className = 'note';
     s.textContent = 'Live data is not reachable here, so wallets can\'t be checked yet. Claims work on the live BaseCity site.';
+  } else if (info.unlocked) {
+    s.className = 'note ok';
+    s.innerHTML = `${openedTx ? `<b>You opened the market!</b> <a href="${basescan(`tx/${openedTx}`)}" target="_blank" rel="noopener">Your transaction ↗</a> ` : ''}The market is open: Blockies trade freely now. ${sea}`;
+  } else if (info.frozenAt) {
+    // every Blocky is claimed: the first visitor to send the ledger's list opens the market
+    s.className = 'note ok';
+    s.innerHTML = info.market === 'ready'
+      ? `<b>Full house: every Blocky is claimed.</b> Anyone can open the market now: one transaction burns the Blockies of wallets that sold before the city filled, and trading starts. You pay the gas, a few cents. <span class="market-row"><button class="btn primary" id="open-market" type="button">Open the market</button><span class="claim-msg" id="market-msg" aria-live="polite"></span></span>`
+      : `<b>Full house: every Blocky is claimed.</b> The ledger is settling the last trades before the city filled: the market can open in a minute or two${info.unlockAt ? `, and opens by itself ${when(info.unlockAt)} at the latest` : ''}.`;
+    $('open-market')?.addEventListener('click', openMarket);
   } else if (info.open) {
     s.className = 'note ok';
-    s.innerHTML = `${info.unlocked ? 'The collection is unlocked: Blockies trade freely now. ' : info.unlockAt ? `Every Blocky is claimed: trading opens ${when(info.unlockAt)}. ` : 'Claims are open. '}You pay the gas, a few cents on Base. ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">BaseCity Blockies on OpenSea ↗</a>` : ''}`;
+    s.innerHTML = `Claims are open. You pay the gas, a few cents on Base. ${sea}`;
   } else {
     s.className = 'note';
     s.textContent = `Claims open soon. Every Blocky your wallet brings is saved in the ledger: keep holding ${CONFIG.ticker} and claim here when the contract goes live.`;
@@ -145,7 +157,7 @@ function render(j) {
     [`${CONFIG.citizenPlural} in the city`, fmt(list.length)],
     ['Claimed', fmt(claimed)],
     ['To claim', fmt(unclaimed)],
-    ...(j.waiting && !j.frozen ? [['Waiting for a place', fmt(j.waiting)]] : []),
+    ...(j.waiting && !j.frozenAt ? [['Waiting for a place', fmt(j.waiting)]] : []),
     ...(left.length ? [['Left the city', fmt(left.length)]] : []),
     ['Bought', `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="line">next ${CONFIG.citizen} in $${toNext.toFixed(2)}</small>`],
   ].map(([k, v]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
@@ -198,12 +210,54 @@ async function claim() {
 }
 $('claim').onclick = claim;
 
+// ---------- opening the market (once every Blocky is claimed) ----------
+
+async function openMarket() {
+  const msg = (html, tone = '') => { const m = $('market-msg'); if (m) { m.className = `claim-msg ${tone}`; m.innerHTML = html; } };
+  if (busy) return;
+  if (!account || !provider) { msg('Connect a wallet below first: any wallet can open it.'); return; }
+  busy = true;
+  $('open-market').disabled = true;
+  try {
+    msg('Getting the ledger\'s list…');
+    const res = await fetch('/api/claim?market=1', { cache: 'no-store' });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    const data = encodeFunctionData({ abi: CLAIM_ABI, functionName: 'openMarket', args: [j.evict.map(BigInt), BigInt(j.deadline), j.signature] });
+    msg('Confirm in your wallet…');
+    const hash = await sendTx(provider, { from: account, to: j.contract, data });
+    msg(`Opening the market… <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">View on Basescan ↗</a>`);
+    const done = await waitTx(hash, provider);
+    busy = false;
+    if (done.ok) openedTx = hash;
+    info = await nftInfo();
+    status();
+    if (done.ok === false) msg(`The transaction failed: someone may have opened it first. <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">Details ↗</a>`, 'bad');
+  } catch (e) {
+    busy = false;
+    msg(rejected(e) ? 'Cancelled.' : esc(e.shortMessage || e.message || String(e)), rejected(e) ? '' : 'bad');
+    if ($('open-market')) $('open-market').disabled = false;
+  }
+}
+
+// while every Blocky is claimed but the market isn't open, check again every 30 seconds
+let watching = null;
+function watchMarket() {
+  clearTimeout(watching);
+  if (!info.frozenAt || info.unlocked) return;
+  watching = setTimeout(async () => {
+    if (!busy) { info = await nftInfo(); status(); }
+    watchMarket();
+  }, 30000);
+}
+
 (async () => {
   onWallets(renderWallets);
   renderWallets();
   fetchColony().catch(() => null); // also brings the ledger up to date with the latest buys
   info = await nftInfo();
   status();
+  watchMarket();
   const q = new URLSearchParams(location.search).get('address');
   if (q && isAddress(q, { strict: false })) show(getAddress(q));
   else if (q && BASENAME.test(q)) show(q.toLowerCase()); // ?address=name.base.eth

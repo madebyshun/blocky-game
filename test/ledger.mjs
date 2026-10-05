@@ -1,7 +1,7 @@
 // The Blocky ledger's rules (src/ledger.js): $ per Blocky per wallet, the hold rule, the waitlist,
 // whales, incremental snapshots, fair rarity seeds, and the unlock. Run: npm test
 import assert from 'node:assert/strict';
-import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, isFrozen, FREEZE_LEAD_MS } from '../src/ledger.js';
+import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, isFrozen } from '../src/ledger.js';
 import { rarityOf } from '../src/sim.js';
 
 const cfg = { per: 5, supply: 10000, whaleUsd: 1000 };
@@ -67,29 +67,27 @@ L = JSON.parse(JSON.stringify(L));
 applyTrade(L, { who: '0xW', kind: 'sell', usd: 600, tokens: 6000, at: at() }, cfg);
 assert.equal(snapshot(L, cfg).minted, 120);
 
-// 5. once the collection unlocks (frozen), selling no longer sends Blockies away
+// 5. once the city freezes (the NFT contract's frozenAt), selling no longer sends Blockies away
 L = newLedger(0);
 applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);
-L.frozen = true;
-applyTrade(L, { who: '0xE', kind: 'sell', usd: 50, tokens: 500, at: at() }, cfg);
-assert.equal(snapshot(L, cfg).minted, 10);
-// the ledger freezes an hour before the contract's unlock time: sells up to then still cost Blockies
-L = newLedger(0);
-applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);
-L.unlockAt = t + 10000 + FREEZE_LEAD_MS; // 10 seconds from now, plus the lead
+L.frozenAt = t + 10000;
 applyTrade(L, { who: '0xE', kind: 'sell', usd: 10, tokens: 100, at: at() }, cfg);
-assert.equal(snapshot(L, cfg).minted, 8);
-assert.equal(snapshot(L, cfg).frozen, false);
-assert.equal(isFrozen(L, L.unlockAt - FREEZE_LEAD_MS - 1), false);
-t = L.unlockAt - FREEZE_LEAD_MS;
-applyTrade(L, { who: '0xE', kind: 'sell', usd: 40, tokens: 400, at: t }, cfg);
+assert.equal(snapshot(L, cfg).minted, 8, 'a sell before the freeze still costs Blockies');
+assert.equal(isFrozen(L, L.frozenAt - 1), false);
+t = L.frozenAt;
+applyTrade(L, { who: '0xE', kind: 'sell', usd: 20, tokens: 200, at: t }, cfg);
 assert.equal(snapshot(L, cfg).minted, 8, 'a sell from the freeze on kept its Blockies');
 applyBalances(L, { '0xe': 0 }, at(), cfg);
 assert.equal(snapshot(L, cfg).minted, 8);
-assert.equal(snapshot(L, cfg).frozen, true);
-assert.equal(snapshot(L, cfg).unlockAt, L.unlockAt);
+applyBalances(L, { '0xe': 0 }, L.frozenAt - 1, cfg); // the last balance check, at the freeze block
+assert.equal(snapshot(L, cfg).minted, 0, 'tokens moved away before the freeze still count as sold');
 applyTrade(L, { who: '0xF', kind: 'buy', usd: 10, tokens: 100, at: at() }, cfg);
-assert.equal(snapshot(L, cfg).minted, 10, 'new buyers still get Blockies while there is room');
+assert.equal(snapshot(L, cfg).minted, 2, 'new buyers still get Blockies while there is room');
+// once the collection is unlocked, even a late-reported sell from before the freeze keeps its Blockies
+L.unlocked = true;
+applyTrade(L, { who: '0xF', kind: 'sell', usd: 10, tokens: 100, at: L.frozenAt - 5000 }, cfg);
+assert.equal(snapshot(L, cfg).minted, 2);
+assert.deepEqual([snapshot(L, cfg).frozenAt, snapshot(L, cfg).unlocked], [L.frozenAt, true]);
 
 // 6. each buy counts at the price of its day: raising the price later keeps what was earned
 L = newLedger(0);

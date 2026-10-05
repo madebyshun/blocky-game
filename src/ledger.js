@@ -11,10 +11,9 @@
 //   one Blocky; dust does not.
 // - Free places go to wallets still owed Blockies, first come first served (a waitlist once the city
 //   is full), then to the next buyers.
-// - Once the NFT collection unlocks, Blockies are ordinary NFTs: selling no longer sends them away.
-//   The ledger freezes (`frozen`) an hour before the contract's `unlockAt` (the API reads it), so the
-//   last sellers' Blockies can still be burned before transfers open. New buyers still get Blockies
-//   while there is room.
+// - Once the city freezes (the NFT contract's `frozenAt`, read by the API: the claim of the last
+//   Blocky, or the owner's early unlock), selling no longer sends Blockies away; whatever left before
+//   is burned when the market opens. New buyers still get Blockies while there is room.
 // - The team's reserve (newLedger's `reserve`) holds Blockies #1 to #count from the start: granted,
 //   not bought, so the hold rule leaves them alone.
 // - A single buy of `whaleUsd`+ also builds a Whale Fountain.
@@ -66,16 +65,10 @@ export function allowance(a) {
   return grant + earned - Math.max(0, Math.ceil(earned * (1 - held) - 0.01));
 }
 
-// The ledger freezes this long before the NFT collection unlocks: no Blocky leaves after that, and the
-// claims (and the owner) have that long to burn the ones that left just before (a claim signature lasts
-// 30 minutes).
-export const FREEZE_LEAD_MS = 3600e3;
-// Whether the ledger is frozen at `at` (ms): selling no longer sends Blockies away. L.unlockAt: when the
-// NFT collection unlocks (ms, from the contract), unknown until the contract schedules it.
-export function isFrozen(L, at) {
-  if (!L.frozen && L.unlockAt && at >= L.unlockAt - FREEZE_LEAD_MS) L.frozen = true;
-  return Boolean(L.frozen);
-}
+// Whether selling no longer sends Blockies away at `at` (ms): from the freeze on (L.frozenAt, ms, from
+// the contract), and for any trade once the collection is unlocked (L.unlocked): nothing can be burned
+// then, so a sell from before the freeze that shows up late keeps its Blockies too.
+export const isFrozen = (L, at) => Boolean(L.unlocked || (L.frozenAt && at >= L.frozenAt));
 
 function rebalance(L, at, cfg, touched, source) {
   const added = {}, left = {}, s = sec(L, at), frozen = isFrozen(L, at);
@@ -161,7 +154,9 @@ export function snapshot(L, cfg, since = 0, dsince = 0) {
     boughtUsd: L.bought,
     recentBuys: L.recent,
     cityStart: L.start,
-    frozen: Boolean(L.frozen), // selling no longer sends Blockies away
-    unlockAt: L.unlockAt || null, // when the NFT collection unlocks (ms), once the contract scheduled it
+    frozenAt: L.frozenAt || null, // when the city froze (ms): selling no longer sends Blockies away
+    unlockAt: L.unlockAt || null, // when Blockies trade (ms): the market opens sooner if anyone opens it
+    unlocked: Boolean(L.unlocked), // they trade now
+    openedBy: L.openedBy || null, // the wallet that opened the market
   };
 }

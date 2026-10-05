@@ -86,8 +86,10 @@ export async function fetchColony(since = 0, dsince = 0) {
       names: s.names && typeof s.names === 'object' ? s.names : {}, // Basenames: { address: 'name.base.eth' }
       market: s.market && typeof s.market.change24h === 'number' ? { ...s.market, stocks: Array.isArray(s.market.stocks) ? s.market.stocks.filter((x) => x && typeof x.priceUsd === 'number' && x.priceUsd > 0) : [] } : await realMarket(),
       cityStart: typeof s.cityStart === 'number' ? s.cityStart : null,
-      frozen: Boolean(s.frozen), // selling no longer sends Blockies away
-      unlockAt: typeof s.unlockAt === 'number' ? s.unlockAt : null, // when Blocky NFTs start trading
+      frozenAt: typeof s.frozenAt === 'number' ? s.frozenAt : null, // the city is full: selling no longer sends Blockies away
+      unlockAt: typeof s.unlockAt === 'number' ? s.unlockAt : null, // when Blocky NFTs trade at the latest
+      unlocked: Boolean(s.unlocked), // they trade now
+      openedBy: typeof s.openedBy === 'string' ? s.openedBy : null, // the wallet that opened the market
       source: s.source || 'live',
     };
   } catch (e) {
