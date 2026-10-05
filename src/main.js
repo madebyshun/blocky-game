@@ -9,7 +9,7 @@ import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
-import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash } from './sim.js';
+import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash, needFor } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
@@ -244,7 +244,8 @@ function nextUnlockText() {
   $('goal-count').textContent = next ? `${fmt(minted)}/${fmt(next.at)}` : '';
   $('bar-fill').style.width = `${next ? (minted / next.at) * 100 : 100}%`;
   const left = Math.max(0, supply - minted);
-  $('next-unlock').innerHTML = `Land ${size(sim.land)} · ${left ? `<b>${fmt(left)}</b> of ${fmt(supply)} ${plural} left` : `all ${fmt(supply)} ${plural} are here`} · <b>${money(price)}</b> per ${CONFIG.citizen}`;
+  const grow = needFor(sim.land + 1);
+  $('next-unlock').innerHTML = `Land ${size(sim.land)}${grow <= supply ? ` (${size(sim.land + 1)} at ${fmt(grow)})` : ''} · ${left ? `<b>${fmt(left)}</b> of ${fmt(supply)} ${plural} left` : `all ${fmt(supply)} ${plural} are here`} · <b>${money(price)}</b> per ${CONFIG.citizen}`;
 }
 
 function applyState(s, first) {
@@ -417,6 +418,7 @@ const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.le
   : p.kind === 'landmark' ? `🏛️ ${p.name} built`
   : p.kind === 'wonder' ? `⛲ Whale Fountain built, gifted by ${short(p.whale.from) || 'a whale'}`
   : p.kind === 'metro' ? `🚇 ${p.name} opened`
+  : p.rebuilds ? `🏗️ ${p.name} completed, replacing ${p.rebuilds}`
   : `🏗️ ${p.name} completed`);
 
 function renderHud() {
@@ -438,7 +440,7 @@ function renderHud() {
     $('site-name').textContent = a.name;
     $('site-pct').textContent = `${pct}%`;
     $('site-fill').style.width = `${pct}%`;
-    $('site-eta').textContent = sim.eta != null ? `~${dur(sim.eta)} left · crew speed ${Math.round(sim.rate)} blocks/h` : '';
+    $('site-eta').textContent = `${a.rebuilds ? `Rebuilding ${a.rebuilds} · ` : ''}${sim.eta != null ? `~${dur(sim.eta)} left · crew speed ${Math.round(sim.rate)} blocks/h` : ''}`;
   }
   const day = Math.floor((now() - cityStart) / 86400000) + 1;
   $('clock').textContent = `Day ${day} · ${city.env.daylight < 0.5 ? '🌙 Night shift' : '☀️ Day shift'}`;
@@ -547,9 +549,9 @@ function welcomeBack() {
   const KEY = 'basecity:lastVisit';
   try {
     const prev = JSON.parse(localStorage.getItem(KEY) || 'null');
-    const built = prev && prev.start === cityStart ? sim.buildingCount - prev.done : 0;
+    const built = prev && prev.start === cityStart ? sim.done.filter((p) => p.lot).length - prev.done : 0;
     if (built > 0) toast('WHILE YOU WERE AWAY', `+${built} building${built > 1 ? 's' : ''}`, `built in the last ${ago(prev.at).replace(' ago', '')}`);
-    const save = () => localStorage.setItem(KEY, JSON.stringify({ done: sim.buildingCount, at: now(), start: cityStart }));
+    const save = () => localStorage.setItem(KEY, JSON.stringify({ done: sim.done.filter((p) => p.lot).length, at: now(), start: cityStart }));
     save();
     setInterval(save, 30000);
   } catch { /* storage unavailable: skip */ }
@@ -564,7 +566,7 @@ const proj = new THREE.Vector3();
 function updateDistricts() {
   if (sim.done.length !== districtsFor) {
     districtsFor = sim.done.length;
-    districts = computeDistricts(sim.done, sim.land);
+    districts = computeDistricts([...sim.standing.values()], sim.land);
     for (const d of districts) {
       let el = districtEls.get(d.key);
       if (!el) { el = document.createElement('div'); el.className = 'district'; $('districts').appendChild(el); districtEls.set(d.key, el); }

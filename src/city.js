@@ -1651,22 +1651,22 @@ export function createCity(scene) {
   // Bring the rendered city in line with a simulation snapshot.
   function sync(sim, animate) {
     if (sim.land !== land) buildLand(sim.land, animate && land > 0);
-    const dev = new Set();
-    for (const p of sim.done) {
-      if (!p.lot) continue;
-      const key = lotKey(p.lot);
-      dev.add(key);
+    // what stands on each lot now; a lot being rebuilt shows its construction site instead
+    const busy = sim.next.lot ? lotKey(sim.next.lot) : null;
+    const dev = new Set(sim.standing.keys());
+    for (const [key, p] of sim.standing) {
+      if (key === busy) continue;
       const cur = lots.get(key);
       if (cur?.kind === 'built' && cur.k === p.k) continue;
       if (site && site.k === p.k) site = null;
       setLot(key, p.lot, 'built', p.k, buildingGroup(p), animate);
     }
-    if (sim.next.lot) dev.add(lotKey(sim.next.lot));
+    if (busy) dev.add(busy);
     developed = dev;
     counts = {};
     built = [];
-    for (const p of sim.done) {
-      if (!p.lot) continue;
+    for (const [key, p] of sim.standing) {
+      if (key === busy) continue;
       counts[p.type] = (counts[p.type] || 0) + 1;
       built.push({ x: p.lot[0] * PITCH, z: p.lot[1] * PITCH, h: p.h ?? 2, type: p.type });
     }

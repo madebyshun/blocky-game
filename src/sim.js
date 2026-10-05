@@ -202,19 +202,31 @@ export function isReserve(i, j) {
   return n > (r >= 7 ? 0.5 : 0.62);
 }
 
-function chooseType(k, lot, pro) {
-  if (FEATURED[k] && (pro || !CATALOG[FEATURED[k]].pro)) return FEATURED[k];
+// Homes, shops and offices get rebuilt denser as the city ages (CitySim.redevelop); parks, rides,
+// services, farms, energy, landmarks and fountains stay as they are.
+const RENEW = new Set(['cottage', 'house', 'townhouses', 'apartment', 'villa', 'suburb', 'shop', 'cafe', 'office', 'devhub', 'aistartup', 'brokerage', 'tower', 'skyscraper']);
+// can something bigger go up here one day? (a skyscraper downtown is as big as it gets)
+const canGrow = (p) => {
+  const z = zoneOf(ring(...p.lot)), cost = CATALOG[p.type].cost;
+  return [...RENEW].some((id) => CATALOG[id].cost > cost && CATALOG[id].w[z] > 0);
+};
+
+// only: limit to these types; minCost: nothing smaller than this (a rebuild never shrinks a lot)
+function chooseType(k, lot, pro, { only = null, minCost = 0 } = {}) {
+  if (!only && FEATURED[k] && (pro || !CATALOG[FEATURED[k]].pro)) return FEATURED[k];
   const z = zoneOf(ring(...lot)), east = isIndustrial(lot);
   const weight = ([id, t]) => t.w[z] * (z >= 2 && INDUSTRY.has(id) ? (east ? 3 : 0.4) : 1);
-  const options = Object.entries(CATALOG).filter(([, t]) => t.min <= k && t.w[z] > 0 && (pro || !t.pro));
+  const options = Object.entries(CATALOG).filter(([id, t]) => t.min <= k && t.w[z] > 0 && (pro || !t.pro) && (!only || only.has(id)) && t.cost >= minCost);
+  if (!options.length) return null;
   const total = options.reduce((s, o) => s + weight(o), 0);
   let x = hash(k, 31) * total;
   for (const o of options) { x -= weight(o); if (x <= 0) return o[0]; }
   return options[options.length - 1][0];
 }
 
-function buildingProject(k, lot, pro) {
-  const type = chooseType(k, lot, pro);
+function buildingProject(k, lot, pro, opts) {
+  const type = chooseType(k, lot, pro, opts);
+  if (!type) return null;
   const t = CATALOG[type];
   const [W, D, H] = t.size;
   const p = { k, kind: 'building', type, lot, w: range(W, k, 1), d: range(D, k, 2), h: range(H, k, 3) };
@@ -310,6 +322,10 @@ export class CitySim {
     this.reserved = new Set(CONFIG.landmarks.map((l) => l.lot.join(',')));
     this.queue = [];
     for (let r = 0; r <= this.land; r++) this.queue.push(...this.ringLots(r));
+    this.standing = new Map(); // lot key -> the project standing there now
+    // homes, shops and offices in the order they were finished, as [lot key, project k] (see redevelop):
+    // the ones that can still grow, and the ones already as big as their zone allows
+    this.renew = { grow: [], top: [], at: { grow: 0, top: 0 } };
     this.k = 0;
     this.next = this.plan(this.start);
   }
@@ -334,12 +350,13 @@ export class CitySim {
   plan(t) {
     const k = this.k++;
     const pop = this.popAt(t), pro = this.proAt(t);
-    // a whale's wonder jumps the queue, on the nearest free lot
+    // a whale's wonder jumps the queue, on the nearest free lot (or in place of the oldest building)
     const wi = this.whaleList.findIndex((w, i) => w.at <= t && !this.wonders.has(i));
-    if (wi >= 0 && this.queue.length) {
+    const wlot = wi >= 0 ? (this.queue.length ? this.queue.shift() : this.oldestRenewable()?.lot) : null;
+    if (wlot) {
       this.wonders.add(wi);
       const w = this.whaleList[wi];
-      return { k, kind: 'wonder', type: 'wonder', lot: this.queue.shift(), w: 6, d: 6, h: 7, cost: WONDER_COST, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd }, name: `Whale Fountain #${wi + 1}` };
+      return { k, kind: 'wonder', type: 'wonder', lot: wlot, w: 6, d: 6, h: 7, cost: WONDER_COST, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd }, name: `Whale Fountain #${wi + 1}` };
     }
     const lm = CONFIG.landmarks.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land);
     if (lm) {
@@ -352,8 +369,37 @@ export class CitySim {
       return { k, kind: 'metro', cost: metro.cost, name: metro.label };
     }
     if (this.queue.length) return buildingProject(k, this.queue.shift(), pro);
-    const L = this.land + 1;
-    return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land, need: needFor(L), name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };
+    // the land is full: reclaim more once enough Blockies are here, rebuild the old city until then
+    const L = this.land + 1, need = needFor(L);
+    if (pop < need) { const r = this.redevelop(k, pro); if (r) return r; }
+    return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land, need, name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };
+  }
+
+  // The oldest home, shop or office still standing that can grow (else the oldest of all; taken: it's
+  // about to be rebuilt).
+  oldestRenewable() {
+    for (const list of ['grow', 'top']) {
+      const q = this.renew[list];
+      while (this.renew.at[list] < q.length) {
+        const [key, k] = q[this.renew.at[list]++];
+        const p = this.standing.get(key);
+        if (p && p.k === k) return p;
+      }
+    }
+    return null;
+  }
+
+  // SimCity-style redevelopment, so the city is never finished: the oldest home, shop or office comes
+  // down and something at least as big for its zone goes up (early cottages downtown become apartments,
+  // then towers).
+  redevelop(k, pro) {
+    const old = this.oldestRenewable();
+    if (!old) return null;
+    const p = buildingProject(k, old.lot, pro, { only: RENEW, minCost: CATALOG[old.type].cost })
+      || buildingProject(k, old.lot, pro, { only: new Set([old.type]) });
+    if (!p) return null;
+    p.rebuilds = old.name;
+    return p;
   }
 
   // A project starts when the previous one is done (an expansion also waits for enough Blockies)
@@ -365,7 +411,7 @@ export class CitySim {
   // Replay every project finished by `now`. Returns the newly finished ones.
   advance(now) {
     const finished = [];
-    for (let guard = 0; guard < 5000; guard++) {
+    for (let guard = 0; guard < 1e6; guard++) { // the city never stops, so a long history means many projects (~8µs each)
       const p = this.next;
       const start = this.startOf(p);
       if (start > now) break;
@@ -375,6 +421,15 @@ export class CitySim {
       p.at = t;
       this.done.push(p);
       this.lastT = t;
+      if (p.lot) {
+        const key = p.lot.join(',');
+        this.standing.set(key, p);
+        if (p.kind === 'building' && RENEW.has(p.type)) {
+          const list = canGrow(p) ? 'grow' : 'top', q = this.renew[list];
+          q.push([key, p.k]);
+          if (this.renew.at[list] > 4096) { this.renew[list] = q.slice(this.renew.at[list]); this.renew.at[list] = 0; }
+        }
+      }
       if (p.kind === 'expand') { this.land = p.level; this.queue.push(...this.ringLots(p.level)); }
       if (p.kind === 'landmark') this.builtLandmarks.add(p.type);
       if (p.kind === 'metro') this.metroBuilt = true;
@@ -393,5 +448,5 @@ export class CitySim {
   }
 
   // lots that hold a finished building/landmark
-  get buildingCount() { return this.done.filter((p) => p.lot).length; }
+  get buildingCount() { return this.standing.size; }
 }
