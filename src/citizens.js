@@ -716,7 +716,7 @@ export class BuilderView {
       this.go(loaded ? 'toDepot' : 'toSite');
       this.wait = hash(b.id, 34) * 2;
     } else {
-      const [x, z] = city.chillSpot(b.id * 31);
+      const [x, z] = this.breakSpot(b.id * 31);
       g.position.set(x, 0, z);
       this.mode = 'break';
       this.wait = hash(b.id, 34) * 8;
@@ -725,8 +725,18 @@ export class BuilderView {
   }
 
   get status() {
+    if (this.office && this.mode === 'toBreak') return `Heading to ${this.office}`;
+    if (this.office && this.mode === 'break') return `At ${this.office}`;
     if (this.city.waiting && (this.mode === 'toBreak' || this.mode === 'break')) return 'Waiting for more Blockies';
     return { toDepot: 'Fetching blocks', load: 'Loading blocks', toSite: 'Carrying blocks', place: 'Placing blocks', toBreak: 'Walking around town', break: 'Taking a break' }[this.mode];
+  }
+
+  // Where to spend a break: City Council members mostly go to their office once it stands (CONFIG.offices)
+  breakSpot(seed) {
+    const home = this.b.office?.home;
+    const spot = home && hash(this.b.id, seed, 53) < 0.7 ? this.city.officeSpot(home, seed) : null;
+    this.office = spot ? spot[2] : null;
+    return spot || this.city.chillSpot(seed);
   }
 
   // A site only has room for a small crew: builders take turns on it (a new draw every 90 seconds) and
@@ -739,7 +749,8 @@ export class BuilderView {
     const p = this.group.position, s = this.b.id * 1000 + this.step++;
     if ((mode === 'toSite' || mode === 'toDepot') && (this.city.waiting || !this.onCrew())) mode = 'toBreak'; // land is full, or not their turn on the site
     this.mode = mode;
-    const target = mode === 'toDepot' ? this.city.depotSpot(s, this.b.id) : mode === 'toSite' ? this.city.siteSpot(s, this.b.id) : this.city.chillSpot(s);
+    if (mode !== 'toBreak') this.office = null;
+    const target = mode === 'toDepot' ? this.city.depotSpot(s, this.b.id) : mode === 'toSite' ? this.city.siteSpot(s, this.b.id) : this.breakSpot(s);
     this.path = route(p.x, p.z, target[0], target[1], Math.max(2, this.city.land));
     this.carry.visible = mode === 'toSite';
   }

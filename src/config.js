@@ -104,40 +104,72 @@ export const CONFIG = {
   siteUrl: 'https://blockstoodio.xyz', // canonical URL: share text, the cinematic watermark, NFT links (SITE_URL on the API wins)
 
   // You: the city's first builder.
-  founder: { look: 'founder', name: 'Founder', title: 'Founder' },
+  founder: { look: 'founder', name: 'Founder', title: 'Founder', office: 'founder' },
 
   // Base Builders: real Base builders you add by hand. They build the city alongside the Blockies
-  // from the day they join. Add as many as you like:
-  //   { name, title, look?, joined?, x?, bg? }
+  // from the day they join, and sit on the City Council (`office`, from `offices` below). Add as many as
+  // you like:
+  //   { name, title, office?, look?, joined?, x?, bg? }
+  // - title: who they are in real life (shown with their office).
   // - look: a hand-made outfit from LEGEND_LOOKS in src/citizens.js. Without one they wear the Base
   //   Builder uniform with a gold star.
   // - joined: 'YYYY-MM-DD' when they start building (default: from the city's first day).
   // - x: their X handle (an 𝕏 link on the Base Builders page); bg: their PFP background colour.
   legends: [
-    { name: 'Jesse', title: 'Builder 001', look: 'punk' },
-    { name: 'Nibel', title: 'Base Builder', look: 'halo' },
-    { name: 'Xen', title: 'Base Builder', look: 'spartan' },
-    { name: 'Poet', title: 'Base Builder', look: 'robo' },
-    { name: 'Brian', title: 'CEO', look: 'hoodie' },
-    { name: 'Saumya Saxena', title: 'Base Builder', look: 'pixelspike' },
-    { name: 'Jerry Pan', title: 'Base Builder', look: 'goat' },
-    { name: 'Ahaan Raizada', title: 'Base Builder', look: 'pixelhat' },
-    { name: 'Jeremy Grinberg', title: 'Base Builder', look: 'crewneck' },
-    { name: 'Jon Roethke', title: 'Base Builder', look: 'blazer' },
-    { name: 'Kien Nguyen', title: 'Base Builder', look: 'kimono' },
-    { name: 'Toady Hawk', title: 'Base Builder', look: 'frog' },
-    { name: 'mleejr', title: 'Base Builder', look: 'doodle' },
-    { name: 'deployer', title: 'Base Builder', look: 'floatie' },
-    { name: 'David Tso', title: 'Base Builder', look: 'pixelpunk' },
-    { name: 'mrtdlgc', title: 'Base Builder', look: 'dreamer' },
-    { name: 'Quigley', title: 'Base Builder', look: 'hoodbot' },
-    { name: 'DonJohnson', title: 'Base Builder', look: 'apeslime' },
-    { name: 'everythingempty', title: 'Base Builder', look: 'dragonrider' },
-    { name: 'Cobie', title: 'Base Builder', look: 'trapper' },
-    { name: 'statuette', title: 'Base Builder', look: 'starbuns' },
-    { name: 'Oxxbid', title: 'Base Builder', look: 'bobshades' },
-    { name: 'Joey', title: 'Base Builder', look: 'mintcap' },
+    { name: 'Jesse', title: 'Founder of Base', office: 'mayor', look: 'punk' },
+    { name: 'Nibel', title: 'Base Builder', office: 'speaker', look: 'halo' },
+    { name: 'Xen', title: 'Base Builder', office: 'police', look: 'spartan' },
+    { name: 'Poet', title: 'Base Builder', office: 'ai', look: 'robo' },
+    { name: 'Brian', title: 'CEO of Coinbase', office: 'governor', look: 'hoodie' },
+    { name: 'Saumya Saxena', title: 'Base Builder', office: 'architect', look: 'pixelspike' },
+    { name: 'Jerry Pan', title: 'Base Builder', office: 'farms', look: 'goat' },
+    { name: 'Ahaan Raizada', title: 'Base Builder', office: 'transit', look: 'pixelhat' },
+    { name: 'Jeremy Grinberg', title: 'Base Builder', office: 'planner', look: 'crewneck' },
+    { name: 'Jon Roethke', title: 'Base Builder', office: 'treasurer', look: 'blazer' },
+    { name: 'Kien Nguyen', title: 'Base Builder', office: 'culture', look: 'kimono' },
+    { name: 'Toady Hawk', title: 'Base Builder', office: 'parks', look: 'frog' },
+    { name: 'mleejr', title: 'Base Builder', office: 'arts', look: 'doodle' },
+    { name: 'deployer', title: 'Base Builder', office: 'lifeguard', look: 'floatie' },
+    { name: 'David Tso', title: 'Base Builder', office: 'cto', look: 'pixelpunk' },
+    { name: 'mrtdlgc', title: 'Base Builder', office: 'night', look: 'dreamer' },
+    { name: 'Quigley', title: 'Base Builder', office: 'robotics', look: 'hoodbot' },
+    { name: 'DonJohnson', title: 'Base Builder', office: 'events', look: 'apeslime' },
+    { name: 'everythingempty', title: 'Base Builder', office: 'fire', look: 'dragonrider' },
+    { name: 'Cobie', title: 'Base Builder', office: 'ventures', look: 'trapper' },
+    { name: 'statuette', title: 'Base Builder', office: 'tourism', look: 'starbuns' },
+    { name: 'Oxxbid', title: 'Base Builder', office: 'markets', look: 'bobshades' },
+    { name: 'Joey', title: 'Base Builder', office: 'mint', look: 'mintcap' },
   ],
+
+  // The City Council: the jobs Base Builders hold in the city, in order of rank. `home`: the landmarks
+  // or kinds of buildings (ids in src/sim.js) where the office holder spends breaks once one stands;
+  // `duty`: a line for the news ticker.
+  offices: {
+    founder: { label: 'Founder of BaseCity', home: ['garage'], duty: 'is still tinkering in the garage where the city began' },
+    mayor: { label: 'Mayor', home: ['square'], duty: 'holds office hours on Town Square' },
+    governor: { label: 'Governor', home: ['hq', 'airport'], duty: 'drops by to see how the city is coming along' },
+    speaker: { label: 'Speaker of the Council', home: ['square', 'hq'], duty: 'calls the City Council to order' },
+    treasurer: { label: 'City Treasurer', home: ['exchange'], duty: 'keeps an eye on the city treasury at the Stock Exchange' },
+    architect: { label: 'Chief Architect', home: ['studio', 'hq'], duty: 'signs off on the plans for the next tower' },
+    planner: { label: 'City Planner', home: ['hq', 'datalab'], duty: 'draws up the next ring of land' },
+    transit: { label: 'Transit Director', home: ['airport'], duty: 'keeps the metro and the airport on time' },
+    ai: { label: 'Head of AI', home: ['agenthub', 'aistartup'], duty: 'briefs the AI agent drones at the Agent Hub' },
+    cto: { label: 'Chief Technology Officer', home: ['datalab', 'devhub'], duty: 'ships an upgrade to the city on a Friday' },
+    robotics: { label: 'Head of Robotics', home: ['gpufarm', 'agenthub'], duty: 'tunes the GPU farms on the east bank' },
+    police: { label: 'Police Chief', home: ['police'], duty: 'reports another quiet night in BaseCity' },
+    fire: { label: 'Fire Chief', home: ['firestation'], duty: 'runs a fire drill at the station' },
+    parks: { label: 'Parks Commissioner', home: ['park', 'lakepark', 'flowergarden'], duty: 'plants a new tree in the park' },
+    farms: { label: 'Farms Commissioner', home: ['farm'], duty: 'checks on the harvest out in the fields' },
+    lifeguard: { label: 'Head Lifeguard', home: ['pool', 'lakepark'], duty: 'is on duty at the public pool' },
+    culture: { label: 'Culture Minister', home: ['stage', 'studio'], duty: 'books the next show at the Concert Stage' },
+    arts: { label: 'Arts Director', home: ['studio', 'flowergarden'], duty: 'paints a new mural downtown' },
+    events: { label: 'Events Director', home: ['hackathon', 'stadium'], duty: 'is setting up the next hackathon' },
+    ventures: { label: 'Head of Ventures', home: ['launchpad', 'exchange'], duty: 'scouts the next project for the Launchpad' },
+    markets: { label: 'Market Maker', home: ['brokerage', 'exchange'], duty: 'quotes both sides at the brokerage' },
+    tourism: { label: 'Tourism Director', home: ['liberty'], duty: 'gives a tour at the Statue of Blockerty' },
+    night: { label: 'Night Mayor', home: ['cafe'], duty: 'keeps the gm Café open for the night shift' },
+    mint: { label: 'Master of the Mint', home: ['garage', 'exchange'], duty: 'counts fresh Blockies as they arrive' },
+  },
 
   // Landmarks: once `at` Blockies have arrived, the crew builds it next on its reserved lot [x, z]:
   // at most one landmark (or Base project HQ) every `landmarkEvery` projects, so homes keep going up

@@ -323,7 +323,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   function caption(shot, subject) {
     if (shot.subject && subject) {
       const b = subject.b;
-      const sub = b.kind === 'legend' ? b.legend?.title || 'Base Builder' : b.kind === 'founder' ? 'Founder' : [b.rarity?.label, b.trait && TRAIT_LABEL[b.trait], b.role?.label].filter(Boolean).join(' · ');
+      const sub = b.kind === 'legend' || b.kind === 'founder' ? [b.office?.label, b.legend?.title || 'Base Builder'].filter(Boolean).join(' · ') : [b.rarity?.label, b.trait && TRAIT_LABEL[b.trait], b.role?.label].filter(Boolean).join(' · ');
       return [b.name, sub];
     }
     const { day, minted } = stats();

@@ -4,6 +4,7 @@ import { fetchColony } from './data.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { replay } from './replay.js';
 import { mountSite, fmt, day } from './site.js';
+import { OFFICE_RANK } from './sim.js';
 
 const $ = (id) => document.getElementById(id);
 mountSite('builders');
@@ -36,7 +37,7 @@ function card(b, rank, status, here, stats) {
       <div class="row"><button class="btn primary dl">⬇ PFP</button><button class="btn open">Profile</button>${b.legend?.x ? '<a class="btn x" target="_blank" rel="noopener">𝕏</a>' : ''}</div>
     </div>`;
   el.querySelector('h2').textContent = b.name;
-  el.querySelector('.title').textContent = b.role.label;
+  el.querySelector('.title').textContent = b.office ? `${b.office.label} · ${b.role.label}` : b.role.label;
   el.querySelector('.status').textContent = status;
   if (b.legend?.x) el.querySelector('.x').href = `https://x.com/${b.legend.x.replace(/^@/, '')}`;
   el.querySelector('.dl').onclick = () => downloadPfp(b, b.name);
@@ -52,11 +53,12 @@ function openProfile(b, status, here, stats) {
   d.querySelector('img').src = renderPfp(b, { size: 1024 });
   d.querySelector('img').alt = `Voxel PFP of ${b.name}`;
   d.querySelector('h2').textContent = b.name;
-  d.querySelector('.title').textContent = b.role.label;
+  d.querySelector('.title').textContent = b.office ? `${b.office.label} · ${b.role.label}` : b.role.label;
   const st = d.querySelector('.status');
   st.textContent = status; st.className = `status${here ? ' here' : ''}`;
   const rows = stats ? [
     ['Role', b.kind === 'founder' ? 'Founder' : 'Base Builder'],
+    ...(b.office ? [['City Council', b.office.label]] : []),
     ['Building for', `${fmt(stats.hours)} hours`],
     ['Blocks placed', fmt(stats.blocks)],
     ['Share of the city', `${stats.share.toFixed(1)}%`],
@@ -68,7 +70,7 @@ function openProfile(b, status, here, stats) {
   d.querySelector('.share').onclick = () => {
     const who = b.legend?.x ? `@${b.legend.x.replace(/^@/, '')}` : b.name;
     const text = stats
-      ? `${who} is building ${CONFIG.cityName} on Base as a voxel Base Builder: ${fmt(stats.blocks)} blocks placed in ${fmt(stats.hours)} hours, 24/7.`
+      ? `${who} is building ${CONFIG.cityName} on Base as a voxel Base Builder${b.office ? ` and its ${b.office.label}` : ''}: ${fmt(stats.blocks)} blocks placed in ${fmt(stats.hours)} hours, 24/7.`
       : `${who} joins ${CONFIG.cityName} as a Base Builder on ${day(b.arrivedAt)}.`;
     open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${CONFIG.siteUrl || location.origin}/builders.html#${slug(b.name)}`)}`, '_blank', 'noopener');
   };
@@ -83,7 +85,10 @@ function openProfile(b, status, here, stats) {
   const now = Date.now();
   const live = state && state.source !== 'demo';
   $('count').textContent = `${team.filter((b) => b.arrivedAt <= now).length - 1} Base builders · ${fmt(minted)} of ${fmt(CONFIG.supply)} Blockies in the city${live ? '' : ' (demo data)'}`;
-  const cards = team.map((b, i) => {
+  // the founder first, then the City Council by rank (Mayor, Governor, ...), then everyone else
+  const rank = (b) => (b.kind === 'founder' ? -1 : b.office ? OFFICE_RANK.indexOf(b.office.id) : 999);
+  const order = team.slice().sort((a, b) => rank(a) - rank(b));
+  const cards = order.map((b, i) => {
     const here = b.arrivedAt <= now;
     const status = b.kind === 'founder' ? `Built ${CONFIG.cityName} from empty land` : here ? `Building ${CONFIG.cityName} since ${day(b.arrivedAt)}` : `Joins on ${day(b.arrivedAt)}`;
     return card(b, b.kind === 'founder' ? 'Founder' : `★ ${i}`, status, here, statsOf(b, sim));

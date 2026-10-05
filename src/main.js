@@ -470,7 +470,7 @@ function topBuilders(n) {
 }
 function renderLeaders() {
   $('leaders').innerHTML = topBuilders(5)
-    .map(([b, blocks], i) => `<li data-id="${b.id}"><span><span class="rank">${i + 1}</span>${badge(b)}${b.name} <span class="muted">· ${b.role.label}</span></span><b>${fmt(blocks)} 🧱</b></li>`)
+    .map(([b, blocks], i) => `<li data-id="${b.id}"><span><span class="rank">${i + 1}</span>${badge(b)}${b.name} <span class="muted">· ${b.kind === 'legend' && b.office ? b.office.label : b.role.label}</span></span><b>${fmt(blocks)} 🧱</b></li>`)
     .join('');
 }
 
@@ -486,7 +486,7 @@ function renderCard() {
   if (!selected) return;
   const b = selected.b, ts = now(), placed = sim.blocksBy(b, ts);
   const rare = b.trait ? ` · ${rareText(b).toUpperCase()}` : '';
-  $('card-eyebrow').textContent = `${b.kind === 'founder' ? 'FOUNDER' : b.kind === 'legend' ? '★ BASE BUILDER' : `${CONFIG.citizen.toUpperCase()} #${b.id} OF ${fmt(supply)}`}${rare}`;
+  $('card-eyebrow').textContent = `${b.kind === 'founder' ? 'FOUNDER' : b.kind === 'legend' ? `★ ${b.office ? `${b.office.label.toUpperCase()} · CITY COUNCIL` : 'BASE BUILDER'}` : `${CONFIG.citizen.toUpperCase()} #${b.id} OF ${fmt(supply)}`}${rare}`;
   $('card-name').textContent = b.name;
   $('card-role').textContent = [b.role.label, `${b.skill.toFixed(1)}× skill`].join(' · ');
   $('card-status').textContent = selected.status;
@@ -657,6 +657,12 @@ function headlines() {
   out.push(`<b>MINT:</b> ${fmt(minted)} of ${fmt(supply)} ${plural} are in ${CONFIG.cityName}. ${minted < supply ? `Only ${fmt(supply - minted)} left` : 'Sold out'}`);
   const builders = crew.filter((b) => b.kind === 'legend' && b.arrivedAt <= now()).length;
   if (builders) out.push(`<b>BASE BUILDERS:</b> ${builders} real Base builders are building ${CONFIG.cityName} with the ${plural}`);
+  // the City Council at work: someone holding office (CONFIG.offices) and what they're up to
+  const council = crew.filter((b) => b.office?.duty && b.kind === 'legend' && b.arrivedAt <= now());
+  if (council.length) {
+    const m = council[Math.floor(Math.random() * council.length)];
+    out.push(`<b>CITY COUNCIL:</b> ${m.office.label} ${m.name} ${m.office.duty}`);
+  }
   const [top] = topBuilders(1);
   if (top && top[1] >= 2) out.push(`<b>BUILDER OF THE DAY:</b> ${top[0].name}, ${fmt(top[1])} blocks placed`);
   const big = [...districts].sort((a, b) => b.buildings - a.buildings)[0];

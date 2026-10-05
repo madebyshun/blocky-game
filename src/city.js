@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
-import { hash, PITCH, isWater, isReserve, LANDMARKS, AVENUE } from './sim.js';
+import { hash, PITCH, isWater, isReserve, LANDMARKS, AVENUE, CATALOG } from './sim.js';
 import { now } from './time.js';
 import { makeService, makeDrone } from './fleet.js';
 
@@ -2089,6 +2089,15 @@ export function createCity(scene) {
     const [i, j] = key.split(',').map(Number);
     return [i * PITCH + (hash(seed, 8) - 0.5) * 4, j * PITCH + 3.5];
   }
+  // A City Council member's office (CONFIG.offices home: landmark ids or building types): a spot on the
+  // sidewalk in front of one that stands, and its name. null while none is built.
+  function officeSpot(types, seed) {
+    const here = built.filter((b) => types.includes(b.type));
+    if (!here.length) return null;
+    const b = here[Math.floor(hash(seed, 9) * here.length)];
+    const name = LANDMARKS.find((l) => l.id === b.type)?.label || CATALOG[b.type]?.label || 'the office';
+    return [b.x + (hash(seed, 10) - 0.5) * 4, b.z + 3.5, name];
+  }
   function riverPath() {
     const pts = [];
     for (let j = -land; j <= land; j++) {
@@ -2101,7 +2110,7 @@ export function createCity(scene) {
   }
 
   return {
-    root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, riverPath, billboards,
+    root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, officeSpot, riverPath, billboards,
     solids: lotsGroup, // buildings, sites, trees: what a film camera must not go through
     feePulse: () => (pulse = 1),
     get land() { return land; },

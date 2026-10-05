@@ -60,11 +60,16 @@ export function rarityOf(n, seed = null) {
 
 const base = (id) => ({ id, skin: pick(SKIN, id, 15), shirt: pick(SHIRT, id, 16), rarity: null, trait: null, legendIdx: -1 });
 
+// A City Council office (CONFIG.offices) by its key, or null.
+const officeOf = (key) => (key && CONFIG.offices?.[key] ? { id: key, ...CONFIG.offices[key] } : null);
+export const OFFICE_RANK = Object.keys(CONFIG.offices || {});
+
 // The founder: you, building from the city's first day.
 export function makeFounder(start) {
   return {
     ...base(0), kind: 'founder', name: CONFIG.founder?.name ?? 'Founder', legend: CONFIG.founder ?? null,
     role: { ...ROLES[0], label: CONFIG.founder?.title ?? 'Founder' }, tier: FOUNDER_TIER, arrivedAt: start, skill: CONFIG.founderSkill,
+    office: officeOf(CONFIG.founder?.office),
   };
 }
 
@@ -76,6 +81,7 @@ export function makeLegend(i, start) {
     ...base(id), kind: 'legend', name: legend.name, legend, legendIdx: i,
     role: { ...ROLES[1 + Math.floor(hash(id, 11) * (ROLES.length - 1))], label: legend.title || 'Base Builder' },
     tier: BUILDER_TIER, arrivedAt: Number.isFinite(joined) ? Math.max(start, joined) : start, skill: CONFIG.builderSkill,
+    office: officeOf(legend.office),
   };
 }
 
