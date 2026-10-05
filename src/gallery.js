@@ -5,7 +5,7 @@ import { CATALOG, ROLES, cityCrew, makeBlocky, rarityOf, TRAIT_LABEL, LANDMARKS,
 import { blockySvg } from './voxel-svg.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
-import { buildingGroup, ruinGroup, adWall, updateBoards, kitFor, reserveLot, brandPlot } from './city.js';
+import { buildingGroup, ruinGroup, adWall, updateBoards, kitFor, reserveLot, brandPlot, freePlot } from './city.js';
 import { dronesSample } from './agents.js';
 import { FLEET, makeService, flash } from './fleet.js';
 import { metroSample } from './metro.js';
@@ -55,6 +55,9 @@ function nftWall() {
   return g;
 }
 
+// a made-up project to show the Base Avenue designs
+const SAMPLE = { id: 'sample', name: 'Your Project', tagline: 'Built on Base', url: '', color: '#0052ff', accent: '#ffffff', style: 'tower', at: 0 };
+
 // sample quotes so the exchange boards have something to show (the city shows live ones)
 updateBoards({ market: { priceUsd: 0.0000301, change24h: 4.2, volume24h: 1240, stocks: [{ symbol: 'NVDAc', priceUsd: 182.4 }] }, population: 19 });
 
@@ -83,7 +86,10 @@ const items = [
     const [w, d, h] = l.brand ? HQ_SIZE[l.brand.style] || HQ_SIZE.tower : [];
     return { label: l.label, p: { k: 0, kind: 'landmark', type: l.brand ? 'hq' : l.id, w, d, h, brand: l.brand } };
   }),
-  ...(CONFIG.baseProjects || []).slice(0, 1).map((b) => ({ label: `${b.name} HQ: its plot until then`, p: { type: 'hq' }, make: () => kitFor((k) => brandPlot(k, b)) })),
+  // Base Avenue (src/projects.js): every HQ style with a sample project, its plot before, a free plot
+  ...Object.entries(HQ_SIZE).map(([style, [w, d, h]], i) => ({ label: `Base Avenue HQ: ${style}`, p: { k: 0, kind: 'landmark', type: 'hq', w, d, h, brand: { ...SAMPLE, id: `sample-${style}`, style, color: ['#0052ff', '#ff007a', '#3ca1a4', '#7b2ff2'][i] } } })),
+  { label: 'Base Avenue: before its goal', p: { type: 'hq' }, make: () => kitFor((k) => brandPlot(k, { ...SAMPLE, at: 400 })) },
+  { label: 'Base Avenue: a free plot', p: { type: 'hq' }, make: () => kitFor((k) => freePlot(k, 1)) },
   { label: 'Billboards', p: { type: 'billboards' }, make: adWall },
   { label: 'Service vehicles', p: { type: 'vehicles' }, make: fleetShowcase },
   { label: 'BaseCity Metro', p: { type: 'metro' }, make: metroSample },

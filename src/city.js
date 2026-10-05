@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
-import { hash, PITCH, isWater, isReserve, LANDMARKS } from './sim.js';
+import { hash, PITCH, isWater, isReserve, LANDMARKS, AVENUE } from './sim.js';
 import { now } from './time.js';
 import { makeService, makeDrone } from './fleet.js';
 
@@ -1303,16 +1303,32 @@ const LANDMARK = {
   },
 };
 
-// ---------- Base projects: a headquarters for teams building on Base (CONFIG.baseProjects) ----------
+// ---------- Base Avenue: a headquarters for Base projects (src/projects.js) ----------
 // Four shapes in the project's colours, its logo up top and its name over the door. The signs are
-// clickable (they open the project's site), and until the HQ is built its plot shows the goal.
+// clickable (they open the project's site). Until the HQ is built its plot shows the goal, and a plot
+// no project has taken yet says so (and links to the contact for ads).
 const BRAND_MATS = new Map();
 const css = (c) => (typeof c === 'number' ? `#${c.toString(16).padStart(6, '0')}` : c);
 const num = (c) => (typeof c === 'number' ? c : parseInt(String(c).replace('#', ''), 16));
 const mix = (a, b, t) => new THREE.Color(a).lerp(new THREE.Color(b), t).getHex();
-// a project's logo: hand-drawn (LOGOS), else its initial on its colour
-function drawLogo(g, b, x, y, s) {
+// a logo image from public/logos (or any https URL that allows it), loaded once
+const LOGO_IMAGES = new Map();
+function logoImage(src, onload) {
+  let img = LOGO_IMAGES.get(src);
+  if (!img) { img = new Image(); img.crossOrigin = 'anonymous'; img.src = src; LOGO_IMAGES.set(src, img); }
+  if (!img.complete) img.addEventListener('load', onload, { once: true });
+  return img.complete && img.naturalWidth ? img : null;
+}
+// a project's logo: hand-drawn (LOGOS), an image (redraw: called once it loads), else its initial
+function drawLogo(g, b, x, y, s, redraw = () => {}) {
   if (LOGOS[b.logo]) return LOGOS[b.logo](g, x, y, s);
+  const img = typeof b.logo === 'string' && /^(\/|https:\/\/)/.test(b.logo) ? logoImage(b.logo, redraw) : null;
+  if (img) {
+    g.save(); g.beginPath(); g.roundRect(x, y, s, s, s * 0.14); g.clip();
+    g.drawImage(img, x, y, s, s);
+    g.restore();
+    return;
+  }
   g.fillStyle = css(b.color); rr(g, x, y, s, s, s * 0.14);
   g.fillStyle = css(b.text || '#ffffff'); g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `800 ${Math.round(s * 0.62)}px "Lilita One", Inter, system-ui, sans-serif`;
@@ -1323,34 +1339,50 @@ function fitText(g, text, weight, size, family, maxW, x, y) {
   g.fillText(text, x, y);
 }
 const DISPLAY = '"Lilita One", Inter, system-ui, sans-serif', BODY = 'Inter, system-ui, sans-serif';
-// kind: 'logo' (square), 'name' (the sign over the door) or 'soon' (the plot's sign)
-function brandMaterial(b, kind) {
-  const key = `${b.id}|${kind}|${b.at}`;
-  if (BRAND_MATS.has(key)) return BRAND_MATS.get(key);
-  const cv = document.createElement('canvas'), g = cv.getContext('2d');
-  const ink = css(b.text || '#ffffff');
+const contact = () => CONFIG.adContact || (CONFIG.xHandle ? `DM @${CONFIG.xHandle}` : '');
+// Draws a sign onto its canvas. kind: 'logo' (square), 'name' (the sign over the door), 'soon' (its
+// plot's sign) or 'free' (a plot no project has taken: b is { id, plot }). redraw: for logo images.
+function drawSign(cv, g, b, kind, redraw) {
+  g.textAlign = 'center'; g.textBaseline = 'middle';
   if (kind === 'logo') {
     cv.width = cv.height = 256;
     g.fillStyle = css(b.color); g.fillRect(0, 0, 256, 256);
-    drawLogo(g, b, 8, 8, 240);
+    drawLogo(g, b, 8, 8, 240, redraw);
   } else if (kind === 'name') {
     cv.width = 512; cv.height = 128;
     g.fillStyle = css(b.color); g.fillRect(0, 0, 512, 128);
-    drawLogo(g, b, 12, 12, 104);
-    g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle';
+    drawLogo(g, b, 12, 12, 104, redraw);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = css(b.text || '#ffffff');
     fitText(g, b.name, 800, 60, DISPLAY, 360, 320, b.tagline ? 50 : 66);
     if (b.tagline) { g.globalAlpha = 0.85; fitText(g, b.tagline, 700, 24, BODY, 360, 320, 98); g.globalAlpha = 1; }
-  } else {
+  } else if (kind === 'soon') {
     cv.width = 512; cv.height = 256;
     g.fillStyle = '#14213d'; g.fillRect(0, 0, 512, 256);
     g.strokeStyle = '#f4c542'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 246);
-    drawLogo(g, b, 28, 52, 152);
+    drawLogo(g, b, 28, 52, 152, redraw);
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = '#f4c542'; fitText(g, 'COMING SOON', 800, 34, DISPLAY, 280, 345, 56);
     g.fillStyle = '#ffffff'; fitText(g, b.label || `${b.name} HQ`, 800, 48, DISPLAY, 290, 345, 118);
-    g.fillStyle = '#9fd0ff'; fitText(g, `at ${b.at.toLocaleString('en-US')} ${CONFIG.citizenPlural}`, 700, 30, BODY, 290, 345, 186);
+    g.fillStyle = '#9fd0ff'; fitText(g, b.at > 0 ? `at ${Number(b.at).toLocaleString('en-US')} ${CONFIG.citizenPlural}` : 'breaking ground soon', 700, 30, BODY, 290, 345, 186);
+  } else {
+    cv.width = 512; cv.height = 256;
+    g.fillStyle = '#14213d'; g.fillRect(0, 0, 512, 256);
+    g.strokeStyle = '#ffc83d'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 246);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#ffc83d'; fitText(g, 'BASE AVENUE', 800, 34, DISPLAY, 440, 256, 50);
+    g.fillStyle = '#ffffff'; fitText(g, `PLOT ${b.plot}`, 800, 64, DISPLAY, 440, 256, 112);
+    g.fillStyle = '#9fd0ff'; fitText(g, "Your project's HQ here", 700, 30, BODY, 440, 256, 172);
+    if (contact()) { g.fillStyle = '#ffc83d'; fitText(g, contact(), 700, 24, BODY, 440, 256, 214); }
   }
+}
+function brandMaterial(b, kind) {
+  const key = `${b.id}|${kind}|${b.at}|${b.logo}`;
+  if (BRAND_MATS.has(key)) return BRAND_MATS.get(key);
+  const cv = document.createElement('canvas'), g = cv.getContext('2d');
   const tex = new THREE.CanvasTexture(cv);
+  const draw = () => drawSign(cv, g, b, kind, () => { draw(); tex.needsUpdate = true; });
+  draw();
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   const mat = new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.35 });
@@ -1362,7 +1394,7 @@ function brandPanel(k, b, kind, w, h, x, y, z, ry = 0) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), brandMaterial(b, kind));
   m.position.set(x, y, z);
   m.rotation.y = ry;
-  m.userData.sponsor = { name: b.name, url: b.url };
+  m.userData.sponsor = kind === 'free' ? AD_SLOT() : { name: b.name, url: b.url };
   k.extras.push(m);
 }
 const SIDE = Math.PI / 2; // a panel on the +x face
@@ -1452,6 +1484,17 @@ const HQ = {
 };
 export const brandHq = (k, p) => (HQ[p.brand.style] || HQ.tower)(k, p.brand, p);
 
+// A Base Avenue plot no project has taken yet: a lawn with hedges and a sign with the plot's number.
+export function freePlot(k, n) {
+  k.box(6.4, 0.06, 6.4, C.lawn);
+  k.box(6.4, 0.08, 1.2, C.walk, 0, 0, 2.6);
+  for (const s of [-1, 1]) { k.box(0.5, 0.45, 5, 0x3f8a3a, s * 2.95, 0, -0.5); k.box(6.4, 0.45, 0.5, 0x3f8a3a, 0, 0, -2.95); }
+  for (let i = 0; i < 5; i++) k.box(0.3, 0.25, 0.3, C.flower[i], -1.6 + i * 0.8, 0.06, 1.6);
+  for (const x of [-1.6, 1.6]) k.box(0.14, 1.5, 0.14, C.dark, x, 0, 2.4);
+  k.box(3.8, 2.0, 0.1, C.dark, 0, 1.0, 2.33);
+  brandPanel(k, { id: `plot${n}`, plot: n }, 'free', 3.6, 1.8, 0, 2.0, 2.4);
+}
+
 // A Base project's plot before its HQ: cleared ground behind a fence, and a sign with the goal.
 export function brandPlot(k, b) {
   k.box(6.4, 0.05, 6.4, 0xc9b99a);
@@ -1473,8 +1516,6 @@ export const adWall = () => kitFor((k) => {
   for (const x of [-3.15, 0, 3.15]) k.box(0.16, 0.5 + rows * 1.5, 0.16, C.dark, x, Y, -0.2);
   for (let i = 0; i < n; i++) billboard(k, (i % 2 ? 1 : -1) * 1.58, Y + 0.45 + (rows - 1 - Math.floor(i / 2)) * 1.5, 0, 2.9, 1.13, i, 0.05);
 });
-
-const HQ_LOTS = new Map(LANDMARKS.filter((l) => l.brand).map((l) => [l.lot.join(','), l.brand]));
 
 // Untouched land: forest, meadow, rocks. Lot (0,0) starts with the founder's pile of blocks.
 function wildLot(k, i, j) {
@@ -1747,9 +1788,10 @@ export function createCity(scene) {
     for (let i = -L; i <= L; i++) for (let j = -L; j <= L; j++) {
       const key = `${i},${j}`;
       if (lots.has(key) || isWater(i, j)) continue;
-      const hq = HQ_LOTS.get(key);
+      const plot = AVENUE.findIndex((lot) => lot[0] === i && lot[1] === j), hq = plot >= 0 && LANDMARKS.find((l) => l.brand?.plot === plot + 1)?.brand;
       if (isReserve(i, j)) setLot(key, [i, j], 'reserve', -1, kitFor((kk) => reserveLot(kk, i, j)));
       else if (hq) setLot(key, [i, j], 'plot', -1, kitFor((kk) => brandPlot(kk, hq))); // a Base project's HQ goes here
+      else if (plot >= 0) setLot(key, [i, j], 'plot', -1, kitFor((kk) => freePlot(kk, plot + 1)));
       else setLot(key, [i, j], 'wild', -1, kitFor((kk) => wildLot(kk, i, j)));
       if (animateRing && Math.max(Math.abs(i), Math.abs(j)) === L) {
         const g = lots.get(key).group;

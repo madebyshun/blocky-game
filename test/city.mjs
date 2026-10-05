@@ -2,7 +2,7 @@
 // is full it rebuilds the oldest homes, shops and offices denser), a whale still gets its fountain,
 // and a long replay stays fast. Run: npm test
 import assert from 'node:assert/strict';
-import { CitySim, cityCrew, makeBlocky, CATALOG, LANDMARKS, isWater, ring } from '../src/sim.js';
+import { CitySim, cityCrew, makeBlocky, CATALOG, LANDMARKS, AVENUE, RENEW, setProjects, isWater } from '../src/sim.js';
 
 const HOUR = 3600000, DAY = 24 * HOUR, t0 = Date.UTC(2026, 9, 1);
 const city = (n, whales = []) => {
@@ -75,14 +75,14 @@ for (const [gone, ruins] of [[5, 0], [30, 1], [65, 3]]) {
   assert.equal(s.next.name, site.name, 'same site');
   assert.ok(Math.abs(stay.placed - s.placed - gone * per) < 1e-6, `${gone} leaving: site lost ${stay.placed - s.placed}, expected ${gone * per}`);
   const ev = s.events.filter((e) => e.at === T);
-  assert.equal(ev.filter((e) => e.kind === 'setback').length, 1, 'one setback logged');
+  assert.equal(ev.filter((e) => e.kind === 'setback').length, gone * per >= 0.5 ? 1 : 0, 'one setback logged');
   assert.equal(ev.filter((e) => e.kind === 'ruin').length, ruins, `${gone} leaving: ${ruins} ruins`);
   if (!ruins) continue;
   const ruined = ev.filter((e) => e.kind === 'ruin').map((e) => e.p);
   for (const r of ruined) assert.ok(r.kind === 'building' && r.ruinedAt === T && s.standing.get(r.lot.join(',')) === r, `${r.name} is not a standing ruin`);
   assert.equal(s.ruinCount, ruins);
-  // the newest ones go: nothing finished after the ruins is spared, landmarks never are
-  const newest = [...s.standing.values()].filter((b) => b.kind === 'building').sort((a, b) => b.at - a.at)[0];
+  // the newest homes, shops or offices go; landmarks, parks and services never do
+  const newest = [...s.standing.values()].filter((b) => b.kind === 'building' && RENEW.has(b.type)).sort((a, b) => b.at - a.at)[0];
   assert.ok(ruined.includes(newest) || !newest, 'the newest building was spared');
   // the crew finishes its site, then rebuilds every ruin before anything else
   s.advance(T + 10 * DAY);
@@ -122,22 +122,32 @@ for (const [gone, ruins] of [[5, 0], [30, 1], [65, 3]]) {
 }
 console.log('city: leaving Blockies take their blocks off the site; a big exit leaves ruins, rebuilt first');
 
-// every landmark has a lot of its own on dry land; Base projects' HQs are built there once enough
-// Blockies are here (and their lots never get anything else)
-const lots = LANDMARKS.map((l) => l.lot.join(','));
-assert.equal(new Set(lots).size, lots.length, 'two landmarks share a lot');
-for (const l of LANDMARKS) assert.ok(!isWater(...l.lot), `${l.label} is in the river`);
+// every landmark and Base Avenue plot has a lot of its own on dry land
+const lots = [...LANDMARKS.map((l) => l.lot), ...AVENUE].map((lot) => lot.join(','));
+assert.equal(new Set(lots).size, lots.length, 'two landmarks or plots share a lot');
+for (const lot of [...LANDMARKS.map((l) => l.lot), ...AVENUE]) assert.ok(!isWater(...lot), `${lot} is in the river`);
+// Base Avenue: a project's HQ goes up on its plot once its goal is reached, never before the day it
+// was added; plots no project has taken are never built on
 {
-  const s = city(300);
-  s.advance(t0 + 25 * DAY);
-  const hqs = LANDMARKS.filter((l) => l.brand);
-  assert.ok(hqs.length > 0, 'no Base project HQs');
-  for (const l of hqs) {
-    const p = s.standing.get(l.lot.join(','));
-    if (l.at <= 300 && ring(...l.lot) <= s.land) assert.ok(p?.kind === 'landmark' && p.type === l.id && p.brand === l.brand, `${l.label} was not built`);
-    if (l.at > 300) assert.ok(!p, `${l.label} was built before its goal`);
-  }
-  console.log(`city: 300 Blockies built ${hqs.filter((l) => s.builtLandmarks.has(l.id)).length} of ${hqs.length} Base project HQs`);
+  const sample = (id, plot, at, added) => ({ id, name: id, tagline: 'test', url: 'https://example.com', color: '#0052ff', style: 'tower', plot, at, added });
+  setProjects([sample('early', 1, 50, '2026-09-01'), sample('later', 2, 0, '2026-10-11'), sample('goal', 3, 5000, '2026-09-01')]);
+  const s = city(300), at = (id) => s.done.find((p) => p.type === `hq-${id}`)?.at;
+  s.advance(t0 + 30 * DAY);
+  assert.ok(at('early') > t0, 'an HQ whose goal was reached was not built');
+  assert.ok(at('later') >= Date.parse('2026-10-11'), `an HQ went up before the day it was added: ${new Date(at('later')).toISOString()}`);
+  assert.equal(at('goal'), undefined, 'an HQ went up before its goal');
+  for (const lot of AVENUE.slice(3)) assert.ok(!s.standing.has(lot.join(',')), `free plot ${lot} was built on`);
+  // adding a project later leaves what the city built before that day as it was
+  const before = city(300);
+  setProjects([]);
+  const without = city(300);
+  without.advance(Date.parse('2026-10-11'));
+  setProjects([sample('later', 2, 0, '2026-10-11')]);
+  before.setCrew(before.builders, []);
+  before.advance(Date.parse('2026-10-11'));
+  assert.deepEqual(before.done.map((p) => p.name), without.done.map((p) => p.name), 'adding a project changed the past');
+  setProjects([]);
+  console.log('city: Base Avenue HQs wait for their goal and the day they were added; free plots stay free');
 }
 
 // a year of replay stays quick, in one call

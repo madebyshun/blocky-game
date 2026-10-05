@@ -1,4 +1,5 @@
 import { CONFIG } from './config.js';
+import { PROJECTS } from './projects.js';
 
 // Deterministic city simulation. The whole city is a pure function of
 // (Blocky arrival times, city start, now): it keeps building 24/7 with no game
@@ -194,7 +195,9 @@ export const isIndustrial = ([i, j]) => ring(i, j) >= 4 && j < 0 && i > riverCol
 
 // Woods the city keeps: some lots from ring 3 out stay forest for good, in clumps (more in the
 // outskirts), so the city grows around green space. Never on a landmark's lot.
-const LANDMARK_LOTS = new Set([...CONFIG.landmarks, ...(CONFIG.baseProjects || [])].map((l) => l.lot.join(',')));
+// Base Avenue's plots (src/projects.js): kept for Base projects' headquarters, never built on otherwise
+export const AVENUE = CONFIG.avenue?.plots || [];
+const LANDMARK_LOTS = new Set([...CONFIG.landmarks.map((l) => l.lot), ...AVENUE].map((lot) => lot.join(',')));
 export function isReserve(i, j) {
   const r = ring(i, j);
   if (r < 3 || isWater(i, j) || LANDMARK_LOTS.has(`${i},${j}`)) return false;
@@ -204,7 +207,7 @@ export function isReserve(i, j) {
 
 // Homes, shops and offices get rebuilt denser as the city ages (CitySim.redevelop); parks, rides,
 // services, farms, energy, landmarks and fountains stay as they are.
-const RENEW = new Set(['cottage', 'house', 'townhouses', 'apartment', 'villa', 'suburb', 'shop', 'cafe', 'office', 'devhub', 'aistartup', 'brokerage', 'tower', 'skyscraper']);
+export const RENEW = new Set(['cottage', 'house', 'townhouses', 'apartment', 'villa', 'suburb', 'shop', 'cafe', 'office', 'devhub', 'aistartup', 'brokerage', 'tower', 'skyscraper']);
 // can something bigger go up here one day? (a skyscraper downtown is as big as it gets)
 const canGrow = (p) => {
   const z = zoneOf(ring(...p.lot)), cost = CATALOG[p.type].cost;
@@ -250,12 +253,23 @@ export const WONDER_COST = 300;
 // a Base project's HQ by its style: [w, d, h, blocks] (designs: HQ in src/city.js)
 export const HQ_SIZE = { tower: [5, 5, 14, 520], campus: [6, 5, 4, 300], spire: [4, 4, 16, 600], dome: [6, 6, 6, 420] };
 
-// Every landmark: the city's own, then a headquarters for each Base project (CONFIG.baseProjects),
-// in the order they unlock.
-export const LANDMARKS = [
-  ...CONFIG.landmarks,
-  ...(CONFIG.baseProjects || []).map((b) => ({ at: b.at, id: `hq-${b.id}`, label: b.label || `${b.name} HQ`, lot: b.lot, brand: b })),
-].sort((a, b) => a.at - b.at);
+// Every landmark: the city's own and a headquarters for each Base project on Base Avenue, in the order
+// they unlock. An HQ waits for its goal (`at` Blockies) and for the day it was added (`from`).
+export let LANDMARKS = [];
+export function setProjects(list = []) {
+  const plots = new Set(), hqs = [];
+  for (const b of list) {
+    const lot = AVENUE[(b?.plot | 0) - 1];
+    if (!b?.id || !b.name || !lot || plots.has(b.plot) || !/^#[0-9a-f]{6}$/i.test(b.color || '')) {
+      console.warn('[projects] skipped (needs id, name, a free plot 1-%d and a #rrggbb color):', AVENUE.length, b);
+      continue;
+    }
+    plots.add(b.plot);
+    hqs.push({ at: Math.max(0, Number(b.at) || 0), id: `hq-${b.id}`, label: b.label || `${b.name} HQ`, lot, brand: b, from: Date.parse(b.added || '') || 0 });
+  }
+  LANDMARKS = [...CONFIG.landmarks, ...hqs].sort((a, b) => a.at - b.at);
+}
+setProjects(PROJECTS);
 const landmarkSize = (l) => (l.brand ? HQ_SIZE[l.brand.style] || HQ_SIZE.tower : LANDMARK_SIZE[l.id]);
 
 // ---------- the build plan, replayed over time ----------
@@ -348,7 +362,7 @@ export class CitySim {
     this.wonders = new Set(); // whale buys (index in whaleList) whose wonder is planned
     this.metroPlanned = false;
     this.metroBuilt = false;
-    this.reserved = new Set(LANDMARKS.map((l) => l.lot.join(',')));
+    this.reserved = new Set([...LANDMARKS.map((l) => l.lot), ...AVENUE].map((lot) => lot.join(',')));
     this.queue = [];
     for (let r = 0; r <= this.land; r++) this.queue.push(...this.ringLots(r));
     this.standing = new Map(); // lot key -> the project standing there now
@@ -406,7 +420,7 @@ export class CitySim {
     // a landmark whose goal is reached comes next, but homes go up between landmarks (the first ones
     // aside), unless there's no free lot for them
     const spaced = this.sinceLandmark >= (CONFIG.landmarkEvery || 1) - 1 || !this.queue.length;
-    const lm = LANDMARKS.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land && (spaced || l.at <= 1));
+    const lm = LANDMARKS.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land && (spaced || l.at <= 1) && !(l.from > t));
     this.sinceLandmark++;
     if (lm) {
       this.sinceLandmark = 0;
@@ -512,10 +526,8 @@ export class CitySim {
     if (p) {
       let lost = 0;
       for (const [arrived, skill] of e.who) if (arrived < e.t) lost += skill * (this.perAt(e.t) - this.perAt(Math.max(start, arrived)));
-      if (lost >= 0.5) {
-        p.lost = (p.lost || 0) + lost;
-        this.events.push({ kind: 'setback', at: e.t, n: e.n, blocks: Math.round(lost), p });
-      }
+      p.lost = (p.lost || 0) + lost;
+      if (lost >= 0.5) this.events.push({ kind: 'setback', at: e.t, n: e.n, blocks: Math.round(lost), p });
     }
     // a big exit leaves the newest homes, shops or offices abandoned until the crew rebuilds them
     const ruins = Math.min(CONFIG.departures.maxRuins, Math.floor(e.n / CONFIG.departures.ruinAt));
