@@ -49,13 +49,19 @@
         <button id="share" class="btn">Share</button>
       </div>
       <button id="ca" class="ca" hidden title="Copy contract address"></button>
+      <a id="builders-link" class="ca builders-link" href="/builders.html">👷 Base Builders · get a voxel PFP</a>
     </section>
 
     <aside id="card" class="card panel" hidden>
       <button class="close" id="card-close" aria-label="Close">×</button>
-      <div class="eyebrow" id="card-eyebrow">BLOCKY #1</div>
-      <h2 id="card-name">Pixel #1</h2>
-      <div class="role" id="card-role">Founder</div>
+      <div class="card-head">
+        <img id="card-pfp" class="card-pfp" alt="" width="72" height="72" />
+        <div>
+          <div class="eyebrow" id="card-eyebrow">BLOCKY #1</div>
+          <h2 id="card-name">Pixel #1</h2>
+          <div class="role" id="card-role">Founder</div>
+        </div>
+      </div>
       <dl>
         <dt>Status</dt><dd id="card-status">Carrying blocks</dd>
         <dt>Blocks placed</dt><dd id="card-blocks">0</dd>
@@ -64,7 +70,10 @@
         <dt>Joined</dt><dd id="card-joined">just now</dd>
         <dt>Brought by</dt><dd id="card-by">Founder</dd>
       </dl>
-      <button class="btn small" id="card-follow">Follow</button>
+      <div class="card-actions">
+        <button class="btn small" id="card-follow">Follow</button>
+        <button class="btn small" id="card-pfp-dl" title="Download this Blocky as a 1024×1024 PFP">⬇ PFP</button>
+      </div>
     </aside>
 
     <aside class="side">

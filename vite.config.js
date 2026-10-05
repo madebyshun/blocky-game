@@ -5,7 +5,10 @@ import { defineConfig, loadEnv } from 'vite';
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
   return {
-    build: { chunkSizeWarningLimit: 800 },
+    build: {
+      chunkSizeWarningLimit: 800,
+      rollupOptions: { input: { main: 'index.html', builders: 'builders.html' } }, // gallery.html stays a dev tool
+    },
     plugins: [
       {
         name: 'local-api',

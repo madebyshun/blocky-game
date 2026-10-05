@@ -111,14 +111,19 @@ html, body {
 .card dt { color: var(--muted); font-weight: 600; }
 .card dd { margin: 0; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
 .card .close { position: absolute; top: 8px; right: 10px; background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+.card-head { display: flex; gap: 12px; align-items: center; }
+.card-pfp { width: 72px; height: 72px; border-radius: 14px; flex-shrink: 0; background: rgba(255, 255, 255, 0.06); }
+.card-actions { display: flex; gap: 8px; margin-top: 12px; }
+.card-actions .btn { flex: 1; }
+.builders-link { text-decoration: none; text-align: center; color: var(--accent); }
 .up { color: var(--up); }
 .down { color: var(--down); }
 
 /* side */
-.side { position: fixed; right: 16px; top: 250px; bottom: 112px; width: 290px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; overflow: hidden; }
+.side { position: fixed; right: 16px; top: 264px; bottom: 112px; width: 290px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-content: start; overflow: hidden; }
 .side h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .board, .feed { padding: 12px 14px; }
-.board ol, .feed ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 13px; }
+.board ol, .feed ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; font-size: 13px; }
 .board li, .feed li { display: flex; justify-content: space-between; gap: 8px; cursor: pointer; white-space: nowrap; }
 .board li span:first-child, .feed li span:first-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .board li b, .feed li b { flex-shrink: 0; }

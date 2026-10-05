@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG } from './config.js';
 import { createCity, updateBoards } from './city.js';
 import { createAgents } from './agents.js';
+import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
@@ -379,6 +380,8 @@ function renderCard() {
   const by = crewInfo[b.id - 1];
   $('card-by').textContent = b.id === 1 ? 'Founder' : by?.pot ? `the community pot (filled by ${short(by.from)})` : by ? `${short(by.from)} (${usd(by.usd)} buy)` : '—';
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
+  const img = $('card-pfp');
+  if (img.dataset.id !== String(b.id)) { img.dataset.id = b.id; img.src = renderPfp(b, { size: 256, mark: false }); img.alt = `Voxel PFP of ${b.name}`; }
 }
 
 function select(v, follow = false) {
@@ -390,6 +393,7 @@ function select(v, follow = false) {
 }
 $('card-close').onclick = () => select(null);
 $('card-follow').onclick = () => { following = !following; renderCard(); };
+$('card-pfp-dl').onclick = () => selected && downloadPfp(selected.b);
 
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;

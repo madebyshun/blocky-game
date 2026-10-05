@@ -12,6 +12,7 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - The city **starts from empty land**: grass, forest, a river. The founder builds the first garage, then the town square, then the city grows outward, roads appearing next to every new lot.
 - ~30 building types by district: cottages, family houses, townhouses, apartments, villas, shops, cafés, offices, dev hubs, a school, GPU farms, towers, skyscrapers, wind turbines, water towers, farms, gardens, and leisure: a **roller coaster**, **Ferris wheel** and **carousel** (all animated), lake parks with ducks, flower gardens, playgrounds, skate parks, a public pool, soccer field, basketball court, concert stage and ice cream stand. Plus cars, buses and boats.
 - **Legends**: real Base builders live in the city with hand-made looks: Blocky #1 is the founder, and the next Base Builders arrive as Nibel, Jesse (Builder 001), Xen, Poet, Brian (CEO), Saumya Saxena, Jerry Pan, Ahaan Raizada, Jeremy Grinberg, Jon Roethke, Kien Nguyen, Toady Hawk, mleejr, Kevin, deployer, David Tso, mrtdlgc, Quigley, DonJohnson, everythingempty, Cobie, statuette, Oxxbid and Joey, in that order. Add one line per builder to `legends` in `src/config.js`; give it a `wallet` and that wallet's own buy brings them. `gallery.html?only=legends` shows them all, `?only=Jesse,Ahaan Raizada` just those.
+- **Base Builders page** (`/builders.html`, linked from the HUD): every legend's profile with a voxel PFP, title and where they are in the city (in town as Blocky #N, next up, or in line), and a **Download PFP** button (1024×1024 PNG with a small BaseCity tag). Clicking any Blocky in the city shows its PFP too, so every buyer can download the Blocky their buy brought. Add `x` (handle) or `bg` (PFP colour) to a legend in `src/config.js`.
 - Every other Blocky role has its own look: Founder (blue cap, gold badge), Smart Contract Dev (hard hat, hoodie, backpack), Frontend Dev (headphones), Designer (beret, scarf), Community (backwards cap, megaphone), Researcher (glasses, lab coat, clipboard).
 - `gallery.html` (dev only) shows every design and Blocky side by side; `?only=blockies` or `?only=coaster,ferris` to zoom in.
 - **The land is a square that expands**: when every lot is built, the Blockies reclaim a new ring of land, but only once enough Blockies live in the city (3, 6, 10, 16…). Until then the city waits, which is where new buys come in.
@@ -71,6 +72,7 @@ Environment variables (see `.env.example`):
 - `src/city.js`: voxel designs, land/river/bridges, progressive roads, construction sites, day/night.
 - `src/vehicles.js`: cars, buses, boats and service patrols; `src/fleet.js`: the service vehicles.
 - `src/metro.js`: the elevated metro loop, its stations and the train.
+- `src/pfp.js`: voxel PFP renderer; `builders.html` + `src/builders.js`: the Base Builders page.
 - `src/agents.js`: the AI agent drones.
 - `src/citizens.js`: builders walking the roads, hauling and placing blocks.
 

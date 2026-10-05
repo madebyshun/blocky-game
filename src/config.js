@@ -68,6 +68,7 @@ export const CONFIG = {
   // - no wallet: the next Base Builder or Whale (a $100+ buy) arrives as this legend, in list order.
   // - look: a hand-made outfit from LEGEND_LOOKS in src/citizens.js (halo, punk, spartan, robo, hoodie).
   //   Without one they wear the Base Builder uniform with a gold star.
+  // - x: their X handle (shows an 𝕏 link on the Base Builders page); bg: their PFP background colour.
   legends: [
     { name: 'Nibel', title: 'Base Builder', look: 'halo' },
     { name: 'Jesse', title: 'Builder 001', look: 'punk' },
