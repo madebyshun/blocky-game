@@ -117,47 +117,49 @@ export const needFor = (L) => {
 // w: weight per zone [downtown (ring<=1), midtown (ring<=3), outskirts], min: projects built before it appears.
 // pro: only a crew with a Base Builder (a $100+ buy) can build it.
 
+// w: how often each type is picked in each zone [downtown, midtown, suburbs, outskirts] (see zoneOf)
 export const CATALOG = {
-  cottage: { label: 'Cottage', min: 0, w: [2, 2.5, 2.5], cost: 24, size: [[3, 4], [3, 4], [2, 2]] },
-  garden: { label: 'Community Garden', min: 0, w: [0.6, 1.2, 1.6], cost: 18, size: [[6, 6], [6, 6], [1, 1]] },
-  house: { label: 'Family House', min: 1, w: [1.5, 2.5, 2.5], cost: 40, size: [[4, 5], [3, 4], [2, 3]] },
-  shop: { label: 'Corner Shop', min: 2, w: [2, 1.2, 0.4], cost: 48, size: [[4, 5], [4, 4], [2, 2]] },
-  park: { label: 'Park', min: 2, w: [1, 1.6, 1.2], cost: 36, size: [[6, 6], [6, 6], [1, 1]] },
-  farm: { label: 'Farm', min: 3, w: [0, 0.4, 2], cost: 28, size: [[6, 6], [6, 6], [1, 1]] },
-  cafe: { label: 'gm Café', min: 3, w: [1.4, 0.8, 0.3], cost: 55, size: [[4, 5], [4, 5], [2, 3]] },
-  playground: { label: 'Playground', min: 4, w: [0.6, 1.2, 0.8], cost: 30, size: [[6, 6], [6, 6], [1, 1]] },
-  court: { label: 'Basketball Court', min: 5, w: [0.5, 0.9, 0.6], cost: 32, size: [[6, 6], [6, 6], [1, 1]] },
-  townhouses: { label: 'Townhouses', min: 5, w: [1.4, 2, 0.8], cost: 80, size: [[6, 6], [4, 4], [3, 4]] },
-  windmill: { label: 'Wind Turbine', min: 6, w: [0, 0.3, 1.4], cost: 40, size: [[2, 2], [2, 2], [9, 9]] },
-  villa: { label: 'Villa', min: 7, w: [0.2, 0.8, 1.4], cost: 90, size: [[4, 5], [3, 4], [2, 2]] },
-  apartment: { label: 'Apartments', min: 8, w: [2, 1.6, 0.4], cost: 140, size: [[5, 6], [4, 5], [5, 8]] },
-  watertower: { label: 'Water Tower', min: 9, w: [0.2, 0.4, 0.6], cost: 50, size: [[3, 3], [3, 3], [7, 7]] },
-  office: { label: 'Office', min: 10, w: [2.4, 1, 0.1], cost: 200, size: [[5, 6], [4, 6], [6, 11]] },
-  devhub: { label: 'Dev Hub', min: 10, w: [1.6, 1, 0.2], cost: 160, size: [[5, 6], [5, 6], [4, 7]] },
-  school: { label: 'Builder School', min: 12, w: [0.4, 0.9, 0.4], cost: 150, size: [[6, 6], [5, 5], [3, 3]] },
-  gpufarm: { label: 'GPU Farm', min: 14, w: [0.4, 0.9, 1], cost: 180, size: [[6, 6], [5, 6], [2, 3]] },
-  tower: { label: 'Tower', min: 18, w: [2, 0.5, 0], cost: 480, size: [[4, 5], [4, 5], [12, 18]], pro: true },
-  skyscraper: { label: 'Skyscraper', min: 30, w: [1.4, 0.2, 0], cost: 900, size: [[5, 5], [5, 5], [20, 30]], pro: true },
+  cottage: { label: 'Cottage', min: 0, w: [2, 2.5, 2.2, 1], cost: 24, size: [[3, 4], [3, 4], [2, 2]] },
+  garden: { label: 'Community Garden', min: 0, w: [0.6, 1.2, 1.2, 1.4], cost: 18, size: [[6, 6], [6, 6], [1, 1]] },
+  house: { label: 'Family House', min: 1, w: [1.5, 2.5, 3, 0.8], cost: 40, size: [[4, 5], [3, 4], [2, 3]] },
+  shop: { label: 'Corner Shop', min: 2, w: [2, 1.2, 0.5, 0.1], cost: 48, size: [[4, 5], [4, 4], [2, 2]] },
+  park: { label: 'Park', min: 2, w: [1, 1.6, 1.2, 0.4], cost: 36, size: [[6, 6], [6, 6], [1, 1]] },
+  farm: { label: 'Farm', min: 3, w: [0, 0.3, 0.4, 3], cost: 28, size: [[6, 6], [6, 6], [1, 1]] },
+  cafe: { label: 'gm Café', min: 3, w: [1.4, 0.8, 0.3, 0.1], cost: 55, size: [[4, 5], [4, 5], [2, 3]] },
+  playground: { label: 'Playground', min: 4, w: [0.6, 1.2, 1, 0.2], cost: 30, size: [[6, 6], [6, 6], [1, 1]] },
+  suburb: { label: 'Suburban Homes', min: 4, w: [0, 0.4, 4, 0.8], cost: 64, size: [[6, 6], [6, 6], [2, 2]] },
+  court: { label: 'Basketball Court', min: 5, w: [0.5, 0.9, 0.7, 0.1], cost: 32, size: [[6, 6], [6, 6], [1, 1]] },
+  townhouses: { label: 'Townhouses', min: 5, w: [1.4, 2, 1, 0.1], cost: 80, size: [[6, 6], [4, 4], [3, 4]] },
+  windmill: { label: 'Wind Turbine', min: 6, w: [0, 0.2, 0.2, 2], cost: 40, size: [[2, 2], [2, 2], [9, 9]] },
+  villa: { label: 'Villa', min: 7, w: [0.2, 0.8, 1.6, 0.8], cost: 90, size: [[4, 5], [3, 4], [2, 2]] },
+  apartment: { label: 'Apartments', min: 8, w: [2, 1.6, 0.3, 0], cost: 140, size: [[5, 6], [4, 5], [5, 8]] },
+  watertower: { label: 'Water Tower', min: 9, w: [0.2, 0.4, 0.4, 0.6], cost: 50, size: [[3, 3], [3, 3], [7, 7]] },
+  office: { label: 'Office', min: 10, w: [2.4, 1, 0.1, 0], cost: 200, size: [[5, 6], [4, 6], [6, 11]] },
+  devhub: { label: 'Dev Hub', min: 10, w: [1.6, 1, 0.2, 0.1], cost: 160, size: [[5, 6], [5, 6], [4, 7]] },
+  school: { label: 'Builder School', min: 12, w: [0.4, 0.9, 0.7, 0.1], cost: 150, size: [[6, 6], [5, 5], [3, 3]] },
+  gpufarm: { label: 'GPU Farm', min: 14, w: [0.4, 0.9, 0.3, 1.2], cost: 180, size: [[6, 6], [5, 6], [2, 3]] },
+  tower: { label: 'Tower', min: 18, w: [2, 0.5, 0, 0], cost: 480, size: [[4, 5], [4, 5], [12, 18]], pro: true },
+  skyscraper: { label: 'Skyscraper', min: 30, w: [1.4, 0.2, 0, 0], cost: 900, size: [[5, 5], [5, 5], [20, 30]], pro: true },
   // leisure: parks and rides
-  flowergarden: { label: 'Flower Garden', min: 2, w: [0.5, 1, 1], cost: 35, size: [[6, 6], [6, 6], [1, 1]] },
-  icecream: { label: 'Ice Cream Stand', min: 3, w: [0.8, 0.8, 0.4], cost: 30, size: [[3, 3], [3, 3], [3, 3]] },
-  lakepark: { label: 'Lake Park', min: 4, w: [0.4, 1, 1], cost: 50, size: [[6, 6], [6, 6], [1, 1]] },
-  soccer: { label: 'Soccer Field', min: 5, w: [0.2, 0.8, 1], cost: 40, size: [[6, 6], [6, 6], [1, 1]] },
-  skatepark: { label: 'Skate Park', min: 6, w: [0.4, 0.7, 0.4], cost: 45, size: [[6, 6], [6, 6], [1, 1]] },
-  pool: { label: 'Public Pool', min: 7, w: [0.4, 0.8, 0.6], cost: 70, size: [[6, 6], [6, 6], [1, 1]] },
-  carousel: { label: 'Carousel', min: 8, w: [0.4, 0.6, 0.4], cost: 90, size: [[5, 5], [5, 5], [3, 3]] },
-  stage: { label: 'Concert Stage', min: 9, w: [0.6, 0.6, 0.3], cost: 80, size: [[6, 6], [5, 5], [3, 3]] },
-  ferris: { label: 'Ferris Wheel', min: 12, w: [0.1, 0.25, 0.2], cost: 320, size: [[6, 6], [6, 6], [8, 8]], pro: true },
-  coaster: { label: 'Roller Coaster', min: 16, w: [0.1, 0.25, 0.25], cost: 380, size: [[6, 6], [6, 6], [5, 5]], pro: true },
+  flowergarden: { label: 'Flower Garden', min: 2, w: [0.5, 1, 0.9, 0.6], cost: 35, size: [[6, 6], [6, 6], [1, 1]] },
+  icecream: { label: 'Ice Cream Stand', min: 3, w: [0.8, 0.8, 0.4, 0.1], cost: 30, size: [[3, 3], [3, 3], [3, 3]] },
+  lakepark: { label: 'Lake Park', min: 4, w: [0.4, 1, 1, 0.8], cost: 50, size: [[6, 6], [6, 6], [1, 1]] },
+  soccer: { label: 'Soccer Field', min: 5, w: [0.2, 0.8, 1, 0.5], cost: 40, size: [[6, 6], [6, 6], [1, 1]] },
+  skatepark: { label: 'Skate Park', min: 6, w: [0.4, 0.7, 0.4, 0.1], cost: 45, size: [[6, 6], [6, 6], [1, 1]] },
+  pool: { label: 'Public Pool', min: 7, w: [0.4, 0.8, 0.6, 0.1], cost: 70, size: [[6, 6], [6, 6], [1, 1]] },
+  carousel: { label: 'Carousel', min: 8, w: [0.4, 0.6, 0.3, 0.1], cost: 90, size: [[5, 5], [5, 5], [3, 3]] },
+  stage: { label: 'Concert Stage', min: 9, w: [0.6, 0.6, 0.3, 0.1], cost: 80, size: [[6, 6], [5, 5], [3, 3]] },
+  ferris: { label: 'Ferris Wheel', min: 12, w: [0.1, 0.25, 0.15, 0.05], cost: 320, size: [[6, 6], [6, 6], [8, 8]], pro: true },
+  coaster: { label: 'Roller Coaster', min: 16, w: [0.1, 0.25, 0.2, 0.1], cost: 380, size: [[6, 6], [6, 6], [5, 5]], pro: true },
   // city services: each arrives once early (FEATURED), then more as the city grows; most send out vehicles
-  firestation: { label: 'Fire Station', min: 6, w: [0.15, 0.25, 0.15], cost: 120, size: [[6, 6], [5, 5], [3, 3]] },
-  police: { label: 'Police Station', min: 9, w: [0.15, 0.25, 0.1], cost: 120, size: [[6, 6], [5, 5], [3, 3]] },
-  hospital: { label: 'Hospital', min: 14, w: [0.1, 0.2, 0.1], cost: 220, size: [[6, 6], [6, 6], [5, 5]] },
-  recycling: { label: 'Recycling Center', min: 18, w: [0, 0.1, 0.3], cost: 100, size: [[6, 6], [6, 6], [3, 3]] },
-  solarfarm: { label: 'Solar Farm', min: 10, w: [0, 0.2, 0.6], cost: 90, size: [[6, 6], [6, 6], [1, 1]] },
+  firestation: { label: 'Fire Station', min: 6, w: [0.15, 0.25, 0.15, 0.05], cost: 120, size: [[6, 6], [5, 5], [3, 3]] },
+  police: { label: 'Police Station', min: 9, w: [0.15, 0.25, 0.1, 0.05], cost: 120, size: [[6, 6], [5, 5], [3, 3]] },
+  hospital: { label: 'Hospital', min: 14, w: [0.1, 0.2, 0.1, 0], cost: 220, size: [[6, 6], [6, 6], [5, 5]] },
+  recycling: { label: 'Recycling Center', min: 18, w: [0, 0.1, 0.1, 0.6], cost: 100, size: [[6, 6], [6, 6], [3, 3]] },
+  solarfarm: { label: 'Solar Farm', min: 10, w: [0, 0.2, 0.2, 1.4], cost: 90, size: [[6, 6], [6, 6], [1, 1]] },
   // what Base is building: AI agents and onchain stocks
-  aistartup: { label: 'AI Startup', min: 8, w: [1, 0.8, 0.2], cost: 110, size: [[4, 4], [4, 4], [3, 4]] },
-  brokerage: { label: 'Brokerage', min: 6, w: [0.8, 0.6, 0.2], cost: 70, size: [[4, 4], [3, 3], [2, 2]] },
+  aistartup: { label: 'AI Startup', min: 8, w: [1, 0.8, 0.2, 0], cost: 110, size: [[4, 4], [4, 4], [3, 4]] },
+  brokerage: { label: 'Brokerage', min: 6, w: [0.8, 0.6, 0.2, 0], cost: 70, size: [[4, 4], [3, 3], [2, 2]] },
 };
 // Every city gets these early, then they keep appearing at random.
 const FEATURED = { 6: 'firestation', 8: 'carousel', 9: 'brokerage', 10: 'police', 11: 'lakepark', 12: 'aistartup', 13: 'ferris', 15: 'hospital', 17: 'coaster', 20: 'recycling', 23: 'solarfarm' };
@@ -181,21 +183,38 @@ const COLORS = {
   aistartup: [0xdfe8f5], brokerage: [0x1b2a4a],
 };
 
-const zoneOf = (r) => (r <= 1 ? 0 : r <= 3 ? 1 : 2);
+// SimCity-style zones by ring around Town Square: towers downtown, apartments and shops in midtown,
+// homes with yards in the suburbs, then the outskirts: farms, wind and solar.
+export const ZONES = ['Downtown', 'Midtown', 'Suburbs', 'Outskirts'];
+export const zoneOf = (r) => (r <= 1 ? 0 : r <= 3 ? 1 : r <= 6 ? 2 : 3);
 
-function chooseType(k, r, pro) {
+// Industry gathers in a park on the east bank, north of Town Square (out in the suburbs and beyond).
+const INDUSTRY = new Set(['windmill', 'watertower', 'gpufarm', 'recycling', 'solarfarm']);
+export const isIndustrial = ([i, j]) => ring(i, j) >= 4 && j < 0 && i > riverCol(j) + 1;
+
+// Woods the city keeps: some lots from ring 3 out stay forest for good, in clumps (more in the
+// outskirts), so the city grows around green space. Never on a landmark's lot.
+const LANDMARK_LOTS = new Set(CONFIG.landmarks.map((l) => l.lot.join(',')));
+export function isReserve(i, j) {
+  const r = ring(i, j);
+  if (r < 3 || isWater(i, j) || LANDMARK_LOTS.has(`${i},${j}`)) return false;
+  const n = Math.sin(i * 0.9 + 2.1) * Math.sin(j * 0.8 - 1.3) + 0.5 * Math.sin((i - j) * 0.45 + 0.7);
+  return n > (r >= 7 ? 0.5 : 0.62);
+}
+
+function chooseType(k, lot, pro) {
   if (FEATURED[k] && (pro || !CATALOG[FEATURED[k]].pro)) return FEATURED[k];
-  const z = zoneOf(r);
+  const z = zoneOf(ring(...lot)), east = isIndustrial(lot);
+  const weight = ([id, t]) => t.w[z] * (z >= 2 && INDUSTRY.has(id) ? (east ? 3 : 0.4) : 1);
   const options = Object.entries(CATALOG).filter(([, t]) => t.min <= k && t.w[z] > 0 && (pro || !t.pro));
-  const total = options.reduce((s, [, t]) => s + t.w[z], 0);
+  const total = options.reduce((s, o) => s + weight(o), 0);
   let x = hash(k, 31) * total;
-  for (const [id, t] of options) { x -= t.w[z]; if (x <= 0) return id; }
+  for (const o of options) { x -= weight(o); if (x <= 0) return o[0]; }
   return options[options.length - 1][0];
 }
 
 function buildingProject(k, lot, pro) {
-  const r = ring(...lot);
-  const type = chooseType(k, r, pro);
+  const type = chooseType(k, lot, pro);
   const t = CATALOG[type];
   const [W, D, H] = t.size;
   const p = { k, kind: 'building', type, lot, w: range(W, k, 1), d: range(D, k, 2), h: range(H, k, 3) };
@@ -299,7 +318,7 @@ export class CitySim {
     const lots = [];
     for (let i = -r; i <= r; i++) {
       for (let j = -r; j <= r; j++) {
-        if (ring(i, j) !== r || isWater(i, j) || this.reserved.has(`${i},${j}`)) continue;
+        if (ring(i, j) !== r || isWater(i, j) || this.reserved.has(`${i},${j}`) || isReserve(i, j)) continue;
         lots.push([i, j]);
       }
     }

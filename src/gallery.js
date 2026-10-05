@@ -5,7 +5,7 @@ import { CATALOG, ROLES, cityCrew, makeBlocky, rarityOf, TRAIT_LABEL } from './s
 import { blockySvg } from './voxel-svg.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
-import { buildingGroup, adWall, updateBoards } from './city.js';
+import { buildingGroup, adWall, updateBoards, kitFor, reserveLot } from './city.js';
 import { dronesSample } from './agents.js';
 import { FLEET, makeService, flash } from './fleet.js';
 import { metroSample } from './metro.js';
@@ -86,6 +86,8 @@ const items = [
   { label: 'AI agent drones', p: { type: 'drones' }, make: dronesSample },
   { label: 'Whale Fountain ($1k+ buy)', p: { k: 0, kind: 'wonder', type: 'wonder', whale: { from: '0x1234567890abcdef1234567890abcdef12345678', usd: 1500 } } },
   { label: 'NFT portraits (BaseCity Blockies)', p: { type: 'nft' }, make: nftWall },
+  { label: 'Woods the city keeps', p: { type: 'reserve' }, make: () => kitFor((k) => reserveLot(k, -8, 2)) },
+  { label: 'Woods with a pond', p: { type: 'reserve' }, make: () => kitFor((k) => reserveLot(k, -8, 3)) },
 ];
 // ?only=liberty,coaster shows just those designs, up close
 // ?only=legends, ?only=blockies, or legend names: ?only=Jesse,Ahaan Raizada shows just those, up close

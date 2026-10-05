@@ -564,11 +564,11 @@ const proj = new THREE.Vector3();
 function updateDistricts() {
   if (sim.done.length !== districtsFor) {
     districtsFor = sim.done.length;
-    districts = computeDistricts(sim.done);
+    districts = computeDistricts(sim.done, sim.land);
     for (const d of districts) {
       let el = districtEls.get(d.key);
       if (!el) { el = document.createElement('div'); el.className = 'district'; $('districts').appendChild(el); districtEls.set(d.key, el); }
-      el.innerHTML = `${d.name}<small>${d.buildings} buildings</small>`;
+      el.innerHTML = `${d.name}<small>${d.buildings ? `${d.buildings} building${d.buildings > 1 ? 's' : ''}` : 'woods'}</small>`;
     }
   }
   for (const d of districts) {

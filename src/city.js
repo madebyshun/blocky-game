@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
-import { hash, PITCH, isWater } from './sim.js';
+import { hash, PITCH, isWater, isReserve } from './sim.js';
 import { now } from './time.js';
 import { makeService, makeDrone } from './fleet.js';
 
@@ -431,6 +431,35 @@ const DESIGN = {
     rotor.userData.animate = (t, dt) => { rotor.rotation.z += dt * spin; };
     k.extras.push(rotor);
     tree(k, 2.4, 2.4, p.k); bush(k, -2.3, 2, p.k);
+  },
+  // the suburbs' staple: four small homes with front yards, two facing each street, a shared
+  // driveway and a hedge between the back gardens
+  suburb(k, p) {
+    lawn(k);
+    const WALLS = [0xf3e6d0, 0xd9e4ec, 0xf0d9da, 0xe3f1e1, 0xfde2c8, 0xfff3c4], HEDGE = 0x3f8a3a;
+    k.box(5.8, 0.3, 0.16, HEDGE, 0, Y, 0);
+    for (const face of [-1, 1]) {
+      k.box(0.9, 0.04, 2.3, 0x9aa3ad, 0, Y, face * 1.95); // driveway
+      if (hash(p.k, face, 85) < 0.6) {
+        const car = C.roof[Math.floor(hash(p.k, face, 86) * C.roof.length)];
+        k.box(0.62, 0.3, 1.0, car, 0, Y + 0.04, face * 2.25);
+        k.box(0.52, 0.22, 0.5, 0x9fd8ff, 0, Y + 0.34, face * 2.2);
+      }
+      for (const side of [-1, 1]) {
+        const roll = (salt) => hash(p.k, face, side, salt), seed = p.k * 7 + face * 3 + side, x = side * 1.55, hz = face * 1.0;
+        const w = 1.8, d = 1.4, h = 1.05 + roll(82) * 0.35;
+        k.box(w, h, d, WALLS[Math.floor(roll(80) * WALLS.length)], x, Y, hz);
+        gableRoof(k, w, d, Y + h, C.roof[Math.floor(roll(81) * C.roof.length)], x, hz);
+        const doorX = x - side * 0.4, front = hz + face * (d / 2 + 0.02);
+        k.box(0.42, 0.72, 0.06, 0x6e4b2a, doorX, Y, front);
+        k.win(0.42, 0.34, 0.06, x + side * 0.38, Y + 0.45, front);
+        k.box(0.4, 0.04, 1.3, C.walk, doorX, Y, face * 2.35); // path to the street
+        k.box(0.85, 0.28, 0.14, HEDGE, x + side * 0.45, Y, face * 2.95); // hedge by the sidewalk
+        if (roll(83) < 0.7) tree(k, x + side * 0.8, face * 2.3, seed);
+        else bush(k, x + side * 0.8, face * 2.35, seed);
+        if (roll(84) < 0.25) k.water(0.8, 0.12, 0.5, x, Y + 0.02, face * 0.35); // a little pool out back
+      }
+    }
   },
   villa(k, p) {
     lawn(k);
@@ -1245,6 +1274,30 @@ function wildLot(k, i, j) {
   }
 }
 
+// Woods the city keeps (sim.js isReserve): tall trees around a trail, sometimes a pond, a bench and
+// a sign. Blockies off the site crew come here for a walk.
+export function reserveLot(k, i, j) {
+  k.box(6.4, 0.1, 6.4, 0x4e9a3c, 0, 0, 0); // forest floor
+  const alongX = hash(i, j, 120) < 0.5, pond = hash(i, j, 125) < 0.4;
+  k.box(alongX ? 6.4 : 0.8, 0.12, alongX ? 0.8 : 6.4, 0xc9a66b, 0, 0, 0); // the trail
+  const px = alongX ? (hash(i, j, 126) - 0.5) * 2 : 1.7, pz = alongX ? 1.7 : (hash(i, j, 126) - 0.5) * 2;
+  if (pond) { k.box(2.2, 0.08, 1.6, 0x8d6e4a, px, 0.04, pz); k.water(1.8, 0.1, 1.2, px, 0.06, pz); }
+  const clear = (x, z) => (alongX ? Math.abs(z) < 0.95 : Math.abs(x) < 0.95) || (pond && Math.abs(x - px) < 1.6 && Math.abs(z - pz) < 1.3);
+  let planted = 0;
+  const want = 9 + Math.floor(hash(i, j, 121) * 5);
+  for (let t = 0; t < 40 && planted < want; t++) {
+    const x = -2.7 + hash(i, j, t, 122) * 5.4, z = -2.7 + hash(i, j, t, 123) * 5.4;
+    if (clear(x, z)) continue;
+    tree(k, x, z, i * 53 + j * 19 + t, 0.1);
+    planted++;
+  }
+  const bx = alongX ? -1.4 : -1.25, bz = alongX ? -1.25 : -1.4; // a bench by the trail
+  k.box(alongX ? 1 : 0.35, 0.08, alongX ? 0.35 : 1, C.wood, bx, 0.38, bz);
+  for (const o of [-0.4, 0.4]) k.box(0.08, 0.3, 0.08, C.trunk, bx + (alongX ? o : 0), 0.1, bz + (alongX ? 0 : o));
+  k.box(0.08, 0.75, 0.08, C.trunk, alongX ? 2.6 : 1.1, 0.1, alongX ? 1.1 : 2.6); // trail sign
+  k.box(alongX ? 0.06 : 0.7, 0.36, alongX ? 0.7 : 0.06, 0x2e7d32, alongX ? 2.6 : 1.1, 0.85, alongX ? 1.1 : 2.6);
+}
+
 // A finished building or landmark as a standalone group (also used by gallery.html).
 const ROOF_BOARD = { office: 0.35, apartment: 0.3, devhub: 0.25, shop: 0.25 }; // roof height above the body
 export const buildingGroup = (p) => kitFor((k) => {
@@ -1420,7 +1473,8 @@ export function createCity(scene) {
     for (let i = -L; i <= L; i++) for (let j = -L; j <= L; j++) {
       const key = `${i},${j}`;
       if (lots.has(key) || isWater(i, j)) continue;
-      setLot(key, [i, j], 'wild', -1, kitFor((kk) => wildLot(kk, i, j)));
+      if (isReserve(i, j)) setLot(key, [i, j], 'reserve', -1, kitFor((kk) => reserveLot(kk, i, j)));
+      else setLot(key, [i, j], 'wild', -1, kitFor((kk) => wildLot(kk, i, j)));
       if (animateRing && Math.max(Math.abs(i), Math.abs(j)) === L) {
         const g = lots.get(key).group;
         g.position.y = -3;
@@ -1705,7 +1759,7 @@ export function createCity(scene) {
     return [x + (x > 0 ? -1 : 1) * (PITCH / 2) + Math.cos(a) * 0.9, z + (z > 0 ? -1 : 1) * (PITCH / 2) + Math.sin(a) * 0.9];
   }
   function chillSpot(seed) { // somewhere in town for Blockies off the site crew, or waiting for more Blockies
-    const built = [...lots.entries()].filter(([, v]) => v.kind === 'built');
+    const built = [...lots.entries()].filter(([, v]) => v.kind === 'built' || v.kind === 'reserve');
     if (!built.length) return home(seed);
     const [key] = built[Math.floor(hash(seed, 7) * built.length)];
     const [i, j] = key.split(',').map(Number);

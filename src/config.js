@@ -102,7 +102,6 @@ export const CONFIG = {
     { name: 'Kien Nguyen', title: 'Base Builder', look: 'kimono' },
     { name: 'Toady Hawk', title: 'Base Builder', look: 'frog' },
     { name: 'mleejr', title: 'Base Builder', look: 'doodle' },
-    { name: 'Kevin', title: 'Base Builder', look: 'skyblue' },
     { name: 'deployer', title: 'Base Builder', look: 'floatie' },
     { name: 'David Tso', title: 'Base Builder', look: 'pixelpunk' },
     { name: 'mrtdlgc', title: 'Base Builder', look: 'dreamer' },
