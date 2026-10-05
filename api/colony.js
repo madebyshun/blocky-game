@@ -31,12 +31,14 @@ import { base } from 'viem/chains';
 import { applyTrade, applyBalances, snapshot, holders } from '../src/ledger.js';
 import { env, TOKEN, LEDGER, LAUNCH, NFT, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
 import { CLAIM_ABI } from './_sig.js';
+import { fetchMarket } from '../src/market.js';
+import { CONFIG } from '../src/config.js';
 
 const MODE = env.COUNT_MODE || 'buys';
 const FEE_PER = Number(env.FEE_PER_CITIZEN || LEDGER.per); // fee mode: USD of fees per Blocky
 const SUPPLY = LEDGER.supply;
 const MIN_BUY = Number(env.MIN_BUY_USD || 1);
-const POOL = env.POOL_ID || '0x61ccc84e302c1a95fb66435a285e95581134bfc2a11d4fbb88ed07e68ca2e4c0'; // BLOCKY/NVDAc
+const POOL = env.POOL_ID || CONFIG.poolId; // BLOCKY/NVDAc
 const OFFSET = Number(env.FEES_OFFSET_USD || 0);
 const KEY = KEY_BASE; // fee mode state
 const EXTRA_TOKENS = (env.FEE_TOKENS || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -249,28 +251,8 @@ async function computeFees() {
 // where $BLOCKY is the base token, plus the token it trades against (NVDAc: its USD price follows
 // from the pair) and any STOCK_TOKENS (comma-separated token addresses on Base).
 const STOCKS = (env.STOCK_TOKENS || '').split(',').map((a) => a.trim().toLowerCase()).filter(Boolean);
-const bestPair = (pairs, address) => pairs
-  .filter((p) => p.chainId === 'base' && p.baseToken?.address?.toLowerCase() === address)
-  .sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
-async function market() {
-  try {
-    const res = await fetch(`https://api.dexscreener.com/tokens/v1/base/${[TOKEN, ...STOCKS].join(',')}`);
-    if (!res.ok) return null;
-    const pairs = await res.json();
-    const p = bestPair(pairs, TOKEN);
-    if (!p) return null;
-    const stocks = [];
-    const native = Number(p.priceNative);
-    if (p.quoteToken?.symbol && native > 0) stocks.push({ symbol: p.quoteToken.symbol, priceUsd: Number(p.priceUsd) / native });
-    for (const a of STOCKS) {
-      const s = bestPair(pairs, a);
-      if (s && !stocks.some((x) => x.symbol === s.baseToken.symbol)) stocks.push({ symbol: s.baseToken.symbol, priceUsd: Number(s.priceUsd), change24h: Number(s.priceChange?.h24 ?? 0) });
-    }
-    return { priceUsd: Number(p.priceUsd), change1h: Number(p.priceChange?.h1 ?? 0), change24h: Number(p.priceChange?.h24 ?? 0), volume24h: Number(p.volume?.h24 ?? 0), stocks };
-  } catch {
-    return null;
-  }
-}
+// the real market from the DEX (src/market.js), with the pool this API reads trades from
+const market = () => fetchMarket({ token: TOKEN, pool: POOL, stocks: STOCKS });
 
 async function compute() {
   const [body, mkt] = await Promise.all([MODE === 'fees' ? computeFees() : computeBuys(), market()]);

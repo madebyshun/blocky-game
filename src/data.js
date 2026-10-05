@@ -1,5 +1,6 @@
 import { CONFIG } from './config.js';
 import { newLedger, applyTrade, snapshot } from './ledger.js';
+import { fetchMarket } from './market.js';
 
 // Colony state = the ledger snapshot (src/ledger.js): { minted, issued, departed, supply, waiting,
 //   blockies: [[from, at, leftAt, seed]...] after `since`, departures: [[number, at]...] after `dsince`,
@@ -32,13 +33,22 @@ function demoTrades(t) {
   return trades;
 }
 
-function demoState(since, dsince) {
+// The real market, straight from the DEX (once a minute): demo mode simulates buys, never the price.
+let marketMemo = { at: 0, value: null, pending: null };
+function realMarket() {
+  if (Date.now() - marketMemo.at < 60000) return Promise.resolve(marketMemo.value);
+  marketMemo.pending ??= fetchMarket().then((m) => {
+    marketMemo = { at: Date.now(), value: m || marketMemo.value, pending: null };
+    return marketMemo.value;
+  });
+  return marketMemo.pending;
+}
+
+async function demoState(since, dsince) {
   const t = (Date.now() - demoStart) / 1000;
   const L = newLedger(demoCityStart);
   for (const trade of demoTrades(t)) applyTrade(L, trade, RULES);
-  // the market swings slowly so every kind of weather shows up while you watch
-  const market = { priceUsd: 0.00003, change1h: Math.sin(t / 9) * 3, change24h: Math.sin(t / 25) * 22, volume24h: 1200, stocks: [{ symbol: 'NVDAc', priceUsd: 180 + Math.sin(t / 40) * 4 }] };
-  return { ...snapshot(L, RULES, since, dsince), market, source: 'demo', mode: 'buys' };
+  return { ...snapshot(L, RULES, since, dsince), market: await realMarket(), source: 'demo', mode: 'buys' };
 }
 
 let mode = forceDemo || !CONFIG.apiUrl ? 'demo' : null; // decided by the first fetch
@@ -69,7 +79,7 @@ export async function fetchColony(since = 0, dsince = 0) {
       price: typeof s.price === 'number' ? s.price : null,
       mode: s.mode || 'buys',
       recentBuys: Array.isArray(s.recentBuys) ? s.recentBuys : [],
-      market: s.market && typeof s.market.change24h === 'number' ? { ...s.market, stocks: Array.isArray(s.market.stocks) ? s.market.stocks.filter((x) => x && typeof x.priceUsd === 'number' && x.priceUsd > 0) : [] } : null,
+      market: s.market && typeof s.market.change24h === 'number' ? { ...s.market, stocks: Array.isArray(s.market.stocks) ? s.market.stocks.filter((x) => x && typeof x.priceUsd === 'number' && x.priceUsd > 0) : [] } : await realMarket(),
       cityStart: typeof s.cityStart === 'number' ? s.cityStart : null,
       source: s.source || 'live',
     };

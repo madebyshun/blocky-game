@@ -57,6 +57,7 @@ export const CONFIG = {
 
   // Token on Base
   tokenAddress: '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
+  poolId: '0x61ccc84e302c1a95fb66435a285e95581134bfc2a11d4fbb88ed07e68ca2e4c0', // BLOCKY/NVDAc: trades and the market (POOL_ID on the API)
 
   // Links for the CTA buttons. Leave empty to hide.
   buyUrl: 'https://app.uniswap.org/swap?chain=base&outputCurrency=0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
