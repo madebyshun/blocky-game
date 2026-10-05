@@ -11,8 +11,10 @@
 //   one Blocky; dust does not.
 // - Free places go to wallets still owed Blockies, first come first served (a waitlist once the city
 //   is full), then to the next buyers.
-// - Once the NFT collection unlocks (`frozen`), Blockies are ordinary NFTs: selling no longer sends
-//   them away. New buyers still get Blockies while there is room.
+// - Once the NFT collection unlocks, Blockies are ordinary NFTs: selling no longer sends them away.
+//   The ledger freezes (`frozen`) an hour before the contract's `unlockAt` (the API reads it), so the
+//   last sellers' Blockies can still be burned before transfers open. New buyers still get Blockies
+//   while there is room.
 // - The team's reserve (newLedger's `reserve`) holds Blockies #1 to #count from the start: granted,
 //   not bought, so the hold rule leaves them alone.
 // - A single buy of `whaleUsd`+ also builds a Whale Fountain.
@@ -64,12 +66,23 @@ export function allowance(a) {
   return grant + earned - Math.max(0, Math.ceil(earned * (1 - held) - 0.01));
 }
 
+// The ledger freezes this long before the NFT collection unlocks: no Blocky leaves after that, and the
+// claims (and the owner) have that long to burn the ones that left just before (a claim signature lasts
+// 30 minutes).
+export const FREEZE_LEAD_MS = 3600e3;
+// Whether the ledger is frozen at `at` (ms): selling no longer sends Blockies away. L.unlockAt: when the
+// NFT collection unlocks (ms, from the contract), unknown until the contract schedules it.
+export function isFrozen(L, at) {
+  if (!L.frozen && L.unlockAt && at >= L.unlockAt - FREEZE_LEAD_MS) L.frozen = true;
+  return Boolean(L.frozen);
+}
+
 function rebalance(L, at, cfg, touched, source) {
-  const added = {}, left = {}, s = sec(L, at);
+  const added = {}, left = {}, s = sec(L, at), frozen = isFrozen(L, at);
   // 1. wallets that sold lose their newest Blockies
   for (const wi of touched) {
     const a = L.acct[wi], keep = allowance(a);
-    while (!L.frozen && a.ids.length > keep) {
+    while (!frozen && a.ids.length > keep) {
       const n = a.ids.pop();
       L.blockies[n - 1][2] = s;
       L.departures.push([n, s]);
@@ -148,5 +161,7 @@ export function snapshot(L, cfg, since = 0, dsince = 0) {
     boughtUsd: L.bought,
     recentBuys: L.recent,
     cityStart: L.start,
+    frozen: Boolean(L.frozen), // selling no longer sends Blockies away
+    unlockAt: L.unlockAt || null, // when the NFT collection unlocks (ms), once the contract scheduled it
   };
 }

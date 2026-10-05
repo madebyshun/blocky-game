@@ -14,7 +14,8 @@ const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.tk')) el.textContent = CONFIG.ticker;
 for (const el of document.querySelectorAll('.supply')) el.textContent = fmt(CONFIG.supply);
 
-let info = { open: false, contract: null, live: false, unlocked: false };
+let info = { open: false, contract: null, live: false, unlocked: false, unlockAt: null };
+const when = (ms) => new Date(ms).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 let provider = null; // the connected wallet
 let account = null; // its address
 let viewing = null; // the address on screen (connected or looked up)
@@ -27,7 +28,7 @@ function status() {
     s.textContent = 'Live data is not reachable here, so wallets can\'t be checked yet. Claims work on the live BaseCity site.';
   } else if (info.open) {
     s.className = 'note ok';
-    s.innerHTML = `${info.unlocked ? 'The collection is unlocked: Blockies trade freely now. ' : 'Claims are open. '}You pay the gas, a few cents on Base. ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">BaseCity Blockies on OpenSea ↗</a>` : ''}`;
+    s.innerHTML = `${info.unlocked ? 'The collection is unlocked: Blockies trade freely now. ' : info.unlockAt ? `Every Blocky is claimed: trading opens ${when(info.unlockAt)}. ` : 'Claims are open. '}You pay the gas, a few cents on Base. ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">BaseCity Blockies on OpenSea ↗</a>` : ''}`;
   } else {
     s.className = 'note';
     s.textContent = `Claims open soon. Every Blocky your wallet brings is saved in the ledger: keep holding ${CONFIG.ticker} and claim here when the contract goes live.`;
@@ -144,7 +145,7 @@ function render(j) {
     [`${CONFIG.citizenPlural} in the city`, fmt(list.length)],
     ['Claimed', fmt(claimed)],
     ['To claim', fmt(unclaimed)],
-    ...(j.waiting ? [['Waiting for a place', fmt(j.waiting)]] : []),
+    ...(j.waiting && !j.frozen ? [['Waiting for a place', fmt(j.waiting)]] : []),
     ...(left.length ? [['Left the city', fmt(left.length)]] : []),
     ['Bought', `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <small class="line">next ${CONFIG.citizen} in $${toNext.toFixed(2)}</small>`],
   ].map(([k, v]) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');

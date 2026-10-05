@@ -11,23 +11,29 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC4906} from "@openzeppelin/contracts/interfaces/IERC4906.sol";
 
 /// @title BaseCity Blockies (BCB)
-/// @notice The builders of BaseCity, a voxel city on Base built 24/7. Every $5 of $BLOCKY a wallet buys
-/// brings one Blocky to the city; that wallet claims it here, with a signature from the BaseCity
-/// ledger, and pays the gas. Token id = the Blocky's number (#1, #2, ...), never reused.
+/// @notice The builders of BaseCity, a voxel city on Base built 24/7. Every few dollars of $BLOCKY a
+/// wallet buys (the ledger's price per Blocky) brings one Blocky to the city; that wallet claims it
+/// here, with a signature from the BaseCity ledger, and pays the gas. Token id = the Blocky's number
+/// (#1, #2, ...), never reused.
 ///
 /// - At most MAX_SUPPLY Blockies exist at once.
 /// - Until the collection unlocks, Blockies can't be transferred or approved, and a Blocky whose
 ///   wallet sold its $BLOCKY leaves the city: the ledger lists it for eviction (burned, its number
 ///   never comes back) and its place goes to the next buyer.
-/// - The collection unlocks by itself once MAX_SUPPLY Blockies exist (or when the owner unlocks it).
-///   From then on Blockies are ordinary NFTs, free to trade, and none can be evicted.
+/// - The collection unlocks by itself UNLOCK_DELAY after MAX_SUPPLY Blockies exist (or when the owner
+///   unlocks it). The delay leaves time to burn Blockies whose wallets sold just before (a claim
+///   signature lasts 30 minutes). From then on Blockies are ordinary NFTs, free to trade, and none can
+///   be evicted.
 contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
     bytes32 public constant CLAIM_TYPEHASH =
         keccak256("Claim(address to,bytes32 ids,bytes32 evict,uint256 deadline)");
 
+    /// @notice Transfers open this long after the MAX_SUPPLY-th Blocky is claimed.
+    uint256 public constant UNLOCK_DELAY = 1 days;
+
     uint256 public immutable MAX_SUPPLY;
     address public signer;
-    bool public unlocked;
+    uint256 public unlockAt; // when transfers open; 0 until MAX_SUPPLY Blockies exist or the owner unlocks
     uint256 public totalSupply; // Blockies that exist now
     uint256 public totalMinted; // Blockies ever claimed
     mapping(uint256 => bool) public evicted;
@@ -37,6 +43,7 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
 
     event Claimed(address indexed to, uint256 count);
     event Evicted(uint256 indexed id, address indexed from);
+    event UnlockScheduled(uint256 at);
     event Unlocked();
     event SignerUpdated(address signer);
     event ContractURIUpdated();
@@ -86,7 +93,7 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
         );
         if (ECDSA.recover(digest, signature) != signer) revert BadSignature();
 
-        if (!unlocked) for (uint256 i; i < evictIds.length; ++i) _evict(evictIds[i]);
+        if (!unlocked()) for (uint256 i; i < evictIds.length; ++i) _evict(evictIds[i]);
         uint256 count;
         for (uint256 i; i < ids.length && totalSupply < MAX_SUPPLY; ++i) {
             uint256 id = ids[i];
@@ -95,7 +102,15 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
             ++count;
         }
         if (count > 0) emit Claimed(msg.sender, count);
-        if (!unlocked && totalSupply >= MAX_SUPPLY) _unlock();
+        if (unlockAt == 0 && totalSupply >= MAX_SUPPLY) {
+            unlockAt = block.timestamp + UNLOCK_DELAY;
+            emit UnlockScheduled(unlockAt);
+        }
+    }
+
+    /// @notice True once transfers are open (see UNLOCK_DELAY).
+    function unlocked() public view returns (bool) {
+        return unlockAt != 0 && block.timestamp >= unlockAt;
     }
 
     /// @notice True if Blocky `id` has been claimed and not evicted.
@@ -107,14 +122,16 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
 
     /// @notice Evict Blockies whose wallets sold (only while the collection is locked).
     function evict(uint256[] calldata ids) external onlyOwner {
-        if (unlocked) revert AlreadyUnlocked();
+        if (unlocked()) revert AlreadyUnlocked();
         for (uint256 i; i < ids.length; ++i) _evict(ids[i]);
     }
 
-    /// @notice Open transfers before every Blocky is claimed. Can't be undone.
+    /// @notice Open transfers now: before every Blocky is claimed, or before the unlock delay ends.
+    /// Can't be undone.
     function unlock() external onlyOwner {
-        if (unlocked) revert AlreadyUnlocked();
-        _unlock();
+        if (unlocked()) revert AlreadyUnlocked();
+        unlockAt = block.timestamp;
+        emit Unlocked();
     }
 
     function setSigner(address signer_) external onlyOwner {
@@ -151,18 +168,18 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
     // ---------- the lock ----------
 
     function approve(address to, uint256 tokenId) public override(ERC721, IERC721) {
-        if (!unlocked) revert Locked();
+        if (!unlocked()) revert Locked();
         super.approve(to, tokenId);
     }
 
     function setApprovalForAll(address operator, bool approved) public override(ERC721, IERC721) {
-        if (!unlocked && approved) revert Locked();
+        if (approved && !unlocked()) revert Locked();
         super.setApprovalForAll(operator, approved);
     }
 
     // Mints and burns count the supply; transfers wait for the unlock.
     function _update(address to, uint256 tokenId, address auth) internal override returns (address from) {
-        if (!unlocked && to != address(0) && _ownerOf(tokenId) != address(0)) revert Locked();
+        if (to != address(0) && _ownerOf(tokenId) != address(0) && !unlocked()) revert Locked();
         from = super._update(to, tokenId, auth);
         if (from == address(0)) {
             ++totalSupply;
@@ -178,11 +195,6 @@ contract BaseCityBlockies is ERC721, ERC2981, Ownable, EIP712, IERC4906 {
         evicted[id] = true;
         _burn(id);
         emit Evicted(id, holder);
-    }
-
-    function _unlock() private {
-        unlocked = true;
-        emit Unlocked();
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981, IERC165) returns (bool) {

@@ -28,7 +28,7 @@
 
 import { erc20Abi, parseAbi, getAddress } from 'viem';
 import { base } from 'viem/chains';
-import { applyTrade, applyBalances, snapshot, holders } from '../src/ledger.js';
+import { applyTrade, applyBalances, snapshot, holders, isFrozen } from '../src/ledger.js';
 import { env, TOKEN, LEDGER, LAUNCH, NFT, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
 import { CLAIM_ABI } from './_sig.js';
 import { namesFor } from './_names.js';
@@ -145,7 +145,10 @@ async function recentTrades() {
 // Smart wallets (Coinbase Smart Wallet, the Base App) trade through a bundler, so the transaction's
 // sender is not the trader. Read the wallet the $BLOCKY actually went to (buy) or came from (sell):
 // the biggest $BLOCKY transfer in the receipt, its last hop for a buy and its first hop for a sell.
-// Also returns the trade's block hash, which seeds the rarity of the Blockies it brings.
+// Also returns the trade's block hash, which seeds the rarity of the Blockies it brings. null: the
+// receipt couldn't be read; the trade waits for the next run, for up to RECEIPT_WAIT_MS, rather than
+// give its Blockies to the bundler.
+const RECEIPT_WAIT_MS = 10 * 60000;
 async function realWallet(t) {
   if (!RESOLVE || !t.tx) return { who: t.who };
   try {
@@ -158,7 +161,7 @@ async function realWallet(t) {
     const addr = (topic) => `0x${topic.slice(26)}`.toLowerCase();
     return { who: t.kind === 'buy' ? addr(big[big.length - 1].topics[2]) : addr(big[0].topics[1]), block: r.blockHash };
   } catch {
-    return { who: t.who };
+    return Date.now() - t.at < RECEIPT_WAIT_MS ? null : { who: t.who };
   }
 }
 
@@ -168,11 +171,18 @@ async function inBatches(list, size, fn) {
   return out;
 }
 
+// When the NFT collection unlocks: the contract schedules it a day after the last Blocky is claimed
+// (or the owner unlocks it). The ledger freezes an hour before (isFrozen in src/ledger.js).
+async function readUnlock(L) {
+  if (!NFT || L.frozen) return;
+  const at = await client.readContract({ address: NFT, abi: CLAIM_ABI, functionName: 'unlockAt' }).catch(() => 0n);
+  if (at > 0n) L.unlockAt = Number(at) * 1000;
+}
+
 // Tokens moved away count as sold: read every holder's balance (Multicall3, 500 per call).
-// Once the NFT collection unlocks, Blockies stay whatever their wallets do.
+// Once the ledger freezes, Blockies stay whatever their wallets do.
 async function checkBalances(L) {
-  if (NFT && !L.frozen) L.frozen = await client.readContract({ address: NFT, abi: CLAIM_ABI, functionName: 'unlocked' }).catch(() => false);
-  if (L.frozen) return;
+  if (isFrozen(L, Date.now())) return;
   const wallets = holders(L);
   if (!wallets.length) return;
   L.decimals ??= Number(await client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'decimals' }));
@@ -186,25 +196,49 @@ async function checkBalances(L) {
   applyBalances(L, balances, Date.now(), LEDGER, head?.hash);
 }
 
+// One instance at a time updates the ledger: two writers starting from the same copy could number the
+// same Blocky for different wallets (the last save wins, after the claim API may have signed the first).
+// The others serve the saved ledger; the lock expires by itself if a run dies.
+const LOCK_KEY = `${KEY_BASE}:ledger:lock`;
+const lockLedger = async () => !useKv() || (await kv('SET', LOCK_KEY, String(Date.now()), 'NX', 'PX', 60000)) === 'OK';
+const unlockLedger = () => (useKv() ? kv('DEL', LOCK_KEY).catch(() => null) : null);
+
 async function computeBuys() {
+  if (!(await lockLedger())) return answer((await loadLedger()).ledger);
+  let L;
+  try { L = await updateLedger(); } finally { await unlockLedger(); }
+  return answer(L);
+}
+
+async function updateLedger() {
   const now = Date.now();
   const { ledger: L, fresh } = await loadLedger();
   const seen = new Set(L.seen);
   let changed = fresh;
-  const trades = (await recentTrades()).filter((t) => t.at >= L.start && !seen.has(t.id));
+  let trades = (await recentTrades()).filter((t) => t.at >= L.start && !seen.has(t.id));
   const wallets = await inBatches(trades, 6, realWallet);
+  // a trade whose wallet isn't known yet waits, and every later one with it: the order decides numbers
+  if (wallets.includes(null)) trades = trades.slice(0, wallets.indexOf(null));
+  const unlockAt = L.unlockAt;
+  await readUnlock(L);
+  if (L.unlockAt !== unlockAt) changed = true;
   trades.forEach((t, i) => {
     seen.add(t.id);
     changed = true;
     if (t.kind === 'buy' && t.usd < MIN_BUY) return; // dust buys don't count; every sell does
     applyTrade(L, { ...t, ...wallets[i] }, LEDGER);
   });
+  if (!L.frozen && isFrozen(L, now)) changed = true;
   if (now - (L.checkedAt || 0) > HOLD_CHECK_MS) {
     try { await checkBalances(L); changed = true; } catch (e) { console.warn('[colony] balance check skipped:', e.shortMessage || e.message); }
     L.checkedAt = now;
   }
   L.seen = [...seen].slice(-1000);
   if (changed) await saveLedger(L);
+  return L;
+}
+
+async function answer(L) {
   const snap = snapshot(L, LEDGER);
   // Basenames of the wallets people see: Blockies in the city, whales, the latest trades
   const seenWallets = [...snap.blockies.filter((b) => b[2] == null).map((b) => b[0]), ...snap.whales.map((w) => w.from), ...snap.recentBuys.map((b) => b.from)];

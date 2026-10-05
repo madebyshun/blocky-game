@@ -1,7 +1,7 @@
 // The Blocky ledger's rules (src/ledger.js): $ per Blocky per wallet, the hold rule, the waitlist,
 // whales, incremental snapshots, fair rarity seeds, and the unlock. Run: npm test
 import assert from 'node:assert/strict';
-import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed } from '../src/ledger.js';
+import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, isFrozen, FREEZE_LEAD_MS } from '../src/ledger.js';
 import { rarityOf } from '../src/sim.js';
 
 const cfg = { per: 5, supply: 10000, whaleUsd: 1000 };
@@ -73,6 +73,23 @@ applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);
 L.frozen = true;
 applyTrade(L, { who: '0xE', kind: 'sell', usd: 50, tokens: 500, at: at() }, cfg);
 assert.equal(snapshot(L, cfg).minted, 10);
+// the ledger freezes an hour before the contract's unlock time: sells up to then still cost Blockies
+L = newLedger(0);
+applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);
+L.unlockAt = t + 10000 + FREEZE_LEAD_MS; // 10 seconds from now, plus the lead
+applyTrade(L, { who: '0xE', kind: 'sell', usd: 10, tokens: 100, at: at() }, cfg);
+assert.equal(snapshot(L, cfg).minted, 8);
+assert.equal(snapshot(L, cfg).frozen, false);
+assert.equal(isFrozen(L, L.unlockAt - FREEZE_LEAD_MS - 1), false);
+t = L.unlockAt - FREEZE_LEAD_MS;
+applyTrade(L, { who: '0xE', kind: 'sell', usd: 40, tokens: 400, at: t }, cfg);
+assert.equal(snapshot(L, cfg).minted, 8, 'a sell from the freeze on kept its Blockies');
+applyBalances(L, { '0xe': 0 }, at(), cfg);
+assert.equal(snapshot(L, cfg).minted, 8);
+assert.equal(snapshot(L, cfg).frozen, true);
+assert.equal(snapshot(L, cfg).unlockAt, L.unlockAt);
+applyTrade(L, { who: '0xF', kind: 'buy', usd: 10, tokens: 100, at: at() }, cfg);
+assert.equal(snapshot(L, cfg).minted, 10, 'new buyers still get Blockies while there is room');
 
 // 6. each buy counts at the price of its day: raising the price later keeps what was earned
 L = newLedger(0);

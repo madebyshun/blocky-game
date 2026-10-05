@@ -65,7 +65,7 @@ function collection(site) {
   return {
     name: NFT.name,
     symbol: NFT.symbol,
-    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, and the buyer claims it as an NFT. At most ${LEDGER.supply.toLocaleString('en-US')} live in the city; sell your ${CONFIG.ticker} before the collection unlocks and your Blockies leave. Transfers open once all ${LEDGER.supply.toLocaleString('en-US')} are claimed.`,
+    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, and the buyer claims it as an NFT. At most ${LEDGER.supply.toLocaleString('en-US')} live in the city; sell your ${CONFIG.ticker} before the collection unlocks and your Blockies leave. Transfers open 24 hours after all ${LEDGER.supply.toLocaleString('en-US')} are claimed.`,
     image: `${site}/api/nft/collection.svg`,
     featured_image: `${site}/api/nft/collection.svg`,
     banner_image: `${site}/og.png`,

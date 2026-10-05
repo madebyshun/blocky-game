@@ -4,14 +4,13 @@ import assert from 'node:assert/strict';
 import { chain, account } from './evm.mjs';
 import { claimTypedData } from '../api/_sig.js';
 
-const evm = await chain();
-const now = evm.now;
+const evm = await chain(); // evm.now: the block time, moved forward below
 const [owner, signer, alice, bob, carol, treasury, eve] = [11, 12, 13, 14, 15, 16, 17].map(account);
 let C; // the contract
 const deploy = async (maxSupply = 5) => (C = await evm.deploy(owner, [owner.address, signer.address, treasury.address, 500, BigInt(maxSupply), 'https://basecity.test/api/nft/', 'https://basecity.test/api/nft/collection']));
 const send = (from, fn, args) => evm.send(from, fn, args);
 const read = (fn, args) => evm.read(fn, args);
-async function sign(to, ids, evict = [], deadline = now + 1800, by = signer) {
+async function sign(to, ids, evict = [], deadline = evm.now + 1800, by = signer) {
   const sig = await by.signTypedData(claimTypedData({ chainId: 8453, contract: C, to: to.address, ids, evict, deadline }));
   return [ids.map(BigInt), evict.map(BigInt), BigInt(deadline), sig];
 }
@@ -39,8 +38,8 @@ console.log(`claim 2 Blockies: ${r.gas} gas`);
 
 // someone else can't use it, a forged or expired one fails, a replay mints nothing
 reverts(await send(bob, 'claim', aliceSig), 'BadSignature');
-reverts(await send(bob, 'claim', await sign(bob, [3], [], now + 60, eve)), 'BadSignature');
-reverts(await send(bob, 'claim', await sign(bob, [3], [], now - 1)), 'Expired');
+reverts(await send(bob, 'claim', await sign(bob, [3], [], evm.now + 60, eve)), 'BadSignature');
+reverts(await send(bob, 'claim', await sign(bob, [3], [], evm.now - 1)), 'Expired');
 const tampered = await sign(bob, [3]); tampered[0] = [3n, 4n];
 reverts(await send(bob, 'claim', tampered), 'BadSignature');
 ok(await send(alice, 'claim', aliceSig));
@@ -74,22 +73,38 @@ r = ok(await send(owner, 'setBaseURI', ['https://basecity.xyz/api/nft/']));
 assert.ok(r.events.some((e) => e.eventName === 'BatchMetadataUpdate'));
 assert.equal(await read('tokenURI', [1n]), 'https://basecity.xyz/api/nft/1');
 
-// --- the supply cap: claims stop at MAX_SUPPLY and the collection unlocks by itself
+// --- the supply cap: claims stop at MAX_SUPPLY, and transfers open by themselves a day later
 assert.equal(await read('totalSupply'), 3n); // #1 alice, #3 bob, #4 carol
 r = ok(await send(carol, 'claim', await sign(carol, [5, 6, 7, 8])));
 assert.equal(await read('totalSupply'), 5n);
 assert.equal(await read('exists', [7n]), false);
+assert.equal(await read('unlocked'), false);
+const unlockAt = await read('unlockAt');
+assert.equal(unlockAt, BigInt(evm.now + 86400));
+assert.ok(r.events.some((e) => e.eventName === 'UnlockScheduled' && e.args.at === unlockAt));
+reverts(await send(alice, 'transferFrom', [alice.address, bob.address, 1n]), 'Locked');
+reverts(await send(alice, 'approve', [bob.address, 1n]), 'Locked');
+// that day is for Blockies whose wallets sold just before: #6 is burned and #7 takes its place
+evm.now += 3600;
+ok(await send(bob, 'claim', await sign(bob, [7], [6])));
+assert.equal(await read('exists', [6n]), false);
+assert.equal(await read('ownerOf', [7n]), bob.address);
+assert.equal(await read('totalSupply'), 5n);
+assert.equal(await read('unlockAt'), unlockAt, 'the unlock is not pushed back');
+ok(await send(owner, 'evict', [[5n]])); // the owner can still evict
+assert.equal(await read('exists', [5n]), false);
+evm.now = Number(unlockAt);
 assert.equal(await read('unlocked'), true);
-assert.ok(r.events.some((e) => e.eventName === 'Unlocked'));
 
 // --- unlocked: transfers and approvals work, nobody can be evicted
 ok(await send(alice, 'transferFrom', [alice.address, bob.address, 1n]));
 assert.equal(await read('ownerOf', [1n]), bob.address);
 ok(await send(bob, 'approve', [carol.address, 1n]));
 ok(await send(carol, 'transferFrom', [bob.address, carol.address, 1n]));
-ok(await send(carol, 'claim', await sign(carol, [9], [1])));
+ok(await send(carol, 'claim', await sign(carol, [9, 10], [1]))); // nobody can be evicted now
 assert.equal(await read('ownerOf', [1n]), carol.address);
-assert.equal(await read('exists', [9n]), false); // still full
+assert.equal(await read('exists', [9n]), true); // #5 and #6 left room: one more fits
+assert.equal(await read('exists', [10n]), false); // and then it's full
 reverts(await send(owner, 'evict', [[1n]]), 'AlreadyUnlocked');
 reverts(await send(owner, 'unlock'), 'AlreadyUnlocked');
 
@@ -101,14 +116,14 @@ assert.equal(await read('exists', [3n]), false);
 const newSigner = account(21);
 ok(await send(owner, 'setSigner', [newSigner.address]));
 reverts(await send(bob, 'claim', await sign(bob, [4])), 'BadSignature');
-ok(await send(bob, 'claim', await sign(bob, [4], [], now + 60, newSigner)));
+ok(await send(bob, 'claim', await sign(bob, [4], [], evm.now + 60, newSigner)));
 ok(await send(owner, 'setRoyalty', [owner.address, 250]));
 assert.deepEqual(await read('royaltyInfo', [1n, 10000n]), [owner.address, 250n]);
 ok(await send(owner, 'unlock'));
 ok(await send(alice, 'transferFrom', [alice.address, carol.address, 1n]));
 // a big claim: 50 Blockies in one transaction
 const big = Array.from({ length: 50 }, (_, i) => 100 + i);
-r = ok(await send(carol, 'claim', await sign(carol, big, [], now + 1800, newSigner)));
+r = ok(await send(carol, 'claim', await sign(carol, big, [], evm.now + 1800, newSigner)));
 assert.equal(await read('balanceOf', [carol.address]), 51n);
 console.log(`claim 50 Blockies: ${r.gas} gas`);
 console.log('BaseCityBlockies: all tests pass');

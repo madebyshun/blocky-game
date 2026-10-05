@@ -64,8 +64,8 @@ export async function nftInfo() {
     const res = await fetch('/api/claim', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
-    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, unlocked: Boolean(s.unlocked), live: true };
+    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, unlocked: Boolean(s.unlocked), unlockAt: typeof s.unlockAt === 'number' ? s.unlockAt : null, live: true };
   } catch {
-    return { open: false, contract: CONFIG.nft.contract || null, unlocked: false, live: false };
+    return { open: false, contract: CONFIG.nft.contract || null, unlocked: false, unlockAt: null, live: false };
   }
 }

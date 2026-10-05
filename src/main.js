@@ -184,6 +184,8 @@ let minted = 0; // Blockies in the city now
 let known = 0; // Blockies the API has told us about (some may still be on the airship)
 let knownGone = 0; // departures the API has told us about
 let supply = CONFIG.supply;
+let frozen = false; // selling no longer sends Blockies away: the NFT collection is unlocking
+let unlockAt = null; // when Blocky NFTs start trading (ms), once the contract has scheduled it
 let whales = [];
 let bought = 0; // USD bought (or fees earned in fee mode)
 const loggedBuys = new Set();
@@ -269,6 +271,8 @@ function applyState(s, first) {
   bought = Math.max(bought, s.boughtUsd);
   if (typeof s.price === 'number') price = s.price;
   supply = s.supply || supply;
+  frozen = Boolean(s.frozen);
+  unlockAt = s.unlockAt ?? null;
   if (s.market) { market = s.market; weather.setMarket(market); }
   updateBoards({ market, population: Math.max(minted, s.minted || 0) });
   for (const b of [...(s.recentBuys || [])].reverse()) {
@@ -280,7 +284,7 @@ function applyState(s, first) {
       log(`💸 ${whoHtml(b.from)} sold ${usd(b.usd)}${b.left ? ` → ${b.left} ${b.left > 1 ? plural : CONFIG.citizen} left the city` : ''}`, b.at);
       continue;
     }
-    const what = b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : minted >= supply ? ' → waiting for a place in the city' : ' → adds up to the next one';
+    const what = b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : minted >= supply ? (frozen ? ' → the city is full for good: find Blockies on OpenSea' : ' → waiting for a place in the city') : ' → adds up to the next one';
     log(`🛒 ${whoHtml(b.from)} bought ${usd(b.usd)}${what}`, b.at);
     if (b.usd >= CONFIG.whaleUsd) {
       weather.celebrate(); setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800);
@@ -663,6 +667,7 @@ function headlines() {
   const services = Object.entries({ firestation: 'fire trucks', police: 'police cars', hospital: 'ambulances', recycling: 'garbage trucks' }).filter(([t]) => city.counts[t]);
   if (services.length) out.push(`<b>CITY SERVICES:</b> ${services.map(([, v]) => v).join(', ')} on patrol in ${CONFIG.cityName}`);
   out.push(`<b>MINT:</b> ${fmt(minted)} of ${fmt(supply)} ${plural} are in ${CONFIG.cityName}. ${minted < supply ? `Only ${fmt(supply - minted)} left` : 'Sold out'}`);
+  if (unlockAt) out.push(now() < unlockAt ? `<b>UNLOCK:</b> ${CONFIG.citizen} NFTs start trading in ${Math.max(1, Math.ceil((unlockAt - now()) / 3600000))}h${frozen ? '' : `. Hold ${CONFIG.ticker} to keep yours`}` : `<b>UNLOCKED:</b> ${CONFIG.citizen} NFTs trade freely on OpenSea and every marketplace on Base`);
   const builders = crew.filter((b) => b.kind === 'legend' && b.arrivedAt <= now()).length;
   if (builders) out.push(`<b>BASE BUILDERS:</b> ${builders} real Base builders are building ${CONFIG.cityName} with the ${plural}`);
   // the City Council at work: someone holding office (CONFIG.offices) and what they're up to
