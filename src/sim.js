@@ -434,7 +434,14 @@ export class CitySim {
   }
   proAt(t) { return this.builders.some((b) => b.tier.pro && b.arrivedAt <= t); }
 
+  // The next project, sped up while the city is new (CONFIG.launchBoost).
   plan(t) {
+    const p = this.choose(t), b = CONFIG.launchBoost;
+    if (b && p.k < b.projects && p.cost > 0) p.cost = Math.max(1, Math.round(p.cost * (b.start + ((1 - b.start) * p.k) / b.projects)));
+    return p;
+  }
+
+  choose(t) {
     const k = this.k++;
     const pop = this.popAt(t), pro = this.proAt(t);
     // a whale's building jumps the queue: a fountain on the nearest free lot (or in place of the oldest

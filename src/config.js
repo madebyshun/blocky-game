@@ -77,6 +77,9 @@ export const CONFIG = {
     tiers: [{ upTo: 40, x: 3 }, { upTo: 100, x: 4 }, { upTo: 250, x: 5 }, { upTo: null, x: 6 }],
     landmark: 4, wonder: 2, expand: 3, metro: 3,
   },
+  // A new city goes up fast so it looks alive from its first hour: the first project takes `start` of
+  // its time, and each next one a bit more, up to the full time from project `projects` on.
+  launchBoost: { start: 0.08, projects: 50 },
 
   // When Blockies leave (their wallets sold): the construction site loses the blocks they placed on it,
   // and a big exit (ruinAt+ Blockies at the same moment) leaves the newest home, shop or office abandoned
