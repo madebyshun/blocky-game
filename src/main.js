@@ -480,7 +480,8 @@ function renderCard() {
   $('card-hours').textContent = fmt((ts - b.arrivedAt) / HOUR);
   $('card-share').textContent = `${sim.work ? ((placed / sim.work) * 100).toFixed(1) : 0}%`;
   $('card-joined').textContent = ago(b.arrivedAt);
-  $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : b.from ? short(b.from) : '—';
+  const team = b.kind === 'blocky' && b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
+  $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : team ? `Team reserve (${short(b.from)})` : b.from ? short(b.from) : '—';
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
   $('card-nft').hidden = b.kind !== 'blocky';
   $('card-nft').href = `/collection.html#${b.id}`;

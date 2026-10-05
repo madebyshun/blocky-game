@@ -16,6 +16,7 @@ for (const el of document.querySelectorAll('.supply')) el.textContent = fmt(CONF
 const PAGE = 60;
 const RANK = { legendary: 0, rare: 1, uncommon: 2, common: 3 };
 const here = (b) => !Number.isFinite(b.leftAt);
+const teamReserve = (b) => b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
 const filters = { q: '', rarity: 'all', trait: 'all', status: 'here', sort: 'new' };
 let all = [], sim = null, info = { contract: null }, list = [], shown = 0;
 
@@ -141,7 +142,7 @@ function open(b) {
     [here(b) ? 'Building for' : 'Built for', `${fmt((end - b.arrivedAt) / 3600000)} hours`],
     ['Arrived', day(b.arrivedAt)],
     ...(here(b) ? [] : [['Left', day(b.leftAt)]]),
-    ['Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener">${esc(short(b.from))}</a>` : '—'],
+    [teamReserve(b) ? 'Team reserve' : 'Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener">${esc(short(b.from))}</a>` : '—'],
   ];
   $('d-dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const site = CONFIG.siteUrl || location.origin;

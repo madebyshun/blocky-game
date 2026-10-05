@@ -84,7 +84,20 @@ applyTrade(L, { who: '0xH', kind: 'buy', usd: 20, tokens: 200, at: at() }, { ...
 assert.equal(walletBlockies(L, '0xh').active.length, 2);
 assert.equal(snapshot(L, { ...cfg, per: 25 }).price, 25);
 
-// 7. rarity: seeded by the block of the buy, same odds as the config
+// 7. the team's reserve: #1 to #count from the start, granted, untouched by the hold rule
+L = newLedger(0, { wallet: '0xTeam', count: 5 });
+assert.equal(snapshot(L, cfg).minted, 5);
+applyTrade(L, { who: '0xU', kind: 'buy', usd: 10, tokens: 100, at: at() }, cfg);
+assert.deepEqual(walletBlockies(L, '0xu').active, [6, 7]); // buyers come after the reserve
+applyTrade(L, { who: '0xTeam', kind: 'buy', usd: 15, tokens: 150, at: at() }, cfg);
+assert.equal(walletBlockies(L, '0xteam').active.length, 8);
+applyTrade(L, { who: '0xTeam', kind: 'sell', usd: 15, tokens: 150, at: at() }, cfg);
+assert.deepEqual(walletBlockies(L, '0xteam').active, [1, 2, 3, 4, 5]); // the bought ones leave, the reserve stays
+applyBalances(L, { '0xteam': 0 }, at(), cfg);
+assert.equal(walletBlockies(L, '0xteam').active.length, 5);
+assert.equal(newLedger(0, { wallet: '0xTeam', count: 0 }).blockies.length, 0);
+
+// 8. rarity: seeded by the block of the buy, same odds as the config
 L = newLedger(0);
 applyTrade(L, { who: '0xF', kind: 'buy', usd: 10, tokens: 100, at: at(), tx: '0xt', block: '0xb1' }, cfg);
 assert.equal(snapshot(L, cfg).blockies[0][3], rollSeed(1, '0xb1'));

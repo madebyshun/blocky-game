@@ -26,6 +26,10 @@ export const CONFIG = {
     contract: '',
     royaltyBps: 500,
     treasury: '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D', // the dev wallet: royalties, and it deploys and owns the contract
+    // The team's reserve: Blockies #1 to #count belong to this wallet from day one (giveaways,
+    // partners), claimable like any other, and they never leave the city. Shown on the About page.
+    // count 0 for none. (TEAM_RESERVE_WALLET / TEAM_RESERVE_COUNT on the API override it.)
+    reserve: { wallet: '0xb7b3bdf2e53b9c877efabc99a74badfc03299823', count: 100 },
   },
 
   // Every Blocky rolls a rarity from its number, so anyone can verify it.

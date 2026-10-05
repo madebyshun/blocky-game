@@ -19,6 +19,11 @@ export const LEDGER = {
 export const LAUNCH = Number(env.LAUNCH_TIME_MS || 0) || null; // when the city starts from empty land
 export const BACKFILL_MS = Number(env.BACKFILL_HOURS || 0) * 3600000;
 export const SITE = (env.SITE_URL || '').replace(/\/$/, '');
+// the team's reserve: Blockies #1 to #count for this wallet from the start (src/config.js nft.reserve)
+export const RESERVE = {
+  wallet: env.TEAM_RESERVE_WALLET || CONFIG.nft.reserve?.wallet || '',
+  count: Number(env.TEAM_RESERVE_COUNT ?? CONFIG.nft.reserve?.count ?? 0),
+};
 export const NFT = env.NFT_CONTRACT || CONFIG.nft.contract || ''; // the BaseCity Blockies contract
 
 export const client = createPublicClient({ chain: base, transport: http(RPC, { retryCount: 2 }) });
@@ -44,7 +49,7 @@ export async function loadLedger() {
   const saved = useKv() ? JSON.parse((await kv('GET', LEDGER_KEY)) || 'null') : memory;
   if (saved) return { ledger: saved, fresh: false };
   const start = LAUNCH ?? Date.now() - BACKFILL_MS;
-  return { ledger: { ...newLedger(start), seen: [], checkedAt: 0 }, fresh: true };
+  return { ledger: { ...newLedger(start, RESERVE), seen: [], checkedAt: 0 }, fresh: true };
 }
 export async function saveLedger(ledger) {
   if (useKv()) await kv('SET', LEDGER_KEY, JSON.stringify(ledger));

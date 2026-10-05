@@ -19,6 +19,12 @@ const goals = [...CONFIG.landmarks, ...(CONFIG.metro ? [CONFIG.metro] : [])].fil
 $('goals').innerHTML = `<tr><th>${CONFIG.citizenPlural} in the city</th><th>Unlocks</th></tr>${goals.map((g) => `<tr><td class="n">${fmt(g.at)}</td><td>${g.label}${g.pro ? ' <small>· needs a Base Builder on the crew</small>' : ''}</td></tr>`).join('')}`;
 
 const link = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
+const reserve = CONFIG.nft.reserve;
+if (reserve?.count > 0 && reserve.wallet) {
+  const line = $('reserve-line');
+  line.hidden = false;
+  line.innerHTML = `<b>Team reserve: ${CONFIG.citizenPlural} #1 to #${fmt(reserve.count)}</b> belong to the team wallet ${link(basescan(`address/${reserve.wallet}`), `${reserve.wallet.slice(0, 6)}…${reserve.wallet.slice(-4)}`)} from day one, for giveaways and partners. They were not bought, they count toward the ${fmt(CONFIG.supply)}, they never leave the city, and their metadata says "Team reserve".`;
+}
 function contracts(nft) {
   const rows = [[`${CONFIG.ticker} token`, link(basescan(`token/${CONFIG.tokenAddress}`), CONFIG.tokenAddress)]];
   rows.push([`${CONFIG.nft.name} (${CONFIG.nft.symbol})`, nft ? `${link(basescan(`address/${nft}`), nft)} · ${link(opensea(nft), 'OpenSea')}` : '<small>deploying soon</small>']);

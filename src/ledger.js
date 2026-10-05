@@ -13,6 +13,8 @@
 //   is full), then to the next buyers.
 // - Once the NFT collection unlocks (`frozen`), Blockies are ordinary NFTs: selling no longer sends
 //   them away. New buyers still get Blockies while there is room.
+// - The team's reserve (newLedger's `reserve`) holds Blockies #1 to #count from the start: granted,
+//   not bought, so the hold rule leaves them alone.
 // - A single buy of `whaleUsd`+ also builds a Whale Fountain.
 // - A Blocky's rarity is rolled from its number and the block that brought it (rollSeed), so nobody
 //   can know or pick a rare number before buying, and anyone can check it afterwards.
@@ -31,8 +33,15 @@ export function rollSeed(n, source) {
   return h >>> 0;
 }
 
-export function newLedger(start) {
-  return { v: 5, start, bought: 0, wallets: [], acct: {}, blockies: [], departures: [], waiting: [], whales: [], recent: [] };
+// reserve: { wallet, count }: the team's Blockies, #1 to #count, there from the start
+export function newLedger(start, reserve = null) {
+  const L = { v: 5, start, bought: 0, wallets: [], acct: {}, blockies: [], departures: [], waiting: [], whales: [], recent: [] };
+  if (reserve?.wallet && reserve.count > 0) {
+    const wi = indexOf(L, reserve.wallet), a = account(L, wi);
+    a.grant = reserve.count;
+    for (let n = 1; n <= reserve.count; n++) { L.blockies.push([wi, 0, null, rollSeed(n, 'team reserve')]); a.ids.push(n); }
+  }
+  return L;
 }
 
 function indexOf(L, addr) {
@@ -44,14 +53,15 @@ function indexOf(L, addr) {
 const sec = (L, ms) => Math.round((ms - L.start) / 1000);
 const account = (L, wi) => (L.acct[wi] ||= { usd: 0, credits: 0, tin: 0, tout: 0, bal: null, ids: [] });
 
-// How many Blockies a wallet may keep right now.
+// How many Blockies a wallet may keep right now: its grant (the team's reserve), plus what its buys
+// earned, as long as it holds the $BLOCKY they bought.
 export function allowance(a) {
-  const earned = Math.floor((a.credits || 0) + 1e-9);
-  if (!(a.tin > 0) || earned === 0) return 0;
+  const grant = a.grant || 0, earned = Math.floor((a.credits || 0) + 1e-9);
+  if (!(a.tin > 0) || earned === 0) return grant;
   let held = (a.tin - a.tout) / a.tin;
   if (a.bal != null) held = Math.min(held, a.bal / a.tin); // tokens moved away count as sold
   held = Math.max(0, Math.min(1, held));
-  return earned - Math.max(0, Math.ceil(earned * (1 - held) - 0.01));
+  return grant + earned - Math.max(0, Math.ceil(earned * (1 - held) - 0.01));
 }
 
 function rebalance(L, at, cfg, touched, source) {

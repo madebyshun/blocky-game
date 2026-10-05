@@ -46,7 +46,7 @@ function realMarket() {
 
 async function demoState(since, dsince) {
   const t = (Date.now() - demoStart) / 1000;
-  const L = newLedger(demoCityStart);
+  const L = newLedger(demoCityStart, CONFIG.nft.reserve);
   for (const trade of demoTrades(t)) applyTrade(L, trade, RULES);
   return { ...snapshot(L, RULES, since, dsince), market: await realMarket(), source: 'demo', mode: 'buys' };
 }

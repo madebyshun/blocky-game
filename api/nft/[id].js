@@ -9,7 +9,7 @@
 import { CONFIG } from '../../src/config.js';
 import { cityCrew, makeBlocky, makeFounder, CitySim, TRAIT_LABEL } from '../../src/sim.js';
 import { blockySvg } from '../../src/voxel-svg.js';
-import { loadLedger, LEDGER, SITE } from '../_store.js';
+import { loadLedger, LEDGER, SITE, RESERVE } from '../_store.js';
 
 const NFT = CONFIG.nft;
 const TREASURY = process.env.TREASURY_ADDRESS || NFT.treasury;
@@ -47,6 +47,7 @@ function metadata(b, sim, site) {
     { trait_type: 'Role', value: b.role.label },
     { trait_type: 'Name', value: plain(b) },
     { trait_type: 'Status', value: here ? 'In the city' : 'Left the city' },
+    { trait_type: 'Origin', value: b.id <= RESERVE.count && b.from === RESERVE.wallet.toLowerCase() ? 'Team reserve' : 'Bought' },
     { trait_type: 'Blocks placed', value: blocks, display_type: 'number' },
     { trait_type: 'Arrived', value: Math.floor(b.arrivedAt / 1000), display_type: 'date' },
   ];

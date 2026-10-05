@@ -50,6 +50,7 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 
 - **Token id = Blocky number.** The ledger (`src/ledger.js`, run by `api/colony.js`) decides which wallet brought which Blocky. `api/claim.js` signs an EIP-712 claim for the wallet's unclaimed Blockies (it re-checks the wallet's `$BLOCKY` balance first); the wallet sends `claim(ids, evictIds, deadline, signature)` itself and pays the gas. Only the wallet named in the signature can use it; signatures last 30 minutes.
 - **Max 10,000 at once** (`MAX_SUPPLY`, set at deploy).
+- **Team reserve**: Blockies #1 to #100 belong to the team wallet from day one (`nft.reserve` in `src/config.js`, or `TEAM_RESERVE_WALLET` / `TEAM_RESERVE_COUNT`): claimable like any other, never sent away by the hold rule, counted in the 10,000, disclosed on the About page and as `Origin: Team reserve` in their metadata. Set the count to 0 for none.
 - **Locked until 10,000 are claimed**: no transfers or approvals. While locked, a Blocky whose wallet sold leaves the city and, if it was claimed, is burned by the next claims (up to 20 per claim, `evictIds`); its number never comes back. The collection unlocks by itself at 10,000 (or the owner calls `unlock()`); from then on Blockies trade freely and none can be evicted, and the ledger stops applying the hold rule.
 - **Metadata** from `api/nft/[id].js`: `/api/nft/206` (name, rarity, trait, role, status, blocks placed, arrival date), `/api/nft/206.svg` (the portrait, drawn from the same 3D model by `src/voxel-svg.js`, cached for a year), `/api/nft/collection` (contractURI).
 - Owner functions: `setSigner`, `setBaseURI` (also asks marketplaces to refresh, ERC-4906), `setContractURI`, `setRoyalty`, `evict` (locked only), `unlock`.
@@ -72,7 +73,7 @@ URL flags: `?demo` fakes 3 days of history and then a trade every 30s (a $1,000 
 ## Go live (fresh city, 0 / 10,000)
 
 1. **Storage**: add Upstash Redis from the Vercel Marketplace (sets `KV_REST_API_URL` / `KV_REST_API_TOKEN`). Required in production.
-2. **Fresh start**: set `KV_KEY` to a new name (e.g. `basecity-v1`): a new key means an empty ledger, so the city starts from empty land at 0 / 10,000 and only buys from now on count. Optionally set `LAUNCH_TIME_MS` (ms timestamp) to the launch moment. Do not set `BACKFILL_HOURS`.
+2. **Fresh start**: set `KV_KEY` to a new name (e.g. `basecity-v1`): a new key means a fresh ledger, so the city starts from empty land with only the team reserve (100 / 10,000, or 0 with no reserve) and only buys from now on count. Optionally set `LAUNCH_TIME_MS` (ms timestamp) to the launch moment. Do not set `BACKFILL_HOURS`.
 3. **RPC**: set `BASE_RPC_URL` to your own Base RPC (Alchemy, QuickNode, …): the API reads every trade's receipt (the real wallet, and the block hash that seeds rarity) and checks holders' balances.
 4. **Deploy and open the site** once so the ledger starts (`/api/colony`).
 5. **Contract**: open `/deploy.html` with the dev wallet (`0x8eBA…C34D`), click *Generate a signer key*, copy the key, deploy. Then in Vercel set `NFT_CONTRACT` (the new address), `CLAIM_SIGNER_KEY` (the key) and `SITE_URL` (your domain), and redeploy: claims open.
