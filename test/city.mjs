@@ -123,6 +123,31 @@ for (const [gone, ruins] of [[5, 0], [30, 1], [65, 3]]) {
 }
 console.log('city: leaving Blockies take their blocks off the site; a big exit leaves ruins, rebuilt first');
 
+// Whale buys build by size, downtown, named while the whale holds: below half its Blockies, the
+// building goes dark (FOR SALE) and the next whale of its size takes it over
+{
+  const W = '0xwhale', N = '0xnext', T0 = t0 + 2 * DAY, T1 = t0 + 6 * DAY;
+  const crew = [...cityCrew(t0), ...Array.from({ length: 200 }, (_, i) => makeBlocky(i + 1, t0 + 60000, '0x1', i))];
+  const whaleBlockies = Array.from({ length: 300 }, (_, i) => makeBlocky(201 + i, T0, W, i));
+  for (const b of whaleBlockies.slice(-160)) b.leftAt = T1; // sells more than half
+  const nextBlockies = Array.from({ length: 260 }, (_, i) => makeBlocky(501 + i, T1 + DAY, N, i));
+  const s = new CitySim(t0);
+  s.setCrew([...crew, ...whaleBlockies, ...nextBlockies], [{ from: W, usd: 3000, at: T0 }, { from: '0xbig', usd: 6000, at: T0 + HOUR }, { from: N, usd: 2600, at: T1 + DAY }]);
+  s.advance(t0 + 14 * DAY);
+  const towers = s.done.filter((p) => p.kind === 'wonder');
+  const tower = towers.find((p) => p.whale.from === W), sky = towers.find((p) => p.whale.from === '0xbig'), next = towers.find((p) => p.whale.from === N);
+  assert.equal(tower?.build, 'tower', 'a $3,000 buy builds a Whale Tower');
+  assert.equal(sky?.build, 'skyscraper', 'a $6,000 buy builds a Whale Skyscraper');
+  assert.ok(Math.max(Math.abs(tower.lot[0]), Math.abs(tower.lot[1])) <= 3, 'whale towers go up downtown');
+  assert.equal(tower.whale.lostAt, T1, 'the tower goes dark when its whale sells more than half');
+  assert.equal(sky.whale.lostAt, Infinity, 'a whale that holds keeps its name');
+  assert.ok(s.events.some((e) => e.kind === 'unnamed' && e.p === tower && e.at === T1), 'no news when the tower went dark');
+  assert.deepEqual(next.lot, tower.lot, 'the next whale tower takes over the dark one');
+  assert.equal(next.takesOver, tower.name);
+  assert.equal(s.standing.get(tower.lot.join(',')), next, 'the new owner\'s tower stands there');
+  console.log('city: whale buys build fountains, towers and skyscrapers; sellers lose their name, the next whale takes over');
+}
+
 // every landmark and Base Avenue plot has a lot of its own on dry land
 const lots = [...LANDMARKS.filter((l) => !l.brand).map((l) => l.lot), ...AVENUE].map((lot) => lot.join(','));
 assert.equal(new Set(lots).size, lots.length, 'two landmarks or plots share a lot');

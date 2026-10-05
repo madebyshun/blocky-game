@@ -5,7 +5,7 @@ import { CATALOG, ROLES, cityCrew, makeBlocky, rarityOf, TRAIT_LABEL, LANDMARKS,
 import { blockySvg } from './voxel-svg.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
-import { buildingGroup, ruinGroup, adWall, updateBoards, kitFor, reserveLot, brandPlot, freePlot } from './city.js';
+import { buildingGroup, ruinGroup, adWall, updateBoards, kitFor, reserveLot, brandPlot, freePlot, darken } from './city.js';
 import { dronesSample } from './agents.js';
 import { FLEET, makeService, flash } from './fleet.js';
 import { metroSample } from './metro.js';
@@ -95,6 +95,9 @@ const items = [
   { label: 'BaseCity Metro', p: { type: 'metro' }, make: metroSample },
   { label: 'AI agent drones', p: { type: 'drones' }, make: dronesSample },
   { label: 'Whale Fountain ($1k+ buy)', p: { k: 0, kind: 'wonder', type: 'wonder', whale: { from: '0x1234567890abcdef1234567890abcdef12345678', usd: 1500 } } },
+  { label: 'Whale Tower ($2.5k+ buy)', p: { k: 1, kind: 'wonder', type: 'whale', build: 'tower', w: 5, d: 5, h: 18, color: 0x2c4a7a, whale: { from: '0x1234567890abcdef1234567890abcdef12345678', usd: 3200, tier: 'Whale Tower' } } },
+  { label: 'Whale Skyscraper ($5k+ buy)', p: { k: 2, kind: 'wonder', type: 'whale', build: 'skyscraper', w: 5, d: 5, h: 28, color: 0x1d3557, whale: { from: '0xabcdef1234567890abcdef1234567890abcdef12', usd: 7500, tier: 'Whale Skyscraper' } } },
+  { label: 'Whale Tower after its whale sold', p: { type: 'whale' }, make: () => darken(buildingGroup({ k: 3, kind: 'wonder', type: 'whale', build: 'tower', w: 5, d: 5, h: 18, color: 0x2c4a7a, dark: true, whale: { from: '0x1234567890abcdef1234567890abcdef12345678', usd: 3200, tier: 'Whale Tower' } })) },
   { label: 'NFT portraits (BaseCity Blockies)', p: { type: 'nft' }, make: nftWall },
   { label: 'Abandoned after a big exit', p: { type: 'ruin' }, make: () => ruinGroup({ k: 7, kind: 'building', type: 'apartment', w: 6, d: 5, h: 6, color: 0xe2c9a5 }) },
   { label: 'Abandoned shop', p: { type: 'ruin' }, make: () => ruinGroup({ k: 4, kind: 'building', type: 'shop', w: 5, d: 4, h: 2, color: 0xfff1e0 }) },

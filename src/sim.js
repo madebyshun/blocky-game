@@ -256,6 +256,15 @@ const LANDMARK_SIZE = {
   exchange: [6, 5, 5, 360], agenthub: [6, 6, 8, 380],
 };
 export const WONDER_COST = 300;
+// The tier a whale buy reaches (CONFIG.whaleTiers): its index, build and label
+export function whaleTier(usd) {
+  const tiers = CONFIG.whaleTiers || [{ usd: CONFIG.whaleUsd, build: 'fountain', label: 'Whale Fountain' }];
+  let i = 0;
+  tiers.forEach((t, j) => { if (usd >= t.usd) i = j; });
+  return { i, ...tiers[i] };
+}
+const WHALE_SIZE = { tower: [5, 5, 18], skyscraper: [5, 5, 28] };
+const WHALE_COLOR = { tower: 0x2c4a7a, skyscraper: 0x1d3557 };
 // a Base project's HQ by its style: [w, d, h, blocks] (designs: HQ in src/city.js)
 export const HQ_SIZE = { tower: [5, 5, 14, 520], campus: [6, 5, 4, 300], spire: [4, 4, 16, 600], dome: [6, 6, 6, 420] };
 
@@ -283,8 +292,30 @@ const landmarkSize = (l) => (l.brand ? HQ_SIZE[l.brand.style] || HQ_SIZE.tower :
 export class CitySim {
   constructor(start) { this.start = start; this.whaleList = []; this.setBuilders([]); }
 
-  // whales: buys of CONFIG.whaleUsd+ ({ from, usd, at }), each gets a Whale Fountain
+  // whales: buys of CONFIG.whaleUsd+ ({ from, usd, at, name? }); each builds by its tier (whaleTier)
   setCrew(builders, whales = this.whaleList) { this.whaleList = whales.slice().sort((a, b) => a.at - b.at); this.setBuilders(builders); }
+
+  // When does each whale lose its name? The first departure that leaves its wallet with fewer than half
+  // the Blockies it had right after the buy (never, while it holds).
+  whaleNames() {
+    this.whaleLost = this.whaleList.map((w) => {
+      const settle = w.at + 120000, mine = this.builders.filter((b) => b.kind === 'blocky' && b.from && b.from === w.from);
+      const gone = (b) => Number.isFinite(b.leftAt) && Math.max(b.arrivedAt, b.leftAt);
+      const n0 = mine.filter((b) => b.arrivedAt <= settle && !(gone(b) <= settle)).length;
+      if (!n0) return Infinity;
+      const moves = [];
+      for (const b of mine) {
+        if (b.arrivedAt > settle) moves.push([b.arrivedAt, 1]);
+        if (gone(b) > settle) moves.push([gone(b), -1]);
+      }
+      moves.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+      let n = n0;
+      for (const [t, d] of moves) { n += d; if (n * 2 < n0) return t; }
+      return Infinity;
+    });
+    this.lostBy = new Map(); // departure time -> whales whose names go then
+    this.whaleLost.forEach((t, i) => { if (Number.isFinite(t)) this.lostBy.set(t, [...(this.lostBy.get(t) || []), i]); });
+  }
 
   setBuilders(builders) {
     this.builders = builders.slice().sort((a, b) => a.arrivedAt - b.arrivedAt);
@@ -332,6 +363,7 @@ export class CitySim {
       if (this.firstReach[n] === undefined) this.firstReach[n] = this.arrivals[i];
       i++;
     }
+    this.whaleNames();
     this.reset();
   }
 
@@ -405,13 +437,26 @@ export class CitySim {
   plan(t) {
     const k = this.k++;
     const pop = this.popAt(t), pro = this.proAt(t);
-    // a whale's wonder jumps the queue, on the nearest free lot (or in place of the oldest building)
+    // a whale's building jumps the queue: a fountain on the nearest free lot (or in place of the oldest
+    // building); a tower or a skyscraper downtown, on a FOR SALE one of its size or smaller first
     const wi = this.whaleList.findIndex((w, i) => w.at <= t && !this.wonders.has(i));
-    const wlot = wi >= 0 ? (this.queue.length ? this.queue.shift() : this.oldestRenewable()?.lot) : null;
-    if (wlot) {
-      this.wonders.add(wi);
-      const w = this.whaleList[wi];
-      return { k, kind: 'wonder', type: 'wonder', lot: wlot, w: 6, d: 6, h: 7, cost: WONDER_COST * CONFIG.buildTime.wonder, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd, name: w.name }, name: `Whale Fountain #${wi + 1}` };
+    if (wi >= 0) {
+      const w = this.whaleList[wi], tier = whaleTier(w.usd);
+      const whale = { id: wi + 1, from: w.from, usd: w.usd, name: w.name, tier: tier.label, lostAt: this.whaleLost?.[wi] ?? Infinity };
+      if (tier.build === 'fountain') {
+        const lot = this.queue.length ? this.queue.shift() : this.oldestRenewable()?.lot;
+        if (lot) {
+          this.wonders.add(wi);
+          return { k, kind: 'wonder', type: 'wonder', build: 'fountain', lot, w: 6, d: 6, h: 7, cost: WONDER_COST * CONFIG.buildTime.wonder, color: 0xf4c542, whale, name: `${tier.label} #${wi + 1}` };
+        }
+      } else {
+        const sale = this.forSale(t, tier.i), lot = sale?.lot || this.freeLotNear(3) || this.oldestNear(3)?.lot || this.queue.shift() || this.oldestRenewable()?.lot;
+        if (lot) {
+          this.wonders.add(wi);
+          const [ww, d, h] = WHALE_SIZE[tier.build];
+          return { k, kind: 'wonder', type: `whale-${tier.build}`, build: tier.build, lot, w: ww, d, h, cost: CATALOG[tier.build].cost * CONFIG.buildTime.wonder, color: WHALE_COLOR[tier.build], whale, name: `${tier.label} #${wi + 1}`, ...(sale ? { takesOver: sale.name } : {}) };
+        }
+      }
     }
     // a building left abandoned by a big exit is rebuilt next: the same kind of building, from scratch
     while (this.ruinAt < this.ruins.length) {
@@ -443,6 +488,28 @@ export class CitySim {
     const L = this.land + 1, need = needFor(L);
     if (pop < need) { const r = this.redevelop(k, pro); if (r) return r; }
     return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land * CONFIG.buildTime.expand, need, name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };
+  }
+
+  // A whale tower or skyscraper whose whale sold (FOR SALE) of tier `upTo` or below, the oldest first.
+  forSale(t, upTo) {
+    let best = null;
+    for (const p of this.standing.values()) {
+      if (p.kind !== 'wonder' || !p.whale || p.build === 'fountain' || !(p.whale.lostAt <= t)) continue;
+      if (whaleTier(p.whale.usd).i > upTo) continue;
+      if (!best || p.at < best.at) best = p;
+    }
+    return best;
+  }
+  // a free lot within `r` rings of Town Square (taken off the queue), or null
+  freeLotNear(r) {
+    const i = this.queue.findIndex((lot) => ring(...lot) <= r);
+    return i >= 0 ? this.queue.splice(i, 1)[0] : null;
+  }
+  // the oldest home, shop or office within `r` rings of Town Square (it makes room), or null
+  oldestNear(r) {
+    let best = null;
+    for (const p of this.standing.values()) if (p.kind === 'building' && RENEW.has(p.type) && ring(...p.lot) <= r && (!best || p.at < best.at)) best = p;
+    return best;
   }
 
   // The oldest home, shop or office still standing that can grow (else the oldest of all; taken: it's
@@ -515,6 +582,7 @@ export class CitySim {
       finished.push(p);
       this.next = this.plan(t);
     }
+    this.now = now;
     this.work = this.workAt(now);
     const start = this.startOf(this.next);
     this.placed = start > now ? 0 : Math.max(0, Math.min(this.next.cost, this.work - this.workAt(start) - (this.next.lost || 0)));
@@ -528,6 +596,10 @@ export class CitySim {
 
   // Blockies leave (their wallets sold). p: the project on the site then, started at `start`.
   depart(e, p, start) {
+    // a whale that sold more than half: its building goes dark, FOR SALE
+    for (const wi of this.lostBy?.get(e.t) || []) {
+      for (const b of this.standing.values()) if (b.kind === 'wonder' && b.whale?.id === wi + 1) this.events.push({ kind: 'unnamed', at: e.t, p: b });
+    }
     // the blocks they placed on the site come down with them (the rest of the crew's stay)
     if (p) {
       let lost = 0;

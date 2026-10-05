@@ -11,7 +11,15 @@ export const CONFIG = {
   // price later only changes future buys. (USD_PER_BLOCKY on the API overrides it.)
   usdPerBlocky: 10,
   supply: 10000, // must match MAX_SUPPLY on the API
-  whaleUsd: 1000, // a single buy this big also builds a Whale Fountain signed with the wallet (WHALE_USD on the API)
+  whaleUsd: 1000, // a single buy this big also builds something with the buyer's name (WHALE_USD on the API)
+  // What a whale buy builds, by its size: the biggest tier it reaches. It goes up next, named after the
+  // buyer (Basename or address) while the wallet keeps at least half of its Blockies; sell more and the
+  // building goes dark, FOR SALE, until the next whale of its size or bigger takes it over.
+  whaleTiers: [
+    { usd: 1000, build: 'fountain', label: 'Whale Fountain' },
+    { usd: 2500, build: 'tower', label: 'Whale Tower' },
+    { usd: 5000, build: 'skyscraper', label: 'Whale Skyscraper' },
+  ],
   blockySkill: 1, // work speed of a Blocky
   builderSkill: 1.5, // work speed of a Base Builder (the legends below)
   founderSkill: 2,

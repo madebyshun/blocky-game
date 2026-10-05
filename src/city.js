@@ -834,10 +834,68 @@ function plaqueMaterial(p) {
   fit('WHALE FOUNTAIN', 800, 56, '"Lilita One", Inter, system-ui, sans-serif', 62);
   const w = p.whale, who = w?.name || (w?.from ? `${w.from.slice(0, 6)}…${w.from.slice(-4)}` : 'a whale'); // its Basename, if it has one
   g.fillStyle = '#ffffff';
-  fit(`gifted by ${who}${w?.usd ? ` · $${Math.round(w.usd).toLocaleString('en-US')}` : ''}`, 700, 32, 'Inter, system-ui, sans-serif', 128);
+  fit(p.dark ? 'its whale sold · waiting for the next one' : `gifted by ${who}${w?.usd ? ` · $${Math.round(w.usd).toLocaleString('en-US')}` : ''}`, 700, 32, 'Inter, system-ui, sans-serif', 128);
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   return new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 });
+}
+
+// ---------- Whale Towers and Skyscrapers: a $2.5k+ / $5k+ buy, named after the whale while it holds ----------
+
+const WHALE_SIGNS = new Map();
+function whaleSign(p) {
+  const w = p.whale || {}, key = `${p.k}|${w.name}|${p.dark}`;
+  if (WHALE_SIGNS.has(key)) return WHALE_SIGNS.get(key);
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 192;
+  const g = cv.getContext('2d');
+  g.fillStyle = p.dark ? '#1c1d21' : '#0b1630'; g.fillRect(0, 0, 512, 192);
+  g.strokeStyle = p.dark ? '#5b5f66' : '#f4c542'; g.lineWidth = 10; g.strokeRect(5, 5, 502, 182);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const fit = (text, weight, size, family, y, color) => {
+    g.fillStyle = color;
+    do { g.font = `${weight} ${size}px ${family}`; size -= 2; } while (g.measureText(text).width > 440 && size > 12);
+    g.fillText(text, 256, y);
+  };
+  const display = '"Lilita One", Inter, system-ui, sans-serif', body = 'Inter, system-ui, sans-serif';
+  const tier = (w.tier || 'Whale Tower').toUpperCase();
+  if (p.dark) {
+    fit(tier, 800, 28, display, 40, '#8a8f98');
+    fit('FOR SALE', 800, 64, display, 100, '#f4c542');
+    fit('the next whale of its size takes it', 700, 24, body, 156, '#b8bcc4');
+  } else {
+    const who = w.name || (w.from ? `${w.from.slice(0, 6)}…${w.from.slice(-4)}` : 'a whale');
+    fit(tier, 800, 28, display, 40, '#f4c542');
+    fit(who, 800, 60, display, 100, '#ffffff');
+    fit(`$${Math.round(w.usd || 0).toLocaleString('en-US')} of ${CONFIG.ticker} · still holding`, 700, 24, body, 156, '#9fd0ff');
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const mat = new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: p.dark ? 0.05 : 0.45 });
+  WHALE_SIGNS.set(key, mat);
+  return mat;
+}
+// the tower or skyscraper design, with the whale's name on its crown (two faces, clickable)
+function whaleTower(k, p) {
+  DESIGN[p.build](k, p);
+  let y, s;
+  if (p.build === 'tower') { s = p.w - 1; y = Y + p.h - 1.1; }
+  else { const a = Math.ceil(p.h * 0.5), b = Math.ceil(p.h * 0.3); s = p.w - 1; y = Y + a + 0.2 + b - 1; }
+  const sponsor = p.dark || !p.whale?.from ? null : { name: p.whale.name || p.whale.from, url: `https://basescan.org/address/${p.whale.from}` };
+  for (const [x, z, ry] of [[0, s / 2 + 0.03, 0], [s / 2 + 0.03, 0, Math.PI / 2]]) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(s * 0.94, s * 0.94 * 0.375), whaleSign(p));
+    m.position.set(x, y, z);
+    m.rotation.y = ry;
+    if (sponsor) m.userData.sponsor = sponsor;
+    k.extras.push(m);
+  }
+  if (!p.dark) k.box(s + 0.12, 0.18, s + 0.12, C.gold, 0, y + s * 0.19 + 0.12, 0); // a gold band over the name
+}
+// lights out: a whale that sold leaves its building dark
+export function darken(group) {
+  group.traverse((o) => { if (o.isMesh && o.material === GLOW_MAT) o.material = RUIN_SHUT; });
+  return group;
 }
 
 function wonder(k, p) {
@@ -1568,7 +1626,7 @@ export function reserveLot(k, i, j) {
 const ROOF_BOARD = { office: 0.35, apartment: 0.3, devhub: 0.25, shop: 0.25 }; // roof height above the body
 export const buildingGroup = (p) => kitFor((k) => {
   if (p.kind === 'landmark') return p.brand ? brandHq(k, p) : LANDMARK[p.type](k);
-  if (p.kind === 'wonder') return wonder(k, p);
+  if (p.kind === 'wonder') return p.build === 'tower' || p.build === 'skyscraper' ? whaleTower(k, p) : wonder(k, p);
   DESIGN[p.type](k, p);
   if (ROOF_BOARD[p.type] !== undefined && hash(p.k, 77) < 0.5) {
     billboard(k, 0, Y + p.h + ROOF_BOARD[p.type], -p.d / 2 + 0.35, Math.min(p.w - 0.4, 3.4), Math.min(p.w - 0.4, 3.4) * 0.4, 1 + p.k, 0.45);
@@ -1974,10 +2032,13 @@ export function createCity(scene) {
     const dev = new Set(sim.standing.keys());
     for (const [key, p] of sim.standing) {
       if (key === busy) continue;
-      const cur = lots.get(key), kind = p.ruinedAt ? 'ruin' : 'built', sig = p.whale?.name || ''; // a fountain's plaque shows its whale's name
+      // a whale's building shows its name, until its whale sells (then it goes dark)
+      const dark = p.whale?.lostAt <= sim.now, kind = p.ruinedAt ? 'ruin' : 'built', sig = `${p.whale?.name || ''}${dark ? '|dark' : ''}`;
+      const cur = lots.get(key);
       if (cur?.kind === kind && cur.k === p.k && cur.sig === sig) continue;
       if (site && site.k === p.k) site = null;
-      setLot(key, p.lot, kind, p.k, kind === 'ruin' ? ruinGroup(p) : buildingGroup(p), animate && kind === 'built' && cur?.k !== p.k, sig);
+      const group = kind === 'ruin' ? ruinGroup(p) : dark ? darken(buildingGroup({ ...p, dark })) : buildingGroup(p);
+      setLot(key, p.lot, kind, p.k, group, animate && kind === 'built' && cur?.k !== p.k, sig);
     }
     if (busy) dev.add(busy);
     developed = dev;

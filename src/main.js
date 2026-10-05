@@ -9,7 +9,7 @@ import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
-import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash, needFor, LANDMARKS } from './sim.js';
+import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash, needFor, LANDMARKS, whaleTier } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
@@ -24,6 +24,8 @@ const plural = CONFIG.citizenPlural || `${CONFIG.citizen}s`;
 const HOUR = 3600000;
 const size = (L) => `${2 * L + 1}×${2 * L + 1}`;
 const money = (v) => (v >= 1000 ? `$${v / 1000}k` : `$${v}`);
+// "$1k+ fountain, $2.5k+ tower or $5k+ skyscraper" (CONFIG.whaleTiers)
+const whaleTiersText = () => (CONFIG.whaleTiers || []).map((t) => `<em>${money(t.usd)}+</em> ${t.build}`).join(', ').replace(/, ([^,]*)$/, ' or $1');
 let price = CONFIG.usdPerBlocky; // USD of $BLOCKY per Blocky (the API's)
 const badge = (b) => (b.kind === 'legend' ? '★ ' : b.rarity && b.rarity.id !== 'common' && b.rarity.id !== 'uncommon' ? '✨ ' : '');
 const rareText = (b) => (b.trait ? `${b.rarity.label} · ${TRAIT_LABEL[b.trait]}` : '');
@@ -74,7 +76,7 @@ const CAPTIONS = [
   `At most <em>${fmt(CONFIG.supply)}</em> ${plural} live in the city`,
   `<em>1%</em> of ${plural} are Legendary: Diamond Skin or a Crown`,
   `Real Base builders build here as <em>Base Builders</em>`,
-  `A <em>${money(CONFIG.whaleUsd)}+</em> buy builds a fountain with your name`,
+  () => `A ${whaleTiersText()} with your name on it`,
   `Every buy shows up in the <em>city log</em>`,
   `${plural} build <em>24/7</em>, even when no one is watching`,
   `Land full? More ${plural} <em>expand the land</em>`,
@@ -282,7 +284,7 @@ function applyState(s, first) {
     log(`🛒 ${whoHtml(b.from)} bought ${usd(b.usd)}${what}`, b.at);
     if (b.usd >= CONFIG.whaleUsd) {
       weather.celebrate(); setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800);
-      news.unshift(`<b>WHALE ALERT:</b> ${whoHtml(b.from)} just bought ${usd(b.usd)}: ${b.blockies} ${plural} are flying in and the city starts a fountain in their name!`);
+      news.unshift(`<b>WHALE ALERT:</b> ${whoHtml(b.from)} just bought ${usd(b.usd)}: ${b.blockies} ${plural} are flying in and the city starts a ${whaleTier(b.usd).label} in their name!`);
     } else if (b.blockies >= 10) {
       weather.celebrate();
       news.unshift(`<b>BIG BUY:</b> ${whoHtml(b.from)} just bought ${usd(b.usd)}, bringing ${b.blockies} ${plural}. Fireworks over the Statue of Blockerty!`);
@@ -422,13 +424,15 @@ function log(html, when = now(), id) {
 
 const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.level)}`
   : p.kind === 'landmark' ? `🏛️ ${p.name} built`
-  : p.kind === 'wonder' ? `⛲ Whale Fountain built, gifted by ${whoHtml(p.whale.from) || 'a whale'}`
+  : p.kind === 'wonder' ? `${p.build === 'fountain' ? '⛲' : '🏙️'} ${p.whale.tier || 'Whale Fountain'} built for ${whoHtml(p.whale.from) || 'a whale'}${p.takesOver ? `, taking over ${p.takesOver}` : ''}`
   : p.kind === 'metro' ? `🚇 ${p.name} opened`
   : p.restores ? `🏗️ ${p.name} rebuilt on the ruins of ${p.rebuilds}`
   : p.rebuilds ? `🏗️ ${p.name} completed, replacing ${p.rebuilds}`
   : `🏗️ ${p.name} completed`);
 // what departures did to the city (CitySim.depart)
-const eventLine = (e) => (e.kind === 'ruin'
+const eventLine = (e) => (e.kind === 'unnamed'
+  ? `🌑 ${e.p.name} went dark: ${whoHtml(e.p.whale.from)} sold. FOR SALE to the next whale`
+  : e.kind === 'ruin'
   ? `🏚️ ${e.p.name} abandoned: ${fmt(e.n)} ${plural} left at once`
   : `🧱 ${e.n ? `${fmt(e.n)} ${e.n > 1 ? plural : CONFIG.citizen} walked off` : 'Builders walked off'} ${e.p.name}: −${fmt(e.blocks)} blocks`);
 
@@ -572,6 +576,10 @@ function stepCity(animate) {
   if (!animate) return;
   for (const e of effects) {
     log(eventLine(e), e.at);
+    if (e.kind === 'unnamed') {
+      toast('🌑 WENT DARK', e.p.name, `its whale sold. FOR SALE to the next ${e.p.whale.tier || 'whale'} buyer`);
+      news.unshift(`<b>FOR SALE:</b> ${e.p.name} went dark after ${whoHtml(e.p.whale.from)} sold. The next whale of its size takes it over`);
+    }
     if (e.kind !== 'ruin') continue;
     toast('🏚️ ABANDONED', e.p.name, `${fmt(e.n)} ${plural} left at once. The crew rebuilds it next`);
     news.unshift(`<b>GHOST TOWN?</b> ${e.p.name} stands abandoned after ${fmt(e.n)} ${plural} left ${CONFIG.cityName} at once. Crews will rebuild it first`);
@@ -581,7 +589,7 @@ function stepCity(animate) {
     if (p.kind === 'expand') toast('LAND EXPANDED', size(p.level), `${plural} reclaimed a new ring of land`);
     if (p.kind === 'landmark') toast('LANDMARK BUILT', p.name);
     if (p.kind === 'metro') toast('🚇 METRO OPENED', p.name, 'Trains now loop the ring road');
-    if (p.kind === 'wonder') { toast('⛲ WONDER BUILT', 'Whale Fountain', `gifted by ${whoHtml(p.whale.from) || 'a whale'}`); weather.celebrate(); }
+    if (p.kind === 'wonder') { toast(p.build === 'fountain' ? '⛲ WONDER BUILT' : '🏙️ WHALE TOWER BUILT', p.whale.tier || 'Whale Fountain', `named after ${whoHtml(p.whale.from) || 'a whale'}`); weather.celebrate(); }
   }
 }
 
@@ -673,7 +681,9 @@ function headlines() {
   const sponsors = CONFIG.sponsors || [];
   if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>${sp.sponsored ? 'SPONSORED' : 'BUILT ON BASE'}:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
   if (Math.random() < 0.5 || !sponsors.length) out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);
-  out.push(`<b>${CONFIG.ticker}:</b> every ${money(price)} you buy brings a ${CONFIG.citizen} NFT; at most ${fmt(supply)} in the city. ${money(CONFIG.whaleUsd)}+ in one buy builds a fountain with your name`);
+  out.push(`<b>${CONFIG.ticker}:</b> every ${money(price)} you buy brings a ${CONFIG.citizen} NFT; at most ${fmt(supply)} in the city. One big buy builds a ${whaleTiersText()} with your name`);
+  const dark = [...sim.standing.values()].filter((p) => p.whale && p.build !== 'fountain' && p.whale.lostAt <= now()).length;
+  if (dark) out.push(`<b>FOR SALE:</b> ${dark} whale tower${dark > 1 ? 's' : ''} went dark when ${dark > 1 ? 'their whales' : 'its whale'} sold. The next big buy takes ${dark > 1 ? 'one' : 'it'} over`);
   return out;
 }
 function refreshTicker() {
