@@ -11,7 +11,10 @@ function demoState() {
   // ~1 new citizen every 30s so the loop is visible while developing/pitching
   const progressUsd = 21.3 + t * 0.17;
   const population = 1 + Math.floor(progressUsd / CONFIG.usdPerBlocky);
-  return { progressUsd, boughtUsd: progressUsd, population, arrivals: null, crew: null, recentBuys: [], source: 'demo', mode: 'buys' };
+  // the market swings slowly so every kind of weather shows up while you watch
+  const market = { priceUsd: 0.00003, change1h: Math.sin(t / 9) * 3, change24h: Math.sin(t / 25) * 22, volume24h: 1200 };
+  const recentBuys = t > 20 && Math.floor(t) % 45 < 2 ? [{ from: '0xdemo00000000000000000000000000000000beef', usd: 60, at: demoStart + Math.floor(t / 45) * 45000, blockies: 12 }] : [];
+  return { progressUsd, boughtUsd: progressUsd, population, arrivals: null, crew: null, recentBuys, market, source: 'demo', mode: 'buys' };
 }
 
 let mode = forceDemo || !CONFIG.apiUrl ? 'demo' : null; // decided by the first fetch
@@ -32,6 +35,7 @@ export async function fetchColony() {
       mode: s.mode || 'fees',
       crew: Array.isArray(s.crew) ? s.crew : null,
       recentBuys: Array.isArray(s.recentBuys) ? s.recentBuys : [],
+      market: s.market && typeof s.market.change24h === 'number' ? s.market : null,
       population: s.population ?? 1 + Math.floor(progressUsd / CONFIG.usdPerBlocky),
       arrivals: Array.isArray(s.arrivals) ? s.arrivals : null,
       cityStart: typeof s.cityStart === 'number' ? s.cityStart : null,

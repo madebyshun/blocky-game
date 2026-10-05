@@ -67,7 +67,8 @@ html, body {
 .progress.blocked #site-name { color: var(--accent); }
 .progress.blocked .fill.blue { background: linear-gradient(90deg, #f59e0b, #ffc83d); }
 #site-pct { color: var(--text); font-weight: 800; margin-left: 6px; }
-.clock { display: inline-block; margin-top: 8px; background: var(--panel); color: var(--text); padding: 5px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; }
+.chips { display: flex; gap: 6px; margin-top: 8px; }
+.clock { display: inline-block; background: var(--panel); color: var(--text); padding: 5px 10px; border-radius: 99px; font-size: 12px; font-weight: 800; }
 .progress .sub { margin-top: 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
 .progress .sub b { color: var(--accent); }
 
@@ -125,7 +126,7 @@ html, body {
 @keyframes pulse { 50% { opacity: 0.35; } }
 
 /* footer */
-footer { position: fixed; left: 0; right: 0; bottom: 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
+footer { position: fixed; left: 0; right: 0; bottom: 46px; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .checks { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .checks li { background: var(--panel); border-radius: 99px; padding: 6px 12px 6px 30px; font-size: 12px; font-weight: 700; position: relative; }
 .checks li::before { content: '✓'; position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; border-radius: 50%; background: var(--up); color: #0b1a10; font-size: 10px; display: grid; place-items: center; font-weight: 900; }
@@ -147,12 +148,40 @@ footer { position: fixed; left: 0; right: 0; bottom: 18px; display: flex; flex-d
   100% { opacity: 0; transform: translate(-50%, -60%) scale(1); }
 }
 
+/* view controls + photo mode */
+.view-controls { position: fixed; right: 16px; bottom: 46px; display: flex; gap: 6px; z-index: 4; }
+.small-pill { flex: none; padding: 6px 10px; font-size: 12px; border-radius: 99px; background: var(--panel); }
+.small-pill.on { border-color: rgba(255, 255, 255, 0.35); }
+.photo-exit { display: none; position: fixed; top: 12px; right: 12px; z-index: 6; padding: 6px 10px; border-radius: 99px; border: 0; background: rgba(17, 22, 33, 0.55); color: #fff; font: 700 11px Inter, sans-serif; cursor: pointer; opacity: 0.6; }
+.photo-exit:hover { opacity: 1; }
+body.photo .progress, body.photo .stats, body.photo .side, body.photo .card, body.photo footer, body.photo .ticker,
+body.photo .view-controls, body.photo .chips, body.photo .toast { display: none !important; }
+body.photo .photo-exit { display: block; }
+
+/* SimCity-style news ticker */
+.ticker { position: fixed; left: 0; right: 0; bottom: 0; height: 32px; display: flex; align-items: center; background: rgba(10, 14, 24, 0.9); border-top: 1px solid rgba(255, 255, 255, 0.08); z-index: 5; }
+.ticker-badge { flex: none; height: 100%; display: grid; place-items: center; padding: 0 12px; background: var(--base); color: #fff; font: 800 11px Inter, sans-serif; letter-spacing: 0.1em; }
+.ticker-window { flex: 1; overflow: hidden; height: 100%; display: flex; align-items: center; }
+.ticker-track { white-space: nowrap; font-weight: 700; font-size: 13px; color: #e8edf6; padding-left: 100%; animation: ticker linear infinite; }
+.ticker-track b { color: var(--accent); }
+.ticker-track .sep { color: var(--muted); margin: 0 14px; }
+@keyframes ticker { to { transform: translateX(-100%); } }
+
+/* district names floating over the city */
+.districts { position: fixed; inset: 0; pointer-events: none; }
+.district { position: absolute; transform: translate(-50%, -50%); font: 400 15px 'Lilita One', Inter, sans-serif; letter-spacing: 0.06em; color: #fff; text-transform: uppercase; text-shadow: 0 2px 0 rgba(17, 22, 33, 0.85), 0 0 8px rgba(17, 22, 33, 0.6); white-space: nowrap; transition: opacity 0.3s; }
+.district small { display: block; text-align: center; font: 700 10px Inter, sans-serif; letter-spacing: 0.04em; opacity: 0.85; text-transform: none; }
+
 @media (max-width: 900px) {
   .side { display: none; }
   .brand h1 { font-size: 36px; }
   .brand p { display: none; }
   .progress { top: 64px; padding: 10px 14px; }
-  .clock { display: none; }
+  .chips { display: none; }
+  .view-controls { bottom: auto; top: 12px; right: 12px; }
+  .view-controls .small-pill { padding: 5px 8px; font-size: 11px; }
+  .ticker-badge { padding: 0 8px; font-size: 10px; }
+  .district { font-size: 12px; }
   .stats { top: 196px; left: 16px; right: 16px; width: auto; grid-template-columns: repeat(4, 1fr); padding: 10px 12px; }
   .stats > div { flex-direction: column; align-items: flex-start; gap: 2px; }
   .stats .cta, .stats .ca { grid-column: 1 / -1; flex-direction: row; }

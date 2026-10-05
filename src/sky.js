@@ -7,7 +7,7 @@ import { hash, PITCH, riverCol } from './sim.js';
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
 const CLOUD_MAT = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xb8c4d6, transparent: true, opacity: 0.92 });
 const DAY_CLOUD = new THREE.Color(0xffffff), NIGHT_CLOUD = new THREE.Color(0x5b6a8f);
-const DAY_GLOW = new THREE.Color(0xb8c4d6), NIGHT_GLOW = new THREE.Color(0x1a2033);
+const DAY_GLOW = new THREE.Color(0xb8c4d6), NIGHT_GLOW = new THREE.Color(0x1a2033), STORM_CLOUD = new THREE.Color(0x7d8796);
 
 function cloud(seed) {
   const geos = [];
@@ -94,14 +94,15 @@ export function createSky(city) {
   function update(t, dt) {
     if (city.land !== builtFor && city.land > 0) build();
     const dl = city.env.daylight;
-    CLOUD_MAT.color.copy(NIGHT_CLOUD).lerp(DAY_CLOUD, dl);
-    CLOUD_MAT.emissive.copy(NIGHT_GLOW).lerp(DAY_GLOW, dl);
+    const gloom = city.env.gloom || 0; // rain clouds turn grey
+    CLOUD_MAT.color.copy(NIGHT_CLOUD).lerp(DAY_CLOUD, dl).lerp(STORM_CLOUD, gloom * 0.7);
+    CLOUD_MAT.emissive.copy(NIGHT_GLOW).lerp(DAY_GLOW, dl).multiplyScalar(1 - gloom * 0.6);
     for (const c of clouds) {
       const u = c.userData;
       u.a += u.speed * dt;
       c.position.set(Math.cos(u.a) * u.r, u.y, Math.sin(u.a) * u.r);
     }
-    const awake = dl > 0.25; // birds sleep at night
+    const awake = dl > 0.25 && (city.env.gloom || 0) < 0.5; // birds sleep at night and shelter from the rain
     for (const fl of flocks) {
       fl.a += fl.w * dt;
       flockPoint(fl, fl.a, pos);

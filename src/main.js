@@ -5,6 +5,8 @@ import { createCity } from './city.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
+import { createWeather, WEATHER } from './weather.js';
+import { computeDistricts } from './districts.js';
 import { makeBuilder, blocksBy, CitySim, PITCH } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
@@ -82,13 +84,47 @@ Object.assign(controls, {
   enableDamping: true, enablePan: false, autoRotate: true, autoRotateSpeed: 0.3,
   minZoom: 0.6, maxZoom: 6, minPolarAngle: 0.5, maxPolarAngle: 1.2,
 });
+// Auto-rotate is a preference (button or R key) and always stops in photo mode, so screenshots
+// and screen recordings hold still. ?still starts without rotation, ?photo starts in photo mode.
+const qs = new URLSearchParams(location.search);
+let rotatePref = !qs.has('still');
+try { if (localStorage.getItem('basecity:rotate') === '0') rotatePref = false; } catch { /* ignore */ }
+let photo = false;
 let idleTimer;
+const syncRotate = () => {
+  controls.autoRotate = rotatePref && !photo;
+  $('rotate-btn').textContent = rotatePref ? '⟳ Rotating' : '⟳ Rotate: off';
+  $('rotate-btn').classList.toggle('on', rotatePref);
+};
+function setRotate(on) {
+  rotatePref = on;
+  try { localStorage.setItem('basecity:rotate', on ? '1' : '0'); } catch { /* ignore */ }
+  syncRotate();
+}
+function setPhoto(on) {
+  photo = on;
+  document.body.classList.toggle('photo', on);
+  syncRotate();
+}
 controls.addEventListener('start', () => { controls.autoRotate = false; clearTimeout(idleTimer); });
-controls.addEventListener('end', () => { idleTimer = setTimeout(() => (controls.autoRotate = true), 8000); });
+controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); });
+$('rotate-btn').onclick = () => setRotate(!rotatePref);
+$('photo-btn').onclick = () => setPhoto(true);
+$('photo-exit').onclick = () => setPhoto(false);
+addEventListener('keydown', (e) => {
+  if (e.target.closest?.('input, textarea')) return;
+  if (e.key === 'r' || e.key === 'R') setRotate(!rotatePref);
+  if (e.key === 'p' || e.key === 'P') setPhoto(!photo);
+  if (e.key === 'Escape' && photo) setPhoto(false);
+});
+syncRotate();
+if (qs.has('photo')) setPhoto(true);
 
 const city = createCity(scene);
 const traffic = createTraffic(city);
 const sky = createSky(city);
+const weather = createWeather(city);
+let market = null;
 const airship = createAirship();
 airship.visible = false;
 city.root.add(airship);
@@ -147,11 +183,14 @@ function applyState(s, first) {
   fees = Math.max(fees, s.progressUsd);
   bought = Math.max(bought, s.boughtUsd ?? fees);
   if (s.crew) crewInfo = s.crew;
+  if (s.market) { market = s.market; weather.setMarket(market); }
   for (const b of [...(s.recentBuys || [])].reverse()) {
     const key = `${b.at}|${b.from}|${b.usd}`;
     if (loggedBuys.has(key)) continue;
     loggedBuys.add(key);
-    if (!first) log(`🛒 ${short(b.from)} bought ${usd(b.usd)}${b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : ''}`, b.at);
+    if (first) continue;
+    log(`🛒 ${short(b.from)} bought ${usd(b.usd)}${b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : ''}`, b.at);
+    if (b.usd >= 50) { weather.celebrate(); news.unshift(`<b>BIG BUY:</b> ${short(b.from)} just bought ${usd(b.usd)}. Fireworks over the Statue of Blockerty!`); }
   }
 
   const target = Math.max(1, s.population);
@@ -226,7 +265,10 @@ function toast(eyebrow, big, sub = '') {
   toastTimer = setTimeout(() => (el.hidden = true), 3200);
 }
 
+const news = []; // freshest first; read by the ticker
 function log(html, when = now(), id) {
+  news.unshift(`<b>BREAKING:</b> ${html.replace(/^\S+\s/, '')}`);
+  news.length = Math.min(news.length, 6);
   const li = document.createElement('li');
   if (id) li.dataset.id = id;
   li.innerHTML = `<span>${html}</span><b class="muted" data-at="${when}">${ago(when)}</b>`;
@@ -262,6 +304,9 @@ function renderHud() {
   }
   const day = Math.floor((now() - cityStart) / 86400000) + 1;
   $('clock').textContent = `Day ${day} · ${city.env.daylight < 0.5 ? '🌙 Night shift' : '☀️ Day shift'}`;
+  const w = WEATHER[weather.kind], wEl = $('weather');
+  wEl.hidden = false;
+  wEl.textContent = `${w.icon} ${w.label}${market ? ` · ${CONFIG.ticker} ${market.change24h >= 0 ? '+' : ''}${market.change24h.toFixed(1)}% 24h` : ''}`;
   for (const el of document.querySelectorAll('#feed [data-at]')) el.textContent = ago(+el.dataset.at);
 }
 
@@ -356,6 +401,68 @@ function welcomeBack() {
   } catch { /* storage unavailable: skip */ }
 }
 
+// ---------- districts: names floating over the neighbourhoods ----------
+
+let districts = [];
+let districtsFor = -1;
+const districtEls = new Map();
+const proj = new THREE.Vector3();
+function updateDistricts() {
+  if (sim.done.length !== districtsFor) {
+    districtsFor = sim.done.length;
+    districts = computeDistricts(sim.done);
+    for (const d of districts) {
+      let el = districtEls.get(d.key);
+      if (!el) { el = document.createElement('div'); el.className = 'district'; $('districts').appendChild(el); districtEls.set(d.key, el); }
+      el.innerHTML = `${d.name}<small>${d.buildings} buildings</small>`;
+    }
+  }
+  for (const d of districts) {
+    const el = districtEls.get(d.key);
+    proj.set(d.x, 9, d.z);
+    city.root.localToWorld(proj).project(camera);
+    el.style.left = `${((proj.x + 1) / 2) * innerWidth}px`;
+    el.style.top = `${((1 - proj.y) / 2) * innerHeight}px`;
+    el.style.opacity = Math.abs(proj.x) > 0.95 || Math.abs(proj.y) > 0.95 ? 0 : 1;
+  }
+}
+
+// ---------- SimCity-style news ticker ----------
+
+const FILLER = [
+  'gm Café reports record coffee sales as the night shift clocks in',
+  'Blockies petition City Hall for more parks',
+  'Local dev ships on a Friday. The city survives',
+  'Gas stays low, Blockies celebrate with ice cream',
+  'Traffic builds up on the river bridges at rush hour',
+  'Gulls spotted near the Statue of Blockerty again',
+  'Onchain summer never ends in BaseCity',
+  'Roller coaster queue hits a new record',
+  'Builders remind everyone: wear your hard hat',
+];
+function headlines() {
+  const out = [...news.slice(0, 4)];
+  const w = WEATHER[weather.kind];
+  if (market) out.push(`<b>WEATHER:</b> ${w.label} over ${CONFIG.cityName} as ${CONFIG.ticker} ${market.change24h >= 0 ? 'climbs' : 'slips'} ${Math.abs(market.change24h).toFixed(1)}% in 24h`);
+  if (sim.blocked) out.push(`<b>CITY HALL:</b> the land is full. ${sim.blocked.need - sim.blocked.have} more ${plural} needed to expand`);
+  const next = CONFIG.landmarks.find((l) => l.at > population);
+  if (next) out.push(`<b>COMING SOON:</b> ${next.label} breaks ground at ${next.at} ${plural}`);
+  const top = views.filter(Boolean).sort((a, b) => blocksBy(b.b, now()) - blocksBy(a.b, now()))[0];
+  const topBlocks = top ? blocksBy(top.b, now()) : 0;
+  if (topBlocks >= 2) out.push(`<b>BUILDER OF THE DAY:</b> ${top.b.name}, ${fmt(topBlocks)} blocks placed`);
+  const big = [...districts].sort((a, b) => b.buildings - a.buildings)[0];
+  if (big && districts.length > 1) out.push(`<b>DISTRICTS:</b> ${big.name} leads with ${big.buildings} buildings`);
+  for (let i = 0; i < 2; i++) out.push(FILLER[Math.floor(Math.random() * FILLER.length)]);
+  out.push(`<b>${CONFIG.ticker}:</b> buy ${usd(PER)} to bring a new ${CONFIG.citizen} to ${CONFIG.cityName}`);
+  return out;
+}
+function refreshTicker() {
+  const el = $('ticker');
+  el.innerHTML = headlines().join('<span class="sep">◆</span>');
+  el.style.animationDuration = `${Math.max(30, el.textContent.length * 0.16)}s`;
+}
+$('ticker').addEventListener('animationiteration', refreshTicker);
+
 // ---------- loop ----------
 
 const clock = new THREE.Timer();
@@ -371,6 +478,7 @@ function frame() {
   city.update(t, dt);
   traffic.update(t, dt);
   sky.update(t, dt);
+  weather.update(t, dt);
   for (const v of views) v?.update(t, dt);
   updateAirship(dt);
 
@@ -387,6 +495,7 @@ function frame() {
   }
   controls.update();
   renderer.render(scene, camera);
+  updateDistricts();
   requestAnimationFrame(frame);
 }
 
@@ -397,7 +506,9 @@ function frame() {
   resize();
   for (const p of sim.done.slice(-5)) log(logLine(p), p.at);
   renderLeaders();
+  updateDistricts();
   renderHud();
+  refreshTicker();
   welcomeBack();
   requestAnimationFrame(frame);
   setInterval(async () => applyState(await fetchColony(), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);

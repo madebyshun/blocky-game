@@ -20,12 +20,18 @@ function B(parent, w, h, d, color, x = 0, y = 0, z = 0, emissive) {
 const PANTS = 0x34495e;
 const BLOCK_COLORS = [0x0052ff, 0xf4c542, 0xe74c3c, 0x2ecc71, 0xf4f4f0, 0x9b59b6];
 
-// Builders walk on the sidewalk edge of the roads (road centrelines sit at 8i + 4).
-const road = (v) => Math.round((v - PITCH / 2) / PITCH) * PITCH + PITCH / 2 + 0.7;
+// Builders walk on the sidewalk edge of the roads (road centrelines sit at 8i + 4),
+// never along the rim of the land.
+function road(v, land) {
+  let r = Math.round((v - PITCH / 2) / PITCH) * PITCH + PITCH / 2 + 0.7;
+  const lim = land * PITCH + 4 - 1.5;
+  while (Math.abs(r) > lim) r -= Math.sign(r) * PITCH;
+  return r;
+}
 const inLot = (v) => Math.abs(v - Math.round(v / PITCH) * PITCH) < 3.2;
 
-function route(fx, fz, tx, tz) {
-  const rx = road(fx), rz = road(tz);
+function route(fx, fz, tx, tz, land) {
+  const rx = road(fx, land), rz = road(tz, land);
   return [[rx, fz], [rx, rz], [tx, rz], [tx, tz]];
 }
 
@@ -267,7 +273,7 @@ export class BuilderView {
     if (this.city.waiting && (mode === 'toSite' || mode === 'toDepot')) mode = 'toBreak'; // land is full: chill until it can expand
     this.mode = mode;
     const target = mode === 'toDepot' ? this.city.depotSpot(s) : mode === 'toSite' ? this.city.siteSpot(s) : this.city.chillSpot(s);
-    this.path = route(p.x, p.z, target[0], target[1]);
+    this.path = route(p.x, p.z, target[0], target[1], Math.max(2, this.city.land));
     this.carry.visible = mode === 'toSite';
   }
 

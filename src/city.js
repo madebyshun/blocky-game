@@ -758,6 +758,16 @@ export function createCity(scene) {
     if (animate) { group.scale.set(1, 0.01, 1); rising.push({ group, t: 0, mode: 'grow' }); }
   }
 
+  // a concrete road bridge where a paved street crosses the river
+  function roadBridge(k, x, z, along) {
+    const long = PITCH + 0.4, ax = along === 'x';
+    k.box(ax ? long : 2.6, 0.3, ax ? 2.6 : long, 0xb0b6bd, x, -0.15, z);
+    k.box(ax ? long : 2, 0.05, ax ? 2 : long, C.road, x, 0.15, z);
+    for (let s = -2; s <= 2; s += 2) k.box(ax ? 0.9 : 0.12, 0.02, ax ? 0.12 : 0.9, 0xf4f4f0, x + (ax ? s : 0), 0.2, z + (ax ? 0 : s));
+    for (const o of [-1.2, 1.2]) k.box(ax ? long : 0.2, 0.3, ax ? 0.2 : long, 0xd5d8dc, x + (ax ? 0 : o), 0.15, z + (ax ? o : 0));
+    for (const s of [-2.5, 2.5]) k.box(ax ? 0.6 : 1.6, 0.6, ax ? 1.6 : 0.6, 0x9aa3ad, x + (ax ? s : 0), -0.75, z + (ax ? 0 : s));
+  }
+
   function bridge(k, x, z, along) {
     const long = PITCH + 0.4;
     k.box(along === 'x' ? long : 2, 0.25, along === 'x' ? 2 : long, C.wood, x, -0.1, z);
@@ -794,8 +804,6 @@ export function createCity(scene) {
       if (Math.abs(j) === L && wet(0, Math.sign(j))) k.water(6, 4.6, 0.3, x, -4.9, Math.sign(j) * (H + 0.15));
       if (Math.abs(i) === L && wet(Math.sign(i), 0)) k.water(0.3, 4.6, 6, Math.sign(i) * (H + 0.15), -4.9, z);
     }
-    for (let i = -L; i <= L; i++) for (let j = -L; j < L; j++) if (isWater(i, j) && isWater(i, j + 1)) bridge(k, i * PITCH, j * PITCH + 4, 'x');
-    for (let i = -L; i < L; i++) for (let j = -L; j <= L; j++) if (isWater(i, j) && isWater(i + 1, j)) bridge(k, i * PITCH + 4, j * PITCH, 'z');
     k.box(2 * H, 0.12, 2 * H, C.base, 0, -0.55, 0);
     k.box(2 * H, 2.6, 2 * H, C.dirt, 0, -3.15, 0);
     k.box(2 * H, 1.6, 2 * H, 0x8a8f98, 0, -4.75, 0);
@@ -837,33 +845,47 @@ export function createCity(scene) {
     for (let i = -L; i < L; i++) for (let j = -L; j <= L; j++) {
       if (isWater(i, j) && isWater(i + 1, j) && touch(i, j - 1) && touch(i, j)) segs.push([i, j, 'v', true]);
     }
-    const sig = segs.map((s) => s.join(':')).sort().join('|');
+    const sig = `${L}|` + segs.map((s) => s.join(':')).sort().join('|');
     if (sig === roadSig) return;
     roadSig = sig;
 
     roadGroup.clear();
     graph.nodes.clear(); graph.adj.clear(); graph.version++;
     const k = new Kit();
+    const edge = (i, j) => i >= L || i < -L || j >= L || j < -L; // junctions on the land's rim
     const node = (i, j) => {
       const key = `${i},${j}`;
       if (!graph.nodes.has(key)) { graph.nodes.set(key, [i * PITCH + 4, j * PITCH + 4]); graph.adj.set(key, []); }
       return key;
     };
-    const link = (a, b) => { graph.adj.get(a).push(b); graph.adj.get(b).push(a); };
+    const link = (a, b) => {
+      if (edge(...a) || edge(...b)) return; // cars turn back before the rim
+      const ka = node(...a), kb = node(...b);
+      graph.adj.get(ka).push(kb); graph.adj.get(kb).push(ka);
+    };
+    const carried = new Set();
     for (const [i, j, dir, onBridge] of segs) {
-      const y = onBridge ? 0.15 : 0;
       if (dir === 'h') {
         const x = i * PITCH, z = j * PITCH + 4;
-        k.box(PITCH - 2, 0.05, 2, C.road, x, y, z);
-        for (let s = -2; s <= 2; s += 2) k.box(0.9, 0.02, 0.12, 0xf4f4f0, x + s, y + 0.05, z);
-        link(node(i - 1, j), node(i, j));
+        if (onBridge) { roadBridge(k, x, z, 'x'); carried.add(`h${i},${j}`); }
+        else {
+          k.box(PITCH - 2, 0.05, 2, C.road, x, 0, z);
+          for (let s = -2; s <= 2; s += 2) k.box(0.9, 0.02, 0.12, 0xf4f4f0, x + s, 0.05, z);
+        }
+        link([i - 1, j], [i, j]);
       } else {
         const x = i * PITCH + 4, z = j * PITCH;
-        k.box(2, 0.05, PITCH - 2, C.road, x, y, z);
-        for (let s = -2; s <= 2; s += 2) k.box(0.12, 0.02, 0.9, 0xf4f4f0, x, y + 0.05, z + s);
-        link(node(i, j - 1), node(i, j));
+        if (onBridge) { roadBridge(k, x, z, 'z'); carried.add(`v${i},${j}`); }
+        else {
+          k.box(2, 0.05, PITCH - 2, C.road, x, 0, z);
+          for (let s = -2; s <= 2; s += 2) k.box(0.12, 0.02, 0.9, 0xf4f4f0, x, 0.05, z + s);
+        }
+        link([i, j - 1], [i, j]);
       }
     }
+    // every other river crossing keeps a wooden footbridge
+    for (let i = -L; i <= L; i++) for (let j = -L; j < L; j++) if (isWater(i, j) && isWater(i, j + 1) && !carried.has(`h${i},${j}`)) bridge(k, i * PITCH, j * PITCH + 4, 'x');
+    for (let i = -L; i < L; i++) for (let j = -L; j <= L; j++) if (isWater(i, j) && isWater(i + 1, j) && !carried.has(`v${i},${j}`)) bridge(k, i * PITCH + 4, j * PITCH, 'z');
     for (const [key, [x, z]] of graph.nodes) {
       k.box(2, 0.05, 2, C.road, x, 0, z);
       const [i, j] = key.split(',').map(Number);
@@ -970,7 +992,10 @@ export function createCity(scene) {
 
   // ----- day / night, same phase for every visitor -----
   const env = { daylight: 1, phase: 0 };
-  const sky = { dayTop: new THREE.Color('#5fb8ff'), dayBot: new THREE.Color('#d6efff'), nightTop: new THREE.Color('#0a1230'), nightBot: new THREE.Color('#2b3a6b') };
+  const sky = {
+    dayTop: new THREE.Color('#5fb8ff'), dayBot: new THREE.Color('#d6efff'), nightTop: new THREE.Color('#0a1230'), nightBot: new THREE.Color('#2b3a6b'),
+    stormTop: new THREE.Color('#4a5568'), stormBot: new THREE.Color('#8a94a6'),
+  };
   let skyAcc = 1, pulse = 0;
 
   function update(t, dt) {
@@ -980,18 +1005,20 @@ export function createCity(scene) {
     env.daylight = dl; env.phase = phase;
     const H = land * PITCH + 4;
     sun.position.set(Math.cos(phase * Math.PI * 2) * H * 1.5, 25 + Math.max(0, s) * 20, H * 0.6);
-    sun.intensity = 0.25 + 2.4 * dl;
+    const gloom = env.gloom || 0, flash = env.flash || 0; // weather (see weather.js)
+    sun.intensity = (0.25 + 2.4 * dl) * (1 - 0.65 * gloom) + flash * 2;
     sun.color.setHSL(0.1, 0.6 - 0.3 * dl, 0.75 + 0.2 * dl);
-    hemi.intensity = 0.55 + 1.3 * dl;
+    hemi.intensity = (0.55 + 1.3 * dl) * (1 - 0.35 * gloom) + flash * 3;
     hemi.color.setHSL(0.58, 0.6, 0.45 + 0.45 * dl);
     GLOW_MAT.emissiveIntensity = 0.15 + 1.1 * (1 - dl);
     GREEN_GLOW.emissiveIntensity = 0.4 + 0.8 * (1 - dl);
     pulse = Math.max(0, pulse - dt * 1.5);
     BLUE_GLOW.emissiveIntensity = 0.8 + pulse * 1.5;
     skyAcc += dt;
-    if (skyAcc > 0.5) {
+    if (skyAcc > (flash > 0 ? 0.05 : 0.5)) {
       skyAcc = 0;
-      const top = sky.nightTop.clone().lerp(sky.dayTop, dl), bot = sky.nightBot.clone().lerp(sky.dayBot, dl);
+      const top = sky.nightTop.clone().lerp(sky.dayTop, dl).lerp(sky.stormTop, gloom * 0.8), bot = sky.nightBot.clone().lerp(sky.dayBot, dl).lerp(sky.stormBot, gloom * 0.8);
+      if (flash > 0) { top.lerp(new THREE.Color('#e8ecff'), flash * 0.7); bot.lerp(new THREE.Color('#ffffff'), flash * 0.7); }
       document.documentElement.style.setProperty('--sky-top', `#${top.getHexString()}`);
       document.documentElement.style.setProperty('--sky-bottom', `#${bot.getHexString()}`);
     }

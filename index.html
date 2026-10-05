@@ -19,7 +19,7 @@
     <header class="brand">
       <h1 id="title">BaseCity</h1>
       <p id="tagline">A city built 24/7 by Blockies, the builders of Base</p>
-      <div class="clock" id="clock">Day 1</div>
+      <div class="chips"><div class="clock" id="clock">Day 1</div><div class="clock" id="weather" hidden></div></div>
     </header>
 
     <section class="progress panel" aria-live="polite">
@@ -84,6 +84,18 @@
       </ul>
       <div class="caption" id="caption"></div>
     </footer>
+
+    <div class="view-controls">
+      <button id="rotate-btn" class="btn small-pill" title="Auto-rotate (R)">⟳ Rotating</button>
+      <button id="photo-btn" class="btn small-pill" title="Photo mode: hide panels, hold still (P)">📷 Photo mode</button>
+    </div>
+    <button id="photo-exit" class="photo-exit" title="Exit photo mode (Esc)">✕ Exit photo mode</button>
+
+    <div class="ticker" aria-label="BaseCity news">
+      <span class="ticker-badge">BASECITY NEWS</span>
+      <div class="ticker-window"><div class="ticker-track" id="ticker"></div></div>
+    </div>
+    <div id="districts" class="districts"></div>
 
     <div id="toast" class="toast" hidden></div>
     <script type="module" src="/src/main.js"></script>

@@ -11,6 +11,10 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - **The land is a square that expands**: when every lot is built, the Blockies reclaim a new ring of land, but only once enough Blockies live in the city (3, 6, 10, 16…). Until then the city waits, which is where new trades come in.
 - Landmarks are built as the crew grows: Founder's Garage → Town Square → **Statue of Blockerty** (the city icon, on a riverside point, unlocked by the first buy) → gm Café → Builder HQ → … → Onchain Beacon.
 - Day/night cycle, clouds drifting around the city, flocks of birds and river gulls (they sleep at night), a city log with exact completion times, and a "while you were away" recap.
+- **Market weather**: the sky follows `$BLOCKY`'s 24h price change: storm with lightning (≤ -15%), rain, cloudy, sunny, and a fireworks bull run (≥ +15%). Buys of $50+ fire a volley over the Statue of Blockerty. `?weather=storm` forces a look for recording.
+- **Named districts**: 3×3-lot neighbourhoods are named after what was built there (Downtown, GPU Valley, Fun Pier, Builder Heights…) and labelled on the map.
+- **BaseCity News**: a SimCity-style ticker with buys, completions, weather, City Hall notices and the builder of the day.
+- **Photo mode** for screenshots and recordings: 📷 button or `P` hides the panels and holds the camera still (`Esc` to exit); `R` toggles auto-rotate (remembered). `?photo` / `?still` start that way.
 - Same city for every visitor. No wallet needed. **The Blockies are simulated; the buys are real.**
 
 ## Run
@@ -24,7 +28,7 @@ npm run build
 
 With no fee source in `.env.local`, the island shows one founder and $0 fees. Check `http://localhost:5173/api/colony`: with `FEE_WALLET` it returns a `breakdown` of every asset counted, so you can sanity-check the number before going live.
 
-URL flags: `?demo` fakes fee growth (a new Blocky about every 30s); `?speed=600` fast-forwards the city clock for timelapse videos. Combine them: `/?demo&speed=600`.
+URL flags: `?demo` fakes buys (a new Blocky about every 30s); `?speed=600` fast-forwards the city clock for timelapse videos; `?weather=bull` forces the weather; `?photo` starts in photo mode. Combine them: `/?demo&speed=600&photo`.
 
 ## Deploy (Vercel)
 

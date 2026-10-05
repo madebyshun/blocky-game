@@ -218,9 +218,23 @@ async function computeFees() {
   return { progressUsd: feesUsd, feesUsd, population: 1 + Math.floor(feesUsd / FEE_PER), arrivals, cityStart, source, breakdown };
 }
 
+// Price moves drive the city's weather. Best-liquidity pair where $BLOCKY is the base token.
+async function market() {
+  try {
+    const res = await fetch(`https://api.dexscreener.com/tokens/v1/base/${TOKEN}`);
+    if (!res.ok) return null;
+    const pairs = (await res.json()).filter((p) => p.baseToken?.address?.toLowerCase() === TOKEN.toLowerCase());
+    const p = pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+    if (!p) return null;
+    return { priceUsd: Number(p.priceUsd), change1h: Number(p.priceChange?.h1 ?? 0), change24h: Number(p.priceChange?.h24 ?? 0), volume24h: Number(p.volume?.h24 ?? 0) };
+  } catch {
+    return null;
+  }
+}
+
 async function compute() {
-  const body = MODE === 'fees' ? await computeFees() : await computeBuys();
-  return { ...body, mode: MODE, usdPerBlocky: FEE_PER, feePerCitizen: FEE_PER, updatedAt: Date.now() };
+  const [body, mkt] = await Promise.all([MODE === 'fees' ? computeFees() : computeBuys(), market()]);
+  return { ...body, market: mkt, mode: MODE, usdPerBlocky: FEE_PER, feePerCitizen: FEE_PER, updatedAt: Date.now() };
 }
 
 export default async function handler(req, res) {
