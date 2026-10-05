@@ -72,7 +72,8 @@ export function citizensOf(L, a, at, cfg) {
 // more than its buys earned.
 export function allowance(a, citizens = 0) {
   const grant = a.grant || 0, earned = Math.floor((a.credits || 0) + 1e-9);
-  if (!(a.tin > 0) || earned === 0) return grant;
+  if (earned === 0) return grant;
+  if (!(a.tin > 0)) return grant + (a.bal === 0 ? Math.min(earned, citizens) : earned); // token amounts unknown: trust the buys until a balance check says otherwise
   let held = a.tin - a.tout;
   if (a.bal != null) held = Math.min(held, a.bal); // tokens moved away count as sold
   const covered = Math.floor((earned * Math.max(0, held)) / a.tin + 0.01);
@@ -140,7 +141,7 @@ export function applyBalances(L, balances, at, cfg, source = at) {
 }
 
 // Wallets that hold Blockies or are owed some (for balance checks).
-export const holders = (L) => Object.entries(L.acct).filter(([, a]) => a.ids.length || a.tin > a.tout).map(([wi]) => L.wallets[wi]);
+export const holders = (L) => Object.entries(L.acct).filter(([, a]) => a.ids.length || a.tin > a.tout || a.credits >= 1).map(([wi]) => L.wallets[wi]);
 
 // A wallet's Blockies: in the city now, and the ones that left.
 export function walletBlockies(L, addr) {

@@ -144,10 +144,13 @@ async function recentTrades() {
 // Smart wallets (Coinbase Smart Wallet, the Base App) trade through a bundler, so the transaction's
 // sender is not the trader. Read the wallet the $BLOCKY actually went to (buy) or came from (sell):
 // the biggest $BLOCKY transfer in the receipt, its last hop for a buy and its first hop for a sell.
-// Also returns the trade's block hash, which seeds the rarity of the Blockies it brings. null: the
+// Also returns the trade's block hash, which seeds the rarity of the Blockies it brings, and the
+// $BLOCKY amount that moved (the feed's own amount can be missing for some pools). null: the
 // receipt couldn't be read; the trade waits for the next run, for up to RECEIPT_WAIT_MS, rather than
 // give its Blockies to the bundler.
 const RECEIPT_WAIT_MS = 10 * 60000;
+let DECIMALS = null;
+const tokenDecimals = async () => (DECIMALS ??= Number(await client.readContract({ address: TOKEN, abi: erc20Abi, functionName: 'decimals' })));
 async function realWallet(t) {
   if (!RESOLVE || !t.tx) return { who: t.who };
   try {
@@ -158,7 +161,9 @@ async function realWallet(t) {
     const max = moves.reduce((m, l) => (amount(l) > m ? amount(l) : m), 0n);
     const big = moves.filter((l) => amount(l) * 100n >= max * 95n);
     const addr = (topic) => `0x${topic.slice(26)}`.toLowerCase();
-    return { who: t.kind === 'buy' ? addr(big[big.length - 1].topics[2]) : addr(big[0].topics[1]), block: r.blockHash };
+    const hop = t.kind === 'buy' ? big[big.length - 1] : big[0];
+    const tokens = Number(amount(hop)) / 10 ** (await tokenDecimals());
+    return { who: addr(t.kind === 'buy' ? hop.topics[2] : hop.topics[1]), block: r.blockHash, ...(tokens > 0 ? { tokens } : {}) };
   } catch {
     return Date.now() - t.at < RECEIPT_WAIT_MS ? null : { who: t.who };
   }

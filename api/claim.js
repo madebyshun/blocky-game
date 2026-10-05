@@ -98,6 +98,7 @@ export default async function handler(req, res) {
         blockies: active.map((n) => ({ n, at: atOf(n), seed: seedOf(n), citizenAt: ms(citizen(n)), claimed: claimed.has(n) })), // citizenAt null: trading isn't open yet
         left: left.map((n) => ({ n, at: atOf(n), seed: seedOf(n) })),
         waiting: a ? Math.max(0, allowance(a, citizensOf(L, a, now, LEDGER)) - a.ids.length) : 0, // owed a place: the city is full
+        tokens: a ? { bought: a.tin, sold: a.tout, balance: a.bal } : null, // $BLOCKY the ledger counted (balance: its last check)
       });
     }
 
