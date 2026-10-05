@@ -224,6 +224,10 @@ function chooseType(k, lot, pro, { only = null, minCost = 0 } = {}) {
   return options[options.length - 1][0];
 }
 
+// How much longer a building takes by its tier (CONFIG.buildTime): small ones go up fast, big ones slowly.
+export const tierOf = (cost) => CONFIG.buildTime.tiers.findIndex((t) => t.upTo == null || cost <= t.upTo);
+const slow = (cost) => CONFIG.buildTime.tiers[tierOf(cost)].x;
+
 function buildingProject(k, lot, pro, opts) {
   const type = chooseType(k, lot, pro, opts);
   if (!type) return null;
@@ -231,7 +235,7 @@ function buildingProject(k, lot, pro, opts) {
   const [W, D, H] = t.size;
   const p = { k, kind: 'building', type, lot, w: range(W, k, 1), d: range(D, k, 2), h: range(H, k, 3) };
   p.color = COLORS[type] ? pick(COLORS[type], k, 4) : 0xffffff;
-  p.cost = Math.round(t.cost * (0.8 + (p.h / Math.max(1, H[1])) * 0.4));
+  p.cost = Math.round(t.cost * (0.8 + (p.h / Math.max(1, H[1])) * 0.4) * slow(t.cost));
   p.name = `${t.label} #${k + 1}`;
   return p;
 }
@@ -356,23 +360,23 @@ export class CitySim {
     if (wlot) {
       this.wonders.add(wi);
       const w = this.whaleList[wi];
-      return { k, kind: 'wonder', type: 'wonder', lot: wlot, w: 6, d: 6, h: 7, cost: WONDER_COST, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd }, name: `Whale Fountain #${wi + 1}` };
+      return { k, kind: 'wonder', type: 'wonder', lot: wlot, w: 6, d: 6, h: 7, cost: WONDER_COST * CONFIG.buildTime.wonder, color: 0xf4c542, whale: { id: wi + 1, from: w.from, usd: w.usd }, name: `Whale Fountain #${wi + 1}` };
     }
     const lm = CONFIG.landmarks.find((l) => l.at <= pop && (pro || !l.pro) && !this.builtLandmarks.has(l.id) && ring(...l.lot) <= this.land);
     if (lm) {
       const [w, d, h, cost] = LANDMARK_SIZE[lm.id];
-      return { k, kind: 'landmark', type: lm.id, lot: lm.lot, w, d, h, cost, color: 0xd5d8dc, name: lm.label };
+      return { k, kind: 'landmark', type: lm.id, lot: lm.lot, w, d, h, cost: cost * CONFIG.buildTime.landmark, color: 0xd5d8dc, name: lm.label };
     }
     const metro = CONFIG.metro;
     if (metro && !this.metroPlanned && pop >= metro.at) { // an elevated loop over the ring road, no lot of its own
       this.metroPlanned = true;
-      return { k, kind: 'metro', cost: metro.cost, name: metro.label };
+      return { k, kind: 'metro', cost: metro.cost * CONFIG.buildTime.metro, name: metro.label };
     }
     if (this.queue.length) return buildingProject(k, this.queue.shift(), pro);
     // the land is full: reclaim more once enough Blockies are here, rebuild the old city until then
     const L = this.land + 1, need = needFor(L);
     if (pop < need) { const r = this.redevelop(k, pro); if (r) return r; }
-    return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land, need, name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };
+    return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land * CONFIG.buildTime.expand, need, name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };
   }
 
   // The oldest home, shop or office still standing that can grow (else the oldest of all; taken: it's

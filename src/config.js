@@ -54,6 +54,13 @@ export const CONFIG = {
   startLand: 2,
   expandNeeds: [0, 0, 0, 10, 30, 75, 150, 300, 600, 1000, 1600, 2500, 4000, 6000, 8000, 10000], // Blockies needed for land level L
   expandCost: 120, // blocks per land level for an expansion
+  // How long things take: each project's blocks are multiplied by its tier, so a cottage goes up in
+  // under an hour while a skyscraper takes a day or more. Buildings by their catalog cost (upTo: the
+  // highest cost in the tier, null = the rest); then landmarks, whale fountains, land and the metro.
+  buildTime: {
+    tiers: [{ upTo: 40, x: 3 }, { upTo: 100, x: 4 }, { upTo: 250, x: 5 }, { upTo: null, x: 6 }],
+    landmark: 4, wonder: 2, expand: 3, metro: 3,
+  },
 
   // Live state (see api/colony.js). If it fails, the game falls back to demo mode.
   apiUrl: '/api/colony',
