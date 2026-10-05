@@ -1,4 +1,4 @@
-// Dev tool: every building design side by side. Open /gallery.html while `npm run dev` runs.
+// Every building design side by side (also the Blockies, the fleet, drones and the metro). Open /gallery.html.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CATALOG, ROLES, cityCrew, makeBlocky, rarityOf, TRAIT_LABEL, LANDMARKS, HQ_SIZE } from './sim.js';
