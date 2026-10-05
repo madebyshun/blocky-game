@@ -16,6 +16,7 @@ import { createMetro } from './metro.js';
 import { now } from './time.js';
 import { addNames, who, whoHtml } from './names.js';
 import { createCinematic } from './cinematic.js';
+import { watchLive } from './live.js';
 
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
@@ -510,7 +511,7 @@ function renderCard() {
   $('card-joined').textContent = `${ago(b.arrivedAt)}${b.kind !== 'blocky' ? '' : left <= 0 ? ' · citizen' : !openedAt ? ' · NFT on opening day' : ` · citizen in ${left > 3600e3 ? `${Math.ceil(left / 3600e3)}h` : `${Math.ceil(left / 60e3)}m`}`}`;
   const team = b.kind === 'blocky' && b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
   $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : team ? `Team reserve (${who(b.from)})` : b.from ? who(b.from, 28) : '—';
-  $('card-follow').textContent = following ? 'Stop following' : 'Follow';
+  $('card-follow').textContent = following ? 'Unfollow' : 'Follow';
   $('card-nft').hidden = b.kind !== 'blocky';
   $('card-nft').href = `/collection.html#${b.id}`;
   const img = $('card-pfp');
@@ -768,6 +769,12 @@ function frame() {
   welcomeBack();
   requestAnimationFrame(frame);
   setInterval(async () => applyState(await fetchColony(known, knownGone), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
+  if (s.source !== 'demo') watchLive(({ now: watching, total }) => {
+    $('live').textContent = fmt(watching);
+    $('visits').textContent = ` watching${total > watching ? ` · ${fmt(total)} visited` : ''}`;
+    $('live-row').title = `${fmt(watching)} watching in the last few minutes · ${fmt(total)} people have visited BaseCity`;
+    $('live-row').hidden = false;
+  });
 })();
 
 window.blocky = { city, crew, views, agents, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };

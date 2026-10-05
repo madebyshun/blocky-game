@@ -45,6 +45,16 @@ export async function kv(...cmd) {
   return (await res.json()).result;
 }
 
+// several commands in one round trip (Upstash's /pipeline): their results, in order
+export async function kvPipe(cmds) {
+  const res = await fetch(`${KV_URL}/pipeline`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${KV_TOKEN}`, 'content-type': 'application/json' },
+    body: JSON.stringify(cmds),
+  });
+  return (await res.json()).map((r) => r.result);
+}
+
 let memory = null;
 // The ledger, created empty (0 Blockies) the first time: from LAUNCH_TIME_MS, or now.
 export async function loadLedger() {

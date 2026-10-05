@@ -16,6 +16,7 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - **Base Builders page** (`/builders.html`, linked from the HUD): every Base Builder's profile with a voxel PFP, title, live stats (hours building, blocks placed, share of the city, skill, building since) in a profile you can link to (`/builders.html#jesse`) and share on X, and a **Download PFP** button (1024×1024 PNG with a small BaseCity tag). Clicking any Blocky in the city shows its PFP too, so every buyer can download the Blocky their buy brought. Add `x` (handle) or `bg` (PFP colour) to a legend in `src/config.js`.
 - Every other Blocky role has its own look: Founder (blue cap, gold badge), Smart Contract Dev (hard hat, hoodie, backpack), Frontend Dev (headphones), Designer (beret, scarf), Community (backwards cap, megaphone), Researcher (glasses, lab coat, clipboard).
 - `gallery.html` shows every design and Blocky side by side; `?only=blockies` or `?only=coaster,ferris` to zoom in.
+- **Watching live**: the city page shows how many people are watching now and how many have visited (`api/live.js`). Each open tab checks in every 2 minutes while it's visible; visitors are a hash of their IP in Redis HyperLogLogs (one per 2 minutes, one for all time), so no address is stored, a reload counts once and random ids can't inflate it. About one KV command per viewer per 2 minutes.
 - **Share cards**: every page has its Open Graph and X card (title, description, `og:url`, a 1200×630 image with absolute URLs from `siteUrl`, `twitter:site` from `xHandle`): `public/og.png` for the city, `og-builders.png`, `og-blockies.png` and `og-claim.png` for the Builders, Blockies and Claim pages. In the pages, `%SITE%` and `%X%` are filled in at build time (`vite.config.js`).
 - **Zones, like SimCity**: buildings follow rings around Town Square: Downtown (towers, offices), Midtown (apartments, shops, parks), Suburbs (Suburban Homes: four houses with yards; family houses, villas, schools), Outskirts (farms, wind, solar). Industry gathers in a park on the east bank; some lots from ring 3 out stay forest for good (`isReserve` in `src/sim.js`) and get named woods districts. Weights per zone live in `CATALOG` (`w: [downtown, midtown, suburbs, outskirts]`).
 - **Never finished**: when the land is full and there aren't enough Blockies for the next ring, the crew redevelops: the oldest home, shop or office comes down and something at least as big for its zone goes up (cottages downtown become apartments, then towers; top-tier buildings are only renewed once nothing else can grow). New land, landmarks and whale fountains still come first. `CitySim.redevelop` in `src/sim.js`; `npm test` checks the crew never runs out of work.
@@ -68,7 +69,7 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 ```bash
 npm install
 cp .env.example .env.local
-npm run dev                  # http://localhost:5173, also serves /api/colony, /api/claim and /api/nft/* locally
+npm run dev                  # http://localhost:5173, also serves /api/colony, /api/claim, /api/live and /api/nft/* locally
                              # (installs any dependency a git pull added before it starts)
 npm run build
 ```
