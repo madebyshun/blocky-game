@@ -18,7 +18,7 @@ export const LEDGER = {
 };
 export const LAUNCH = Number(env.LAUNCH_TIME_MS || 0) || null; // when the city starts from empty land
 export const BACKFILL_MS = Number(env.BACKFILL_HOURS || 0) * 3600000;
-export const SITE = (env.SITE_URL || '').replace(/\/$/, '');
+export const SITE = (env.SITE_URL || CONFIG.siteUrl || '').replace(/\/$/, '');
 // the team's reserve: Blockies #1 to #count for this wallet from the start (src/config.js nft.reserve)
 export const RESERVE = {
   wallet: env.TEAM_RESERVE_WALLET || CONFIG.nft.reserve?.wallet || '',

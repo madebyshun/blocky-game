@@ -18,4 +18,18 @@
 //   the project's initial on its colour.
 // - optional: label (the building's name, default "<name> HQ"), text (the initial's colour).
 // Tributes to teams building on Base unless you say otherwise: no logo here implies a partnership.
-export const PROJECTS = [];
+export const PROJECTS = [
+  { id: 'virtuals', name: 'Virtuals', tagline: 'Co-own autonomous AI agents', url: 'https://app.virtuals.io', color: '#3ca1a4', accent: '#e6fbdc', logo: 'virtuals', style: 'tower', plot: 1, at: 100, added: '2026-10-01' },
+  { id: 'basenames', name: 'Basenames', label: 'Basenames City Hall', tagline: 'Your identity on Base', url: 'https://www.base.org/names', color: '#0052ff', accent: '#ffffff', logo: 'basenames', style: 'dome', plot: 2, at: 125, added: '2026-10-01' },
+  { id: 'uniswap', name: 'Uniswap', tagline: 'Swap anytime, anywhere', url: 'https://app.uniswap.org', color: '#ff007a', accent: '#ffffff', logo: 'uniswap', style: 'campus', plot: 3, at: 175, added: '2026-10-01' },
+  { id: 'aero', name: 'Aero', tagline: "Base's central liquidity hub", url: 'https://aerodrome.finance', color: '#0433ff', accent: '#ff1100', logo: 'aero', style: 'spire', plot: 4, at: 250, added: '2026-10-01' }, // Aerodrome, Aero once it merges with Velodrome
+  { id: 'cbwallet', name: 'Coinbase Wallet', tagline: 'Self-custody, built for Base', url: 'https://www.coinbase.com/wallet', color: '#0052ff', accent: '#ffffff', logo: 'cbwallet', style: 'tower', plot: 5, at: 350, added: '2026-10-01' },
+  { id: 'morpho', name: 'Morpho', tagline: 'Open credit network for the world', url: 'https://morpho.org', color: '#2470ff', accent: '#d0e0f8', logo: 'morpho', style: 'spire', plot: 6, at: 400, added: '2026-10-01' },
+  { id: 'usdc', name: 'USDC', label: 'Circle USDC Tower', tagline: 'Digital dollars, onchain', url: 'https://www.circle.com/usdc', color: '#2775ca', accent: '#ffffff', logo: 'usdc', style: 'tower', plot: 7, at: 450, added: '2026-10-01' },
+  { id: 'bankr', name: 'Bankr', tagline: 'Your AI banker on Base', url: 'https://bankr.bot', color: '#7b2ff2', accent: '#ffd400', logo: 'bankr', style: 'campus', plot: 8, at: 600, added: '2026-10-01' },
+  { id: 'x402', name: 'x402', tagline: 'Internet-native payments for AI agents', url: 'https://www.x402.org', color: '#0052ff', accent: '#9fd0ff', logo: 'x402', style: 'spire', plot: 9, at: 750, added: '2026-10-01' },
+  { id: 'limitless', name: 'Limitless', tagline: 'Trade the future', url: 'https://limitless.exchange', color: '#141414', accent: '#c3ff00', logo: 'limitless', style: 'dome', plot: 10, at: 900, added: '2026-10-01' },
+  { id: 'o1', name: 'o1.exchange', tagline: 'Trade onchain', url: 'https://o1.exchange', color: '#1d1d1d', accent: '#9fd0ff', logo: 'o1', style: 'tower', plot: 11, at: 1200, added: '2026-10-01' },
+  { id: 'veranta', name: 'Veranta', tagline: 'Trade global markets onchain', url: 'https://www.veranta.xyz', color: '#7e18ff', accent: '#4a71ff', style: 'campus', plot: 12, at: 1400, added: '2026-10-01' }, // was Avantis
+  { id: 'basepaint', name: 'BasePaint', tagline: 'Paint together. Mint daily.', url: 'https://basepaint.xyz', color: '#1b1b1b', accent: '#ffd23f', logo: 'basepaint', style: 'campus', plot: 13, at: 1750, added: '2026-10-01' },
+];

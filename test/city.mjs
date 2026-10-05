@@ -3,6 +3,7 @@
 // and a long replay stays fast. Run: npm test
 import assert from 'node:assert/strict';
 import { CitySim, cityCrew, makeBlocky, CATALOG, LANDMARKS, AVENUE, RENEW, setProjects, isWater } from '../src/sim.js';
+import { PROJECTS } from '../src/projects.js';
 
 const HOUR = 3600000, DAY = 24 * HOUR, t0 = Date.UTC(2026, 9, 1);
 const city = (n, whales = []) => {
@@ -123,7 +124,7 @@ for (const [gone, ruins] of [[5, 0], [30, 1], [65, 3]]) {
 console.log('city: leaving Blockies take their blocks off the site; a big exit leaves ruins, rebuilt first');
 
 // every landmark and Base Avenue plot has a lot of its own on dry land
-const lots = [...LANDMARKS.map((l) => l.lot), ...AVENUE].map((lot) => lot.join(','));
+const lots = [...LANDMARKS.filter((l) => !l.brand).map((l) => l.lot), ...AVENUE].map((lot) => lot.join(','));
 assert.equal(new Set(lots).size, lots.length, 'two landmarks or plots share a lot');
 for (const lot of [...LANDMARKS.map((l) => l.lot), ...AVENUE]) assert.ok(!isWater(...lot), `${lot} is in the river`);
 // Base Avenue: a project's HQ goes up on its plot once its goal is reached, never before the day it
@@ -146,8 +147,9 @@ for (const lot of [...LANDMARKS.map((l) => l.lot), ...AVENUE]) assert.ok(!isWate
   before.setCrew(before.builders, []);
   before.advance(Date.parse('2026-10-11'));
   assert.deepEqual(before.done.map((p) => p.name), without.done.map((p) => p.name), 'adding a project changed the past');
-  setProjects([]);
-  console.log('city: Base Avenue HQs wait for their goal and the day they were added; free plots stay free');
+  setProjects(PROJECTS);
+  for (const l of LANDMARKS.filter((x) => x.brand)) assert.deepEqual(l.lot, AVENUE[l.brand.plot - 1], `${l.label} is not on its plot`);
+  console.log(`city: Base Avenue HQs wait for their goal and the day they were added; free plots stay free (${PROJECTS.length} projects on ${AVENUE.length} plots)`);
 }
 
 // a year of replay stays quick, in one call

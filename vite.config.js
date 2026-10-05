@@ -5,9 +5,9 @@ import { CONFIG } from './src/config.js';
 // .env.local, so the live flow can be tested locally.
 export default defineConfig(({ mode }) => {
   Object.assign(process.env, loadEnv(mode, process.cwd(), ''));
-  // share cards need absolute image URLs: SITE_URL, or the Vercel production domain
+  // share cards need absolute image URLs: SITE_URL, siteUrl in src/config.js, or the Vercel production domain
   const env = process.env;
-  const site = (env.SITE_URL || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : '')).replace(/\/$/, '');
+  const site = (env.SITE_URL || CONFIG.siteUrl || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : '')).replace(/\/$/, '');
   return {
     build: {
       chunkSizeWarningLimit: 800,

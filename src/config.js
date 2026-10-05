@@ -86,7 +86,7 @@ export const CONFIG = {
   // Links for the CTA buttons. Leave empty to hide.
   buyUrl: 'https://app.uniswap.org/swap?chain=base&outputCurrency=0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
   chartUrl: 'https://dexscreener.com/base/0xE72A0C42b584a3E7A4503a82D1337dEB52adE885',
-  xHandle: '', // e.g. blockyfun (without @)
+  xHandle: 'blockyonbase', // without @
 
   // Billboards around the city (Town Square + rooftops) rotate through this list plus one "YOUR PROJECT
   // HERE" slot that sells the space. Clicking a billboard opens its url.
@@ -101,7 +101,7 @@ export const CONFIG = {
     { name: 'Aero', tagline: 'Liquidity hub of Base', color: '#efefef', textColor: '#1f2a44', logo: 'aero', url: 'https://aerodrome.finance' },
   ],
   adContact: '', // shown on empty billboards, e.g. 'DM @blockyfun'; defaults to xHandle
-  siteUrl: '', // canonical URL used in share text
+  siteUrl: 'https://blockstoodio.xyz', // canonical URL: share text, the cinematic watermark, NFT links (SITE_URL on the API wins)
 
   // You: the city's first builder.
   founder: { look: 'founder', name: 'Founder', title: 'Founder' },
@@ -161,8 +161,14 @@ export const CONFIG = {
   ],
 
   // Base Avenue: plots reserved for Base projects' headquarters, numbered 1, 2, ... on their signs.
-  // Projects take them in src/projects.js. [x, z] like landmark lots; add more if you need them.
-  avenue: { plots: [[0, 3], [1, 3], [-2, 3], [-3, 3], [3, 3], [0, 4]] },
+  // Projects take them in src/projects.js; a plot nobody has taken advertises itself. [x, z] like
+  // landmark lots; add more at the end if you need them (renumbering moves the HQs).
+  avenue: {
+    plots: [
+      [0, 2], [-1, 2], [1, 2], [-2, 2], [0, 3], [1, 3], [-2, 3], [-3, 3], // 1-8
+      [3, 3], [-1, 4], [0, 4], [3, 4], [-2, 4], [4, 2], [4, 3], [-3, 1], // 9-16
+    ],
+  },
 
   // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`.
   // It grows with the land and its train stops at a station on every side.
