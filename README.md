@@ -60,6 +60,7 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 npm install
 cp .env.example .env.local
 npm run dev                  # http://localhost:5173, also serves /api/colony, /api/claim and /api/nft/* locally
+                             # (installs any dependency a git pull added before it starts)
 npm run build
 ```
 

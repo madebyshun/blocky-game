@@ -27,11 +27,10 @@ export default defineConfig(({ mode }) => {
         name: 'local-api',
         configureServer(server) {
           const e = process.env;
-          const src = e.FEES_USD_OVERRIDE ? `FEES_USD_OVERRIDE=${e.FEES_USD_OVERRIDE}`
-            : e.FEES_URL ? `FEES_URL=${e.FEES_URL}`
-            : e.FEE_WALLET ? `FEE_WALLET=${e.FEE_WALLET}`
-            : 'none found in .env.local -> prelaunch ($0, 1 founder)';
-          console.log(`\n  [local-api] fee source: ${src}`);
+          const src = e.COUNT_MODE === 'fees'
+            ? `fees from ${e.FEES_USD_OVERRIDE ? `FEES_USD_OVERRIDE=${e.FEES_USD_OVERRIDE}` : e.FEES_URL ? `FEES_URL=${e.FEES_URL}` : e.FEE_WALLET ? `FEE_WALLET=${e.FEE_WALLET}` : 'nowhere (prelaunch: $0)'}`
+            : `buys, $${Number(e.USD_PER_BLOCKY) || CONFIG.usdPerBlocky} per Blocky; ledger ${e.KV_REST_API_URL || e.UPSTASH_REDIS_REST_URL ? 'in KV' : 'in memory (starts empty)'}; NFT claims ${(e.NFT_CONTRACT || CONFIG.nft.contract) && e.CLAIM_SIGNER_KEY ? 'open' : 'not open yet (no NFT_CONTRACT / CLAIM_SIGNER_KEY)'}`;
+          console.log(`\n  [local-api] ${src}`);
           // the API routes, as Vercel runs them: /api/colony, /api/claim, /api/nft/[id]
           const routes = [[/^\/api\/colony(?:[/?]|$)/, '/api/colony.js'], [/^\/api\/claim(?:[/?]|$)/, '/api/claim.js'], [/^\/api\/nft\/([^/?]+)/, '/api/nft/[id].js', 'id']];
           server.middlewares.use(async (req, res, next) => {
