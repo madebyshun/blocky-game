@@ -140,10 +140,11 @@ $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
 addEventListener('keydown', (e) => {
   if (e.target.closest?.('input, textarea')) return;
-  if (cine.active) { if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') cine.exit(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return; // Cmd/Ctrl+C, R, P: copy, reload, print, not our shortcuts
+  if (cine.active) { if (e.key === 'Escape' || e.key === 'f' || e.key === 'F') cine.exit(); return; }
   if (e.key === 'r' || e.key === 'R') setRotate(!rotatePref);
   if (e.key === 'p' || e.key === 'P') setPhoto(!photo);
-  if (e.key === 'c' || e.key === 'C') cine.enter(selected?.b.id ?? null);
+  if (e.key === 'f' || e.key === 'F') cine.enter(selected?.b.id ?? null); // F: film
   if (e.key === 'Escape' && photo) setPhoto(false);
 });
 syncRotate();
@@ -446,7 +447,7 @@ const eventLine = (e) => (e.kind === 'unnamed'
 function renderHud() {
   if (!sim) return;
   $('pop').textContent = `${fmt(minted)} / ${fmt(supply)}`;
-  $('fees').innerHTML = openedAt || !unlockUsd ? usd(bought) : `${usd(bought)} <small>/ ${money(unlockUsd)}</small>`; // the road to opening day
+  $('fees').textContent = usd(bought);
   $('buildings').textContent = fmt(sim.buildingCount);
   $('blocks').textContent = fmt(sim.work ?? 0);
   const a = sim.next;
