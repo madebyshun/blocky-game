@@ -110,4 +110,8 @@ export const CONFIG = {
     { at: 50, id: 'stadium', label: 'Demo Day Stadium', lot: [-3, 2], pro: true },
     { at: 100, id: 'beacon', label: 'Onchain Beacon', lot: [-2, -4], pro: true },
   ],
+
+  // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`.
+  // It grows with the land and its train stops at a station on every side.
+  metro: { at: 15, label: 'BaseCity Metro', cost: 700 },
 };

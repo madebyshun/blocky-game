@@ -5,6 +5,24 @@ import { CATALOG, ROLES, makeBuilder } from './sim.js';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
 import { buildingGroup, adWall } from './city.js';
+import { FLEET, makeService, flash } from './fleet.js';
+import { metroSample } from './metro.js';
+
+// the service vehicles side by side on a stretch of road, light bars flashing
+function fleetShowcase() {
+  const g = new THREE.Group();
+  const road = new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.15, 6.4), new THREE.MeshLambertMaterial({ color: 0x3b4048 }));
+  road.position.y = 0.075;
+  road.receiveShadow = true;
+  g.add(road);
+  FLEET.forEach((kind, i) => {
+    const v = makeService(kind);
+    v.position.set(0, 0.15, -2.25 + i * 1.5);
+    g.add(v);
+  });
+  g.userData.animate = (t) => flash(t);
+  return g;
+}
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -29,6 +47,8 @@ const items = [
   }),
   ...CONFIG.landmarks.map((l) => ({ label: l.label, p: { k: 0, kind: 'landmark', type: l.id } })),
   { label: 'Billboards', p: { type: 'billboards' }, make: adWall },
+  { label: 'Service vehicles', p: { type: 'vehicles' }, make: fleetShowcase },
+  { label: 'BaseCity Metro', p: { type: 'metro' }, make: metroSample },
   { label: 'Whale Fountain ($1k+ buy)', p: { k: 0, kind: 'wonder', type: 'wonder', whale: { from: '0x1234567890abcdef1234567890abcdef12345678', usd: 1500 } } },
 ];
 // ?only=liberty,coaster shows just those designs, up close

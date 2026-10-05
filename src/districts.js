@@ -5,9 +5,10 @@ import { hash, PITCH } from './sim.js';
 
 const CATEGORY = {
   tech: ['office', 'devhub', 'gpufarm', 'tower', 'skyscraper', 'school', 'hq', 'datalab', 'hackathon', 'launchpad', 'beacon', 'studio', 'airport'],
+  civic: ['firestation', 'police', 'hospital'],
   fun: ['coaster', 'ferris', 'carousel', 'park', 'lakepark', 'playground', 'pool', 'soccer', 'skatepark', 'stage', 'icecream', 'court', 'flowergarden', 'stadium', 'liberty', 'wonder'],
   home: ['cottage', 'house', 'townhouses', 'apartment', 'villa', 'garage'],
-  green: ['farm', 'garden', 'windmill', 'watertower'],
+  green: ['farm', 'garden', 'windmill', 'watertower', 'solarfarm', 'recycling'],
   shop: ['shop', 'cafe', 'square'],
 };
 const NAMES = {
@@ -16,6 +17,7 @@ const NAMES = {
   home: ['Builder Heights', 'Maple Grove', 'Cobble Hill', 'gm Gardens', 'Blocky Hills'],
   green: ['Green Acres', 'Windy Fields', 'Sprout Meadows', 'Harvest Hollow'],
   shop: ['Market Street', 'Café Quarter', 'Shopside'],
+  civic: ['Civic Center', 'Rescue Row', 'Safety Square'],
 };
 const catOf = Object.fromEntries(Object.entries(CATEGORY).flatMap(([c, types]) => types.map((t) => [t, c])));
 

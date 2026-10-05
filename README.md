@@ -21,6 +21,8 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - **Named districts**: 3×3-lot neighbourhoods are named after what was built there (Downtown, GPU Valley, Fun Pier, Builder Heights…) and labelled on the map.
 - **BaseCity News**: a SimCity-style ticker with buys, completions, weather, City Hall notices and the builder of the day.
 - **Base Airport** (community goal at 10 Blockies): runway, terminal, control tower, and a plane that lands and takes off on a loop.
+- **City services**: a Fire Station, Police Station, Hospital, Recycling Center and Solar Farm arrive early in every city (more as it grows). Each sends its vehicles out on the roads with flashing light bars: fire trucks, police cars, ambulances and garbage trucks.
+- **BaseCity Metro** (community goal at 15 Blockies): an elevated loop over the ring road, on pillars between the car lanes. It rises piece by piece while the crew builds it, then a three-car train runs the loop and stops at a station on every side. The loop grows with the land. Set it in `metro` in `src/config.js`.
 - **Billboards** on the Town Square, Builder HQ, the airport and some rooftops show Base projects (Coinbase Wallet, o1.exchange, Virtuals, bankrbot, Aero, logos drawn in code) plus one "YOUR PROJECT HERE" slot that sells the space. Edit `sponsors` in `src/config.js` (`{ name, tagline, color, logo?, url, sponsored? }`); clicking a board opens its link.
 - **Photo mode** for screenshots and recordings: 📷 button or `P` hides the panels and holds the camera still (`Esc` to exit); `R` toggles auto-rotate (remembered). `?photo` / `?still` start that way.
 - Same city for every visitor. No wallet needed. **The Blockies are simulated; the buys are real.**
@@ -60,7 +62,8 @@ Environment variables (see `.env.example`):
 - `src/config.js`: city name, ticker, token links, buy tiers and skills, legends, billboards, `blocksPerHour`, day length, land size and expansion thresholds, landmark milestones.
 - `src/sim.js`: Blocky roles and work rates, the river, the building catalog and the deterministic build plan (landmarks, buildings, land expansions).
 - `src/city.js`: voxel designs, land/river/bridges, progressive roads, construction sites, day/night.
-- `src/vehicles.js`: cars, buses and boats.
+- `src/vehicles.js`: cars, buses, boats and service patrols; `src/fleet.js`: the service vehicles.
+- `src/metro.js`: the elevated metro loop, its stations and the train.
 - `src/citizens.js`: builders walking the roads, hauling and placing blocks.
 
 ## How "24/7, same for every visitor" works

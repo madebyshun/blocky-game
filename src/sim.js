@@ -143,9 +143,15 @@ export const CATALOG = {
   stage: { label: 'Concert Stage', min: 9, w: [0.6, 0.6, 0.3], cost: 80, size: [[6, 6], [5, 5], [3, 3]] },
   ferris: { label: 'Ferris Wheel', min: 12, w: [0.1, 0.25, 0.2], cost: 320, size: [[6, 6], [6, 6], [8, 8]], pro: true },
   coaster: { label: 'Roller Coaster', min: 16, w: [0.1, 0.25, 0.25], cost: 380, size: [[6, 6], [6, 6], [5, 5]], pro: true },
+  // city services: each arrives once early (FEATURED), then more as the city grows; most send out vehicles
+  firestation: { label: 'Fire Station', min: 6, w: [0.15, 0.25, 0.15], cost: 120, size: [[6, 6], [5, 5], [3, 3]] },
+  police: { label: 'Police Station', min: 9, w: [0.15, 0.25, 0.1], cost: 120, size: [[6, 6], [5, 5], [3, 3]] },
+  hospital: { label: 'Hospital', min: 14, w: [0.1, 0.2, 0.1], cost: 220, size: [[6, 6], [6, 6], [5, 5]] },
+  recycling: { label: 'Recycling Center', min: 18, w: [0, 0.1, 0.3], cost: 100, size: [[6, 6], [6, 6], [3, 3]] },
+  solarfarm: { label: 'Solar Farm', min: 10, w: [0, 0.2, 0.6], cost: 90, size: [[6, 6], [6, 6], [1, 1]] },
 };
 // Every city gets these early, then they keep appearing at random.
-const FEATURED = { 8: 'carousel', 11: 'lakepark', 13: 'ferris', 17: 'coaster' };
+const FEATURED = { 6: 'firestation', 8: 'carousel', 10: 'police', 11: 'lakepark', 13: 'ferris', 15: 'hospital', 17: 'coaster', 20: 'recycling', 23: 'solarfarm' };
 const COLORS = {
   cottage: [0xf3e6d0, 0xe8d5c4, 0xd9e4ec, 0xf0d9da, 0xdfe8d5, 0xfff3c4],
   house: [0xf3e6d0, 0xd9e4ec, 0xf0d9da, 0xe3f1e1, 0xfde2c8],
@@ -162,6 +168,7 @@ const COLORS = {
   skyscraper: [0x9fb1c7, 0x7f93ad, 0xb7c6d9],
   watertower: [0xd5d8dc],
   coaster: [0xe74c3c], ferris: [0xf4f4f0], carousel: [0xf5c518], stage: [0x2b2f36], icecream: [0xffd1dc],
+  firestation: [0xc0392b], police: [0x2c3e66], hospital: [0xf4f6f8], recycling: [0x2e7d32], solarfarm: [0x1d3a6e],
 };
 
 const zoneOf = (r) => (r <= 1 ? 0 : r <= 3 ? 1 : 2);
@@ -243,6 +250,8 @@ export class CitySim {
     this.lastT = this.start;
     this.builtLandmarks = new Set();
     this.wonders = new Set(); // whale Blocky ids whose wonder is planned
+    this.metroPlanned = false;
+    this.metroBuilt = false;
     this.reserved = new Set(CONFIG.landmarks.map((l) => l.lot.join(',')));
     this.queue = [];
     for (let r = 0; r <= this.land; r++) this.queue.push(...this.ringLots(r));
@@ -282,6 +291,11 @@ export class CitySim {
       const [w, d, h, cost] = LANDMARK_SIZE[lm.id];
       return { k, kind: 'landmark', type: lm.id, lot: lm.lot, w, d, h, cost, color: 0xd5d8dc, name: lm.label };
     }
+    const metro = CONFIG.metro;
+    if (metro && !this.metroPlanned && pop >= metro.at) { // an elevated loop over the ring road, no lot of its own
+      this.metroPlanned = true;
+      return { k, kind: 'metro', cost: metro.cost, name: metro.label };
+    }
     if (this.queue.length) return buildingProject(k, this.queue.shift(), pro);
     const L = this.land + 1;
     return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land, need: needFor(L), name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };
@@ -308,6 +322,7 @@ export class CitySim {
       this.lastT = t;
       if (p.kind === 'expand') { this.land = p.level; this.queue.push(...this.ringLots(p.level)); }
       if (p.kind === 'landmark') this.builtLandmarks.add(p.type);
+      if (p.kind === 'metro') this.metroBuilt = true;
       finished.push(p);
       this.next = this.plan(t);
     }
@@ -323,5 +338,5 @@ export class CitySim {
   }
 
   // lots that hold a finished building/landmark
-  get buildingCount() { return this.done.filter((p) => p.kind !== 'expand').length; }
+  get buildingCount() { return this.done.filter((p) => p.lot).length; }
 }

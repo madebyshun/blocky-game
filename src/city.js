@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
 import { hash, PITCH, isWater } from './sim.js';
 import { now } from './time.js';
+import { makeService } from './fleet.js';
 
 // ---------- materials & merged-box kits ----------
 
@@ -14,7 +15,7 @@ const GREEN_GLOW = new THREE.MeshLambertMaterial({ color: 0x8be04e, emissive: 0x
 const WATER_MAT = new THREE.MeshLambertMaterial({ color: 0x3fa9e8, transparent: true, opacity: 0.88 });
 const FLAME_MAT = new THREE.MeshLambertMaterial({ color: 0xffb300, emissive: 0xff8c00, emissiveIntensity: 0.9 });
 
-const C = {
+export const C = {
   walk: 0xd5d8dc, grass: 0x6cc24a, grass2: 0x63b843, lawn: 0x7bd05a, road: 0x3b4048, trunk: 0x7a5230,
   leaf: [0x3f9b3a, 0x4caf50, 0x2e8b3a, 0x5cb85c], dark: 0x2b2f36, white: 0xf4f4f0, base: 0x0052ff,
   roof: [0xc0392b, 0x2e86de, 0x16a085, 0x8e44ad, 0xd35400, 0x7f8c8d], stone: 0xb9bec5, gold: 0xf4c542,
@@ -70,7 +71,7 @@ class Kit {
     return g;
   }
 }
-const kitFor = (fn) => { const k = new Kit(); fn(k); return k.build(); };
+export const kitFor = (fn) => { const k = new Kit(); fn(k); return k.build(); };
 
 const Y = 0.15; // sidewalk height
 
@@ -732,6 +733,95 @@ function wonder(k, p) {
   k.extras.push(whale);
 }
 
+// a service vehicle parked on its lot, facing the street (+z)
+function parked(k, kind, x, z, ry = -Math.PI / 2) {
+  const v = makeService(kind, true);
+  v.position.set(x, Y, z);
+  v.rotation.y = ry;
+  k.extras.push(v);
+}
+
+Object.assign(DESIGN, {
+  firestation(k) {
+    sidewalk(k);
+    const red = 0xc0392b, dark = 0x8e2a1f;
+    k.box(4.4, 2.6, 3.4, red, -0.7, Y, -1.1);
+    k.box(4.6, 0.25, 3.6, dark, -0.7, Y + 2.6, -1.1);
+    for (const x of [-1.8, 0.4]) { // bay doors
+      k.box(1.6, 1.7, 0.06, 0xd5d8dc, x, Y, 0.62);
+      for (let r = 0; r < 4; r++) k.box(1.6, 0.05, 0.08, 0xaab2bb, x, Y + 0.25 + r * 0.38, 0.63);
+      k.win(1.3, 0.25, 0.07, x, Y + 1.35, 0.64);
+    }
+    k.box(3.6, 0.5, 0.08, C.white, -0.7, Y + 1.95, 0.64);
+    for (let i = 0; i < 4; i++) k.box(0.32, 0.3, 0.02, red, -1.55 + i * 0.55, Y + 2.05, 0.69);
+    k.box(1.3, 5, 1.3, red, 2.3, Y, -2.2); // hose tower
+    k.box(1.5, 0.3, 1.5, dark, 2.3, Y + 5, -2.2);
+    k.win(0.4, 0.7, 0.06, 2.3, Y + 3.4, -1.53);
+    k.flame(0.35, 0.3, 0.35, 2.3, Y + 5.3, -2.2); // siren
+    k.box(4.4, 0.02, 2.4, 0xb9bec5, -0.7, Y, 1.9); // apron
+    k.box(0.22, 0.45, 0.22, 0xe74c3c, 2.6, Y, 2.6); // hydrant
+    parked(k, 'fire', 0.4, 1.9);
+  },
+  police(k) {
+    sidewalk(k);
+    const blue = 0x2c3e66, trim = 0xe9eef5;
+    k.box(5, 2.8, 3.2, trim, 0, Y, -1.3);
+    windows(k, 5, 3.2, Y, 2, true, 0, -1.3);
+    k.box(5.2, 0.3, 3.4, blue, 0, Y + 2.8, -1.3);
+    k.box(1.3, 1.4, 0.4, blue, -1.4, Y, 0.45); k.win(0.8, 1.0, 0.06, -1.4, Y, 0.66); // entrance
+    k.box(2.8, 0.5, 0.08, blue, 0.4, Y + 2.15, 0.34); // POLICE sign
+    for (let i = 0; i < 6; i++) k.box(0.24, 0.24, 0.02, trim, -0.45 + i * 0.34, Y + 2.28, 0.39);
+    k.blue(0.32, 0.25, 0.32, 1.8, Y + 3.1, -1.3); // roof beacon
+    k.box(0.06, 1.6, 0.06, C.dark, 2.0, Y + 3.1, -2.4);
+    k.box(0.08, 3, 0.08, 0xd5d8dc, -2.85, Y, 2.7); k.box(0.8, 0.5, 0.04, C.base, -2.4, Y + 2.4, 2.7); // flag
+    k.box(3.6, 0.02, 2.3, C.road, 0.9, Y, 1.95);
+    for (const x of [0.15, 1.65]) k.box(0.06, 0.03, 2, C.white, x + 0.75, Y, 1.95);
+    parked(k, 'police', 0.15, 1.95); parked(k, 'police', 1.65, 1.95);
+  },
+  hospital(k) {
+    sidewalk(k);
+    const white = 0xf4f6f8, red = 0xe0302a;
+    k.box(5.2, 4, 4, white, 0, Y, -1.0);
+    windows(k, 5.2, 4, Y, 4, true, 0, -1.0);
+    k.box(5.4, 0.3, 4.2, 0xd5dbe2, 0, Y + 4, -1.0);
+    k.box(1.1, 0.34, 0.08, red, 0, Y + 3.2, 1.05); k.box(0.34, 1.1, 0.08, red, 0, Y + 2.82, 1.05); // red cross
+    k.win(1.6, 1.1, 0.06, 0, Y, 1.03); // glass entrance
+    k.box(2.4, 0.15, 1.2, 0x16a085, 0, Y + 1.4, 1.6);
+    for (const x of [-1.1, 1.1]) k.box(0.1, 1.4, 0.1, C.white, x, Y, 2.1);
+    k.box(2.6, 0.08, 2.6, 0x3b4048, 0.7, Y + 4.3, -1.0); // helipad on the roof
+    k.box(0.12, 0.02, 1.2, C.white, 0.35, Y + 4.38, -1.0); k.box(0.12, 0.02, 1.2, C.white, 1.05, Y + 4.38, -1.0); k.box(0.6, 0.02, 0.12, C.white, 0.7, Y + 4.38, -1.0);
+    k.box(0.9, 0.5, 0.9, 0xd5dbe2, -1.8, Y + 4.3, -2.0);
+    parked(k, 'ambulance', -2.0, 2.1);
+  },
+  recycling(k) {
+    k.box(6.4, Y, 6.4, 0x9aa3ad);
+    const green = 0x2e7d32;
+    k.box(4, 2.4, 3, green, -1, Y, -1.4);
+    for (let i = 0; i < 6; i++) k.box(0.06, 2.4, 3.02, 0x256b28, -2.8 + i * 0.72, Y, -1.4);
+    k.box(4.2, 0.25, 3.2, 0x1b5e20, -1, Y + 2.4, -1.4);
+    k.box(1.6, 1.6, 0.06, 0x3b4048, -1.6, Y, 0.12);
+    k.box(1, 1, 0.06, C.white, 0, Y + 1.1, 0.13); // recycling sign
+    for (const [x, y] of [[-0.2, 0.25], [0.2, 0.25], [0, 0.6]]) k.box(0.22, 0.22, 0.02, 0x2e9a3a, x, Y + 1.1 + y - 0.1, 0.17);
+    [0x2e86de, 0xf1c40f, 0x27ae60].forEach((c, i) => { k.box(0.6, 0.7, 0.6, c, -2.4 + i * 0.75, Y, 1.0); k.box(0.64, 0.08, 0.64, 0x2b2f36, -2.4 + i * 0.75, Y + 0.7, 1.0); });
+    k.box(1.4, 1, 2.8, 0xe67e22, 2.3, Y, -1.4); k.box(1.4, 1, 2.8, 0x2e86de, 2.3, Y + 1, -1.4); // containers
+    for (let i = 0; i < 6; i++) k.box(0.3, 0.3, 0.3, C.flower[i % 5], 1.6 + (i % 3) * 0.35, Y + Math.floor(i / 3) * 0.3, 0.6);
+    parked(k, 'garbage', 0.4, 2.3, 0);
+  },
+  solarfarm(k) {
+    k.box(6.4, Y, 6.4, C.lawn);
+    for (let r = 0; r < 4; r++) {
+      const z = -2.3 + r * 1.45;
+      for (const x of [-1.5, 1.5]) {
+        for (const px of [x - 1.1, x + 1.1]) k.box(0.1, 0.45, 0.1, 0x9aa3ad, px, Y, z);
+        k.beam([x, Y + 0.5, z + 0.45], [x, Y + 0.95, z - 0.4], 2.7, 0.06, 0x1d3a6e); // tilted panel
+        k.beam([x, Y + 0.53, z + 0.43], [x, Y + 0.98, z - 0.42], 0.05, 0.06, 0x7f9cc4);
+      }
+    }
+    k.box(0.8, 0.8, 0.6, 0xd5d8dc, 2.6, Y, 2.75); k.green(0.12, 0.12, 0.06, 2.6, Y + 0.6, 3.06); // inverter
+    fence(k, 6.2, 6.2, 0x9aa3ad, 1.2);
+  },
+});
+
 // the coaster's track: a figure-loop with two drops (local lot coords)
 function coasterPoint(a) {
   return [
@@ -1000,6 +1090,7 @@ export function createCity(scene) {
   let developed = new Set();
   let roadSig = '';
   let snapshot = { land: 0, next: null, placed: 0 };
+  let counts = {}; // finished buildings by type (service vehicles read it)
   const graph = { nodes: new Map(), adj: new Map(), version: 0 };
 
   function setLot(key, lot, kind, k, group, animate) {
@@ -1193,7 +1284,7 @@ export function createCity(scene) {
   }
 
   function updateSite(p, placed) {
-    if (p.kind === 'expand') {
+    if (!p.lot) { // land expansion, metro: no construction site on a lot
       if (site) { if (lots.get(lotKey(site.p.lot))?.kind === 'site') setLot(lotKey(site.p.lot), site.p.lot, 'wild', -1, kitFor((kk) => wildLot(kk, ...site.p.lot))); site = null; }
       return;
     }
@@ -1246,6 +1337,8 @@ export function createCity(scene) {
     }
     if (sim.next.lot) dev.add(lotKey(sim.next.lot));
     developed = dev;
+    counts = {};
+    for (const p of sim.done) if (p.lot) counts[p.type] = (counts[p.type] || 0) + 1;
     updateSite(sim.next, sim.placed);
     buildRoads();
     snapshot = { land: sim.land, next: sim.next, placed: sim.placed };
@@ -1315,8 +1408,8 @@ export function createCity(scene) {
   function siteSpot(seed) {
     const p = snapshot.next;
     if (!p) return depotSpot(seed);
-    if (p.kind === 'expand') { // reclaim land along the border
-      const e = land * PITCH + 2.5, s = (hash(seed, 5) - 0.5) * 2 * e;
+    if (p.kind === 'expand' || p.kind === 'metro') { // reclaim land along the border / raise the metro over the ring road
+      const e = p.kind === 'metro' ? PITCH * (land - 1) + PITCH / 2 : land * PITCH + 2.5, s = (hash(seed, 5) - 0.5) * 2 * e;
       return [[s, e], [s, -e], [e, s], [-e, s]][Math.floor(hash(seed, 6) * 4)];
     }
     const [x, z] = lotPos(p.lot);
@@ -1345,6 +1438,7 @@ export function createCity(scene) {
     root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, riverPath, billboards,
     feePulse: () => (pulse = 1),
     get land() { return land; },
+    get counts() { return counts; },
     get siteVersion() { return siteVersion; },
     helipad: [1.8, 1.8],
   };

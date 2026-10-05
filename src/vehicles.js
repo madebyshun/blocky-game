@@ -2,8 +2,11 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hash, riverCol, PITCH } from './sim.js';
 import { GLOW_MAT } from './city.js';
+import { makeService, flash } from './fleet.js';
 
-// Cars and buses drive the paved road graph; boats idle on the river.
+// Cars and buses drive the paved road graph; boats idle on the river. Every finished service
+// building sends its vehicles out on patrol: fire trucks, police cars, ambulances, garbage trucks.
+const PATROL = { firestation: ['fire', 1, 4.5], police: ['police', 2, 5], hospital: ['ambulance', 1, 5], recycling: ['garbage', 1, 2.4] }; // vehicles per building, speed
 
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
 const BODY = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -74,14 +77,22 @@ export function createTraffic(city) {
     return list[Math.floor(Math.random() * list.length)];
   }
 
-  function spawnCar(seed) {
+  function spawnCar(seed, kind, speed) {
     const keys = [...city.graph.adj.keys()].filter((k) => city.graph.adj.get(k).length);
-    if (!keys.length) return;
+    if (!keys.length) return false;
     const from = keys[Math.floor(hash(seed, 9) * keys.length)];
     const adj = city.graph.adj.get(from);
-    const car = { mesh: makeCar(seed), from, to: adj[Math.floor(hash(seed, 10) * adj.length)], t: hash(seed, 11), speed: 3.5 + hash(seed, 12) * 2 };
+    const car = { mesh: kind ? makeService(kind) : makeCar(seed), kind, from, to: adj[Math.floor(hash(seed, 10) * adj.length)], t: hash(seed, 11), speed: speed ?? 3.5 + hash(seed, 12) * 2 };
     group.add(car.mesh);
     cars.push(car);
+    return true;
+  }
+  function syncPatrols() {
+    for (const [type, [kind, per, speed]] of Object.entries(PATROL)) {
+      const want = Math.min(4, (city.counts[type] || 0) * per);
+      let have = cars.filter((c) => c.kind === kind).length;
+      while (have < want && spawnCar(have * 13 + kind.length * 101, kind, speed)) have++;
+    }
   }
 
   function syncBoats() {
@@ -104,7 +115,9 @@ export function createTraffic(city) {
   function update(t, dt) {
     syncBoats();
     const want = Math.min(24, Math.floor(edges() / 2));
-    while (cars.length < want) spawnCar(cars.length * 7 + 3);
+    for (let n = cars.filter((c) => !c.kind).length; n < want && spawnCar(cars.length * 7 + 3); n++);
+    syncPatrols();
+    flash(t);
     for (const car of cars) {
       const a = city.graph.nodes.get(car.from), b = city.graph.nodes.get(car.to);
       if (!a || !b) { car.mesh.visible = false; continue; }
