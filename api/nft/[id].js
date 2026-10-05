@@ -30,7 +30,7 @@ async function city() {
   });
   const sim = new CitySim(start);
   sim.setCrew([...crew, ...blockies], L.whales || []);
-  cache = { at: Date.now(), blockies, sim };
+  cache = { at: Date.now(), blockies, sim, openedAt: L.openedAt ?? Infinity };
   return cache;
 }
 
@@ -38,10 +38,10 @@ const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : 'a buyer');
 const siteOf = (req) => SITE || `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
 const plain = (b) => b.name.replace(/ #\d+$/, '');
 
-function metadata(b, sim, site) {
+function metadata(b, sim, site, openedAt) {
   const now = Date.now();
   const here = !Number.isFinite(b.leftAt);
-  const citizenAt = b.arrivedAt + LEDGER.citizenDays * 86400e3;
+  const citizenAt = Math.max(b.arrivedAt + LEDGER.citizenDays * 86400e3, openedAt); // Infinity until trading opens
   const blocks = Math.floor(sim.blocksBy(b, now));
   const attributes = [
     { trait_type: 'Rarity', value: b.rarity.label },
@@ -52,7 +52,7 @@ function metadata(b, sim, site) {
     { trait_type: 'Origin', value: b.id <= RESERVE.count && b.from === RESERVE.wallet.toLowerCase() ? 'Team reserve' : 'Bought' },
     { trait_type: 'Blocks placed', value: blocks, display_type: 'number' },
     { trait_type: 'Arrived', value: Math.floor(b.arrivedAt / 1000), display_type: 'date' },
-    ...(here ? [{ trait_type: 'Citizen since', value: Math.floor(citizenAt / 1000), display_type: 'date' }] : []),
+    ...(here && Number.isFinite(citizenAt) ? [{ trait_type: 'Citizen since', value: Math.floor(citizenAt / 1000), display_type: 'date' }] : []),
   ];
   return {
     name: b.name,
@@ -68,7 +68,7 @@ function collection(site) {
   return {
     name: NFT.name,
     symbol: NFT.symbol,
-    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, at most ${LEDGER.supply.toLocaleString('en-US')} at once. A newcomer leaves if its wallet sells; after ${LEDGER.citizenDays} days in the city it is a citizen for good, and its wallet claims it as an NFT, free to trade from the start.`,
+    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, at most ${LEDGER.supply.toLocaleString('en-US')} at once. Trading opens once $${LEDGER.unlockUsd.toLocaleString('en-US')} of ${CONFIG.ticker} has been bought; until then a Blocky leaves if its wallet sells. From then on a Blocky that has held ${LEDGER.citizenDays === 1 ? 'a day' : `${LEDGER.citizenDays} days`} is a citizen for good, and its wallet claims it as an NFT, free to trade at once.`,
     image: `${site}/api/nft/collection.svg`,
     featured_image: `${site}/api/nft/collection.svg`,
     banner_image: `${site}/og.png`,
@@ -95,7 +95,7 @@ export default async function handler(req, res) {
     }
     const n = Number(key);
     if (!Number.isInteger(n) || n < 1 || (ext && ext !== 'svg' && ext !== 'json')) return res.status(404).json({ error: 'Not a Blocky' });
-    const { blockies, sim } = await city();
+    const { blockies, sim, openedAt } = await city();
     const b = blockies[n - 1];
     if (!b) {
       res.setHeader('cache-control', 'public, s-maxage=30');
@@ -106,7 +106,7 @@ export default async function handler(req, res) {
       return svg(blockySvg(b), v != null && v === String(b.seed ?? 0)); // the portrait never changes once it has its seed
     }
     res.setHeader('cache-control', 'public, s-maxage=60, stale-while-revalidate=600');
-    res.status(200).json(metadata(b, sim, site));
+    res.status(200).json(metadata(b, sim, site, openedAt));
   } catch (e) {
     console.warn('[nft]', e.message);
     res.status(502).json({ error: String(e.message || e) });

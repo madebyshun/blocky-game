@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 for (const k of Object.keys(process.env)) if (/^(KV_|UPSTASH_)/.test(k)) delete process.env[k];
 Object.assign(process.env, {
   KV_REST_API_URL: 'https://kv.test', KV_REST_API_TOKEN: 'test', KV_KEY: 'test',
-  USD_PER_BLOCKY: '10', CITIZEN_DAYS: '14', TEAM_RESERVE_COUNT: '0',
+  USD_PER_BLOCKY: '10', UNLOCK_USD: '50', CITIZEN_DAYS: '1', TEAM_RESERVE_COUNT: '0',
   CACHE_MS: '0', LAUNCH_TIME_MS: String(Date.now() - 30 * 86400e3),
 });
 const TOKEN = '0xe72a0c42b584a3e7a4503a82d1337deb52ade885';
@@ -91,13 +91,14 @@ r = await get();
 assert.equal(owners(r).at(-1), BUNDLER);
 failing.clear();
 
-// newcomers leave when their wallet sells; citizens (here 14 days) stay
-assert.equal(r.body.citizenDays, 14);
+// trading opened at $50 bought: newcomers (under a day) leave when their wallet sells, citizens stay
+assert.equal(r.body.citizenDays, 1);
+assert.ok(r.body.openedAt > 0);
 trade(A, 5, 1000, 'sell');
 r = await get();
 assert.equal(r.body.departed, 2, 'a sell costs newcomers');
 const D = '0x00000000000000000000000000000000000000d1';
-trade(D, 20, 15 * 86400e3); // reported now, bought 15 days ago: two citizens
+trade(D, 20, 2 * 86400e3); // reported now, bought 2 days ago: two citizens
 r = await get();
 assert.equal(r.body.issued, 10);
 trade(D, 20, 1000, 'sell');

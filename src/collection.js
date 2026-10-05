@@ -19,9 +19,10 @@ const RANK = { legendary: 0, rare: 1, uncommon: 2, common: 3 };
 const here = (b) => !Number.isFinite(b.leftAt);
 const teamReserve = (b) => b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
 const filters = { q: '', rarity: 'all', trait: 'all', status: 'here', sort: 'new' };
-let all = [], sim = null, info = { contract: null, citizenDays: CONFIG.citizenDays }, list = [], shown = 0;
-// a Blocky in the city is a citizen (an NFT its wallet can claim) `citizenDays` after it arrived
-const citizenAt = (b) => b.arrivedAt + info.citizenDays * 86400e3;
+let all = [], sim = null, info = { contract: null, citizenDays: CONFIG.citizenDays, openedAt: null }, list = [], shown = 0;
+// a Blocky in the city is a citizen (an NFT its wallet can claim) once trading has opened and it has been
+// there `citizenDays` (Infinity before opening day)
+const citizenAt = (b) => Math.max(b.arrivedAt + info.citizenDays * 86400e3, info.openedAt ?? Infinity);
 
 function stats(state) {
   const inCity = all.filter(here);
@@ -145,7 +146,7 @@ function open(b) {
     ['Blocks placed', fmt(blocks)],
     [here(b) ? 'Building for' : 'Built for', `${fmt((end - b.arrivedAt) / 3600000)} hours`],
     ['Arrived', day(b.arrivedAt)],
-    ...(here(b) ? [[citizen ? 'Citizen since' : 'Citizen on', day(citizenAt(b))]] : [['Left', day(b.leftAt)]]),
+    ...(here(b) ? (Number.isFinite(citizenAt(b)) ? [[citizen ? 'Citizen since' : 'Citizen on', day(citizenAt(b))]] : [['NFT', 'when trading opens']]) : [['Left', day(b.leftAt)]]),
     [teamReserve(b) ? 'Team reserve' : 'Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener" title="${esc(b.from)}">${esc(who(b.from, 30))}</a>` : '—'],
   ];
   $('d-dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');

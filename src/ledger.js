@@ -6,15 +6,16 @@
 //   Each buy counts at the price of its day (fractions carry over), so changing `per` only affects
 //   later buys. Numbers are never reused.
 // - At most `supply` Blockies live in the city at once.
-// - A Blocky is a newcomer for its first `citizenDays` days in the city, then a citizen for good: an
-//   NFT its wallet can claim, free to trade, whatever the wallet does with its $BLOCKY afterwards.
+// - Trading opens when `unlockUsd` has been bought in total (L.openedAt). Until then every Blocky is a
+//   newcomer. From then on a Blocky that has been in the city `citizenDays` days is a citizen for good:
+//   an NFT its wallet can claim, free to trade, whatever the wallet does with its $BLOCKY afterwards.
 // - A wallet's newcomers stay while the $BLOCKY it still holds covers them, at what it paid per Blocky
 //   on average; sell, and the newest newcomers leave the city. With only newcomers: sell half and half
 //   of them leave. Any real sell costs at least one; dust does not.
 // - Free places go to wallets still owed Blockies, first come first served (a waitlist once the city
 //   is full), then to the next buyers.
 // - The team's reserve (newLedger's `reserve`) holds Blockies #1 to #count from the start: granted,
-//   not bought, so the hold rule leaves them alone. They are citizens `citizenDays` after the start.
+//   not bought, so the hold rule leaves them alone. They are citizens from opening day.
 // - A single buy of `whaleUsd`+ also builds a Whale Fountain.
 // - A Blocky's rarity is rolled from its number and the block that brought it (rollSeed), so nobody
 //   can know or pick a rare number before buying, and anyone can check it afterwards.
@@ -53,8 +54,10 @@ function indexOf(L, addr) {
 const sec = (L, ms) => Math.round((ms - L.start) / 1000);
 const account = (L, wi) => (L.acct[wi] ||= { usd: 0, credits: 0, tin: 0, tout: 0, bal: null, ids: [] });
 
-// When Blocky #n becomes a citizen (ms): `citizenDays` after it arrived (never without the setting).
-export const citizenAt = (L, n, cfg) => L.start + (L.blockies[n - 1][1] + (cfg.citizenDays ?? Infinity) * 86400) * 1000;
+// When Blocky #n becomes a citizen (ms): `citizenDays` after it arrived, and not before trading opens
+// (Infinity until then).
+export const citizenAt = (L, n, cfg) =>
+  Math.max(L.start + (L.blockies[n - 1][1] + (cfg.citizenDays ?? 0) * 86400) * 1000, L.openedAt ?? Infinity);
 
 // How many of a wallet's bought Blockies in the city are citizens at `at` (ms). Its granted ones (the
 // team's reserve) are the first `grant` of its ids.
@@ -78,6 +81,7 @@ export function allowance(a, citizens = 0) {
 
 function rebalance(L, at, cfg, touched, source) {
   const added = {}, left = {}, s = sec(L, at);
+  if (L.openedAt == null && cfg.unlockUsd > 0 && L.bought >= cfg.unlockUsd) L.openedAt = at; // trading opens
   // 1. wallets that sold lose their newest newcomers (citizens and the reserve stay)
   for (const wi of touched) {
     const a = L.acct[wi], keep = allowance(a, citizensOf(L, a, at, cfg));
@@ -111,9 +115,11 @@ export function applyTrade(L, t, cfg) {
   const wi = indexOf(L, t.who), a = account(L, wi);
   if (t.kind === 'buy') {
     a.usd += t.usd; a.credits = (a.credits || 0) + t.usd / cfg.per; a.tin += t.tokens; L.bought += t.usd;
+    if (a.bal != null) a.bal += t.tokens; // the last balance check, kept current until the next
     if (t.usd >= cfg.whaleUsd) L.whales.push({ from: L.wallets[wi], usd: cents(t.usd), at: t.at, tx: t.tx });
   } else {
     a.tout += t.tokens;
+    if (a.bal != null) a.bal = Math.max(0, a.bal - t.tokens);
   }
   const { added, left } = rebalance(L, t.at, cfg, [String(wi)], t.block || t.tx || t.at);
   // a buy may also hand places to wallets that were waiting: report this wallet's share
@@ -163,6 +169,8 @@ export function snapshot(L, cfg, since = 0, dsince = 0) {
     boughtUsd: L.bought,
     recentBuys: L.recent,
     cityStart: L.start,
-    citizenDays: cfg.citizenDays ?? null, // a Blocky's newcomer days: then a citizen, an NFT
+    unlockUsd: cfg.unlockUsd ?? null, // total bought that opens trading
+    openedAt: L.openedAt ?? null, // when it did (ms)
+    citizenDays: cfg.citizenDays ?? null, // from then: a Blocky's newcomer days, then a citizen (an NFT)
   };
 }

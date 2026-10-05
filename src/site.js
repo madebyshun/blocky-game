@@ -58,15 +58,16 @@ export async function downloadSvgPng(svg, name, size = 1024) {
   a.click();
 }
 
-// Whether NFT claims are open, the contract (from the API; the config as a fallback), and how many days a
-// Blocky is a newcomer before it is a citizen (an NFT its wallet claims).
+// Whether NFT claims are open, the contract (from the API; the config as a fallback), the road to opening
+// day (unlockUsd, bought, openedAt) and, from then, a Blocky's newcomer days before it's a citizen.
 export async function nftInfo() {
   try {
     const res = await fetch('/api/claim', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
-    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, citizenDays: typeof s.citizenDays === 'number' ? s.citizenDays : CONFIG.citizenDays, live: true };
+    const num = (v, d) => (typeof v === 'number' ? v : d);
+    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, unlockUsd: num(s.unlockUsd, CONFIG.unlockUsd), bought: num(s.bought, null), openedAt: num(s.openedAt, null), citizenDays: num(s.citizenDays, CONFIG.citizenDays), live: true };
   } catch {
-    return { open: false, contract: CONFIG.nft.contract || null, citizenDays: CONFIG.citizenDays, live: false };
+    return { open: false, contract: CONFIG.nft.contract || null, unlockUsd: CONFIG.unlockUsd, bought: null, openedAt: null, citizenDays: CONFIG.citizenDays, live: false };
   }
 }

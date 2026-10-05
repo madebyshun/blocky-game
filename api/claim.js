@@ -1,12 +1,13 @@
 // Vercel serverless function: claim BaseCity Blockies as NFTs (contracts/BaseCityBlockies.sol).
-//   GET  /api/claim              whether claims are open: { open, contract, chainId, citizenDays }
+//   GET  /api/claim              whether claims are open: { open, contract, chainId, unlockUsd, bought,
+//                                openedAt, citizenDays } (trading opens at unlockUsd bought)
 //   GET  /api/claim?address=0x…  the wallet's Blockies: in the city (each with the time it becomes a
 //                                citizen, and whether it's claimed), waiting, gone, and its Basename.
 //                                address may also be a Basename (name.base.eth).
 //   POST /api/claim { address }  a signed claim for up to 50 of its citizens not claimed yet. The
 //                                wallet sends it to the contract itself and pays the gas.
 // The ledger (api/colony.js) decides who owns which Blocky and when it becomes a citizen (src/ledger.js:
-// `citizenDays` in the city; newcomers leave if their wallets sell). This signs citizens only: they
+// once `unlockUsd` has been bought, a Blocky a `citizenDays` old; newcomers leave if their wallets sell). This signs citizens only: they
 // never leave, so a claimed Blocky never has to be taken back and trades freely from the start. The
 // signer key (CLAIM_SIGNER_KEY) stays on the server, and the contract only accepts claims it signed,
 // sent by the wallet named in them. On Vercel, claims need KV: every instance must sign from the same
@@ -26,6 +27,8 @@ const TTL = 30 * 60; // a signature lasts 30 minutes
 // Signing needs the one shared ledger (KV): without it, every serverless instance has its own.
 const shared = () => useKv() || !['production', 'preview'].includes(env.VERCEL_ENV);
 const isOpen = () => Boolean(NFT && SIGNER && shared());
+const dollars = (v) => `$${Math.round(v).toLocaleString('en-US')}`;
+const ms = (t) => (Number.isFinite(t) ? t : null); // a time, or null for "not yet
 
 // which of these Blockies exist on-chain (claimed). Throws if any read fails.
 async function onchain(ids) {
@@ -57,7 +60,10 @@ function body(req) {
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   const raw = req.method === 'POST' ? body(req).address : req.query?.address ?? new URL(req.url, 'http://x').searchParams.get('address');
-  if (!raw && req.method !== 'POST') return res.status(200).json({ open: isOpen(), contract: NFT || null, chainId: CHAIN_ID, citizenDays: LEDGER.citizenDays });
+  if (!raw && req.method !== 'POST') {
+    const L = await loadLedger().then((r) => r.ledger).catch(() => null);
+    return res.status(200).json({ open: isOpen(), contract: NFT || null, chainId: CHAIN_ID, unlockUsd: LEDGER.unlockUsd, bought: L ? Math.round(L.bought * 100) / 100 : null, openedAt: L?.openedAt ?? null, citizenDays: LEDGER.citizenDays });
+  }
   let address = isAddress(raw || '', { strict: false }) ? getAddress(raw) : null;
   if (!address && req.method !== 'POST' && /\.base\.eth$/i.test(String(raw || '').trim())) {
     const a = await addressOf(raw).catch(() => null);
@@ -84,10 +90,12 @@ export default async function handler(req, res) {
         chainId: CHAIN_ID,
         open: isOpen(),
         citizenDays: LEDGER.citizenDays,
+        unlockUsd: LEDGER.unlockUsd,
+        openedAt: L.openedAt ?? null,
         price: LEDGER.per, // USD of $BLOCKY per Blocky
         boughtUsd: Math.round((a?.usd ?? 0) * 100) / 100,
         toNext: Math.round((1 - ((a?.credits ?? 0) % 1)) * LEDGER.per * 100) / 100, // USD more for the next Blocky
-        blockies: active.map((n) => ({ n, at: atOf(n), seed: seedOf(n), citizenAt: citizen(n), claimed: claimed.has(n) })),
+        blockies: active.map((n) => ({ n, at: atOf(n), seed: seedOf(n), citizenAt: ms(citizen(n)), claimed: claimed.has(n) })), // citizenAt null: trading isn't open yet
         left: left.map((n) => ({ n, at: atOf(n), seed: seedOf(n) })),
         waiting: a ? Math.max(0, allowance(a, citizensOf(L, a, now, LEDGER)) - a.ids.length) : 0, // owed a place: the city is full
       });
@@ -98,9 +106,10 @@ export default async function handler(req, res) {
     const unclaimed = active.filter((n) => !claimed.has(n));
     if (!unclaimed.length) return res.status(409).json({ error: 'Every citizen of this wallet is already claimed' });
     const citizens = unclaimed.filter((n) => citizen(n) <= now);
+    if (L.openedAt == null) return res.status(409).json({ error: `Trading opens when ${dollars(LEDGER.unlockUsd)} of $BLOCKY has been bought: ${dollars(L.bought)} so far. Keep holding: your Blockies become NFTs then` });
     if (!citizens.length) {
       const next = Math.min(...unclaimed.map(citizen));
-      return res.status(409).json({ error: `Your Blockies are newcomers: the first becomes a citizen on ${new Date(next).toUTCString()}, then you can claim it`, citizenAt: next });
+      return res.status(409).json({ error: `Your Blockies are newcomers: the first becomes a citizen on ${new Date(next).toUTCString()}, a day after it arrived, then you can claim it`, citizenAt: next });
     }
     const { left: free, max } = await room();
     if (free < 1) return res.status(409).json({ error: `All ${max.toLocaleString('en-US')} Blockies are claimed: the collection is complete` });

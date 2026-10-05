@@ -10,7 +10,7 @@ import { fetchMarket } from './market.js';
 const forceDemo = new URLSearchParams(location.search).has('demo');
 const demoStart = Date.now();
 const HOUR = 3600000;
-const RULES = { per: CONFIG.usdPerBlocky, supply: CONFIG.supply, whaleUsd: CONFIG.whaleUsd, citizenDays: CONFIG.citizenDays };
+const RULES = { per: CONFIG.usdPerBlocky, supply: CONFIG.supply, whaleUsd: CONFIG.whaleUsd, unlockUsd: CONFIG.unlockUsd, citizenDays: CONFIG.citizenDays };
 
 // Demo: three days of history (one trader sells half, a $2,600 whale gets a Whale Tower, and a $350
 // buyer dumps everything half an hour before you arrive: a big exit, so the city shows a ruin), then a
@@ -86,7 +86,9 @@ export async function fetchColony(since = 0, dsince = 0) {
       names: s.names && typeof s.names === 'object' ? s.names : {}, // Basenames: { address: 'name.base.eth' }
       market: s.market && typeof s.market.change24h === 'number' ? { ...s.market, stocks: Array.isArray(s.market.stocks) ? s.market.stocks.filter((x) => x && typeof x.priceUsd === 'number' && x.priceUsd > 0) : [] } : await realMarket(),
       cityStart: typeof s.cityStart === 'number' ? s.cityStart : null,
-      citizenDays: typeof s.citizenDays === 'number' ? s.citizenDays : CONFIG.citizenDays, // newcomer days: then a citizen, an NFT
+      citizenDays: typeof s.citizenDays === 'number' ? s.citizenDays : CONFIG.citizenDays, // after opening: newcomer days, then a citizen (an NFT)
+      unlockUsd: typeof s.unlockUsd === 'number' ? s.unlockUsd : CONFIG.unlockUsd, // total bought that opens trading
+      openedAt: typeof s.openedAt === 'number' ? s.openedAt : null, // when it was reached
       source: s.source || 'live',
     };
   } catch (e) {

@@ -1,5 +1,5 @@
 // The Blocky ledger's rules (src/ledger.js): $ per Blocky per wallet, the hold rule, the waitlist,
-// whales, incremental snapshots, fair rarity seeds, and citizens. Run: npm test
+// whales, incremental snapshots, fair rarity seeds, opening day and citizens. Run: npm test
 import assert from 'node:assert/strict';
 import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, citizenAt, citizensOf } from '../src/ledger.js';
 import { rarityOf } from '../src/sim.js';
@@ -67,42 +67,50 @@ L = JSON.parse(JSON.stringify(L));
 applyTrade(L, { who: '0xW', kind: 'sell', usd: 600, tokens: 6000, at: at() }, cfg);
 assert.equal(snapshot(L, cfg).minted, 120);
 
-// 5. citizens: after `citizenDays` in the city a Blocky stays for good; the hold rule is for newcomers
+// 5. trading opens at `unlockUsd` bought; from then a Blocky a day old is a citizen for good
 {
-  const DAY = 86400e3, c = { ...cfg, citizenDays: 14 };
+  const DAY = 86400e3, c = { ...cfg, unlockUsd: 200, citizenDays: 1 };
   L = newLedger(0);
   applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: 1000 }, c); // #1-#10
-  assert.equal(citizenAt(L, 1, c), 1000 + 14 * DAY);
-  applyTrade(L, { who: '0xE', kind: 'sell', usd: 10, tokens: 100, at: 2 * DAY }, c);
-  assert.deepEqual(walletBlockies(L, '0xe').active, [1, 2, 3, 4, 5, 6, 7, 8], 'newcomers: a sell costs the newest');
-  applyTrade(L, { who: '0xE', kind: 'buy', usd: 25, tokens: 250, at: 10 * DAY }, c); // #11-#15
-  assert.equal(walletBlockies(L, '0xe').active.length, 13);
-  // day 15: #1-#8 are citizens; selling everything sends only the newcomers away
-  applyTrade(L, { who: '0xE', kind: 'sell', usd: 60, tokens: 650, at: 15 * DAY }, c);
-  assert.deepEqual(walletBlockies(L, '0xe').active, [1, 2, 3, 4, 5, 6, 7, 8]);
-  assert.equal(citizensOf(L, L.acct[0], 15 * DAY, c), 8);
-  applyBalances(L, { '0xe': 0 }, 16 * DAY, c);
-  assert.equal(walletBlockies(L, '0xe').active.length, 8, 'citizens stay whatever the wallet holds');
-  // tokens kept back newcomers first: citizens free the rest
-  L = newLedger(0);
-  applyTrade(L, { who: '0xG', kind: 'buy', usd: 50, tokens: 1000, at: 1000 }, c); // #1-#10, citizens on day 14
-  applyTrade(L, { who: '0xG', kind: 'buy', usd: 25, tokens: 500, at: 20 * DAY }, c); // #11-#15, newcomers
-  applyTrade(L, { who: '0xG', kind: 'sell', usd: 50, tokens: 1000, at: 21 * DAY }, c);
-  assert.equal(walletBlockies(L, '0xg').active.length, 15, '500 left still cover the 5 newcomers');
-  applyTrade(L, { who: '0xG', kind: 'sell', usd: 15, tokens: 300, at: 22 * DAY }, c);
-  assert.deepEqual(walletBlockies(L, '0xg').active.slice(10), [11, 12], '200 cover 2: the 3 newest leave');
+  assert.equal(citizenAt(L, 1, c), Infinity, 'nobody is a citizen before trading opens');
+  applyTrade(L, { who: '0xE', kind: 'sell', usd: 10, tokens: 100, at: 3 * DAY }, c);
+  assert.deepEqual(walletBlockies(L, '0xe').active, [1, 2, 3, 4, 5, 6, 7, 8], 'before: a sell costs the newest, however old');
+  applyTrade(L, { who: '0xF', kind: 'buy', usd: 100, tokens: 1000, at: 4 * DAY }, c); // #11-#30, the first 150 bought
+  assert.equal(snapshot(L, c).openedAt, null);
+  applyTrade(L, { who: '0xG', kind: 'buy', usd: 50, tokens: 500, at: 5 * DAY }, c); // $200: trading opens
+  assert.equal(snapshot(L, c).openedAt, 5 * DAY);
+  assert.equal(citizenAt(L, 1, c), 5 * DAY, 'held long enough: a citizen on opening day');
+  assert.equal(citizenAt(L, 31, c), 6 * DAY, 'the opening buy waits its day');
+  // citizens stay whatever their wallet does; newcomers still leave
+  applyTrade(L, { who: '0xE', kind: 'sell', usd: 40, tokens: 400, at: 5 * DAY + 1 }, c);
+  applyTrade(L, { who: '0xG', kind: 'sell', usd: 50, tokens: 500, at: 5 * DAY + 2 }, c);
+  assert.equal(walletBlockies(L, '0xe').active.length, 8);
+  assert.equal(walletBlockies(L, '0xg').active.length, 0, 'sold within its day: gone');
+  assert.equal(citizensOf(L, L.acct[0], 5 * DAY, c), 8);
+  applyBalances(L, { '0xf': 0 }, 7 * DAY, c);
+  assert.equal(walletBlockies(L, '0xf').active.length, 20);
+  // after opening, a new buy is a newcomer for a day; held tokens cover newcomers first
+  applyTrade(L, { who: '0xF', kind: 'buy', usd: 25, tokens: 250, at: 8 * DAY }, c); // 5 newcomers
+  assert.equal(walletBlockies(L, '0xf').active.length, 25, 'a buy after a zero balance check counts');
+  applyTrade(L, { who: '0xF', kind: 'sell', usd: 15, tokens: 150, at: 8 * DAY + 60e3 }, c); // holds 100: covers 2
+  assert.equal(walletBlockies(L, '0xf').active.length, 22);
   // a newcomer that arrived out of order (a late trade) never pushes a citizen out
   L = newLedger(0);
-  applyTrade(L, { who: '0xH', kind: 'buy', usd: 5, tokens: 100, at: 5 * DAY }, c); // #1, citizen on day 19
-  applyTrade(L, { who: '0xH', kind: 'buy', usd: 5, tokens: 100, at: 1 * DAY }, c); // #2, reported late: citizen on day 15
-  applyTrade(L, { who: '0xH', kind: 'sell', usd: 10, tokens: 200, at: 16 * DAY }, c); // sells it all: #1 leaves, #2 is the last id but a citizen
-  assert.deepEqual(walletBlockies(L, '0xh').active, [2]);
-  // no setting, no citizens: the plain hold rule
+  applyTrade(L, { who: '0xX', kind: 'buy', usd: 200, tokens: 100, at: 1000 }, c); // opens trading
+  applyTrade(L, { who: '0xH', kind: 'buy', usd: 5, tokens: 100, at: 5 * DAY }, c); // #41, citizen on day 6
+  applyTrade(L, { who: '0xH', kind: 'buy', usd: 5, tokens: 100, at: 1 * DAY }, c); // #42, reported late: citizen on day 2
+  applyTrade(L, { who: '0xH', kind: 'sell', usd: 10, tokens: 200, at: 5 * DAY + 60e3 }, c);
+  assert.deepEqual(walletBlockies(L, '0xh').active, [42]);
+  // lowering unlockUsd later opens trading at the next update
+  L = newLedger(0);
+  applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: 1000 }, c);
+  applyBalances(L, { '0xe': 500 }, 3 * DAY, { ...c, unlockUsd: 50 });
+  assert.equal(L.openedAt, 3 * DAY);
+  // no setting, no opening: the plain hold rule forever
   L = newLedger(0);
   applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);
   applyTrade(L, { who: '0xE', kind: 'sell', usd: 50, tokens: 500, at: at() + 365 * DAY }, cfg);
   assert.equal(snapshot(L, cfg).minted, 0);
-  assert.equal(snapshot(L, c).citizenDays, 14);
 }
 
 // 6. each buy counts at the price of its day: raising the price later keeps what was earned

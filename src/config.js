@@ -10,11 +10,13 @@ export const CONFIG = {
   // ... A buy counts at the price of its day, so changing the price later only changes future buys.
   // (USD_PER_BLOCKY on the API overrides it.)
   usdPerBlocky: 10,
-  // A Blocky is a newcomer for its first `citizenDays` days in the city: it leaves if its wallet sells
-  // its $BLOCKY. Then it is a citizen for good: an NFT its wallet claims, free to trade at once.
-  // Lower it any time; never raise it after launch (citizens already claimed can't become newcomers
-  // again). (CITIZEN_DAYS on the API overrides it.)
-  citizenDays: 14,
+  // Trading opens when this much $BLOCKY has been bought in total (the HUD's "Bought"): supply x price.
+  // Until then every Blocky is a newcomer, and leaves if its wallet sells. From then on a Blocky that
+  // has been in the city `citizenDays` days is a citizen for good: an NFT its wallet claims, free to
+  // trade at once (so on opening day, everyone who held a day). Lower either any time; never raise them
+  // after launch. (UNLOCK_USD / CITIZEN_DAYS on the API override them.)
+  unlockUsd: 100000,
+  citizenDays: 1,
   supply: 10000, // must match MAX_SUPPLY on the API
   whaleUsd: 1000, // a single buy this big also builds something with the buyer's name (WHALE_USD on the API)
   // What a whale buy builds, by its size: the biggest tier it reaches. It goes up next, named after the

@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Claim your Blockies · BaseCity</title>
-    <meta name="description" content="Every $%PRICE% of $BLOCKY you buy brings a Blocky to BaseCity. After %DAYS% days it's a citizen: claim it as an NFT on Base, free to trade." />
+    <meta name="description" content="Every $%PRICE% of $BLOCKY you buy brings a Blocky to BaseCity. Trading opens at $%UNLOCK% bought: then claim your Blockies as NFTs on Base, free to trade." />
     <meta property="og:title" content="Claim your Blockies · BaseCity" />
-    <meta property="og:description" content="Every $%PRICE% of $BLOCKY you buy brings a Blocky to BaseCity. After %DAYS% days it's a citizen: claim it as an NFT on Base." />
+    <meta property="og:description" content="Every $%PRICE% of $BLOCKY you buy brings a Blocky to BaseCity. Trading opens at $%UNLOCK% bought: then claim them as NFTs on Base." />
     <meta property="og:image" content="/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -19,7 +19,7 @@
   <body>
     <header class="top">
       <h1>Claim your Blockies</h1>
-      <p class="lede">Every <b>$%PRICE%</b> of <span class="tk">$BLOCKY</span> a wallet buys brings one Blocky to BaseCity. Hold it <b>%DAYS% days</b> and it becomes a citizen: an NFT on Base the wallet claims itself, free to trade at once. You send the claim and pay the gas, a few cents.</p>
+      <p class="lede">Every <b>$%PRICE%</b> of <span class="tk">$BLOCKY</span> a wallet buys brings one Blocky to BaseCity. When <b>$%UNLOCK%</b> of <span class="tk">$BLOCKY</span> has been bought, trading opens: every Blocky held %HELD% becomes a citizen, an NFT on Base the wallet claims itself, free to trade at once. You send the claim and pay the gas, a few cents.</p>
     </header>
     <main class="wrap claim">
       <div id="status" class="note" role="status"></div>
@@ -52,8 +52,8 @@
         <h2>How it works</h2>
         <ol>
           <li><b>Buy, get Blockies.</b> Every $%PRICE% of <span class="tk">$BLOCKY</span> a wallet buys, added up over all its buys, brings one Blocky to the city, numbered in order. At most <span class="supply">10,000</span> live in the city.</li>
-          <li><b>Hold %DAYS% days.</b> A new Blocky is a newcomer: sell <span class="tk">$BLOCKY</span> and newcomers leave the city, newest first, their places going to the next buyers.</li>
-          <li><b>Become a citizen.</b> After %DAYS% days in the city a Blocky is a citizen for good, whatever you do with your <span class="tk">$BLOCKY</span>.</li>
+          <li><b>Hold.</b> Until trading opens every Blocky is a newcomer: sell <span class="tk">$BLOCKY</span> and newcomers leave the city, newest first, their places going to the next buyers.</li>
+          <li><b>Opening day: $%UNLOCK% bought.</b> From then a Blocky held %HELD% is a citizen for good, whatever you do with your <span class="tk">$BLOCKY</span>. Buys after that wait %HELD% too.</li>
           <li><b>Claim and trade.</b> Connect that wallet and claim your citizens: they're minted to it as BaseCity Blockies (BCB) NFTs, free to trade on OpenSea at once. You pay the gas. 5% royalty.</li>
         </ol>
         <p><a href="/about.html">All the rules →</a></p>

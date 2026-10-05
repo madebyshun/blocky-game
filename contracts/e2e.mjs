@@ -1,5 +1,5 @@
-// End to end: the ledger hands out Blockies, newcomers become citizens after CITIZEN_DAYS, /api/claim
-// signs citizens only, the wallet claims them on the contract (in-memory EVM, 20 at most) and they
+// End to end: the ledger hands out Blockies, trading opens at UNLOCK_USD bought, then Blockies a
+// CITIZEN_DAYS old are citizens; /api/claim signs citizens only, the wallet claims them on the contract (in-memory EVM, 20 at most) and they
 // trade at once; /api/nft serves the metadata and portraits. Chain reads go to the in-memory EVM;
 // $BLOCKY balances are faked.
 import assert from 'node:assert/strict';
@@ -13,7 +13,7 @@ const C = await evm.deploy(owner, [owner.address, signer.address, owner.address,
 for (const k of Object.keys(process.env)) if (/^(KV_|UPSTASH_)/.test(k)) delete process.env[k];
 Object.assign(process.env, {
   NFT_CONTRACT: C, CLAIM_SIGNER_KEY: `0x${'12'.padStart(64, '0')}`, SITE_URL: 'https://basecity.test',
-  USD_PER_BLOCKY: '5', CITIZEN_DAYS: '14', TEAM_RESERVE_COUNT: '0', LAUNCH_TIME_MS: String(Date.now() - 30 * DAY),
+  USD_PER_BLOCKY: '5', UNLOCK_USD: '75', CITIZEN_DAYS: '1', TEAM_RESERVE_COUNT: '0', LAUNCH_TIME_MS: String(Date.now() - 30 * DAY),
 });
 
 const { client, saveLedger, loadLedger, LEDGER } = await import('../api/_store.js');
@@ -50,17 +50,29 @@ const post = (address) => call(claimApi, { method: 'POST', url: '/api/claim', bo
 const submit = async (who, r) => evm.send(who, 'claim', [r.ids.map(BigInt), BigInt(r.deadline), r.signature]);
 const trade = (who, kind, usd, tokens, ago, tx) => applyTrade(L, { who: who.address, kind, usd, tokens, at: Date.now() - ago, tx }, LEDGER);
 
-// the ledger: alice bought $50 (10 Blockies) 20 days ago, bob $25 (5) an hour ago, carol $10 (2) 13 days ago
+// the ledger: alice bought $50 (10 Blockies) 20 days ago, carol $10 (2) 13 days ago: $60 of the $75
+// that opens trading, so nothing can be claimed yet
 evm.now = Math.floor(Date.now() / 1000);
 const { ledger: L } = await loadLedger();
 trade(alice, 'buy', 50, 1000, 20 * DAY, '0x01');
 trade(carol, 'buy', 10, 200, 13 * DAY, '0x02');
-trade(bob, 'buy', 25, 500, 3600e3, '0x03');
-Object.assign(balances, { [alice.address.toLowerCase()]: 1000, [bob.address.toLowerCase()]: 500, [carol.address.toLowerCase()]: 200 });
+Object.assign(balances, { [alice.address.toLowerCase()]: 1000, [carol.address.toLowerCase()]: 200 });
 await saveLedger(L);
-
 let r = await info();
-assert.deepEqual([r.body.open, r.body.citizenDays], [true, 14]);
+assert.deepEqual([r.body.open, r.body.unlockUsd, r.body.bought, r.body.openedAt, r.body.citizenDays], [true, 75, 60, null, 1]);
+r = await post(alice.address);
+assert.equal(r.code, 409);
+assert.match(r.body.error, /Trading opens when \$75 of \$BLOCKY has been bought: \$60 so far/);
+assert.equal((await get(alice.address)).body.blockies[0].citizenAt, null);
+
+// dave's $15 two days ago reached $75 (#13-#15): trading opened then; bob bought $25 (#16-#20) an hour ago
+trade(dave, 'buy', 15, 300, 2 * DAY, '0x03');
+trade(bob, 'buy', 25, 500, 3600e3, '0x04');
+Object.assign(balances, { [dave.address.toLowerCase()]: 300, [bob.address.toLowerCase()]: 500 });
+await saveLedger(L);
+r = await info();
+assert.deepEqual([r.body.bought, r.body.openedAt], [100, L.openedAt]);
+assert.ok(Math.abs(L.openedAt - (Date.now() - 2 * DAY)) < 5000);
 r = await get(alice.address.toLowerCase());
 assert.equal(r.code, 200);
 assert.equal(r.body.address, getAddress(alice.address));
@@ -79,42 +91,38 @@ assert.equal(await evm.read('balanceOf', [alice.address]), 10n);
 assert.ok((await get(alice.address)).body.blockies.every((b) => b.claimed));
 assert.equal((await post(alice.address)).code, 409);
 
-// newcomers can't be claimed yet: the API says when they become citizens
+// bob's are newcomers (an hour old): the API says when they become citizens; carol held: citizens
 r = await post(bob.address);
 assert.equal(r.code, 409);
-assert.equal(r.body.citizenAt, citizenAt(L, 13, LEDGER));
-assert.ok(Math.abs(r.body.citizenAt - (Date.now() + 14 * DAY - 3600e3)) < 5000); // bought an hour ago
-r = await post(carol.address);
-assert.equal(r.code, 409);
-assert.ok(r.body.citizenAt - Date.now() < DAY + 5000, 'carol: a day to go');
+assert.equal(r.body.citizenAt, citizenAt(L, 16, LEDGER));
+assert.ok(Math.abs(r.body.citizenAt - (Date.now() + DAY - 3600e3)) < 5000);
+assert.deepEqual((await post(carol.address)).body.ids, [11, 12]);
 
 // selling: bob's newcomers leave (newest first); alice's citizens stay, and trade at once
-trade(bob, 'sell', 12, 200, 60e3, '0x04');
+trade(bob, 'sell', 12, 200, 60e3, '0x05');
 balances[bob.address.toLowerCase()] = 300;
-trade(alice, 'sell', 50, 1000, 30e3, '0x05');
+trade(alice, 'sell', 50, 1000, 30e3, '0x06');
 balances[alice.address.toLowerCase()] = 0;
 await saveLedger(L);
 r = await get(bob.address);
-assert.deepEqual(r.body.blockies.map((b) => b.n), [13, 14, 15]);
-assert.deepEqual(r.body.left.map((b) => b.n), [16, 17]);
+assert.deepEqual(r.body.blockies.map((b) => b.n), [16, 17, 18]);
+assert.deepEqual(r.body.left.map((b) => b.n), [19, 20]);
 r = await get(alice.address);
 assert.equal(r.body.blockies.length, 10);
 assert.equal((await evm.send(alice, 'transferFrom', [alice.address, dave.address, 1n])).error, undefined);
 assert.equal(await evm.read('ownerOf', [1n]), dave.address);
 
 // a full collection: no signature that would mint nothing; a nearly full one signs what fits
-trade(dave, 'buy', 15, 300, 15 * DAY, '0x06'); // 3 citizens: #18-#20
-await saveLedger(L);
 fakeSupply = 20n;
 r = await post(dave.address);
 assert.equal(r.code, 409);
 assert.match(r.body.error, /complete/);
 fakeSupply = 19n;
 r = await post(dave.address);
-assert.deepEqual([r.body.ids, r.body.more], [[18], 2]);
+assert.deepEqual([r.body.ids, r.body.more], [[13], 2]);
 fakeSupply = null;
 r = await post(dave.address);
-assert.deepEqual(r.body.ids, [18, 19, 20]);
+assert.deepEqual(r.body.ids, [13, 14, 15]);
 assert.equal((await submit(dave, r.body)).error, undefined);
 assert.equal(await evm.read('totalSupply'), 13n);
 assert.equal((await post('0x1234')).code, 400);
@@ -137,8 +145,8 @@ assert.equal(attr.Status, 'Citizen');
 assert.equal(attr['Citizen since'], Math.floor(citizenAt(L, 3, LEDGER) / 1000));
 assert.ok(attr['Blocks placed'] > 0);
 assert.ok(['Common', 'Uncommon', 'Rare', 'Legendary'].includes(attr.Rarity));
-assert.equal(attrs(await call(nftApi, { url: '/api/nft/14', query: { id: '14' } })).Status, 'Newcomer');
-assert.equal(attrs(await call(nftApi, { url: '/api/nft/16', query: { id: '16' } })).Status, 'Left the city');
+assert.equal(attrs(await call(nftApi, { url: '/api/nft/17', query: { id: '17' } })).Status, 'Newcomer');
+assert.equal(attrs(await call(nftApi, { url: '/api/nft/19', query: { id: '19' } })).Status, 'Left the city');
 r = await call(nftApi, { url: `/api/nft/3.svg?v=${L.blockies[2][3]}`, query: { id: '3.svg' } });
 assert.equal(r.code, 200);
 assert.match(r.body, /^<svg/);
@@ -149,7 +157,7 @@ assert.equal((await call(nftApi, { url: '/api/nft/999', query: { id: '999' } }))
 assert.equal((await call(nftApi, { url: '/api/nft/abc', query: { id: 'abc' } })).code, 404);
 r = await call(nftApi, { url: '/api/nft/collection', query: { id: 'collection' } });
 assert.equal(r.body.name, 'BaseCity Blockies');
-assert.match(r.body.description, /after 14 days in the city/);
+assert.match(r.body.description, /Trading opens once \$75 of \$BLOCKY has been bought/);
 assert.equal(r.body.seller_fee_basis_points, 500);
 assert.equal(r.body.fee_recipient, '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D');
 r = await call(nftApi, { url: '/api/nft/collection.svg', query: { id: 'collection.svg' } });

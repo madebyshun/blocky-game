@@ -80,7 +80,7 @@ const CAPTIONS = [
   `Every buy shows up in the <em>city log</em>`,
   `${plural} build <em>24/7</em>, even when no one is watching`,
   `Land full? More ${plural} <em>expand the land</em>`,
-  () => `Hold <em>${citizenDays} days</em>: your ${CONFIG.citizen} becomes a citizen, an <em>NFT</em> you claim`,
+  () => (openedAt ? `Trading is open: a ${CONFIG.citizen} held <em>${dayText()}</em> is an <em>NFT</em> you claim` : `Trading opens at <em>${money(unlockUsd)}</em> bought: every ${CONFIG.citizen} becomes an <em>NFT</em>`),
 ];
 let capIdx = 0;
 function rotateCaption() {
@@ -184,7 +184,10 @@ let minted = 0; // Blockies in the city now
 let known = 0; // Blockies the API has told us about (some may still be on the airship)
 let knownGone = 0; // departures the API has told us about
 let supply = CONFIG.supply;
-let citizenDays = CONFIG.citizenDays; // a Blocky's newcomer days (the API's): then a citizen, an NFT
+let citizenDays = CONFIG.citizenDays; // after opening, a Blocky's newcomer days (the API's): then a citizen, an NFT
+let unlockUsd = CONFIG.unlockUsd; // total bought that opens trading
+let openedAt = null; // when it did (ms)
+const dayText = () => (citizenDays === 1 ? 'a day' : `${citizenDays} days`);
 let whales = [];
 let bought = 0; // USD bought (or fees earned in fee mode)
 const loggedBuys = new Set();
@@ -271,6 +274,8 @@ function applyState(s, first) {
   if (typeof s.price === 'number') price = s.price;
   supply = s.supply || supply;
   if (typeof s.citizenDays === 'number') citizenDays = s.citizenDays;
+  if (typeof s.unlockUsd === 'number') unlockUsd = s.unlockUsd;
+  openedAt = s.openedAt ?? null;
   if (s.market) { market = s.market; weather.setMarket(market); }
   updateBoards({ market, population: Math.max(minted, s.minted || 0) });
   for (const b of [...(s.recentBuys || [])].reverse()) {
@@ -441,7 +446,7 @@ const eventLine = (e) => (e.kind === 'unnamed'
 function renderHud() {
   if (!sim) return;
   $('pop').textContent = `${fmt(minted)} / ${fmt(supply)}`;
-  $('fees').textContent = usd(bought);
+  $('fees').innerHTML = openedAt || !unlockUsd ? usd(bought) : `${usd(bought)} <small>/ ${money(unlockUsd)}</small>`; // the road to opening day
   $('buildings').textContent = fmt(sim.buildingCount);
   $('blocks').textContent = fmt(sim.work ?? 0);
   const a = sim.next;
@@ -499,8 +504,9 @@ function renderCard() {
   $('card-blocks').textContent = fmt(placed);
   $('card-hours').textContent = fmt((ts - b.arrivedAt) / HOUR);
   $('card-share').textContent = `${sim.work ? ((placed / sim.work) * 100).toFixed(1) : 0}%`;
-  const citizen = b.arrivedAt + citizenDays * 86400e3;
-  $('card-joined').textContent = `${ago(b.arrivedAt)}${b.kind !== 'blocky' ? '' : ts >= citizen ? ' · citizen' : ` · citizen in ${Math.ceil((citizen - ts) / 86400e3)}d`}`;
+  const citizen = Math.max(b.arrivedAt + citizenDays * 86400e3, openedAt ?? Infinity);
+  const left = citizen - ts;
+  $('card-joined').textContent = `${ago(b.arrivedAt)}${b.kind !== 'blocky' ? '' : left <= 0 ? ' · citizen' : !openedAt ? ' · NFT on opening day' : ` · citizen in ${left > 3600e3 ? `${Math.ceil(left / 3600e3)}h` : `${Math.ceil(left / 60e3)}m`}`}`;
   const team = b.kind === 'blocky' && b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
   $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : team ? `Team reserve (${who(b.from)})` : b.from ? who(b.from, 28) : '—';
   $('card-follow').textContent = following ? 'Stop following' : 'Follow';
@@ -666,7 +672,8 @@ function headlines() {
   const services = Object.entries({ firestation: 'fire trucks', police: 'police cars', hospital: 'ambulances', recycling: 'garbage trucks' }).filter(([t]) => city.counts[t]);
   if (services.length) out.push(`<b>CITY SERVICES:</b> ${services.map(([, v]) => v).join(', ')} on patrol in ${CONFIG.cityName}`);
   out.push(`<b>MINT:</b> ${fmt(minted)} of ${fmt(supply)} ${plural} are in ${CONFIG.cityName}. ${minted < supply ? `Only ${fmt(supply - minted)} left` : 'Sold out'}`);
-  out.push(`<b>CITIZENSHIP:</b> a ${CONFIG.citizen} that stays ${citizenDays} days becomes a citizen for good: an NFT its wallet claims, free to trade at once. Newcomers leave if their wallet sells`);
+  if (openedAt) out.push(`<b>MARKET OPEN:</b> every ${CONFIG.citizen} held ${dayText()} is a citizen for good: an NFT its wallet claims on the claim page, free to trade at once`);
+  else if (unlockUsd) out.push(`<b>OPENING DAY:</b> ${CONFIG.citizen} NFTs start trading at ${money(unlockUsd)} bought. ${usd(bought)} so far, ${Math.min(99, Math.floor((bought / unlockUsd) * 100))}% of the way. Hold: sellers' ${plural} leave`);
   const builders = crew.filter((b) => b.kind === 'legend' && b.arrivedAt <= now()).length;
   if (builders) out.push(`<b>BASE BUILDERS:</b> ${builders} real Base builders are building ${CONFIG.cityName} with the ${plural}`);
   // the City Council at work: someone holding office (CONFIG.offices) and what they're up to
@@ -685,7 +692,7 @@ function headlines() {
   const sponsors = CONFIG.sponsors || [];
   if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>${sp.sponsored ? 'SPONSORED' : 'BUILT ON BASE'}:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
   if (Math.random() < 0.5 || !sponsors.length) out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);
-  out.push(`<b>${CONFIG.ticker}:</b> every ${money(price)} you buy brings a ${CONFIG.citizen}, an NFT after ${citizenDays} days; at most ${fmt(supply)} in the city. One big buy builds a ${whaleTiersText()} with your name`);
+  out.push(`<b>${CONFIG.ticker}:</b> every ${money(price)} you buy brings a ${CONFIG.citizen}, an NFT once trading opens; at most ${fmt(supply)} in the city. One big buy builds a ${whaleTiersText()} with your name`);
   const dark = [...sim.standing.values()].filter((p) => p.whale && p.build !== 'fountain' && p.whale.lostAt <= now()).length;
   if (dark) out.push(`<b>FOR SALE:</b> ${dark} whale tower${dark > 1 ? 's' : ''} went dark when ${dark > 1 ? 'their whales' : 'its whale'} sold. The next big buy takes ${dark > 1 ? 'one' : 'it'} over`);
   return out;

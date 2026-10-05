@@ -16,13 +16,15 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       {
-        // %PRICE% in the pages = USD of $BLOCKY per Blocky, %DAYS% = a Blocky's newcomer days before it
-        // is a citizen (src/config.js); share images need absolute URLs
+        // In the pages (src/config.js): %PRICE% = USD of $BLOCKY per Blocky, %UNLOCK% = the total bought
+        // that opens trading, %HELD% = how long a Blocky is held before it's a citizen after that ("a
+        // day"); share images need absolute URLs
         name: 'page-text',
         transformIndexHtml: (html) => {
           const out = html
             .replace(/%PRICE%/g, String(Number(env.USD_PER_BLOCKY) || CONFIG.usdPerBlocky))
-            .replace(/%DAYS%/g, String(Number(env.CITIZEN_DAYS) || CONFIG.citizenDays));
+            .replace(/%UNLOCK%/g, (Number(env.UNLOCK_USD) || CONFIG.unlockUsd).toLocaleString('en-US'))
+            .replace(/%HELD%/g, ((d) => (d === 1 ? 'a day' : `${d} days`))(Number(env.CITIZEN_DAYS) || CONFIG.citizenDays));
           return site ? out.replace(/content="\/og\.png"/g, `content="${site}/og.png"`) : out;
         },
       },
