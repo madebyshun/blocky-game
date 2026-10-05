@@ -30,8 +30,8 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
 - **City services**: a Fire Station, Police Station, Hospital, Recycling Center and Solar Farm arrive early in every city (more as it grows). Each sends its vehicles out on the roads with flashing light bars: fire trucks, police cars, ambulances and garbage trucks.
 - **BaseCity Metro** (community goal at 15 Blockies): an elevated loop over the ring road, on pillars between the car lanes. It rises piece by piece while the crew builds it, then a three-car train runs the loop and stops at a station on every side. The loop grows with the land. Set it in `metro` in `src/config.js`.
 - **Billboards** on the Town Square, Builder HQ, the airport and some rooftops show Base projects (Coinbase Wallet, o1.exchange, Virtuals, bankrbot, Aero, logos drawn in code) plus one "YOUR PROJECT HERE" slot that sells the space. Edit `sponsors` in `src/config.js` (`{ name, tagline, color, logo?, url, sponsored? }`); clicking a board opens its link.
-- **Camera**: drag to rotate, scroll or pinch to zoom, shift+drag / right-drag / two fingers to move around the city (it eases back to the centre when idle).
-- **Photo mode** for screenshots and recordings: 📷 button or `P` hides the panels and holds the camera still (`Esc` to exit); `R` toggles auto-rotate (remembered). `?photo` / `?still` start that way.
+- **Camera**: drag to rotate, scroll or pinch to zoom, shift+drag / right-drag / two fingers to move around the city; the view stays where you leave it.
+- **Photo mode** for screenshots and recordings: 📷 button or `P` hides the panels and holds the camera still (`Esc` to exit); The camera holds still by default; `R` or ⟳ turns a slow auto-rotate on (remembered). `?photo` starts in photo mode, `?spin` / `?still` force rotation on / off.
 - Same city for every visitor. No wallet needed. **The Blockies are simulated; the buys are real.**
 
 ## Run

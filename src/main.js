@@ -95,16 +95,17 @@ camera.position.set(40, 34, 40);
 camera.zoom = innerWidth < innerHeight ? 1.5 : 1.05;
 const controls = new OrbitControls(camera, canvas);
 Object.assign(controls, {
-  enableDamping: true, enablePan: true, screenSpacePanning: false, autoRotate: true, autoRotateSpeed: 0.3,
+  enableDamping: true, enablePan: true, screenSpacePanning: false, autoRotate: false, autoRotateSpeed: 0.3,
   minZoom: 0.6, maxZoom: 6, minPolarAngle: 0.5, maxPolarAngle: 1.2,
 });
-// drag: rotate · shift+drag, right-drag or two fingers: move around the city (eases back home when idle)
+// drag: rotate · shift+drag, right-drag or two fingers: move around the city
 let goHome = true;
 // Auto-rotate is a preference (button or R key) and always stops in photo mode, so screenshots
 // and screen recordings hold still. ?still starts without rotation, ?photo starts in photo mode.
 const qs = new URLSearchParams(location.search);
-let rotatePref = !qs.has('still');
-try { if (localStorage.getItem('basecity:rotate') === '0') rotatePref = false; } catch { /* ignore */ }
+// The camera holds still by default; ⟳ Rotate (or R, or ?spin) turns a slow orbit on and is remembered.
+let rotatePref = qs.has('spin') && !qs.has('still');
+try { const saved = localStorage.getItem('basecity:spin'); if (saved !== null && !qs.has('still') && !qs.has('spin')) rotatePref = saved === '1'; } catch { /* ignore */ }
 let photo = false;
 let idleTimer;
 const syncRotate = () => {
@@ -114,7 +115,7 @@ const syncRotate = () => {
 };
 function setRotate(on) {
   rotatePref = on;
-  try { localStorage.setItem('basecity:rotate', on ? '1' : '0'); } catch { /* ignore */ }
+  try { localStorage.setItem('basecity:spin', on ? '1' : '0'); } catch { /* ignore */ }
   syncRotate();
 }
 function setPhoto(on) {
@@ -123,7 +124,7 @@ function setPhoto(on) {
   syncRotate();
 }
 controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); });
-controls.addEventListener('end', () => { idleTimer = setTimeout(() => { goHome = true; syncRotate(); }, 8000); });
+controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); }); // the view stays where you leave it
 $('rotate-btn').onclick = () => setRotate(!rotatePref);
 $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
@@ -585,4 +586,4 @@ function frame() {
   setInterval(async () => applyState(await fetchColony(), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
 })();
 
-window.blocky = { city, builders, views, agents, get sim() { return sim; } };
+window.blocky = { city, builders, views, agents, camera, controls, get sim() { return sim; } };
