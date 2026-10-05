@@ -62,14 +62,15 @@ if (showBlockies) {
   for (const t of CONFIG.tiers.slice(1)) people.push({ ...makeBuilder(20 + people.length, 0, { usd: t.min }, noLegend), label: `${t.wonder ? '🐋' : '🔷'} ${t.label}`, pose: 'stand' });
   people.push({ id: 7, role: ROLES[1], tier: tier0, skin: SKIN[4], shirt: SHIRT[2], label: 'Walking', pose: 'walk' });
   people.push({ id: 8, role: ROLES[2], tier: tier0, skin: SKIN[2], shirt: SHIRT[5], label: 'Carrying a block', pose: 'carry' });
-  // the founder and every legend (real Base builders), 8 per row in front of the crew
+  // the founder and every legend (real Base builders), in even rows in front of the crew
   const legends = [makeBuilder(1, 0), ...(CONFIG.legends || []).map((legend, i) => {
     const b = makeBuilder(100 + i, 0, { usd: CONFIG.tiers[1].min }, noLegend);
     return { ...b, legend, legendIdx: i, name: legend.name };
   })].map((b) => ({ ...b, label: `★ ${b.legend.name}`, pose: 'stand' }));
   const lines = [];
   if (!legendsOnly) lines.push(people);
-  for (let i = 0; i < legends.length; i += 8) lines.push(legends.slice(i, i + 8));
+  const perRow = Math.ceil(legends.length / Math.ceil(legends.length / 8)); // even rows of up to 8
+  for (let i = 0; i < legends.length; i += perRow) lines.push(legends.slice(i, i + perRow));
   const rowZ = items.length ? (rows / 2) * gap + 4 : 0;
   const scale = items.length ? 2.6 : 3.2, step = items.length ? 7 : 3.4, rowGap = items.length ? 8 : step * 2.6;
   lines.forEach((row, r) => row.forEach((b, i) => {

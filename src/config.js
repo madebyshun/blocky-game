@@ -89,6 +89,10 @@ export const CONFIG = {
     { name: 'Quigley', title: 'Base Builder', look: 'hoodbot' },
     { name: 'DonJohnson', title: 'Base Builder', look: 'apeslime' },
     { name: 'everythingempty', title: 'Base Builder', look: 'dragonrider' },
+    { name: 'Cobie', title: 'Base Builder', look: 'trapper' },
+    { name: 'statuette', title: 'Base Builder', look: 'starbuns' },
+    { name: 'Oxxbid', title: 'Base Builder', look: 'bobshades' },
+    { name: 'Joey', title: 'Base Builder', look: 'mintcap' },
   ],
 
   // Landmarks: once the Blocky count reaches `at`, the crew builds it next on its reserved lot [x, z].

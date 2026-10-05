@@ -413,6 +413,74 @@ export const LEGEND_LOOKS = {
       B(g, 0.06, 0.1, 0.14, mane, 0.36, 0.9, 0.0);
     },
   },
+  // grunge: trapper hat with ear flaps, white round shades with a ₿ on each lens, long blonde hair,
+  // goatee, open mouth, leopard-print coat over a white tee
+  trapper: {
+    skin: 0xe6c7ae, shirt: 0xb48a5a, pants: 0x2b2f36,
+    dress(g, arms) {
+      const hat = 0x6a6a6a, fur = 0x9a9a9a, blonde = 0xd9c48e, spot = 0x3a2a1a;
+      B(g, 0.08, 0.46, 0.34, blonde, -0.23, 0.6, -0.02); B(g, 0.08, 0.46, 0.34, blonde, 0.23, 0.6, -0.02); B(g, 0.46, 0.5, 0.08, blonde, 0, 0.62, -0.23);
+      B(g, 0.5, 0.16, 0.5, hat, 0, 1.18); B(g, 0.52, 0.1, 0.06, fur, 0, 1.14, 0.23); // hat + folded-up brim
+      B(g, 0.06, 0.38, 0.28, hat, -0.27, 0.8, -0.02); B(g, 0.06, 0.38, 0.28, hat, 0.27, 0.8, -0.02); // ear flaps
+      for (const x of [-0.1, 0.1]) {
+        B(g, 0.18, 0.15, 0.03, 0xffffff, x, 0.88, 0.22);
+        B(g, 0.025, 0.1, 0.02, 0x111111, x - 0.02, 0.9, 0.236); B(g, 0.035, 0.035, 0.02, 0x111111, x + 0.015, 0.93, 0.236); B(g, 0.035, 0.035, 0.02, 0x111111, x + 0.015, 0.895, 0.236); // ₿
+      }
+      B(g, 0.05, 0.03, 0.03, 0xffffff, 0, 0.93, 0.22); // bridge
+      B(g, 0.08, 0.06, 0.02, 0x3a2020, 0, 0.8, 0.216); // open mouth
+      B(g, 0.1, 0.06, 0.02, 0x9a8460, 0, 0.75, 0.216); B(g, 0.3, 0.04, 0.02, 0xb8a080, 0, 0.84, 0.214); // goatee, stubble
+      B(g, 0.14, 0.42, 0.02, 0xf4f4f0, 0, 0.38, 0.141); // white tee
+      for (const [x, y] of [[-0.18, 0.66], [-0.15, 0.5], [0.17, 0.6], [0.15, 0.44], [-0.19, 0.4]]) B(g, 0.05, 0.04, 0.02, spot, x, y, 0.142);
+      for (const a of arms) for (const y of [-0.08, -0.2, -0.3]) B(a, 0.14, 0.03, 0.04, spot, 0.02, y, 0.07);
+    },
+  },
+  // magenta space buns, blue lips, a silver third-eye mark, planet earrings, a white one-shoulder drape
+  starbuns: {
+    skin: 0xc68c5a, shirt: 0xe4eaee, pants: 0xcfd6de,
+    dress(g, arms) {
+      const hair = 0xc23a6a, silver = 0xc7cfd8;
+      B(g, 0.46, 0.1, 0.46, hair, 0, 1.17, -0.02); B(g, 0.44, 0.06, 0.06, hair, 0, 1.12, 0.2);
+      B(g, 0.2, 0.2, 0.2, hair, -0.16, 1.24, -0.04); B(g, 0.2, 0.2, 0.2, hair, 0.16, 1.24, -0.04); // buns
+      B(g, 0.06, 0.1, 0.02, silver, 0, 1.03, 0.216); // third-eye mark
+      for (const x of [-0.1, 0.1]) { B(g, 0.08, 0.06, 0.02, 0x6a4ab0, x, 0.96, 0.215); B(g, 0.1, 0.025, 0.02, 0x111111, x, 1.02, 0.216); }
+      B(g, 0.1, 0.045, 0.02, 0x2050e0, 0, 0.82, 0.216); // blue lips
+      for (const [x, y] of [[-0.15, 0.88], [0.15, 0.9], [-0.12, 0.85]]) B(g, 0.025, 0.025, 0.02, silver, x, y, 0.216);
+      B(g, 0.06, 0.06, 0.06, 0xf08a3a, -0.25, 0.76, 0.04); B(g, 0.06, 0.06, 0.06, 0x3a7ae0, 0.25, 0.76, 0.04); // planet earrings
+      B(arms[0], 0.135, 0.16, 0.165, 0xc68c5a, 0, -0.16); // bare shoulder
+      const drape = B(g, 0.14, 0.6, 0.31, 0xf4f6f8, 0.02, 0.3, 0);
+      drape.rotation.z = 0.6;
+      for (const [x, y, c] of [[-0.12, 0.42, 0xc8b8e8], [0.08, 0.56, 0xb8e0d0], [0.14, 0.4, 0xc8b8e8]]) B(g, 0.08, 0.03, 0.02, c, x, y, 0.142); // swirls
+    },
+  },
+  // cartoon: straight brown bob with bangs, big black square shades with pink lenses, red lips
+  bobshades: {
+    skin: 0xb98a62, shirt: 0x2b2f36, pants: 0x34495e,
+    dress(g) {
+      const hair = 0x7a4f2e;
+      B(g, 0.48, 0.14, 0.48, hair, 0, 1.16, -0.02); B(g, 0.12, 0.05, 0.14, 0xa0703f, 0.12, 1.29, 0.02); // shine
+      B(g, 0.46, 0.13, 0.06, hair, 0, 1.04, 0.2); // bangs
+      B(g, 0.07, 0.46, 0.44, hair, -0.245, 0.7, -0.02); B(g, 0.07, 0.46, 0.44, hair, 0.245, 0.7, -0.02);
+      B(g, 0.48, 0.5, 0.08, hair, 0, 0.68, -0.24);
+      B(g, 0.46, 0.17, 0.03, 0x111111, 0, 0.88, 0.22); // frames
+      for (const x of [-0.1, 0.1]) { B(g, 0.17, 0.11, 0.02, 0xd070b0, x, 0.91, 0.236); B(g, 0.04, 0.09, 0.022, 0xf0b0dc, x - 0.04, 0.92, 0.237); }
+      B(g, 0.08, 0.02, 0.02, 0x2b1d14, 0.02, 0.84, 0.215); B(g, 0.08, 0.025, 0.02, 0xe02a2a, 0, 0.79, 0.215); // smile, red lips
+    },
+  },
+  // mint cap with a white "e", long dark hair with blonde ends, grey tee, a silver croc-print bag
+  mintcap: {
+    skin: 0xf2d4c4, shirt: 0x3a3d42, pants: 0x2b2f36,
+    dress(g, arms) {
+      const hair = 0x2a1d16, ends = 0xc9a46a, cap = 0x3cc8b4;
+      B(g, 0.48, 0.5, 0.08, hair, 0, 0.62, -0.24); B(g, 0.48, 0.18, 0.08, ends, 0, 0.44, -0.24);
+      for (const x of [-0.245, 0.245]) { B(g, 0.07, 0.4, 0.34, hair, x, 0.66, -0.02); B(g, 0.07, 0.2, 0.3, ends, x, 0.46, -0.02); }
+      B(g, 0.48, 0.14, 0.48, cap, 0, 1.16); B(g, 0.4, 0.04, 0.24, cap, 0, 1.16, 0.32);
+      B(g, 0.08, 0.08, 0.02, 0xffffff, 0, 1.2, 0.245); B(g, 0.03, 0.03, 0.025, cap, 0.01, 1.22, 0.247); B(g, 0.12, 0.02, 0.02, 0xffffff, -0.06, 1.25, 0.245); // the "e"
+      for (const x of [-0.1, 0.1]) B(g, 0.07, 0.05, 0.02, 0x1b1410, x, 0.97, 0.215);
+      B(g, 0.1, 0.025, 0.02, 0xc0706a, 0, 0.85, 0.216); B(g, 0.03, 0.03, 0.02, 0xc0706a, -0.06, 0.865, 0.216); B(g, 0.03, 0.03, 0.02, 0xc0706a, 0.06, 0.865, 0.216);
+      B(arms[0], 0.06, 0.3, 0.26, 0xd8d8d0, 0.02, -0.82, 0.04); B(arms[0], 0.03, 0.12, 0.03, 0xb8b8b0, 0.02, -0.56, 0.04); // bag
+      for (const [y, z] of [[-0.74, -0.02], [-0.68, 0.08], [-0.62, 0.0]]) B(arms[0], 0.065, 0.03, 0.05, 0xc0c0b8, 0.02, y, z);
+    },
+  },
 };
 
 // Tier uniforms for Blockies brought by big buys (see CONFIG.tiers), worn instead of the role outfit.
