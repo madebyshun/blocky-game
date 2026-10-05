@@ -15,6 +15,7 @@ import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
 import { now } from './time.js';
 import { addNames, who, whoHtml } from './names.js';
+import { createCinematic } from './cinematic.js';
 
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
@@ -137,8 +138,10 @@ $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
 addEventListener('keydown', (e) => {
   if (e.target.closest?.('input, textarea')) return;
+  if (cine.active) { if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') cine.exit(); return; }
   if (e.key === 'r' || e.key === 'R') setRotate(!rotatePref);
   if (e.key === 'p' || e.key === 'P') setPhoto(!photo);
+  if (e.key === 'c' || e.key === 'C') cine.enter(selected?.b.id ?? null);
   if (e.key === 'Escape' && photo) setPhoto(false);
 });
 syncRotate();
@@ -156,6 +159,7 @@ airship.visible = false;
 city.root.add(airship);
 
 function resize() {
+  if (cine.active) return cine.resize();
   const w = innerWidth, h = innerHeight, aspect = w / h;
   const H = Math.max(2, city.land) * PITCH + 4; // isometric square of half-width H: ~2.9H wide, ~1.9H tall
   const s = Math.max(H * 1.9, (H * 2.9) / aspect, 30) * 1.05;
@@ -509,6 +513,20 @@ function select(v, follow = false) {
 $('card-close').onclick = () => select(null);
 $('card-follow').onclick = () => { following = !following; renderCard(); };
 $('card-pfp-dl').onclick = () => selected && downloadPfp(selected.b);
+$('card-film').onclick = () => selected && cine.enter(selected.b.id);
+
+// ---------- cinematic mode: a film camera, photos and clips (src/cinematic.js) ----------
+
+const cine = createCinematic({
+  renderer, scene, city, controls,
+  views: () => views,
+  selected: () => selected?.b.id ?? null,
+  sim: () => sim,
+  stats: () => ({ day: Math.floor((now() - cityStart) / 86400000) + 1, minted }),
+  onExit: () => { renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); resize(); },
+  solids: [metro.group],
+});
+$('cine-btn').onclick = () => cine.enter(selected?.b.id ?? null);
 
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
@@ -524,6 +542,7 @@ const ray = new THREE.Raycaster();
 let downAt = null;
 canvas.addEventListener('pointerdown', (e) => (downAt = [e.clientX, e.clientY]));
 canvas.addEventListener('pointerup', (e) => {
+  if (cine.active) return cine.poke(); // taps bring the cinematic controls back
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
   const p = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(p, camera);
@@ -684,6 +703,11 @@ function frame() {
   slowAcc += dt;
   if (slowAcc > 1) { slowAcc = 0; renderLeaders(); renderCard(); renderHud(); nextUnlockText(); }
 
+  if (cine.active) { // the film camera takes over
+    cine.frame(t, dt);
+    requestAnimationFrame(frame);
+    return;
+  }
   if (selected && following) {
     selected.group.getWorldPosition(tmp);
     controls.target.lerp(tmp, Math.min(1, dt * 3));

@@ -205,3 +205,27 @@ body.photo .photo-exit { display: block; }
   .checks li:not(:first-child) { display: none; }
   .caption { font-size: 13px; margin: 0 16px; text-align: center; }
 }
+
+/* cinematic mode (src/cinematic.js): the frame on black, a slim control bar, the result sheet */
+body.cine { background: #000; }
+body.cine .progress, body.cine .stats, body.cine .side, body.cine .card, body.cine footer, body.cine .ticker, body.cine .view-controls,
+body.cine .chips, body.cine .toast, body.cine .districts, body.cine .brand, body.cine .photo-exit { display: none !important; }
+.cine-overlay { position: fixed; pointer-events: none; z-index: 2; }
+.cine-ui { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 8; width: max-content; max-width: calc(100vw - 16px); transition: opacity 0.4s; }
+.cine-ui.idle { opacity: 0; }
+.cine-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; padding: 8px; border-radius: 18px; background: rgba(10, 14, 24, 0.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.cine-bar button { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06); color: #fff; font: 700 12px Inter, system-ui, sans-serif; padding: 7px 11px; border-radius: 99px; cursor: pointer; white-space: nowrap; }
+.cine-bar button:hover { background: rgba(255, 255, 255, 0.16); }
+.cine-bar .cine-shot { min-width: 9em; }
+.cine-bar .cine-shot.on { border-color: #ffd23f; color: #ffd23f; }
+.cine-rec { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 8; border: 0; border-radius: 99px; padding: 7px 14px; background: rgba(200, 30, 30, 0.85); color: #fff; font: 800 12px Inter, system-ui, sans-serif; letter-spacing: 0.04em; cursor: pointer; animation: cine-blink 1.2s ease-in-out infinite; }
+@keyframes cine-blink { 50% { opacity: 0.65; } }
+.cine-sheet { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, 0.7); }
+.cine-card { max-width: min(560px, 100%); width: 100%; display: grid; gap: 12px; padding: 12px; border-radius: 18px; background: var(--panel); }
+.cine-media img, .cine-media video { display: block; width: 100%; max-height: 62vh; object-fit: contain; border-radius: 10px; background: #000; }
+.cine-actions { display: flex; gap: 8px; justify-content: center; }
+.cine-actions .btn { flex: 1; text-align: center; text-decoration: none; }
+@media (max-width: 600px) {
+  .cine-bar { gap: 4px; padding: 6px; }
+  .cine-bar button { padding: 6px 8px; font-size: 11px; }
+}

@@ -118,7 +118,7 @@ export function createMetro(city) {
     });
   }
 
-  return { sync, update };
+  return { sync, update, group };
 }
 
 // For the gallery: a straight stretch with a station and the train at the platform.

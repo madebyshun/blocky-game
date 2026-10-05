@@ -1994,7 +1994,10 @@ export function createCity(scene) {
   }
 
   // ----- day / night, same phase for every visitor -----
-  const env = { daylight: 1, phase: 0 };
+  // phaseOverride / warm: a visitor's own light for cinematic shots (src/cinematic.js); the sky's
+  // colours and the sun's direction for its sky dome
+  const env = { daylight: 1, phase: 0, phaseOverride: null, warm: 0, skyTop: new THREE.Color(), skyBottom: new THREE.Color(), sunDir: new THREE.Vector3(0, 1, 0) };
+  const WARM_TOP = new THREE.Color('#6b78c8'), WARM_BOT = new THREE.Color('#ffb070'), WARM_SUN = new THREE.Color('#ffae5c');
   const sky = {
     dayTop: new THREE.Color('#5fb8ff'), dayBot: new THREE.Color('#d6efff'), nightTop: new THREE.Color('#0a1230'), nightBot: new THREE.Color('#2b3a6b'),
     stormTop: new THREE.Color('#4a5568'), stormBot: new THREE.Color('#8a94a6'),
@@ -2002,7 +2005,7 @@ export function createCity(scene) {
   let skyAcc = 1, pulse = 0;
 
   function update(t, dt) {
-    const phase = (now() / (CONFIG.dayLengthMin * 60000)) % 1;
+    const phase = env.phaseOverride ?? (now() / (CONFIG.dayLengthMin * 60000)) % 1;
     const s = Math.sin(phase * Math.PI * 2);
     const dl = THREE.MathUtils.smoothstep(s, -0.25, 0.3);
     env.daylight = dl; env.phase = phase;
@@ -2011,20 +2014,23 @@ export function createCity(scene) {
     const gloom = env.gloom || 0, flash = env.flash || 0; // weather (see weather.js)
     sun.intensity = (0.25 + 2.4 * dl) * (1 - 0.65 * gloom) + flash * 2;
     sun.color.setHSL(0.1, 0.6 - 0.3 * dl, 0.75 + 0.2 * dl);
+    if (env.warm) sun.color.lerp(WARM_SUN, env.warm * 0.6);
+    env.sunDir.copy(sun.position).normalize();
     hemi.intensity = (0.55 + 1.3 * dl) * (1 - 0.35 * gloom) + flash * 3;
     hemi.color.setHSL(0.58, 0.6, 0.45 + 0.45 * dl);
     GLOW_MAT.emissiveIntensity = 0.15 + 1.1 * (1 - dl);
     GREEN_GLOW.emissiveIntensity = 0.4 + 0.8 * (1 - dl);
     pulse = Math.max(0, pulse - dt * 1.5);
     BLUE_GLOW.emissiveIntensity = 0.8 + pulse * 1.5;
+    const top = env.skyTop.copy(sky.nightTop).lerp(sky.dayTop, dl).lerp(sky.stormTop, gloom * 0.8), bot = env.skyBottom.copy(sky.nightBot).lerp(sky.dayBot, dl).lerp(sky.stormBot, gloom * 0.8);
+    if (env.warm) { top.lerp(WARM_TOP, env.warm * 0.35 * dl); bot.lerp(WARM_BOT, env.warm * 0.6 * dl); }
+    if (flash > 0) { top.lerp(new THREE.Color('#e8ecff'), flash * 0.7); bot.lerp(new THREE.Color('#ffffff'), flash * 0.7); }
+    scene.fog.color.copy(bot);
     skyAcc += dt;
     if (skyAcc > (flash > 0 ? 0.05 : 0.5)) {
       skyAcc = 0;
-      const top = sky.nightTop.clone().lerp(sky.dayTop, dl).lerp(sky.stormTop, gloom * 0.8), bot = sky.nightBot.clone().lerp(sky.dayBot, dl).lerp(sky.stormBot, gloom * 0.8);
-      if (flash > 0) { top.lerp(new THREE.Color('#e8ecff'), flash * 0.7); bot.lerp(new THREE.Color('#ffffff'), flash * 0.7); }
       document.documentElement.style.setProperty('--sky-top', `#${top.getHexString()}`);
       document.documentElement.style.setProperty('--sky-bottom', `#${bot.getHexString()}`);
-      scene.fog.color.copy(bot);
     }
 
     for (let i = rising.length - 1; i >= 0; i--) {
@@ -2096,6 +2102,7 @@ export function createCity(scene) {
 
   return {
     root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, riverPath, billboards,
+    solids: lotsGroup, // buildings, sites, trees: what a film camera must not go through
     feePulse: () => (pulse = 1),
     get land() { return land; },
     get counts() { return counts; },
