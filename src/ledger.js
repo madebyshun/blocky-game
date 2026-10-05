@@ -9,8 +9,8 @@
 // - Trading opens when `unlockUsd` has been bought in total (L.openedAt). Until then every Blocky is a
 //   newcomer. From then on a Blocky that has been in the city `citizenDays` days is a citizen for good:
 //   an NFT its wallet can claim, free to trade, whatever the wallet does with its $BLOCKY afterwards.
-// - A wallet's newcomers stay while the $BLOCKY it still holds covers them, at what it paid per Blocky
-//   on average; sell, and the newest newcomers leave the city. With only newcomers: sell half and half
+// - A wallet's newcomers stay while the $BLOCKY it holds (its balance: tokens it had before count too)
+//   covers them, at what it paid per Blocky on average; sell, and the newest newcomers leave the city. With only newcomers: sell half and half
 //   of them leave. Any real sell costs at least one; dust does not.
 // - Free places go to wallets still owed Blockies, first come first served (a waitlist once the city
 //   is full), then to the next buyers.
@@ -74,8 +74,10 @@ export function allowance(a, citizens = 0) {
   const grant = a.grant || 0, earned = Math.floor((a.credits || 0) + 1e-9);
   if (earned === 0) return grant;
   if (!(a.tin > 0)) return grant + (a.bal === 0 ? Math.min(earned, citizens) : earned); // token amounts unknown: trust the buys until a balance check says otherwise
-  let held = a.tin - a.tout;
-  if (a.bal != null) held = Math.min(held, a.bal); // tokens moved away count as sold
+  // what it holds: its balance at the last check, kept current by its trades since (so tokens it had
+  // before buying count too: selling an old bag while keeping what it bought costs nothing); until a
+  // first check, what it bought minus what it sold
+  const held = a.bal != null ? a.bal : a.tin - a.tout;
   const covered = Math.floor((earned * Math.max(0, held)) / a.tin + 0.01);
   return grant + Math.min(earned, citizens + covered);
 }

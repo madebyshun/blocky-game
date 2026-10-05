@@ -113,6 +113,22 @@ assert.equal(snapshot(L, cfg).minted, 120);
   assert.equal(snapshot(L, cfg).minted, 0);
 }
 
+// a wallet that had $BLOCKY before buying: selling the old bag keeps what it bought (its balance covers it)
+L = newLedger(0);
+applyBalances(L, { '0xo': 0 }, at(), cfg);
+applyTrade(L, { who: '0xO', kind: 'buy', usd: 65, tokens: 3393808, at: at() }, cfg); // 13 Blockies
+applyBalances(L, { '0xo': 6564086 }, at(), cfg); // it held 3.17M from before
+applyTrade(L, { who: '0xO', kind: 'sell', usd: 60, tokens: 3204216, at: at() }, cfg);
+assert.equal(walletBlockies(L, '0xo').active.length, 12, 'still holds 99% of what it bought: 12 of 13');
+applyTrade(L, { who: '0xO', kind: 'sell', usd: 60, tokens: 1700000, at: at() }, cfg);
+assert.equal(walletBlockies(L, '0xo').active.length, 6, 'selling into what it bought costs Blockies');
+// a buy whose token amount is unknown counts until a balance check says the wallet holds nothing
+L = newLedger(0);
+applyTrade(L, { who: '0xZ', kind: 'buy', usd: 25, tokens: 0, at: at() }, cfg);
+assert.equal(walletBlockies(L, '0xz').active.length, 5);
+applyBalances(L, { '0xz': 0 }, at(), cfg);
+assert.equal(walletBlockies(L, '0xz').active.length, 0);
+
 // 6. each buy counts at the price of its day: raising the price later keeps what was earned
 L = newLedger(0);
 applyTrade(L, { who: '0xG', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);

@@ -45,7 +45,7 @@ client.readContract = async ({ functionName }) => {
   if (functionName === 'decimals') return 18;
   throw new Error(`unexpected read ${functionName}`);
 };
-client.multicall = async ({ contracts }) => contracts.map(({ functionName }) => (functionName === 'balanceOf' ? { status: 'success', result: 10n ** 24n } : { status: 'failure', error: new Error('not here') }));
+client.multicall = async ({ contracts }) => contracts.map(() => ({ status: 'failure', error: new Error('not here') })); // balance checks find nothing: trades decide
 client.getBlock = async () => ({ hash: '0xhead' });
 
 const BUNDLER = '0x000000000000000000000000000000000000beef';
