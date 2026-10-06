@@ -134,7 +134,7 @@ function setPhoto(on) {
   document.body.classList.toggle('photo', on);
   syncRotate();
 }
-controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); userTurned = performance.now(); swing = null; });
+controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); });
 controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); }); // the view stays where you leave it
 $('rotate-btn').onclick = () => setRotate(!rotatePref);
 $('photo-btn').onclick = () => setPhoto(true);
@@ -729,42 +729,49 @@ let simAcc = 0, slowAcc = 0;
 const tmp = new THREE.Vector3();
 const home = new THREE.Vector3();
 
-// Following a Blocky: when a building hides it, the camera swings to the nearest angle that sees it
-// (rounder, then from higher up), checked a few times a second; not for a few seconds after you turn
-// the view yourself.
-const sight = new THREE.Raycaster(), head = new THREE.Vector3(), off = new THREE.Vector3(), sph = new THREE.Spherical(), toCam = new THREE.Vector3();
-let viewAcc = 0, swing = null, userTurned = -Infinity;
-const hidden = (theta, phi) => {
-  sight.set(head, toCam.setFromSphericalCoords(1, phi, theta));
-  sight.far = 120;
-  return sight.intersectObjects([city.solids, metro.group], true).length > 0;
-};
-function keepInView(dt) {
-  viewAcc += dt;
-  if (viewAcc > 0.3 && !swing && performance.now() - userTurned > 4000) {
-    viewAcc = 0;
-    selected.group.getWorldPosition(head);
-    head.y += 1.1;
-    sph.setFromVector3(off.copy(camera.position).sub(controls.target));
-    if (hidden(sph.theta, sph.phi)) {
-      const turns = [0.45, -0.45, 0.9, -0.9, 1.5, -1.5, Math.PI];
-      const higher = [sph.phi, Math.max(controls.minPolarAngle, sph.phi - 0.3), controls.minPolarAngle];
-      swing = { theta: sph.theta, phi: controls.minPolarAngle }; // nothing clear: look down from the top
-      search: for (const phi of higher) {
-        for (const d of phi === sph.phi ? turns : [0, ...turns]) {
-          if (!hidden(sph.theta + d, phi)) { swing = { theta: sph.theta + d, phi }; break search; }
-        }
-      }
+// Following a Blocky: the camera keeps its angle and glides after it; whatever stands between the camera
+// and the Blocky (a tower, a row of trees) fades see-through instead of the camera swinging around.
+const sight = new THREE.Raycaster(), head = new THREE.Vector3(), toCam = new THREE.Vector3();
+const faded = new Map(); // a lot's group -> { meshes: [[mesh, material]], o: opacity now, want }
+let fadeAcc = 0;
+const lotOf = (o) => { while (o.parent && o.parent !== city.solids) o = o.parent; return o.parent ? o : null; };
+function fadeBlockers(dt) {
+  fadeAcc += dt;
+  if (fadeAcc > 0.15) {
+    fadeAcc = 0;
+    const blocking = new Set();
+    if (selected && following) {
+      selected.group.getWorldPosition(head);
+      head.y += 1;
+      sight.set(head, toCam.copy(camera.position).sub(controls.target).normalize());
+      sight.far = 150;
+      for (const h of sight.intersectObject(city.solids, true)) { const g = lotOf(h.object); if (g) blocking.add(g); }
+    }
+    for (const g of blocking) {
+      if (faded.has(g)) { faded.get(g).want = 0.18; continue; }
+      const meshes = [];
+      g.traverse((o) => {
+        if (!o.isMesh) return;
+        const orig = o.material;
+        o.material = Array.isArray(orig) ? orig.map((x) => Object.assign(x.clone(), { transparent: true, depthWrite: false })) : Object.assign(orig.clone(), { transparent: true, depthWrite: false });
+        meshes.push([o, orig]);
+      });
+      faded.set(g, { meshes, o: 1, want: 0.18 });
+    }
+    for (const [g, f] of faded) if (!blocking.has(g)) f.want = 1;
+  }
+  const k = 1 - Math.exp(-dt * 10);
+  for (const [g, f] of faded) {
+    f.o += (f.want - f.o) * k;
+    if (f.want === 1 && f.o > 0.98) { // clear again: its own materials back
+      for (const [o, orig] of f.meshes) { for (const x of [].concat(o.material)) x.dispose(); o.material = orig; }
+      faded.delete(g);
+      continue;
+    }
+    for (const [o, orig] of f.meshes) {
+      [].concat(o.material).forEach((x, i) => { x.opacity = [].concat(orig)[i].opacity * f.o; });
     }
   }
-  if (!swing) return;
-  sph.setFromVector3(off.copy(camera.position).sub(controls.target));
-  const dTheta = Math.atan2(Math.sin(swing.theta - sph.theta), Math.cos(swing.theta - sph.theta)), dPhi = swing.phi - sph.phi;
-  const k = Math.min(1, dt * 2.5);
-  sph.theta += dTheta * k;
-  sph.phi += dPhi * k;
-  camera.position.copy(controls.target).add(off.setFromSpherical(sph));
-  if (Math.abs(dTheta) < 0.01 && Math.abs(dPhi) < 0.01) swing = null;
 }
 
 function frame() {
@@ -791,12 +798,12 @@ function frame() {
     requestAnimationFrame(frame);
     return;
   }
+  fadeBlockers(dt);
   if (selected && following) {
     selected.group.getWorldPosition(tmp);
-    const step = tmp.sub(controls.target).multiplyScalar(Math.min(1, dt * 3));
+    const step = tmp.sub(controls.target).multiplyScalar(1 - Math.exp(-dt * 2.5)); // eased, so a sharp turn doesn't jolt it
     controls.target.add(step);
     camera.position.add(step); // the camera travels with the Blocky, its angle stays
-    keepInView(dt);
   } else if (goHome) {
     controls.target.lerp(home, Math.min(1, dt * 2));
   }
