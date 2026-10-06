@@ -8,6 +8,14 @@
     {
       "source": "/r/:day",
       "destination": "/api/recap?day=:day"
+    },
+    {
+      "source": "/b",
+      "destination": "/blocky.html"
+    },
+    {
+      "source": "/b/:n",
+      "destination": "/blocky.html"
     }
   ]
 }

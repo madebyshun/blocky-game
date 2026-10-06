@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 const PAGES = [
   ['city', '/', 'City'],
   ['blockies', '/collection.html', 'Blockies'],
+  ['viewer', '/blocky.html', 'Viewer'],
   ['claim', '/claim.html', 'Claim'],
   ['builders', '/builders.html', 'Builders'],
   ['recap', '/recap.html', 'Recap'],

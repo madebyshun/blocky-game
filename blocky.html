@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Blocky viewer · BaseCity</title>
+    <meta name="description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Download it as a PNG, a PFP or an X header." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BaseCity" />
+    <meta property="og:url" content="%SITE%/b/" />
+    <meta property="og:title" content="Blocky viewer · BaseCity" />
+    <meta property="og:description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Download it as a PNG, a PFP or an X header." />
+    <meta property="og:image" content="/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="BaseCity: a voxel city on Base, built 24/7 by Blockies" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@%X%" />
+    <meta name="twitter:title" content="Blocky viewer · BaseCity" />
+    <meta name="twitter:description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Download it as a PNG, a PFP or an X header." />
+    <meta name="twitter:image" content="/og.png" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/site.css" />
+    <link rel="stylesheet" href="/src/viewer.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1 id="title">Blocky viewer</h1>
+      <p class="lede">Every Blocky in BaseCity, head to toe. Type a number from #1 to #<span id="count">…</span>.</p>
+    </header>
+    <main class="wrap viewer">
+      <div class="find">
+        <button class="btn" type="button" id="prev" aria-label="Previous Blocky">◀</button>
+        <form id="go"><input id="num" type="number" min="1" inputmode="numeric" placeholder="#1234" aria-label="Blocky number" /><button class="btn primary" type="submit">Show</button></form>
+        <button class="btn" type="button" id="next" aria-label="Next Blocky">▶</button>
+        <button class="btn" type="button" id="random">🎲 Random</button>
+      </div>
+      <div class="layout">
+        <div class="stage" id="stage"></div>
+        <section>
+          <div class="chips views" id="views" role="group" aria-label="View"></div>
+          <dl id="facts"></dl>
+          <div class="acts" id="acts" hidden>
+            <button class="btn primary" type="button" data-dl="body">⬇ Full body PNG</button>
+            <button class="btn" type="button" data-dl="clear">⬇ Transparent PNG</button>
+            <button class="btn" type="button" data-dl="pfp">⬇ PFP</button>
+            <button class="btn" type="button" data-dl="header">⬇ X header</button>
+            <button class="btn" type="button" data-dl="nft">⬇ NFT art</button>
+            <button class="btn" type="button" id="share">Share on 𝕏</button>
+            <a class="btn" id="opensea" target="_blank" rel="noopener" hidden>OpenSea ↗</a>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="/src/viewer.js"></script>
+  </body>
+</html>

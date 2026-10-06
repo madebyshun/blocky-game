@@ -12,9 +12,16 @@ export default defineConfig(({ mode }) => {
     build: {
       chunkSizeWarningLimit: 800,
       // every page (gallery.html: every building design, linked from the launch thread)
-      rollupOptions: { input: { main: 'index.html', builders: 'builders.html', collection: 'collection.html', claim: 'claim.html', about: 'about.html', gallery: 'gallery.html', recap: 'recap.html', deploy: 'deploy.html' } },
+      rollupOptions: { input: { main: 'index.html', builders: 'builders.html', collection: 'collection.html', claim: 'claim.html', about: 'about.html', gallery: 'gallery.html', recap: 'recap.html', blocky: 'blocky.html', deploy: 'deploy.html' } },
     },
     plugins: [
+      {
+        // /b/N is the Blocky viewer (vercel.json does the same on Vercel)
+        name: 'viewer-route',
+        configureServer(server) {
+          server.middlewares.use((req, _res, next) => { if (/^\/b(\/\d*)?\/?(\?|$)/.test(req.url)) req.url = '/blocky.html'; next(); });
+        },
+      },
       {
         // In the pages (src/config.js): %PRICE% = USD of $BLOCKY per Blocky, %UNLOCK% = the total bought
         // that opens trading, %HELD% = how long a Blocky is held before it's a citizen after that ("a

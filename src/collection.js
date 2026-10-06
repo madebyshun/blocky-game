@@ -161,6 +161,7 @@ function open(b) {
   $('d-actions').innerHTML = `<button class="btn primary" type="button" data-act="png">⬇ PNG</button>
     ${info.contract && here(b) && citizen ? `<a class="btn" href="${opensea(info.contract, b.id)}" target="_blank" rel="noopener">OpenSea ↗</a><a class="btn" href="${basescan(`nft/${info.contract}/${b.id}`)}" target="_blank" rel="noopener">Basescan ↗</a>` : ''}
     <a class="btn" href="https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${site}/collection.html#${b.id}`)}" target="_blank" rel="noopener">Share on 𝕏</a>
+    <a class="btn" href="/b/${b.id}">Full body ↗</a>
     <a class="btn" href="/claim.html${b.from ? `?address=${b.from}` : ''}">Claim page</a>`;
   d.querySelector('[data-act="png"]').onclick = () => downloadSvgPng(blockySvg(b, { size: 1024 }), b.name);
   history.replaceState(null, '', `#${b.id}`);

@@ -34,9 +34,10 @@ function setup() {
 
 const cache = new Map();
 
-// Returns a PNG data URL. `mark` adds a small BaseCity tag in the corner.
-export function renderPfp(b, { size = 1024, mark = true } = {}) {
-  const key = `${b.id}|${b.legendIdx ?? -1}|${size}|${mark}`;
+// Returns a PNG data URL. `mark` adds a small BaseCity tag in the corner. `full`: head to toe instead of
+// from the chest up; `transparent`: no background.
+export function renderPfp(b, { size = 1024, mark = true, full = false, transparent = false } = {}) {
+  const key = `${b.id}|${b.legendIdx ?? -1}|${size}|${mark}|${full}|${transparent}`;
   if (cache.has(key)) return cache.get(key);
   if (!renderer) setup();
   renderer.setSize(size, size, false);
@@ -45,10 +46,10 @@ export function renderPfp(b, { size = 1024, mark = true } = {}) {
   group.scale.setScalar(1);
   group.rotation.y = 0.42;
   scene.add(group);
-  // frame from the chest up to the top of whatever the Blocky wears
+  // frame from the chest (or the feet) up to the top of whatever the Blocky wears
   const box = new THREE.Box3().setFromObject(group);
-  const top = box.max.y + 0.06, bottom = 0.34;
-  const span = (top - bottom) * 1.12, cy = (top + bottom) / 2 + 0.02;
+  const top = box.max.y + 0.06, bottom = full ? box.min.y - 0.04 : 0.34;
+  const span = (top - bottom) * (full ? 1.16 : 1.12), cy = (top + bottom) / 2 + 0.02;
   const dist = span / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
   camera.position.set(0, cy + dist * 0.12, dist);
   camera.lookAt(0, cy, 0);
@@ -58,18 +59,7 @@ export function renderPfp(b, { size = 1024, mark = true } = {}) {
   const out = document.createElement('canvas');
   out.width = out.height = size;
   const g = out.getContext('2d');
-  const color = new THREE.Color(pfpColor(b));
-  const light = color.clone().lerp(new THREE.Color('#ffffff'), 0.35), dark = color.clone().multiplyScalar(0.72);
-  const grad = g.createRadialGradient(size * 0.5, size * 0.42, size * 0.05, size * 0.5, size * 0.5, size * 0.72);
-  grad.addColorStop(0, `#${light.getHexString()}`);
-  grad.addColorStop(1, `#${dark.getHexString()}`);
-  g.fillStyle = grad;
-  g.fillRect(0, 0, size, size);
-  g.globalAlpha = 0.08; // a faint voxel grid
-  g.fillStyle = '#ffffff';
-  const cell = size / 16;
-  for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) if ((i + j) % 2) g.fillRect(i * cell, j * cell, cell, cell);
-  g.globalAlpha = 1;
+  if (!transparent) paintBackground(g, b, size);
   g.drawImage(renderer.domElement, 0, 0, size, size);
   if (mark) {
     const s = size / 1024;
@@ -83,6 +73,23 @@ export function renderPfp(b, { size = 1024, mark = true } = {}) {
   const url = out.toDataURL('image/png');
   cache.set(key, url);
   return url;
+}
+
+// the Blocky's colour as a soft radial gradient with a faint voxel grid (w × h, any shape)
+export function paintBackground(g, b, w, h = w) {
+  const size = Math.max(w, h);
+  const color = new THREE.Color(pfpColor(b));
+  const light = color.clone().lerp(new THREE.Color('#ffffff'), 0.35), dark = color.clone().multiplyScalar(0.72);
+  const grad = g.createRadialGradient(w * 0.5, h * 0.42, size * 0.05, w * 0.5, h * 0.5, size * 0.72);
+  grad.addColorStop(0, `#${light.getHexString()}`);
+  grad.addColorStop(1, `#${dark.getHexString()}`);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, w, h);
+  g.globalAlpha = 0.08; // a faint voxel grid
+  g.fillStyle = '#ffffff';
+  const cell = Math.min(w, h) / 16;
+  for (let i = 0; i * cell < w; i++) for (let j = 0; j * cell < h; j++) if ((i + j) % 2) g.fillRect(i * cell, j * cell, cell, cell);
+  g.globalAlpha = 1;
 }
 
 export function downloadPfp(b, name) {
