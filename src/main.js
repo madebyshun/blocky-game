@@ -134,7 +134,7 @@ function setPhoto(on) {
   document.body.classList.toggle('photo', on);
   syncRotate();
 }
-controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); });
+controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); userTurned = performance.now(); swing = null; });
 controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); }); // the view stays where you leave it
 $('rotate-btn').onclick = () => setRotate(!rotatePref);
 $('photo-btn').onclick = () => setPhoto(true);
@@ -729,6 +729,44 @@ let simAcc = 0, slowAcc = 0;
 const tmp = new THREE.Vector3();
 const home = new THREE.Vector3();
 
+// Following a Blocky: when a building hides it, the camera swings to the nearest angle that sees it
+// (rounder, then from higher up), checked a few times a second; not for a few seconds after you turn
+// the view yourself.
+const sight = new THREE.Raycaster(), head = new THREE.Vector3(), off = new THREE.Vector3(), sph = new THREE.Spherical(), toCam = new THREE.Vector3();
+let viewAcc = 0, swing = null, userTurned = -Infinity;
+const hidden = (theta, phi) => {
+  sight.set(head, toCam.setFromSphericalCoords(1, phi, theta));
+  sight.far = 120;
+  return sight.intersectObjects([city.solids, metro.group], true).length > 0;
+};
+function keepInView(dt) {
+  viewAcc += dt;
+  if (viewAcc > 0.3 && !swing && performance.now() - userTurned > 4000) {
+    viewAcc = 0;
+    selected.group.getWorldPosition(head);
+    head.y += 1.1;
+    sph.setFromVector3(off.copy(camera.position).sub(controls.target));
+    if (hidden(sph.theta, sph.phi)) {
+      const turns = [0.45, -0.45, 0.9, -0.9, 1.5, -1.5, Math.PI];
+      const higher = [sph.phi, Math.max(controls.minPolarAngle, sph.phi - 0.3), controls.minPolarAngle];
+      swing = { theta: sph.theta, phi: controls.minPolarAngle }; // nothing clear: look down from the top
+      search: for (const phi of higher) {
+        for (const d of phi === sph.phi ? turns : [0, ...turns]) {
+          if (!hidden(sph.theta + d, phi)) { swing = { theta: sph.theta + d, phi }; break search; }
+        }
+      }
+    }
+  }
+  if (!swing) return;
+  sph.setFromVector3(off.copy(camera.position).sub(controls.target));
+  const dTheta = Math.atan2(Math.sin(swing.theta - sph.theta), Math.cos(swing.theta - sph.theta)), dPhi = swing.phi - sph.phi;
+  const k = Math.min(1, dt * 2.5);
+  sph.theta += dTheta * k;
+  sph.phi += dPhi * k;
+  camera.position.copy(controls.target).add(off.setFromSpherical(sph));
+  if (Math.abs(dTheta) < 0.01 && Math.abs(dPhi) < 0.01) swing = null;
+}
+
 function frame() {
   clock.update();
   const dt = Math.min(clock.getDelta(), 0.1);
@@ -755,7 +793,10 @@ function frame() {
   }
   if (selected && following) {
     selected.group.getWorldPosition(tmp);
-    controls.target.lerp(tmp, Math.min(1, dt * 3));
+    const step = tmp.sub(controls.target).multiplyScalar(Math.min(1, dt * 3));
+    controls.target.add(step);
+    camera.position.add(step); // the camera travels with the Blocky, its angle stays
+    keepInView(dt);
   } else if (goHome) {
     controls.target.lerp(home, Math.min(1, dt * 2));
   }

@@ -679,6 +679,13 @@ export function buildBlocky(b, { merge = true } = {}) {
   return { group: g, legs, arms, carry };
 }
 
+// The selected Blocky shows through buildings: a pin over its head and a ring at its feet, drawn on top
+// of everything (no depth test).
+const XRAY = new THREE.MeshBasicMaterial({ color: 0xffd23f, depthTest: false, depthWrite: false, transparent: true, opacity: 0.95 });
+const XRAY_RING = new THREE.MeshBasicMaterial({ color: 0xffd23f, depthTest: false, depthWrite: false, transparent: true, opacity: 0.55 });
+const PIN = new THREE.ConeGeometry(0.3, 0.6, 4).rotateX(Math.PI);
+const HALO = new THREE.RingGeometry(0.42, 0.56, 24).rotateX(-Math.PI / 2);
+
 export class BuilderView {
   constructor(b, city, { arriving = false } = {}) {
     this.b = b;
@@ -691,6 +698,10 @@ export class BuilderView {
 
     this.ring = B(g, 0.9, 0.04, 0.9, 0xffd23f, 0, 0.01, 0, 0x806000);
     this.ring.visible = false;
+    this.pin = new THREE.Mesh(PIN, XRAY);
+    this.halo = new THREE.Mesh(HALO, XRAY_RING);
+    this.halo.position.y = 0.05;
+    for (const m of [this.pin, this.halo]) { m.renderOrder = 10; m.visible = false; g.add(m); }
     const hit = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.6, 0.9), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
     hit.position.y = 0.8;
     hit.visible = false; // still hit by the raycaster, never drawn
@@ -756,6 +767,7 @@ export class BuilderView {
   }
 
   update(t, dt) {
+    if (this.pin.visible) { this.pin.position.y = 2.3 + Math.sin(t * 4) * 0.12; this.pin.rotation.y = t * 1.5; }
     const g = this.group, p = g.position;
     if (this.wait > 0) { this.wait -= dt; this.idle(t); return; }
 
@@ -809,5 +821,5 @@ export class BuilderView {
     p.y = inLot(p.x) && inLot(p.z) ? 0.15 : 0;
   }
 
-  setSelected(on) { this.ring.visible = on; }
+  setSelected(on) { this.ring.visible = this.pin.visible = this.halo.visible = on; }
 }
