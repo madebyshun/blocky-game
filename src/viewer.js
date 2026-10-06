@@ -1,6 +1,6 @@
-// The Blocky viewer (/b/N): type a number, see that Blocky head to toe in 3D doing its moves (src/dance.js),
-// its traits and its story, and take it home as a dancing GIF, a PNG (with or without its background), a
-// PFP or an X header.
+// The Blocky viewer (/b/N, or /b/jesse for a Base Builder): type a number or a name, see that Blocky
+// head to toe in 3D walking, carrying, building or dancing (src/dance.js), its traits and its story, and
+// take it home as a GIF, a PNG (with or without its background), a PFP or an X header.
 import { CONFIG } from './config.js';
 import { TRAIT_LABEL } from './sim.js';
 import { fetchColony } from './data.js';
@@ -12,13 +12,23 @@ import { addNames, who } from './names.js';
 
 mountSite('viewer');
 const $ = (id) => document.getElementById(id);
-let all = [], sim = null, info = null, move = 'gm', current = null, stage = null;
+let all = [], team = [], sim = null, info = null, move = 'walk', current = null, stage = null;
 
-const numberIn = () => {
-  const m = location.pathname.match(/^\/b\/(\d+)/) || location.search.match(/[?&]n=(\d+)/);
-  return m ? Number(m[1]) : Number(location.hash.slice(1)) || null;
+const keyIn = () => {
+  const m = location.pathname.match(/^\/b\/([^/?#]+)/) || location.search.match(/[?&]n=([^&]+)/);
+  return m ? decodeURIComponent(m[1]) : location.hash.slice(1) || null;
 };
-const slug = (b) => b.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const slugOf = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const slug = (b) => slugOf(b.name);
+const isBuilder = (b) => b && b.kind !== 'blocky';
+// a number (#12, 12) is a Blocky, anything else a Base Builder's name (or its start)
+function find(key) {
+  const k = String(key ?? '').trim().replace(/^#/, '');
+  if (!k) return { b: null };
+  if (/^\d+$/.test(k)) return { b: all[Number(k) - 1] || null, n: Number(k) };
+  const s = slugOf(k);
+  return { b: team.find((x) => slug(x) === s) || team.find((x) => slug(x).startsWith(s)) || null, name: k };
+}
 function save(href, file) {
   const a = Object.assign(document.createElement('a'), { href, download: file });
   document.body.appendChild(a); a.click(); a.remove();
@@ -36,22 +46,25 @@ async function header(b) {
   g.fillText(b.name, 90, 230);
   g.font = '800 28px Inter, system-ui, sans-serif';
   g.globalAlpha = 0.9;
-  g.fillText(`${b.rarity.label}${b.trait ? ` · ${TRAIT_LABEL[b.trait]}` : ''} · building ${CONFIG.cityName} on Base`, 92, 285);
+  g.fillText(isBuilder(b) ? `${b.office ? `${b.office.label} · ` : ''}Base Builder · building ${CONFIG.cityName}` : `${b.rarity.label}${b.trait ? ` · ${TRAIT_LABEL[b.trait]}` : ''} · building ${CONFIG.cityName} on Base`, 92, 285);
   g.globalAlpha = 0.75;
   g.fillText((CONFIG.siteUrl || location.origin).replace(/^https?:\/\//, ''), 92, 335);
   return c.toDataURL('image/png');
 }
 
-function show(n) {
-  const b = all[n - 1];
+function show(key) {
+  const { b, n, name } = find(key);
   current = b || null;
-  $('num').value = n || '';
-  $('prev').disabled = !n || n <= 1;
-  $('next').disabled = !n || n >= all.length;
-  if (n) history.replaceState(null, '', `/b/${n}`);
+  $('num').value = b ? (isBuilder(b) ? b.name : b.id) : key ?? '';
+  const list = b && isBuilder(b) ? team : all, i = b ? list.indexOf(b) : -1;
+  $('prev').disabled = i <= 0;
+  $('next').disabled = i < 0 || i >= list.length - 1;
+  if (b) history.replaceState(null, '', `/b/${isBuilder(b) ? slug(b) : b.id}`);
   if (!b) {
     const max = fmt(all.length);
-    $('over').innerHTML = `<div class="empty"><b>#${n ? fmt(n) : '?'}</b><p>${n > all.length ? `Not here yet: ${max} Blockies have arrived so far. Every $${CONFIG.usdPerBlocky} of ${CONFIG.ticker} brings the next one.` : `Pick a Blocky from #1 to #${max}.`}</p>${CONFIG.buyUrl && n > all.length ? `<a class="btn primary" href="${CONFIG.buyUrl}" target="_blank" rel="noopener">Bring the next one</a>` : ''}</div>`;
+    $('over').innerHTML = name
+      ? `<div class="empty"><b>?</b><p>No Base Builder called “${esc(name)}”. Try a number from #1 to #${max}, or a name: ${team.slice(0, 4).map((x) => esc(x.name)).join(', ')}…</p></div>`
+      : `<div class="empty"><b>#${n ? fmt(n) : '?'}</b><p>${n > all.length ? `Not here yet: ${max} Blockies have arrived so far. Every $${CONFIG.usdPerBlocky} of ${CONFIG.ticker} brings the next one.` : `Pick a Blocky from #1 to #${max}, or a Base Builder by name.`}</p>${CONFIG.buyUrl && n > all.length ? `<a class="btn primary" href="${CONFIG.buyUrl}" target="_blank" rel="noopener">Bring the next one</a>` : ''}</div>`;
     $('stage').classList.add('none');
     $('facts').innerHTML = '';
     $('acts').hidden = true;
@@ -61,8 +74,24 @@ function show(n) {
   document.title = `${b.name} · ${CONFIG.cityName}`;
   $('title').textContent = b.name;
   $('stage').classList.remove('none');
-  $('over').innerHTML = `<span class="tag ${b.rarity.id}">${b.rarity.label}</span>`;
   stage.blocky = b;
+  $('acts').hidden = false;
+  if (isBuilder(b)) {
+    $('over').innerHTML = `<span class="tag builder">${b.kind === 'founder' ? 'Founder' : '★ Base Builder'}</span>`;
+    const now = Date.now();
+    const rows = [
+      ['Role', b.kind === 'founder' ? 'Founder' : 'Base Builder'],
+      ...(b.office ? [['City Council', b.office.label]] : []),
+      ...(b.legend?.title ? [['Who', esc(b.legend.title)]] : []),
+      ['Building since', new Date(b.arrivedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })],
+      ['Blocks placed', fmt(sim.blocksBy(b, now))],
+      ...(b.legend?.x ? [['On 𝕏', `<a href="https://x.com/${esc(b.legend.x.replace(/^@/, ''))}" target="_blank" rel="noopener">@${esc(b.legend.x.replace(/^@/, ''))}</a>`]] : []),
+    ];
+    $('facts').innerHTML = rows.map(([k, val]) => `<dt>${k}</dt><dd>${val}</dd>`).join('');
+    $('opensea').hidden = true;
+    return;
+  }
+  $('over').innerHTML = `<span class="tag ${b.rarity.id}">${b.rarity.label}</span>`;
   const now = Date.now(), here = !Number.isFinite(b.leftAt);
   const citizenAt = info ? Math.max(b.arrivedAt + info.citizenDays * 86400e3, info.openedAt ?? Infinity) : Infinity;
   const status = !here ? `Left the city ${new Date(b.leftAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : citizenAt <= now ? 'Citizen: claimable as an NFT' : 'Newcomer in the city';
@@ -76,23 +105,27 @@ function show(n) {
     ['Blocks placed', fmt(sim.blocksBy(b, Math.min(now, b.leftAt ?? now)))],
   ];
   $('facts').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-  $('acts').hidden = false;
   $('opensea').hidden = !(info?.contract && here && citizenAt <= now);
   if (info?.contract) $('opensea').href = opensea(info.contract, b.id);
 }
 
 function controls() {
-  $('moves').innerHTML = Object.entries(MOVES).map(([id, m]) => `<button type="button" class="chip${id === move ? ' on' : ''}" data-m="${id}">${m.label}</button>`).join('');
+  const chips = (group) => Object.entries(MOVES).filter(([, m]) => m.group === group).map(([id, m]) => `<button type="button" class="chip${id === move ? ' on' : ''}" data-m="${id}">${m.label}</button>`).join('');
+  $('moves').innerHTML = `<span class="lbl">In the city</span>${chips('city')}<span class="lbl">Dance</span>${chips('dance')}`;
   $('moves').onclick = (e) => {
     const id = e.target.closest('[data-m]')?.dataset.m;
     if (!id) return;
     move = id;
     stage.move = id;
-    for (const x of $('moves').children) x.classList.toggle('on', x.dataset.m === id);
+    for (const x of $('moves').querySelectorAll('[data-m]')) x.classList.toggle('on', x.dataset.m === id);
   };
-  $('go').onsubmit = (e) => { e.preventDefault(); show(Math.floor(Number($('num').value)) || null); };
-  $('prev').onclick = () => show(Math.max(1, (current?.id ?? 2) - 1));
-  $('next').onclick = () => show(Math.min(all.length, (current?.id ?? 0) + 1));
+  $('go').onsubmit = (e) => { e.preventDefault(); show($('num').value); };
+  const step = (d) => {
+    const list = isBuilder(current) ? team : all, i = list.indexOf(current) + d;
+    if (list[i]) show(isBuilder(list[i]) ? list[i].name : list[i].id);
+  };
+  $('prev').onclick = () => step(-1);
+  $('next').onclick = () => step(1);
   $('random').onclick = () => show(1 + Math.floor(Math.random() * all.length));
   addEventListener('keydown', (e) => {
     if (e.target.closest('input')) return;
@@ -118,7 +151,11 @@ function controls() {
   };
   $('share').onclick = () => {
     if (!current) return;
-    const text = `Meet ${current.name}: a ${current.rarity.label}${current.trait ? ` (${TRAIT_LABEL[current.trait]})` : ''} Blocky building ${CONFIG.cityName} on Base 🧱\n\n${CONFIG.siteUrl || location.origin}/b/${current.id}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
+    const link = `${CONFIG.siteUrl || location.origin}/b/${isBuilder(current) ? slug(current) : current.id}`;
+    const who = current.legend?.x ? `@${current.legend.x.replace(/^@/, '')}` : current.name;
+    const text = isBuilder(current)
+      ? `${who} is a voxel Base Builder in ${CONFIG.cityName}${current.office ? `, and its ${current.office.label}` : ''} 🧱\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`
+      : `Meet ${current.name}: a ${current.rarity.label}${current.trait ? ` (${TRAIT_LABEL[current.trait]})` : ''} Blocky building ${CONFIG.cityName} on Base 🧱\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
     open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
 }
@@ -133,8 +170,9 @@ function controls() {
   addNames(state?.names);
   const r = replay(state);
   all = r.blockies;
+  team = r.team;
   sim = r.sim;
-  $('num').max = all.length;
+  $('names').innerHTML = team.map((b) => `<option value="${esc(b.name)}"></option>`).join('');
   $('count').textContent = fmt(all.length);
-  show(numberIn() ?? (1 + Math.floor(Math.random() * all.length)));
+  show(keyIn() ?? (1 + Math.floor(Math.random() * all.length)));
 })();

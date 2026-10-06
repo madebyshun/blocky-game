@@ -1,6 +1,6 @@
 .viewer .find { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 18px; }
 .viewer .find form { display: flex; gap: 8px; }
-.viewer .find input { width: 140px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: var(--text); font: 800 18px Inter, system-ui, sans-serif; }
+.viewer .find input { width: 200px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: var(--text); font: 800 18px Inter, system-ui, sans-serif; }
 .viewer .find .count { color: var(--muted); font-weight: 700; font-size: 14px; }
 .viewer .layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 .viewer .stage { position: relative; aspect-ratio: 1; border-radius: 22px; overflow: hidden; background: rgba(255, 255, 255, 0.04); display: grid; place-items: center; }
@@ -23,3 +23,5 @@
 .viewer .r.uncommon, .viewer .tag.uncommon { color: #3ddc84; }
 .viewer .acts { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 800px) { .viewer .layout { grid-template-columns: minmax(0, 1fr); } }
+.viewer #moves .lbl { width: 100%; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+.viewer .tag.builder { color: #8fb4ff; }

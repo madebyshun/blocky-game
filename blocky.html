@@ -29,12 +29,12 @@
   <body>
     <header class="top">
       <h1 id="title">Blocky viewer</h1>
-      <p class="lede">Every Blocky in BaseCity, head to toe. Type a number from #1 to #<span id="count">…</span>.</p>
+      <p class="lede">Every Blocky in BaseCity, head to toe: type a number from #1 to #<span id="count">…</span>, or a Base Builder’s name.</p>
     </header>
     <main class="wrap viewer">
       <div class="find">
         <button class="btn" type="button" id="prev" aria-label="Previous Blocky">◀</button>
-        <form id="go"><input id="num" type="number" min="1" inputmode="numeric" placeholder="#1234" aria-label="Blocky number" /><button class="btn primary" type="submit">Show</button></form>
+        <form id="go"><input id="num" type="text" list="names" placeholder="#1234 or Jesse" aria-label="Blocky number or Base Builder name" autocomplete="off" /><datalist id="names"></datalist><button class="btn primary" type="submit">Show</button></form>
         <button class="btn" type="button" id="next" aria-label="Next Blocky">▶</button>
         <button class="btn" type="button" id="random">🎲 Random</button>
       </div>

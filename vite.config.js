@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
         // /b/N is the Blocky viewer (vercel.json does the same on Vercel)
         name: 'viewer-route',
         configureServer(server) {
-          server.middlewares.use((req, _res, next) => { if (/^\/b(\/\d*)?\/?(\?|$)/.test(req.url)) req.url = '/blocky.html'; next(); });
+          server.middlewares.use((req, _res, next) => { if (/^\/b(\/[^/?]*)?\/?(\?|$)/.test(req.url)) req.url = '/blocky.html'; next(); });
         },
       },
       {

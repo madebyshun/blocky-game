@@ -2,7 +2,6 @@
 import { CONFIG } from './config.js';
 import { fetchColony } from './data.js';
 import { renderPfp, downloadPfp } from './pfp.js';
-import { createStage, MOVES, signatureMove } from './dance.js';
 import { replay } from './replay.js';
 import { mountSite, fmt, day } from './site.js';
 import { OFFICE_RANK } from './sim.js';
@@ -49,31 +48,10 @@ function card(b, rank, status, here, stats) {
 }
 
 // the profile: big PFP, every stat, download, share
-let stage = null, move = 'idle';
-function setMove(id) {
-  move = id;
-  stage.move = id;
-  for (const x of $('moves').children) x.classList.toggle('on', x.dataset.m === id);
-}
 function openProfile(b, status, here, stats) {
   const d = $('profile');
-  if (!stage) {
-    stage = createStage($('stage'));
-    $('moves').innerHTML = Object.entries(MOVES).map(([id, m]) => `<button type="button" class="chip" data-m="${id}">${m.label}</button>`).join('');
-    $('moves').onclick = (e) => { const id = e.target.closest('[data-m]')?.dataset.m; if (id) setMove(id); };
-  }
-  stage.blocky = b;
-  setMove(signatureMove(b)); // their signature move first
-  d.querySelector('.gif').onclick = async (e) => {
-    const btn = e.currentTarget;
-    btn.textContent = 'Making…';
-    await new Promise((ok) => setTimeout(ok, 30));
-    const url = URL.createObjectURL(new Blob([stage.gif()], { type: 'image/gif' }));
-    const a = Object.assign(document.createElement('a'), { href: url, download: `basecity-${slug(b.name)}-${move}.gif` });
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    btn.textContent = '⬇ GIF';
-  };
+  d.querySelector('img').src = renderPfp(b, { size: 1024 });
+  d.querySelector('img').alt = `Voxel PFP of ${b.name}`;
   d.querySelector('h2').textContent = b.name;
   d.querySelector('.title').textContent = b.office ? `${b.office.label} · ${b.role.label}` : b.role.label;
   const st = d.querySelector('.status');
