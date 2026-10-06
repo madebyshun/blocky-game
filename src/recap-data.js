@@ -26,6 +26,8 @@ export function recapOf(state, n, now = Date.now()) {
   const after = blockies.filter((b) => here(b, t1)).length;
   const arrived = blockies.filter((b) => b.arrivedAt >= t0 && b.arrivedAt < t1);
   const left = blockies.filter((b) => b.leftAt >= t0 && b.leftAt < t1);
+  sim.advance(t0);
+  const standing0 = sim.buildingCount;
   sim.advance(t1);
   const done = sim.done.filter((p) => p.at >= t0 && p.at < t1);
   const best = arrived.filter((b) => b.rarity.id !== 'common').sort((a, b) => RANK[a.rarity.id] - RANK[b.rarity.id] || a.id - b.id);
@@ -33,7 +35,7 @@ export function recapOf(state, n, now = Date.now()) {
   const s = {
     n, t0, t1, live: t1 < r.start + n * DAY, start: r.start,
     inCity: after, net: after - before, arrived, left,
-    buildings: sim.buildingCount, built: done.filter((p) => p.kind === 'building').length,
+    buildings: sim.buildingCount, built: sim.buildingCount - standing0, // the day's growth (rebuilds replace, ruins go dark)
     blocks: sim.workAt(t1) - sim.workAt(t0), totalBlocks: sim.workAt(t1),
     landmarks: done.filter((p) => p.kind === 'landmark' || p.kind === 'metro'),
     whales: done.filter((p) => p.kind === 'wonder'),
@@ -53,13 +55,13 @@ export function recapOf(state, n, now = Date.now()) {
   return s;
 }
 
-export const starLabel = (b) => `${b.rarity.label}${b.trait ? ` · ${TRAIT_LABEL[b.trait]}` : ''}`;
+export const starLabel = (b) => (b.trait ? TRAIT_LABEL[b.trait] : b.rarity.label); // its colour says the rarity
 
 // the post for X
 export function recapPost(s, link) {
   return `${CONFIG.cityName}: Day ${s.n} recap${s.live ? ' (so far)' : ''} 🏙\n\n`
     + `🧱 ${fmt(s.inCity)} Blockies in the city (${plus(s.net)})\n`
-    + `🏢 ${fmt(s.built)} buildings finished · ${fmt(s.blocks)} blocks placed\n`
+    + `🏢 ${fmt(s.buildings)} buildings (${plus(s.built)}) · ${fmt(s.blocks)} blocks placed\n`
     + (s.landmarks.length ? `🏛️ ${s.landmarks.map((p) => p.name).join(', ')}\n` : '')
     + (s.whales.length ? `🐋 ${s.whales.length} whale build${s.whales.length > 1 ? 's' : ''}\n` : '')
     + (s.legendary || s.rare ? `✨ ${[s.legendary && `${s.legendary} Legendary`, s.rare && `${s.rare} Rare`].filter(Boolean).join(', ')} arrived\n` : '')

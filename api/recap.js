@@ -53,7 +53,7 @@ function card(s, bg) {
         stat(fmt(s.inCity), 'Blockies in the city', `${plus(s.net)} today`),
         stat(fmt(s.arrived.length), 'Arrived', [s.legendary && `${s.legendary} Legendary`, s.rare && `${s.rare} Rare`].filter(Boolean).join(' · ')),
         stat(fmt(s.left.length), 'Left the city', 'sold before they stayed'),
-        stat(fmt(s.buildings), 'Buildings', `+${fmt(s.built)} finished today`),
+        stat(fmt(s.buildings), 'Buildings', `${plus(s.built)} today`),
         stat(fmt(s.blocks), 'Blocks placed today', `${fmt(s.totalBlocks)} in all`),
         stat(usd(s.bought), 'Bought so far', `of ${usd(CONFIG.unlockUsd)} to open NFT trading`)),
       h('div', { marginTop: 22, gap: 30 },
@@ -66,7 +66,7 @@ function card(s, bg) {
           h('div', { gap: 10 }, ...(s.stars.length ? s.stars.slice(0, 5) : []).map((b) => h('div', { flexDirection: 'column', width: 96, alignItems: 'center' },
             img(`data:image/svg+xml;base64,${Buffer.from(blockySvg(b, { size: 192, label: false })).toString('base64')}`, { width: 96, height: 96, borderRadius: 12 }),
             h('div', { fontSize: 12, fontWeight: 800, marginTop: 4 }, b.name),
-            h('div', { fontSize: 11, fontWeight: 700, color: '#ffd23f' }, starLabel(b).split(' · ')[0])))),
+            h('div', { fontSize: 11, fontWeight: 700, color: '#ffd23f' }, starLabel(b))))),
           s.stars.length ? null : h('div', { fontSize: 18, color: '#9fb6ff' }, 'No rare arrivals today'),
           s.mvp ? h('div', { fontSize: 17, fontWeight: 700, marginTop: 10 }, `Hardest worker: ${s.mvp[0].name} · ${fmt(s.mvp[1])} blocks${s.mvp[0].from ? ` · ${who(s.mvp[0].from, 20)}` : ''}`) : null)),
       h('div', { position: 'absolute', left: 0, bottom: 0, fontFamily: 'Lilita', fontSize: 30 }, `${(SITE || '').replace(/^https?:\/\//, '') || 'basecity.space'}${CONFIG.xHandle ? `  ·  @${CONFIG.xHandle}` : ''}`)));
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
     }
     // the share page: X reads the card, people go on to the recap
     const title = `${CONFIG.cityName}: Day ${n} recap${s.live ? ' (so far)' : ''}`;
-    const desc = `${fmt(s.inCity)} Blockies in the city (${plus(s.net)}), ${fmt(s.built)} buildings finished, ${fmt(s.blocks)} blocks placed, ${fmt(s.left.length)} walked out.`;
+    const desc = `${fmt(s.inCity)} Blockies in the city (${plus(s.net)}), ${fmt(s.buildings)} buildings (${plus(s.built)}), ${fmt(s.blocks)} blocks placed, ${fmt(s.left.length)} walked out.`;
     const image = `${origin}/api/recap?day=${n}&format=png&v=${Math.floor(s.t1 / 600e3)}`;
     const page = `${origin}/recap.html?day=${n}`;
     res.setHeader('content-type', 'text/html; charset=utf-8');
