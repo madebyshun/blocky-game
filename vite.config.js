@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     build: {
       chunkSizeWarningLimit: 800,
       // every page (gallery.html: every building design, linked from the launch thread)
-      rollupOptions: { input: { main: 'index.html', builders: 'builders.html', collection: 'collection.html', claim: 'claim.html', about: 'about.html', gallery: 'gallery.html', deploy: 'deploy.html' } },
+      rollupOptions: { input: { main: 'index.html', builders: 'builders.html', collection: 'collection.html', claim: 'claim.html', about: 'about.html', gallery: 'gallery.html', recap: 'recap.html', deploy: 'deploy.html' } },
     },
     plugins: [
       {

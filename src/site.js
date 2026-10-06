@@ -6,6 +6,7 @@ const PAGES = [
   ['blockies', '/collection.html', 'Blockies'],
   ['claim', '/claim.html', 'Claim'],
   ['builders', '/builders.html', 'Builders'],
+  ['recap', '/recap.html', 'Recap'],
   ['about', '/about.html', 'About'],
 ];
 export const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');

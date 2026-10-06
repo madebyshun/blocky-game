@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Daily recap · BaseCity</title>
+    <meta name="description" content="What BaseCity built today: Blockies in and out, buildings finished, blocks placed, landmarks, whales and the rarest arrivals. Replayed from the onchain ledger." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BaseCity" />
+    <meta property="og:url" content="%SITE%/recap.html" />
+    <meta property="og:title" content="Daily recap · BaseCity" />
+    <meta property="og:description" content="What BaseCity built today: Blockies in and out, buildings finished, blocks placed, landmarks, whales and the rarest arrivals. Replayed from the onchain ledger." />
+    <meta property="og:image" content="/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="BaseCity: a voxel city on Base, built 24/7 by Blockies" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@%X%" />
+    <meta name="twitter:title" content="Daily recap · BaseCity" />
+    <meta name="twitter:description" content="What BaseCity built today: Blockies in and out, buildings finished, blocks placed, landmarks, whales and the rarest arrivals. Replayed from the onchain ledger." />
+    <meta name="twitter:image" content="/og.png" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/site.css" />
+    <link rel="stylesheet" href="/src/recap.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>Daily recap</h1>
+      <p class="lede">What the city built each day, replayed from the same onchain ledger as the city. Pick a day, screenshot the card or share it.</p>
+    </header>
+    <main class="wrap recap">
+      <nav class="tabs" id="tabs" aria-label="Days"></nav>
+      <p class="when" id="when"></p>
+      <div class="rcard" id="card"></div>
+      <div class="actions">
+        <a class="btn primary" id="share" target="_blank" rel="noopener">Share on 𝕏</a>
+        <button class="btn" type="button" id="copy">Copy the post</button>
+      </div>
+    </main>
+    <script type="module" src="/src/recap.js"></script>
+  </body>
+</html>
