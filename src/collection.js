@@ -58,6 +58,12 @@ function sidebar() {
 }
 
 function controls() {
+  // a link can pick the order or the status: /collection.html?sort=blocks
+  const qs = new URLSearchParams(location.search);
+  for (const id of ['sort', 'status']) {
+    const v = qs.get(id);
+    if (v && [...$(id).options].some((o) => o.value === v)) { filters[id] = v; $(id).value = v; }
+  }
   const chips = [['all', 'All'], ...CONFIG.rarity.map((r) => [r.id, r.label])];
   $('rarity').innerHTML = chips.map(([id, label]) => `<button type="button" class="chip${id === filters.rarity ? ' on' : ''}" data-r="${id}" aria-pressed="${id === filters.rarity}">${label}</button>`).join('');
   $('rarity').onclick = (e) => {

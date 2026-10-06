@@ -489,11 +489,19 @@ function topBuilders(n) {
   const wallets = new Set();
   return ranked.filter(([b]) => !b.from || (!wallets.has(b.from) && wallets.add(b.from))).slice(0, n);
 }
+let leadersMore = false; // the board shows 5, or 20 after "Show more"
 function renderLeaders() {
-  $('leaders').innerHTML = topBuilders(5)
+  $('leaders').innerHTML = topBuilders(leadersMore ? 20 : 5)
     .map(([b, blocks], i) => `<li data-id="${b.id}"${b.from ? ` title="${esc(b.name)} · brought by ${whoHtml(b.from, 42)}"` : ''}><span><span class="rank">${i + 1}</span>${badge(b)}${b.name} <span class="muted">· ${b.kind === 'blocky' ? (b.from ? owner(b.from) : `#${b.id}`) : b.office ? b.office.label : b.role.label}</span></span><b>${fmt(blocks)} 🧱</b></li>`)
     .join('');
 }
+
+$('leaders-more').onclick = () => {
+  leadersMore = !leadersMore;
+  $('leaders-more').textContent = leadersMore ? 'Show less' : 'Show more';
+  document.querySelector('.board').classList.toggle('more', leadersMore);
+  renderLeaders();
+};
 
 for (const id of ['leaders', 'feed']) {
   $(id).addEventListener('click', (ev) => {
