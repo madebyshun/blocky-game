@@ -1,4 +1,5 @@
-// Blockies that move: a 3D stage for one Blocky (drag to turn it) and its moves, from idle to Thriller,
+// Blockies that move: a 3D stage for one Blocky (drag to turn it) and its moves (BaseCity's own: gm,
+// Build, Diamond Hands, To the Moon, Bot Mode, Based),
 // posed on the rig buildBlocky makes (body, two arms from the shoulders, two legs from the hips).
 // Every move loops over `period` seconds, so one period is a seamless GIF.
 import * as THREE from 'three';
@@ -8,13 +9,13 @@ import { buildBlocky } from './citizens.js';
 import { paintBackground } from './pfp.js';
 
 const TAU = Math.PI * 2;
-const s = Math.sin, c = Math.cos;
+const s = Math.sin;
 // arms: [left, right] (x = -0.3, +0.3); rotation.x < 0 swings an arm forward, rotation.z raises it
 // sideways (+ for the right arm, − for the left). Legs: rotation.x < 0 kicks forward.
 const arm = (rig, i, x, z = 0, y = 0) => { rig.arms[i].rotation.set(x, y, i ? z : -z); };
 const leg = (rig, i, x, z = 0) => { rig.legs[i].rotation.set(x, 0, i ? z : -z); };
-const walkLegs = (rig, a, k) => { leg(rig, 0, s(a) * k); leg(rig, 1, -s(a) * k); };
 
+// BaseCity's own moves, 7 of them.
 export const MOVES = {
   idle: { label: 'Idle', period: 4, pose(r, t) {
     const a = (t / 4) * TAU;
@@ -22,110 +23,103 @@ export const MOVES = {
     r.body.rotation.y = s(a) * 0.18;
     arm(r, 0, s(a * 2) * 0.05, 0.06); arm(r, 1, -s(a * 2) * 0.05, 0.06);
   } },
-  walk: { label: 'Walk', period: 1, pose(r, t) {
-    const a = t * TAU;
-    walkLegs(r, a, 0.6);
-    arm(r, 0, -s(a) * 0.55); arm(r, 1, s(a) * 0.55);
-    r.root.position.y = Math.abs(c(a)) * 0.035;
-  } },
-  run: { label: 'Run', period: 0.6, pose(r, t) {
-    const a = (t / 0.6) * TAU;
-    walkLegs(r, a, 1.05);
-    arm(r, 0, -s(a) * 1.1 - 0.2); arm(r, 1, s(a) * 1.1 - 0.2);
-    r.body.rotation.x = 0.16;
-    r.root.position.y = Math.abs(c(a)) * 0.09;
-  } },
-  wave: { label: 'Wave', period: 1, pose(r, t) {
-    const a = t * TAU;
-    arm(r, 1, 0, 2.6 + s(a * 2) * 0.35);
-    arm(r, 0, 0, 0.08);
-    r.body.rotation.z = s(a) * 0.04;
-    r.root.position.y = Math.abs(s(a)) * 0.015;
-  } },
-  thumbs: { label: 'Thumbs up', period: 1.6, pose(r, t) {
+  // gm: both hands up, waving in turn, swaying side to side
+  gm: { label: 'gm 👋', period: 1.6, pose(r, t) {
     const a = (t / 1.6) * TAU;
-    arm(r, 1, -1.5 + s(a * 2) * 0.08, 0.1);
-    arm(r, 0, 0, 0.06);
-    r.thumb.visible = true;
-    r.body.rotation.y = 0.15 + s(a) * 0.06;
-    r.root.position.y = Math.abs(s(a)) * 0.02;
+    arm(r, 1, -0.2, 2.5 + s(a * 2) * 0.4);
+    arm(r, 0, -0.2, 2.5 - s(a * 2) * 0.4);
+    r.body.rotation.z = s(a) * 0.08;
+    r.root.position.x = s(a) * 0.04;
+    r.root.position.y = Math.abs(s(a * 2)) * 0.03;
   } },
-  hiphop: { label: 'Hip hop', period: 2, pose(r, t) {
-    const b = (t / 2) * 4 * TAU; // four beats
-    r.root.position.y = -Math.abs(s(b / 2)) * 0.06 + 0.06;
-    r.body.rotation.y = s(b / 4) * 0.35;
-    r.body.rotation.x = Math.abs(s(b / 2)) * 0.12;
-    arm(r, 0, -0.9 - s(b / 2) * 0.6, 0.35); arm(r, 1, -0.9 + s(b / 2) * 0.6, 0.35);
-    leg(r, 0, -Math.abs(s(b / 2)) * 0.25, 0.08); leg(r, 1, -Math.abs(s(b / 2)) * 0.25, 0.08);
+  // Build: lift a block overhead, slam it down, a little hop
+  build: { label: 'Build 🧱', period: 1.4, pose(r, t) {
+    const f = t / 1.4;
+    const lift = f < 0.55 ? Math.sin((f / 0.55) * (Math.PI / 2)) : Math.max(0, 1 - ((f - 0.55) / 0.12)); // up slowly, down fast
+    r.carry.visible = true;
+    r.carry.position.set(0, 0.62 + lift * 0.95, 0.34 - lift * 0.22);
+    arm(r, 0, -1.2 - lift * 1.6, 0.18); arm(r, 1, -1.2 - lift * 1.6, 0.18);
+    const slam = f > 0.67 && f < 0.85 ? s(((f - 0.67) / 0.18) * Math.PI) : 0;
+    r.root.position.y = slam * 0.08 - (1 - lift) * 0.02;
+    r.body.rotation.x = 0.12 - lift * 0.18;
+    leg(r, 0, -slam * 0.25, 0.05); leg(r, 1, -slam * 0.25, 0.05);
   } },
-  shuffle: { label: 'Shuffle', period: 1, pose(r, t) {
-    const a = t * TAU;
-    leg(r, 0, s(a * 2) > 0 ? -s(a * 2) * 0.8 : 0, 0.12); leg(r, 1, s(a * 2) < 0 ? s(a * 2) * 0.8 : 0, 0.12);
-    r.root.position.x = s(a) * 0.12;
-    r.root.position.y = Math.abs(s(a * 2)) * 0.05;
-    arm(r, 0, s(a * 2) * 0.7, 0.3); arm(r, 1, -s(a * 2) * 0.7, 0.3);
-    r.body.rotation.z = -s(a) * 0.06;
-  } },
-  gangnam: { label: 'Gangnam', period: 2, pose(r, t) {
+  // Diamond Hands: hands together around a glowing diamond, nodding to the beat
+  diamond: { label: 'Diamond Hands 💎', period: 2, pose(r, t) {
     const b = (t / 2) * 4 * TAU;
-    const lasso = t % 2 > 1; // two bars riding, then the lasso
-    r.root.position.y = Math.abs(s(b)) * 0.1;
-    leg(r, 0, -Math.max(0, s(b)) * 0.6, 0.1); leg(r, 1, -Math.max(0, -s(b)) * 0.6, 0.1);
-    if (lasso) { arm(r, 1, 0, 2.9, 0); r.arms[1].rotation.y = b; arm(r, 0, -1.3, -0.35); }
-    else { arm(r, 0, -1.25 + s(b) * 0.12, -0.45); arm(r, 1, -1.25 + s(b) * 0.12, -0.45); }
-    r.body.rotation.x = 0.08;
+    r.gem.visible = true;
+    r.gem.rotation.y = (t / 2) * TAU;
+    r.gem.position.y = 0.66 + Math.abs(s(b / 2)) * 0.03;
+    arm(r, 0, -1.25 + Math.abs(s(b / 2)) * 0.1, -0.38); arm(r, 1, -1.25 + Math.abs(s(b / 2)) * 0.1, -0.38);
+    r.body.rotation.x = Math.abs(s(b / 2)) * 0.1;
+    r.body.rotation.z = s(b / 4) * 0.07;
+    r.root.position.y = Math.abs(s(b / 2)) * 0.02;
   } },
-  macarena: { label: 'Macarena', period: 4, pose(r, t) {
-    const beat = Math.floor((t / 4) * 8), f = ((t / 4) * 8) % 1, ease = Math.min(1, f * 3);
-    // 8 beats: right arm out, left arm out, right to shoulder, left to shoulder, hands up, up, hips, hips
-    const R = [[-1.5, 0], [-1.5, 0], [-2.5, -0.9], [-2.5, -0.9], [-3, 0.3], [-3, 0.3], [0.2, 0.5], [0.2, 0.5]];
-    const L = [[0, 0], [-1.5, 0], [-1.5, 0], [-2.5, -0.9], [-2.5, -0.9], [-3, 0.3], [0.2, 0.5], [0.2, 0.5]];
-    const prev = (A) => A[(beat + 7) % 8], cur = (A) => A[beat];
-    const mix = (A, k) => prev(A)[k] + (cur(A)[k] - prev(A)[k]) * ease;
-    arm(r, 1, mix(R, 0), mix(R, 1)); arm(r, 0, mix(L, 0), mix(L, 1));
-    r.root.position.x = beat >= 6 ? s(f * TAU) * 0.07 : 0;
-    r.body.rotation.z = beat >= 6 ? s(f * TAU) * 0.1 : 0;
-    r.root.position.y = beat === 7 && f > 0.6 ? s((f - 0.6) / 0.4 * Math.PI) * 0.12 : 0;
-    r.root.rotation.y = beat === 7 && f > 0.6 ? ((f - 0.6) / 0.4) * (Math.PI / 2) : 0;
+  // To the Moon: crouch, jump, each one higher, hands to the sky
+  moon: { label: 'To the Moon 🚀', period: 2.4, pose(r, t) {
+    const i = Math.floor(t / 0.8), f = (t % 0.8) / 0.8, h = [0.1, 0.17, 0.26][i];
+    const air = f > 0.3 ? s(((f - 0.3) / 0.7) * Math.PI) : 0, crouch = f < 0.3 ? s((f / 0.3) * Math.PI) : 0;
+    r.root.position.y = air * h - crouch * 0.05;
+    arm(r, 0, -0.15, 0.6 + air * 2.3); arm(r, 1, -0.15, 0.6 + air * 2.3);
+    leg(r, 0, -air * 0.35 + crouch * 0.2, 0.06); leg(r, 1, air * 0.25 + crouch * 0.2, 0.06);
+    r.body.rotation.x = crouch * 0.2;
+    r.root.rotation.y = i === 2 ? air * TAU : 0; // the last one spins
   } },
-  salsa: { label: 'Salsa', period: 2, pose(r, t) {
-    const b = (t / 2) * TAU;
-    leg(r, 0, s(b * 2) * 0.35); leg(r, 1, -s(b * 2) * 0.35);
-    r.root.position.z = s(b * 2) * 0.05;
-    r.root.position.x = s(b) * 0.05;
-    r.body.rotation.z = s(b * 2) * 0.09;
-    r.body.rotation.y = s(b) * 0.4;
-    arm(r, 0, -0.4, 1.2 + s(b * 2) * 0.25); arm(r, 1, -0.4, 1.2 - s(b * 2) * 0.25);
+  // Bot Mode: robotic, in frozen steps, like an AI agent booting up
+  bot: { label: 'Bot Mode 🤖', period: 2, pose(r, t) {
+    const k = Math.floor((t / 2) * 8); // 8 frozen poses
+    const P = [[0, 0, 0, 0, 0], [-1.57, 0, 0, 0, 0.3], [-1.57, -1.57, 0, 0, -0.3], [0, -1.57, 1.57, 0, 0], [0, 0, 1.57, 1.57, 0], [-0.8, 0, 0, 1.57, 0.5], [-0.8, -0.8, 0, 0, -0.5], [0, 0, 0, 0, 0]];
+    const [rx, lx, rz, lz, turn] = P[k];
+    arm(r, 1, rx, rz); arm(r, 0, lx, lz);
+    r.body.rotation.y = turn;
+    r.root.position.y = k % 2 ? 0.02 : 0;
+    leg(r, k % 4 === 1 ? 0 : 1, k % 2 ? -0.2 : 0);
   } },
-  thriller: { label: 'Thriller', period: 2, pose(r, t) {
-    const b = (t / 2) * TAU;
-    const step = s(b * 2);
-    arm(r, 0, -1.45 + s(b * 4) * 0.08, 0.15 + step * 0.1); arm(r, 1, -1.45 - s(b * 4) * 0.08, 0.15 - step * 0.1);
-    leg(r, 0, -Math.max(0, step) * 0.35, 0.05); leg(r, 1, -Math.max(0, -step) * 0.35, 0.05);
-    r.root.position.x = s(b) * 0.1;
-    r.body.rotation.z = 0.14 + step * 0.06;
-    r.body.rotation.x = 0.12;
-    r.root.position.y = Math.abs(step) * 0.03;
+  // Based: a full spin, then arms crossed and a slow nod
+  based: { label: 'Based 😎', period: 2.4, pose(r, t) {
+    const f = t / 2.4;
+    if (f < 0.4) {
+      const u = f / 0.4, e = u * u * (3 - 2 * u);
+      r.root.rotation.y = e * TAU;
+      r.root.position.y = s(u * Math.PI) * 0.1;
+      arm(r, 0, 0, 0.5 + s(u * Math.PI) * 0.6); arm(r, 1, 0, 0.5 + s(u * Math.PI) * 0.6);
+    } else {
+      const u = (f - 0.4) / 0.6, cross = Math.min(1, u * 4);
+      arm(r, 0, -1.3 * cross, -0.55 * cross); arm(r, 1, -1.1 * cross, -0.55 * cross);
+      r.body.rotation.x = s(u * TAU * 2) * 0.06;
+      r.body.rotation.y = -0.15 * cross;
+      leg(r, 1, 0, 0.12 * cross);
+    }
   } },
 };
 
+// A Base Builder's signature move, by their job on the City Council
+const SIGNATURE = {
+  mayor: 'gm', speaker: 'gm', tourism: 'gm', governor: 'based', founder: 'build', ventures: 'based',
+  ai: 'bot', cto: 'bot', robotics: 'bot', treasurer: 'diamond', markets: 'diamond', mint: 'diamond',
+  events: 'moon', culture: 'moon', arts: 'moon', night: 'moon',
+};
+export const signatureMove = (b) => SIGNATURE[b.office?.id] || (b.kind === 'founder' ? 'build' : 'build');
+
 function rigOf(b) {
-  const { group, legs, arms } = buildBlocky(b);
+  const { group, legs, arms, carry } = buildBlocky(b);
   group.scale.setScalar(1);
   const root = new THREE.Group();
   root.add(group);
-  // a thumb for Thumbs up: on the right hand, pointing up once the arm is forward
-  const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.14), new THREE.MeshLambertMaterial({ color: b.skin ?? 0xe0ac69 }));
-  thumb.position.set(-0.05, -0.46, 0.13);
-  thumb.visible = false;
-  arms[1].add(thumb);
-  return { root, body: group, legs, arms, thumb };
+  // the diamond of Diamond Hands, between the hands
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.13), new THREE.MeshLambertMaterial({ color: 0x8fe9ff, emissive: 0x2ab7e0, emissiveIntensity: 0.9 }));
+  gem.position.set(0, 0.66, 0.5);
+  gem.visible = false;
+  root.add(gem);
+  return { root, body: group, legs, arms, carry, gem, carryAt: carry.position.clone() };
 }
 function rest(r) {
   r.root.position.set(0, 0, 0); r.root.rotation.set(0, 0, 0);
   r.body.rotation.set(0, 0, 0);
   for (const p of [...r.legs, ...r.arms]) p.rotation.set(0, 0, 0);
-  r.thumb.visible = false;
+  r.gem.visible = false;
+  r.carry.visible = false;
+  r.carry.position.copy(r.carryAt);
 }
 
 // A stage in `el`: the Blocky turning on its own unless dragged, playing `move`.
@@ -142,7 +136,7 @@ export function createStage(el) {
   shadow.position.y = 0.002;
   scene.add(shadow);
   const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 50);
-  const home = new THREE.Vector3(1.45, 1.25, 3.9);
+  const home = new THREE.Vector3(1.6, 1.35, 4.3);
   camera.position.copy(home);
   const controls = new OrbitControls(camera, renderer.domElement);
   Object.assign(controls, { enablePan: false, enableDamping: true, minDistance: 2.6, maxDistance: 7, minPolarAngle: 0.5, maxPolarAngle: 1.75 });
@@ -155,9 +149,11 @@ export function createStage(el) {
   size();
   function pose(t) { if (!rig) return; rest(rig); move.pose(rig, t % move.period); }
   (function loop() {
-    pose((performance.now() - start) / 1000);
-    controls.update();
-    renderer.render(scene, camera);
+    if (el.offsetWidth) { // not while hidden (a closed dialog)
+      pose((performance.now() - start) / 1000);
+      controls.update();
+      renderer.render(scene, camera);
+    }
     requestAnimationFrame(loop);
   })();
 

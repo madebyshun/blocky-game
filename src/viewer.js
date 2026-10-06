@@ -12,7 +12,7 @@ import { addNames, who } from './names.js';
 
 mountSite('viewer');
 const $ = (id) => document.getElementById(id);
-let all = [], sim = null, info = null, move = 'idle', current = null, stage = null;
+let all = [], sim = null, info = null, move = 'gm', current = null, stage = null;
 
 const numberIn = () => {
   const m = location.pathname.match(/^\/b\/(\d+)/) || location.search.match(/[?&]n=(\d+)/);
@@ -125,6 +125,7 @@ function controls() {
 
 (async () => {
   stage = createStage($('stage'));
+  stage.move = move;
   controls();
   $('over').innerHTML = '<div class="empty"><p>Loading the city…</p></div>';
   const [state, nft] = await Promise.all([fetchColony().catch(() => null), nftInfo()]);
