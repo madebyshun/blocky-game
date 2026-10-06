@@ -13,13 +13,21 @@ import { addNames, who } from '../src/names.js';
 import { recapOf, dayCount, defaultDay, usd, plus, starLabel } from '../src/recap-data.js';
 import { SITE } from './_store.js';
 
-const file = (p) => readFileSync(new URL(p, import.meta.url));
-const FONTS = [
-  { name: 'Lilita', data: file('./_fonts/lilita-one.woff'), weight: 400 },
-  { name: 'Inter', data: file('./_fonts/inter-700.woff'), weight: 700 },
-  { name: 'Inter', data: file('./_fonts/inter-800.woff'), weight: 800 },
-];
-const BG = `data:image/png;base64,${file('../public/og.png').toString('base64')}`;
+// fonts (api/_fonts, see vercel.json) and the background, loaded on the first request: a missing file
+// shows up as the API's error, not as a crashed function
+let assets = null;
+async function load(origin) {
+  if (assets) return assets;
+  const font = (f) => readFileSync(new URL(`./_fonts/${f}`, import.meta.url));
+  const fonts = [
+    { name: 'Lilita', data: font('lilita-one.woff'), weight: 400 },
+    { name: 'Inter', data: font('inter-700.woff'), weight: 700 },
+    { name: 'Inter', data: font('inter-800.woff'), weight: 800 },
+  ];
+  const r = await fetch(`${origin}/og.png`);
+  const bg = r.ok ? `data:image/png;base64,${Buffer.from(await r.arrayBuffer()).toString('base64')}` : null;
+  return (assets = { fonts, bg });
+}
 const W = 1200, H = 675;
 const fmt = (n) => Math.floor(n).toLocaleString('en-US');
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -28,14 +36,14 @@ const h = (type, style, ...children) => ({ type, props: { style: { display: 'fle
 const img = (src, style) => ({ type: 'img', props: { src, style } });
 const emojiless = (s) => s.replace(/^[^\p{L}\p{N}$]+/u, ''); // the fonts have no emoji: the line's icon goes
 
-function card(s) {
+function card(s, bg) {
   const stat = (v, k, d) => h('div', { flexDirection: 'column', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 16, padding: '12px 18px', width: 340 },
     h('div', { fontFamily: 'Lilita', fontSize: 46, lineHeight: 1.05 }, v),
     h('div', { fontSize: 15, fontWeight: 800, color: '#9fb6ff', letterSpacing: 1 }, k.toUpperCase()),
     d ? h('div', { fontSize: 15, fontWeight: 700, color: '#ffd23f', marginTop: 2 }, d) : null);
   const lines = s.lines.map(emojiless);
   return h('div', { width: W, height: H, background: '#050b22', color: '#fff', fontFamily: 'Inter', position: 'relative' },
-    img(BG, { position: 'absolute', right: 0, top: 0, height: H, width: (H * 1200) / 630, opacity: 0.55 }),
+    bg ? img(bg, { position: 'absolute', right: 0, top: 0, height: H, width: (H * 1200) / 630, opacity: 0.55 }) : null,
     h('div', { position: 'absolute', left: 0, top: 0, width: W, height: H, backgroundImage: 'linear-gradient(90deg, #050b22 0%, #050b22 45%, rgba(5,11,34,0.75) 70%, rgba(5,11,34,0.25) 100%)' }),
     h('div', { position: 'absolute', left: 52, top: 44, right: 52, bottom: 40, flexDirection: 'column' },
       h('div', { alignItems: 'center' },
@@ -64,8 +72,9 @@ function card(s) {
       h('div', { position: 'absolute', left: 0, bottom: 0, fontFamily: 'Lilita', fontSize: 30 }, `${(SITE || '').replace(/^https?:\/\//, '') || 'basecity.space'}${CONFIG.xHandle ? `  ·  @${CONFIG.xHandle}` : ''}`)));
 }
 
-export async function recapPng(s) {
-  const svg = await satori(card(s), { width: W, height: H, fonts: FONTS });
+export async function recapPng(s, origin) {
+  const { fonts, bg } = await load(origin);
+  const svg = await satori(card(s, bg), { width: W, height: H, fonts });
   return new Resvg(svg, { fitTo: { mode: 'width', value: W } }).render().asPng();
 }
 
@@ -82,7 +91,7 @@ export default async function handler(req, res) {
     const s = recapOf(state, n);
     const maxAge = s.live ? 600 : 86400;
     if (q.format === 'png') {
-      const png = await recapPng(s);
+      const png = await recapPng(s, origin);
       res.setHeader('content-type', 'image/png');
       res.setHeader('cache-control', `public, s-maxage=${maxAge}, stale-while-revalidate=${maxAge}`);
       return res.status(200).send(png);

@@ -1,3 +1,13 @@
 {
-  "rewrites": [{ "source": "/r/:day", "destination": "/api/recap?day=:day" }]
+  "functions": {
+    "api/recap.js": {
+      "includeFiles": "api/_fonts/**"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/r/:day",
+      "destination": "/api/recap?day=:day"
+    }
+  ]
 }

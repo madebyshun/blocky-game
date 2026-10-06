@@ -1,11 +1,12 @@
 // The daily recap page: what the city did on day N (src/recap-data.js), as a card to screenshot or share.
-// Its share link (/r/N) shows the same card as an image on X (api/recap.js); on phones, Share attaches
-// the image itself.
+// Its share link (/r/N) shows the same card as an image on X (api/recap.js). Save image and, on phones,
+// Share make the image from the card on the page itself (2400×1350).
 import { CONFIG } from './config.js';
 import { fetchColony } from './data.js';
 import { portraitUrl } from './portraits.js';
 import { mountSite, fmt, esc } from './site.js';
 import { addNames, who } from './names.js';
+import { toBlob } from 'html-to-image';
 import { recapOf, recapPost, dayCount, defaultDay, usd, plus, starLabel } from './recap-data.js';
 
 mountSite('recap');
@@ -40,19 +41,26 @@ function render(s, days) {
 
   const site = CONFIG.siteUrl || location.origin;
   const text = recapPost(s, `${site}/r/${s.n}`); // the link shows the card as an image on X
-  const image = `/api/recap?day=${s.n}&format=png`;
-  $('save').href = image;
-  $('save').download = `basecity-day-${s.n}.png`;
+  const name = `basecity-day-${s.n}.png`;
+  const png = () => toBlob($('card'), { pixelRatio: 2400 / $('card').offsetWidth, backgroundColor: '#050b22' });
+  $('save').onclick = async () => {
+    $('save').textContent = 'Saving…';
+    try {
+      const url = URL.createObjectURL(await png());
+      Object.assign(document.createElement('a'), { href: url, download: name }).click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) { console.warn('[recap] image', e); }
+    $('save').textContent = '⬇ Save image';
+  };
   $('share').onclick = async (e) => {
     // phones: share the image itself with the post (into the X app, or anywhere)
-    if (!navigator.canShare) return; // the link opens X with the post
+    if (!navigator.canShare || !matchMedia('(pointer: coarse)').matches) return; // the link opens X with the post
+    e.preventDefault();
     try {
-      const blob = await (await fetch(image)).blob();
-      const file = new File([blob], `basecity-day-${s.n}.png`, { type: 'image/png' });
-      if (!navigator.canShare({ files: [file] })) return;
-      e.preventDefault();
-      await navigator.share({ files: [file], text });
-    } catch { /* cancelled or not possible: nothing to do */ }
+      const file = new File([await png()], name, { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) return await navigator.share({ files: [file], text });
+    } catch (err) { if (err?.name === 'AbortError') return; }
+    open($('share').href, '_blank', 'noopener'); // couldn't share a file: the post with its link
   };
   $('share').href = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
   $('copy').onclick = async () => { try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Copied ✓'; } catch { /* no clipboard */ } };
