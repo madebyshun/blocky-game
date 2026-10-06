@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { inject } from '@vercel/analytics';
 import { CONFIG } from './config.js';
 import { createCity, updateBoards } from './city.js';
 import { createAgents } from './agents.js';
@@ -17,6 +18,9 @@ import { now } from './time.js';
 import { addNames, who, whoHtml, esc } from './names.js';
 import { createCinematic } from './cinematic.js';
 import { watchLive } from './live.js';
+
+// Initialize Vercel Web Analytics
+inject();
 
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

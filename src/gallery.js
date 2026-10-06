@@ -1,4 +1,5 @@
 // Every building design side by side (also the Blockies, the fleet, drones and the metro). Open /gallery.html.
+import { inject } from '@vercel/analytics';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CATALOG, ROLES, cityCrew, makeBlocky, rarityOf, TRAIT_LABEL, LANDMARKS, HQ_SIZE } from './sim.js';
@@ -9,6 +10,9 @@ import { buildingGroup, ruinGroup, adWall, updateBoards, kitFor, reserveLot, bra
 import { dronesSample } from './agents.js';
 import { FLEET, makeService, flash } from './fleet.js';
 import { metroSample } from './metro.js';
+
+// Initialize Vercel Web Analytics
+inject();
 
 // the service vehicles side by side on a stretch of road, light bars flashing
 function fleetShowcase() {

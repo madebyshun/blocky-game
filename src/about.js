@@ -1,8 +1,12 @@
 // The About page: the rules, filled in from the config and the live city.
+import { inject } from '@vercel/analytics';
 import { CONFIG } from './config.js';
 import { TRAIT_LABEL, LANDMARKS } from './sim.js';
 import { fetchColony } from './data.js';
 import { mountSite, fmt, basescan, opensea, nftInfo } from './site.js';
+
+// Initialize Vercel Web Analytics
+inject();
 
 mountSite('about');
 const $ = (id) => document.getElementById(id);

@@ -1,5 +1,6 @@
 // The Blockies page: every Blocky the buys brought, with filters, top holders and a detail card
 // (portrait = the NFT image, links to OpenSea and Basescan once the contract is live).
+import { inject } from '@vercel/analytics';
 import { CONFIG } from './config.js';
 import { TRAIT_LABEL } from './sim.js';
 import { blockySvg } from './voxel-svg.js';
@@ -8,6 +9,9 @@ import { replay } from './replay.js';
 import { lazyPortrait, portraitUrl } from './portraits.js';
 import { mountSite, fmt, day, basescan, opensea, esc, nftInfo, downloadSvgPng } from './site.js';
 import { addNames, nameOf, who } from './names.js';
+
+// Initialize Vercel Web Analytics
+inject();
 
 mountSite('blockies');
 const $ = (id) => document.getElementById(id);
