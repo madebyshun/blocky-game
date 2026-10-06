@@ -1,10 +1,14 @@
 // The Base Builders page: every Base Builder with a voxel PFP, live stats from the city, and a download.
+import { inject } from '@vercel/analytics';
 import { CONFIG } from './config.js';
 import { fetchColony } from './data.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { replay } from './replay.js';
 import { mountSite, fmt, day } from './site.js';
 import { OFFICE_RANK } from './sim.js';
+
+// Initialize Vercel Web Analytics
+inject();
 
 const $ = (id) => document.getElementById(id);
 mountSite('builders');

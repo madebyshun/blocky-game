@@ -1,6 +1,7 @@
 // The claim page: connect the wallet that bought $BLOCKY, see its Blockies, claim its citizens as NFTs
 // (a Blocky is a newcomer for its first `citizenDays` days in the city). The API signs what the ledger
 // says the wallet owns; the wallet sends the claim and pays the gas.
+import { inject } from '@vercel/analytics';
 import { encodeFunctionData, getAddress, isAddress } from 'viem';
 import { CONFIG } from './config.js';
 import { CLAIM_ABI } from '../api/_sig.js';
@@ -9,6 +10,9 @@ import { lazyPortrait } from './portraits.js';
 import { browserWallets, onWallets, smartWallet, connect, sendTx, waitTx, rejected } from './wallet.js';
 import { mountSite, fmt, basescan, opensea, esc, nftInfo } from './site.js';
 import { fetchColony } from './data.js';
+
+// Initialize Vercel Web Analytics
+inject();
 
 mountSite('claim');
 const $ = (id) => document.getElementById(id);

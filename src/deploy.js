@@ -1,5 +1,6 @@
 // Owner tool: deploy the BaseCity Blockies contract from a browser wallet, then print the settings
 // the site needs (NFT_CONTRACT, CLAIM_SIGNER_KEY) and how to verify it on Basescan.
+import { inject } from '@vercel/analytics';
 import { encodeDeployData, encodeAbiParameters, getAddress, isAddress } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import artifact from '../contracts/out/BaseCityBlockies.json';
@@ -7,6 +8,9 @@ import inputUrl from '../contracts/out/BaseCityBlockies.input.json?url';
 import { CONFIG } from './config.js';
 import { browserWallets, onWallets, connect, sendTx, waitTx, rejected } from './wallet.js';
 import { mountSite, esc, basescan } from './site.js';
+
+// Initialize Vercel Web Analytics
+inject();
 
 mountSite('');
 const $ = (id) => document.getElementById(id);

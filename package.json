@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@coinbase/wallet-sdk": "^4.4.0",
+    "@vercel/analytics": "^2.0.1",
     "three": "^0.186.1",
     "viem": "^2.57.2"
   },
