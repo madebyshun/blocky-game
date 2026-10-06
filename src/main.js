@@ -554,9 +554,9 @@ $('cine-btn').onclick = () => cine.enter(selected?.b.id ?? null);
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
   const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${fmt(minted)} of ${fmt(supply)} ${plural} and ${CONFIG.legends?.length || 0} Base builders. Every ${money(price)} of ${CONFIG.ticker} you buy brings a ${CONFIG.citizen}, an NFT you claim.`
-    + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '');
-  const via = CONFIG.xHandle ? `&via=${CONFIG.xHandle}` : '';
-  open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}${via}`, '_blank', 'noopener');
+    + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '')
+    + `\n\n🏙 ${url}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`; // not X's "via": it shows in the reader's language
+  open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
 };
 
 // ---------- picking ----------

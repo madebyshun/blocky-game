@@ -151,7 +151,7 @@ function open(b) {
   ];
   $('d-dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const site = CONFIG.siteUrl || location.origin;
-  const text = `${b.name} is a ${b.rarity.label}${b.trait ? ` (${TRAIT_LABEL[b.trait]})` : ''} Blocky building ${CONFIG.cityName} on Base: ${fmt(blocks)} blocks placed so far.`;
+  const text = `${b.name} is a ${b.rarity.label}${b.trait ? ` (${TRAIT_LABEL[b.trait]})` : ''} Blocky building ${CONFIG.cityName} on Base: ${fmt(blocks)} blocks placed so far.${CONFIG.xHandle ? ` @${CONFIG.xHandle}` : ''}`;
   $('d-actions').innerHTML = `<button class="btn primary" type="button" data-act="png">⬇ PNG</button>
     ${info.contract && here(b) && citizen ? `<a class="btn" href="${opensea(info.contract, b.id)}" target="_blank" rel="noopener">OpenSea ↗</a><a class="btn" href="${basescan(`nft/${info.contract}/${b.id}`)}" target="_blank" rel="noopener">Basescan ↗</a>` : ''}
     <a class="btn" href="https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${site}/collection.html#${b.id}`)}" target="_blank" rel="noopener">Share on 𝕏</a>

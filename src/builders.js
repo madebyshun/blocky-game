@@ -72,7 +72,8 @@ function openProfile(b, status, here, stats) {
     const text = stats
       ? `${who} is building ${CONFIG.cityName} on Base as a voxel Base Builder${b.office ? ` and its ${b.office.label}` : ''}: ${fmt(stats.blocks)} blocks placed in ${fmt(stats.hours)} hours, 24/7.`
       : `${who} joins ${CONFIG.cityName} as a Base Builder on ${day(b.arrivedAt)}.`;
-    open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${CONFIG.siteUrl || location.origin}/builders.html#${slug(b.name)}`)}`, '_blank', 'noopener');
+    const tag = CONFIG.xHandle ? ` @${CONFIG.xHandle}` : '';
+    open(`https://x.com/intent/tweet?text=${encodeURIComponent(text + tag)}&url=${encodeURIComponent(`${CONFIG.siteUrl || location.origin}/builders.html#${slug(b.name)}`)}`, '_blank', 'noopener');
   };
   history.replaceState(null, '', `#${slug(b.name)}`);
   d.showModal();
