@@ -13,6 +13,7 @@
   "dependencies": {
     "@coinbase/wallet-sdk": "^4.4.0",
     "@resvg/resvg-js": "^2.6.2",
+    "gifenc": "^1.0.3",
     "html-to-image": "^1.11.13",
     "satori": "^0.35.0",
     "three": "^0.186.1",

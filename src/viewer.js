@@ -1,19 +1,18 @@
-// The Blocky viewer (/b/N): type a number, see that Blocky head to toe, its traits and its story, and take
-// it home as a PNG (with or without its background), a PFP, an X header or the NFT art.
+// The Blocky viewer (/b/N): type a number, see that Blocky head to toe in 3D doing its moves (src/dance.js),
+// its traits and its story, and take it home as a dancing GIF, a PNG (with or without its background), a
+// PFP or an X header.
 import { CONFIG } from './config.js';
 import { TRAIT_LABEL } from './sim.js';
-import { blockySvg } from './voxel-svg.js';
 import { fetchColony } from './data.js';
 import { replay } from './replay.js';
 import { renderPfp, paintBackground } from './pfp.js';
-import { portraitUrl } from './portraits.js';
-import { mountSite, fmt, esc, nftInfo, downloadSvgPng, opensea } from './site.js';
+import { createStage, MOVES } from './dance.js';
+import { mountSite, fmt, esc, nftInfo, opensea } from './site.js';
 import { addNames, who } from './names.js';
 
 mountSite('viewer');
 const $ = (id) => document.getElementById(id);
-const VIEWS = [['full', 'Full body'], ['pfp', 'PFP'], ['nft', 'NFT art']];
-let all = [], sim = null, info = null, view = 'full', current = null;
+let all = [], sim = null, info = null, move = 'idle', current = null, stage = null;
 
 const numberIn = () => {
   const m = location.pathname.match(/^\/b\/(\d+)/) || location.search.match(/[?&]n=(\d+)/);
@@ -52,7 +51,8 @@ function show(n) {
   if (n) history.replaceState(null, '', `/b/${n}`);
   if (!b) {
     const max = fmt(all.length);
-    $('stage').innerHTML = `<div class="empty"><b>#${n ? fmt(n) : '?'}</b><p>${n > all.length ? `Not here yet: ${max} Blockies have arrived so far. Every $${CONFIG.usdPerBlocky} of ${CONFIG.ticker} brings the next one.` : `Pick a Blocky from #1 to #${max}.`}</p>${CONFIG.buyUrl && n > all.length ? `<a class="btn primary" href="${CONFIG.buyUrl}" target="_blank" rel="noopener">Bring the next one</a>` : ''}</div>`;
+    $('over').innerHTML = `<div class="empty"><b>#${n ? fmt(n) : '?'}</b><p>${n > all.length ? `Not here yet: ${max} Blockies have arrived so far. Every $${CONFIG.usdPerBlocky} of ${CONFIG.ticker} brings the next one.` : `Pick a Blocky from #1 to #${max}.`}</p>${CONFIG.buyUrl && n > all.length ? `<a class="btn primary" href="${CONFIG.buyUrl}" target="_blank" rel="noopener">Bring the next one</a>` : ''}</div>`;
+    $('stage').classList.add('none');
     $('facts').innerHTML = '';
     $('acts').hidden = true;
     $('title').textContent = 'Blocky viewer';
@@ -60,9 +60,9 @@ function show(n) {
   }
   document.title = `${b.name} · ${CONFIG.cityName}`;
   $('title').textContent = b.name;
-  for (const x of $('views').children) x.classList.toggle('on', x.dataset.v === view);
-  const src = view === 'nft' ? portraitUrl(b, { size: 1024, label: true }) : renderPfp(b, { size: 1024, mark: false, full: view === 'full' });
-  $('stage').innerHTML = `<img src="${src}" alt="${esc(b.name)}" /><span class="tag ${b.rarity.id}">${b.rarity.label}</span>`;
+  $('stage').classList.remove('none');
+  $('over').innerHTML = `<span class="tag ${b.rarity.id}">${b.rarity.label}</span>`;
+  stage.blocky = b;
   const now = Date.now(), here = !Number.isFinite(b.leftAt);
   const citizenAt = info ? Math.max(b.arrivedAt + info.citizenDays * 86400e3, info.openedAt ?? Infinity) : Infinity;
   const status = !here ? `Left the city ${new Date(b.leftAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : citizenAt <= now ? 'Citizen: claimable as an NFT' : 'Newcomer in the city';
@@ -82,8 +82,14 @@ function show(n) {
 }
 
 function controls() {
-  $('views').innerHTML = VIEWS.map(([v, label]) => `<button type="button" class="chip" data-v="${v}">${label}</button>`).join('');
-  $('views').onclick = (e) => { const v = e.target.closest('[data-v]')?.dataset.v; if (v) { view = v; show(current?.id ?? numberIn()); } };
+  $('moves').innerHTML = Object.entries(MOVES).map(([id, m]) => `<button type="button" class="chip${id === move ? ' on' : ''}" data-m="${id}">${m.label}</button>`).join('');
+  $('moves').onclick = (e) => {
+    const id = e.target.closest('[data-m]')?.dataset.m;
+    if (!id) return;
+    move = id;
+    stage.move = id;
+    for (const x of $('moves').children) x.classList.toggle('on', x.dataset.m === id);
+  };
   $('go').onsubmit = (e) => { e.preventDefault(); show(Math.floor(Number($('num').value)) || null); };
   $('prev').onclick = () => show(Math.max(1, (current?.id ?? 2) - 1));
   $('next').onclick = () => show(Math.min(all.length, (current?.id ?? 0) + 1));
@@ -97,7 +103,16 @@ function controls() {
   $('acts').onclick = async (e) => {
     const a = e.target.closest('[data-dl]')?.dataset.dl;
     if (!a || !current) return;
-    if (a === 'nft') return downloadSvgPng(blockySvg(current, { size: 1024 }), current.name);
+    if (a === 'gif') {
+      const btn = e.target.closest('[data-dl]');
+      btn.textContent = 'Making the GIF…';
+      await new Promise((ok) => setTimeout(ok, 30));
+      const url = URL.createObjectURL(new Blob([stage.gif()], { type: 'image/gif' }));
+      save(url, `basecity-${slug(current)}-${move}.gif`);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      btn.textContent = '⬇ GIF';
+      return;
+    }
     if (a === 'header') return save(await header(current), `basecity-${slug(current)}-x-header.png`);
     save(dl[a](), `basecity-${slug(current)}${a === 'clear' ? '-transparent' : a === 'pfp' ? '-pfp' : ''}.png`);
   };
@@ -109,8 +124,9 @@ function controls() {
 }
 
 (async () => {
+  stage = createStage($('stage'));
   controls();
-  $('stage').innerHTML = '<div class="empty"><p>Loading the city…</p></div>';
+  $('over').innerHTML = '<div class="empty"><p>Loading the city…</p></div>';
   const [state, nft] = await Promise.all([fetchColony().catch(() => null), nftInfo()]);
   info = nft;
   addNames(state?.names);

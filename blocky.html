@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Blocky viewer · BaseCity</title>
-    <meta name="description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Download it as a PNG, a PFP or an X header." />
+    <meta name="description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Watch it dance and download it as a GIF, a PNG, a PFP or an X header." />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="BaseCity" />
     <meta property="og:url" content="%SITE%/b/" />
     <meta property="og:title" content="Blocky viewer · BaseCity" />
-    <meta property="og:description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Download it as a PNG, a PFP or an X header." />
+    <meta property="og:description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Watch it dance and download it as a GIF, a PNG, a PFP or an X header." />
     <meta property="og:image" content="/og.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
@@ -17,7 +17,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@%X%" />
     <meta name="twitter:title" content="Blocky viewer · BaseCity" />
-    <meta name="twitter:description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Download it as a PNG, a PFP or an X header." />
+    <meta name="twitter:description" content="Look up any BaseCity Blocky by its number: head to toe, rarity, owner and blocks placed. Watch it dance and download it as a GIF, a PNG, a PFP or an X header." />
     <meta name="twitter:image" content="/og.png" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -39,16 +39,16 @@
         <button class="btn" type="button" id="random">🎲 Random</button>
       </div>
       <div class="layout">
-        <div class="stage" id="stage"></div>
+        <div class="stage" id="stage"><div class="over" id="over"></div></div>
         <section>
-          <div class="chips views" id="views" role="group" aria-label="View"></div>
+          <div class="chips views" id="moves" role="group" aria-label="Moves"></div>
           <dl id="facts"></dl>
           <div class="acts" id="acts" hidden>
-            <button class="btn primary" type="button" data-dl="body">⬇ Full body PNG</button>
+            <button class="btn primary" type="button" data-dl="gif">⬇ GIF</button>
+            <button class="btn" type="button" data-dl="body">⬇ Full body PNG</button>
             <button class="btn" type="button" data-dl="clear">⬇ Transparent PNG</button>
             <button class="btn" type="button" data-dl="pfp">⬇ PFP</button>
             <button class="btn" type="button" data-dl="header">⬇ X header</button>
-            <button class="btn" type="button" data-dl="nft">⬇ NFT art</button>
             <button class="btn" type="button" id="share">Share on 𝕏</button>
             <a class="btn" id="opensea" target="_blank" rel="noopener" hidden>OpenSea ↗</a>
           </div>
