@@ -6,6 +6,42 @@
   },
   "rewrites": [
     {
+      "source": "/claim",
+      "destination": "/claim.html"
+    },
+    {
+      "source": "/vote",
+      "destination": "/vote.html"
+    },
+    {
+      "source": "/collection",
+      "destination": "/collection.html"
+    },
+    {
+      "source": "/blockies",
+      "destination": "/collection.html"
+    },
+    {
+      "source": "/builders",
+      "destination": "/builders.html"
+    },
+    {
+      "source": "/recap",
+      "destination": "/recap.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/about.html"
+    },
+    {
+      "source": "/gallery",
+      "destination": "/gallery.html"
+    },
+    {
+      "source": "/viewer",
+      "destination": "/blocky.html"
+    },
+    {
       "source": "/r/:day",
       "destination": "/api/recap?day=:day"
     },
