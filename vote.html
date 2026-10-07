@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Citizens vote · BaseCity</title>
+    <meta name="description" content="Holders of BaseCity Blockies NFTs pick what the city builds next. 1 NFT = 1 vote, free to sign." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BaseCity" />
+    <meta property="og:url" content="%SITE%/vote.html" />
+    <meta property="og:title" content="Citizens vote · BaseCity" />
+    <meta property="og:description" content="Holders of BaseCity Blockies NFTs pick what the city builds next. 1 NFT = 1 vote." />
+    <meta property="og:image" content="/og-claim.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@%X%" />
+    <meta name="twitter:title" content="Citizens vote · BaseCity" />
+    <meta name="twitter:description" content="Holders of BaseCity Blockies NFTs pick what the city builds next. 1 NFT = 1 vote." />
+    <meta name="twitter:image" content="/og-claim.png" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/site.css" />
+    <link rel="stylesheet" href="/src/claim.css" />
+    <link rel="stylesheet" href="/src/vote.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1 id="title">Citizens vote</h1>
+      <p class="lede">Citizens pick what <span class="city">BaseCity</span> builds next. Every BaseCity Blockies NFT you hold is <b>one vote</b>. Voting is a free signature, no transaction. The vote stays with the NFT: sell it, and its new holder can change it.</p>
+    </header>
+    <main class="wrap vote">
+      <div id="status" class="note" role="status"></div>
+      <section class="panel">
+        <h2 id="question">…</h2>
+        <div class="meta" id="meta"></div>
+        <div class="choices" id="choices"></div>
+      </section>
+      <section class="panel connect" id="connect">
+        <h2>Connect the wallet that holds your Blockies</h2>
+        <div class="wallets" id="wallets"></div>
+        <div class="vote-msg" id="msg" aria-live="polite"></div>
+      </section>
+      <section class="panel rules">
+        <h2>How it works</h2>
+        <ol>
+          <li><b>1 NFT = 1 vote.</b> Every BaseCity Blockies NFT your wallet holds when you vote counts once. No NFT yet? <a href="/claim.html">Claim your Blockies</a>.</li>
+          <li><b>Holders decide.</b> The team's Blockies (the reserve and team grants) don't vote.</li>
+          <li><b>Free.</b> You sign a message in your wallet: no transaction, no gas.</li>
+          <li><b>Change your mind</b> any time before the round ends: vote again. A vote follows its NFT, so nothing counts twice.</li>
+          <li><b>The winner gets built.</b> When the round ends, the winning choice goes into the city plan and the crew breaks ground.</li>
+        </ol>
+      </section>
+    </main>
+    <script type="module" src="/src/vote.js"></script>
+  </body>
+</html>

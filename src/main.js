@@ -163,6 +163,11 @@ let nftMarket = null;
 const loadMarket = () => fetch('/api/claim', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.market) nftMarket = j.market; }).catch(() => {});
 loadMarket();
 setInterval(loadMarket, 5 * 60e3);
+// the citizens' vote for the news ticker (api/vote.js), every 5 minutes
+let cityVote = null;
+const loadVote = () => fetch('/api/vote', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.round) cityVote = j; }).catch(() => {});
+loadVote();
+setInterval(loadVote, 5 * 60e3);
 const sky = createSky(city, camera);
 const weather = createWeather(city);
 let market = null;
@@ -696,6 +701,12 @@ function headlines() {
   if (nftMarket) {
     const m = nftMarket, usd = (v) => (m.ethUsd ? ` (~$${Math.round(v * m.ethUsd)})` : '');
     out.push(`<b>BLOCKIES NFT:</b> ${m.floor ? `floor ${+m.floor.toPrecision(2)} ETH${usd(m.floor)} on OpenSea` : 'no floor yet on OpenSea: the first listings set the price'}${m.topOffer ? `, best offer ${+m.topOffer.toPrecision(2)} ETH${usd(m.topOffer)}` : ''}. Earn one with ${money(price)} of ${CONFIG.ticker} held ${dayText()}`);
+  }
+  if (cityVote?.round) {
+    const v = cityVote, lead = v.round.choices.find((c) => c.id === v.leader);
+    out.push(v.round.open
+      ? `<b>CITY VOTE:</b> ${esc(v.round.question)} ${lead ? `${esc(lead.label)} leads with ${Math.round((v.tally[lead.id] / v.total) * 100)}% of ${fmt(v.total)} votes.` : 'No votes yet.'} NFT holders vote at basecity.space/vote`
+      : lead ? `<b>CITY VOTE:</b> ${esc(lead.label)} won the vote: it's next on ${esc(v.round.title.replace(/^Next on /, ''))}` : `<b>CITY VOTE:</b> the round has ended`);
   }
   if (cats.count) out.push(`<b>CAT TOWN:</b> ${cats.count} cats from @cattownbase roam the streets of ${CONFIG.cityName}${city.built.some((b) => b.type === 'hq-cattown') ? ' and nap on Cat Town Plaza' : ''}`);
   if (agents.count) out.push(`<b>AGENTS:</b> ${agents.count} AI agent drones are flying deliveries over ${CONFIG.cityName}${agents.deliveries ? `, ${fmt(agents.deliveries)} parcels delivered since you arrived` : ''}`);

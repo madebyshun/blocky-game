@@ -6,6 +6,7 @@ const PAGES = [
   ['blockies', '/collection.html', 'Blockies'],
   ['viewer', '/blocky.html', 'Viewer'],
   ['claim', '/claim.html', 'Claim'],
+  ['vote', '/vote.html', 'Vote'],
   ['builders', '/builders.html', 'Builders'],
   ['recap', '/recap.html', 'Recap'],
   ['about', '/about.html', 'About'],

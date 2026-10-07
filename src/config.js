@@ -234,6 +234,25 @@ export const CONFIG = {
     { at: 2500, id: 'beacon', label: 'Onchain Beacon', lot: [-2, -4], pro: true },
   ],
 
+  // The citizens' vote (/vote.html): holders of BaseCity Blockies NFTs pick what the city builds next,
+  // 1 NFT = 1 vote. One round at a time: its id (new id = new round), the question, when it ends
+  // (UTC) and the choices (id, label, tagline, color). Votes are counted per NFT, so selling one after
+  // voting doesn't count twice: the vote stays with the NFT, and its new holder can change it. The
+  // team's Blockies (reserve, grants) don't vote. When the
+  // round ends, the winner goes into src/projects.js (Base Avenue) by hand, with today as `added`.
+  vote: {
+    id: 'r1',
+    title: 'Next on Base Avenue',
+    question: 'Which Base project gets the next HQ on Base Avenue?',
+    ends: '2026-10-10T14:00Z',
+    choices: [
+      { id: 'moonwell', label: 'Moonwell', tagline: 'Lending and borrowing on Base', color: '#6a4cff' },
+      { id: 'clanker', label: 'Clanker', tagline: 'Token launches on Base', color: '#8b5cf6' },
+      { id: 'talent', label: 'Talent Protocol', tagline: 'Onchain builder reputation', color: '#f97316' },
+      { id: 'seamless', label: 'Seamless', tagline: 'DeFi lending on Base', color: '#0ea5e9' },
+    ],
+  },
+
   // Base Avenue: plots reserved for Base projects' headquarters, numbered 1, 2, ... on their signs.
   // Projects take them in src/projects.js; a plot nobody has taken advertises itself. [x, z] like
   // landmark lots; add more at the end if you need them (renumbering moves the HQs).
