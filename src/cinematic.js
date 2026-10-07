@@ -273,7 +273,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   const AUTO = ['aerial', 'sitecam', 'rooftops', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
   const STREAM = AUTO;
   const st = {
-    active: false, stream: false, format: 1, light: 1, clip: 0, auto: true, // 16:9 by default, like the livestream i: 0, shot: null, s: null, t: 0, rec: null, busy: false,
+    active: false, stream: false, format: 1, light: 1, clip: 0, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false, // format 1: 16:9, like the livestream
     caption: ['', ''], size: [1, 1], pr: 1, captureEdge: 0,
   };
   const o = { pos: v3(), look: v3(), fov: 35, focus: false, pivot: null, focusAt: null };
