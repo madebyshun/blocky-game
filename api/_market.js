@@ -72,13 +72,23 @@ async function listings(contract) {
   return parseListings(all, contract);
 }
 
-// { floor, topOffer, ethUsd, listings, at }: each part null if it couldn't be read.
+// The floor: the cheapest live listing (OpenSea's own stats can lag behind new listings by a while),
+// or the stats' floor when the listings couldn't be read.
+export function floorOf(statsFloor, listings) {
+  const cheapest = Math.min(...Object.values(listings || {}).map((l) => l.eth).filter((e) => e > 0));
+  if (Number.isFinite(cheapest)) return cheapest;
+  return statsFloor > 0 ? statsFloor : null;
+}
+
+// { floor, topOffer, ethUsd, listings, errors, at }: each part null if it couldn't be read (errors: why).
 export async function getMarket(contract) {
   if (cache && Date.now() - cache.at < TTL) return cache;
   const ok = KEY && SLUG;
   const [f, e, l, o] = await Promise.allSettled([ok ? floor() : null, ethUsd(), ok ? listings(contract) : null, ok ? topOffer() : null]);
   const val = (r) => (r.status === 'fulfilled' ? r.value : null);
-  for (const r of [f, e, l, o]) if (r.status === 'rejected') console.warn('[market]', r.reason?.message || r.reason);
-  cache = { floor: val(f), topOffer: val(o), ethUsd: val(e), listings: val(l), at: Date.now() };
+  const errors = [f, e, l, o].filter((r) => r.status === 'rejected').map((r) => String(r.reason?.message || r.reason).slice(0, 160));
+  if (!ok) errors.push('OPENSEA_API_KEY or the collection slug is missing');
+  errors.forEach((m) => console.warn('[market]', m));
+  cache = { floor: floorOf(val(f), val(l)), topOffer: val(o), ethUsd: val(e), listings: val(l), errors, at: Date.now() };
   return cache;
 }

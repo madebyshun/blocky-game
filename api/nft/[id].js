@@ -37,7 +37,6 @@ async function city() {
 
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : 'a buyer');
 const siteOf = (req) => SITE || `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
-const plain = (b) => b.name.replace(/ #\d+$/, '');
 
 function metadata(b, sim, site, openedAt, grants) {
   const now = Date.now();
@@ -48,7 +47,6 @@ function metadata(b, sim, site, openedAt, grants) {
     { trait_type: 'Rarity', value: b.rarity.label },
     { trait_type: 'Trait', value: b.trait ? TRAIT_LABEL[b.trait] : 'None' },
     { trait_type: 'Role', value: b.role.label },
-    { trait_type: 'Name', value: plain(b) },
     { trait_type: 'Status', value: !here ? 'Left the city' : now >= citizenAt ? 'Citizen' : 'Newcomer' },
     { trait_type: 'Origin', value: teamOrigin({ reserve: RESERVE, grants }, b.id, b.from) || 'Bought' },
     { trait_type: 'Blocks placed', value: blocks, display_type: 'number' },

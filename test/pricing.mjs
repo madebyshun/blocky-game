@@ -47,3 +47,11 @@ assert.ok(refuse({ method: 'eth_call', params: [{ to: '0x00000000000000000000000
 assert.ok(refuse({ method: 'eth_sendRawTransaction', params: ['0x'] }));
 assert.equal(refuse({ method: 'eth_chainId', params: [] }), null);
 console.log('pricing: the RPC relay passes');
+
+// the floor: the cheapest live listing first, OpenSea's stats as a fallback
+import { floorOf } from '../api/_market.js';
+assert.equal(floorOf(null, { 105: { eth: 0.0058 }, 101: { eth: 0.0081 } }), 0.0058);
+assert.equal(floorOf(0.007, { 105: { eth: 0.0058 } }), 0.0058, 'stats can lag behind a new listing');
+assert.equal(floorOf(0.007, null), 0.007);
+assert.equal(floorOf(null, {}), null);
+console.log('pricing: the floor passes');

@@ -67,7 +67,7 @@ export default async function handler(req, res) {
   const raw = req.method === 'POST' ? body(req).address : req.query?.address ?? new URL(req.url, 'http://x').searchParams.get('address');
   if (!raw && req.method !== 'POST') {
     const [L, { claimed, max }, mk] = await Promise.all([loadLedger().then((r) => r.ledger).catch(() => null), room(), getMarket(NFT).catch(() => null)]);
-    const market = { floor: mk?.floor ?? null, topOffer: mk?.topOffer ?? null, ethUsd: mk?.ethUsd ?? null, perUsd: LEDGER.per };
+    const market = { floor: mk?.floor ?? null, topOffer: mk?.topOffer ?? null, ethUsd: mk?.ethUsd ?? null, perUsd: LEDGER.per, listed: mk?.listings ? Object.keys(mk.listings).length : null, errors: mk?.errors ?? null };
     return res.status(200).json({ open: isOpen(), contract: NFT || null, chainId: CHAIN_ID, unlockUsd: LEDGER.unlockUsd, bought: L ? Math.round(L.bought * 100) / 100 : null, openedAt: L?.openedAt ?? null, citizenDays: LEDGER.citizenDays, claimed, max, market });
   }
   let address = isAddress(raw || '', { strict: false }) ? getAddress(raw) : null;
