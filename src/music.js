@@ -1,7 +1,7 @@
 // BaseCity's music: a lo-fi loop played live with the Web Audio API (no audio files, nothing to
 // license or download). Rhodes-like chords, a sine bass, a pentatonic melody through a delay, swung
 // lo-fi drums and a little vinyl crackle, at 84 BPM. It follows the city: softer and darker at night,
-// hushed in the rain (setMood). Off until a visitor turns it on (browsers need a click to play sound).
+// hushed in the rain (setMood). Browsers need a tap or key before any sound, so main.js starts it on the first one.
 
 const BPM = 84;
 const STEP = 60 / BPM / 4; // a 16th note, in seconds
@@ -22,6 +22,8 @@ export function createMusic() {
   const mood = { bright: 1, drums: 1 }; // eased toward the city's daylight and weather
 
   function build() {
+    // iPhones mute Web Audio when the ring/silent switch is on, unless the page asks for media playback
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch { /* older Safari */ }
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     out = ctx.createGain();
     out.gain.value = 0;

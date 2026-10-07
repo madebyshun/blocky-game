@@ -140,22 +140,25 @@ function setPhoto(on) {
 controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); });
 controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); }); // the view stays where you leave it
 $('rotate-btn').onclick = () => setRotate(!rotatePref);
-// music (src/music.js): off by default; a visitor who turned it on gets it back on their next click
+// music (src/music.js): on by default. Browsers only play sound after a tap or key, so it starts on the
+// visitor's first one; whoever turns it off keeps it off on their next visits.
 const music = createMusic();
-const syncMusic = () => { $('music-btn').textContent = music.on ? '♪ Music: on' : '♪ Music: off'; $('music-btn').classList.toggle('on', music.on); };
+const syncMusic = () => { $('music-btn').textContent = music.on ? '🔊 Music: on' : '🔇 Music: off'; $('music-btn').classList.toggle('on', music.on); };
+const GESTURES = ['pointerup', 'touchend', 'click', 'keydown']; // pointerdown isn't a gesture on phones
+const firstGesture = (e) => {
+  if (e.target?.closest?.('#music-btn') || e.key === 'm' || e.key === 'M') return; // those toggle it themselves
+  if (!music.on) setMusic(true);
+};
 async function setMusic(v) {
+  GESTURES.forEach((g) => removeEventListener(g, firstGesture, true)); // any choice beats the default
   await music.set(v);
   try { localStorage.setItem('basecity:music', music.on ? '1' : '0'); } catch { /* ignore */ }
   syncMusic();
 }
 $('music-btn').onclick = () => setMusic(!music.on);
-try {
-  if (localStorage.getItem('basecity:music') === '1') { // browsers only play sound after a click or key
-    const resume = (e) => { if (e.target?.closest?.('#music-btn')) return; removeEventListener('pointerdown', resume); removeEventListener('keydown', resume); if (!music.on) setMusic(true); };
-    addEventListener('pointerdown', resume);
-    addEventListener('keydown', resume);
-  }
-} catch { /* ignore */ }
+let musicPref = null;
+try { musicPref = localStorage.getItem('basecity:music'); } catch { /* ignore */ }
+if (musicPref !== '0') GESTURES.forEach((g) => addEventListener(g, firstGesture, true));
 $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
 addEventListener('keydown', (e) => {
