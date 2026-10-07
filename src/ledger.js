@@ -17,6 +17,9 @@
 //   is full), then to the next buyers.
 // - The team's reserve (newLedger's `reserve`) holds Blockies #1 to #count from the start: granted,
 //   not bought, so the hold rule leaves them alone. They are citizens from opening day.
+// - Team grants (applyGrants) give a wallet more Blockies later, at the next numbers, the same way:
+//   not bought, never sent away, citizens `citizenDays` after they arrive. Each is applied once, by id,
+//   rolled from the block hash at that moment, and listed in L.granted (snapshot: grants).
 // - A single buy of `whaleUsd`+ also builds a Whale Fountain.
 // - A Blocky's rarity is rolled from its number and the block that brought it (rollSeed), so nobody
 //   can know or pick a rare number before buying, and anyone can check it afterwards.
@@ -150,6 +153,39 @@ export function applyBalances(L, balances, at, cfg, source = at) {
   return rebalance(L, at, cfg, touched, source);
 }
 
+// grants: [{ id, wallet, count }]; the ones not applied yet arrive now, at the next numbers, as long
+// as the city has room. They come before any bought Blocky of the wallet (a.grant), so the hold rule
+// never touches them. Returns how many Blockies were granted.
+export function applyGrants(L, grants, at, cfg, source = at) {
+  L.granted ||= [];
+  let active = L.blockies.length - L.departures.length, given = 0;
+  for (const g of grants || []) {
+    if (!g?.id || !g.wallet || !(g.count > 0) || L.granted.some((x) => x.id === g.id)) continue;
+    const count = Math.min(Math.floor(g.count), cfg.supply - active);
+    if (count < 1) break;
+    const wi = indexOf(L, g.wallet), a = account(L, wi), s = sec(L, at), from = L.blockies.length + 1, ids = [];
+    for (let k = 0; k < count; k++) {
+      const n = L.blockies.length + 1;
+      L.blockies.push([wi, s, null, rollSeed(n, source)]);
+      ids.push(n);
+    }
+    a.ids.splice(a.grant || 0, 0, ...ids);
+    a.grant = (a.grant || 0) + count;
+    active += count;
+    given += count;
+    L.granted.push({ id: g.id, wallet: L.wallets[wi], from, to: from + count - 1, at });
+  }
+  return given;
+}
+
+// Where Blocky #n came from when it wasn't bought: 'Team reserve', 'Team' (a grant), or null (bought).
+// reserve: { wallet, count }; grants: the snapshot's.
+export function teamOrigin({ reserve, grants }, n, wallet) {
+  const w = (wallet || '').toLowerCase();
+  if (reserve?.count && n <= reserve.count && w === (reserve.wallet || '').toLowerCase()) return 'Team reserve';
+  return (grants || []).some((g) => n >= g.from && n <= g.to && g.wallet === w) ? 'Team' : null;
+}
+
 // Wallets that hold Blockies or are owed some (for balance checks).
 export const holders = (L) => Object.entries(L.acct).filter(([, a]) => a.ids.length || a.tin > a.tout || a.credits >= 1).map(([wi]) => L.wallets[wi]);
 
@@ -183,5 +219,6 @@ export function snapshot(L, cfg, since = 0, dsince = 0) {
     unlockUsd: cfg.unlockUsd ?? null, // total bought that opens trading
     openedAt: L.openedAt ?? null, // when it did (ms)
     citizenDays: cfg.citizenDays ?? null, // from then: a Blocky's newcomer days, then a citizen (an NFT)
+    grants: L.granted || [], // team grants: [{ id, wallet, from, to, at }], Blockies #from-#to
   };
 }

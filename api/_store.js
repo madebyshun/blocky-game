@@ -26,6 +26,8 @@ export const RESERVE = {
   wallet: env.TEAM_RESERVE_WALLET || CONFIG.nft.reserve?.wallet || '',
   count: Number(env.TEAM_RESERVE_COUNT ?? CONFIG.nft.reserve?.count ?? 0),
 };
+// team grants (src/config.js nft.grants); TEAM_GRANTS=0 for none
+export const GRANTS = env.TEAM_GRANTS === '0' ? [] : CONFIG.nft.grants || [];
 export const NFT = env.NFT_CONTRACT || CONFIG.nft.contract || ''; // the BaseCity Blockies contract
 
 export const client = createPublicClient({ chain: base, transport: http(RPC, { retryCount: 2 }) });

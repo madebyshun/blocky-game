@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 for (const k of Object.keys(process.env)) if (/^(KV_|UPSTASH_)/.test(k)) delete process.env[k];
 Object.assign(process.env, {
   KV_REST_API_URL: 'https://kv.test', KV_REST_API_TOKEN: 'test', KV_KEY: 'test',
-  USD_PER_BLOCKY: '10', UNLOCK_USD: '50', CITIZEN_DAYS: '1', TEAM_RESERVE_COUNT: '0',
+  USD_PER_BLOCKY: '10', UNLOCK_USD: '50', CITIZEN_DAYS: '1', TEAM_RESERVE_COUNT: '0', TEAM_GRANTS: '0',
   CACHE_MS: '0', LAUNCH_TIME_MS: String(Date.now() - 30 * 86400e3),
 });
 const TOKEN = '0xe72a0c42b584a3e7a4503a82d1337deb52ade885';

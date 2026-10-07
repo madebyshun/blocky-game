@@ -28,8 +28,8 @@
 
 import { erc20Abi, parseAbi, getAddress } from 'viem';
 import { base } from 'viem/chains';
-import { applyTrade, applyBalances, openTrading, snapshot, holders } from '../src/ledger.js';
-import { env, TOKEN, LEDGER, LAUNCH, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
+import { applyTrade, applyBalances, applyGrants, openTrading, snapshot, holders } from '../src/ledger.js';
+import { env, TOKEN, LEDGER, LAUNCH, GRANTS, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
 import { namesFor } from './_names.js';
 import { fetchMarket } from '../src/market.js';
 import { CONFIG } from '../src/config.js';
@@ -223,6 +223,11 @@ async function updateLedger() {
   if (now - (L.checkedAt || 0) > HOLD_CHECK_MS) {
     try { await checkBalances(L); changed = true; } catch (e) { console.warn('[colony] balance check skipped:', e.shortMessage || e.message); }
     L.checkedAt = now;
+  }
+  // team grants (GRANTS) not given yet: rolled from the latest block, unknown in advance
+  if (GRANTS.some((g) => !(L.granted || []).some((x) => x.id === g.id))) {
+    const head = await client.getBlock().catch(() => null);
+    if (head?.hash && applyGrants(L, GRANTS, now, LEDGER, head.hash)) changed = true;
   }
   if (openTrading(L, now, LEDGER)) changed = true; // e.g. unlockUsd lowered to 0: open now, not at the next trade
   L.seen = [...seen].slice(-1000);

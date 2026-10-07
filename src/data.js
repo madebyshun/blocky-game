@@ -89,6 +89,7 @@ export async function fetchColony(since = 0, dsince = 0) {
       citizenDays: typeof s.citizenDays === 'number' ? s.citizenDays : CONFIG.citizenDays, // after opening: newcomer days, then a citizen (an NFT)
       unlockUsd: typeof s.unlockUsd === 'number' ? s.unlockUsd : CONFIG.unlockUsd, // total bought that opens trading
       openedAt: typeof s.openedAt === 'number' ? s.openedAt : null, // when it was reached
+      grants: Array.isArray(s.grants) ? s.grants : [], // team grants: [{ id, wallet, from, to, at }]
       source: s.source || 'live',
     };
   } catch (e) {

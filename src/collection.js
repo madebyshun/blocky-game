@@ -5,6 +5,7 @@ import { TRAIT_LABEL } from './sim.js';
 import { blockySvg } from './voxel-svg.js';
 import { fetchColony } from './data.js';
 import { replay } from './replay.js';
+import { teamOrigin } from './ledger.js';
 import { lazyPortrait, portraitUrl } from './portraits.js';
 import { mountSite, fmt, day, basescan, opensea, esc, nftInfo, downloadSvgPng } from './site.js';
 import { addNames, nameOf, who } from './names.js';
@@ -17,7 +18,8 @@ for (const el of document.querySelectorAll('.supply')) el.textContent = fmt(CONF
 const PAGE = 60;
 const RANK = { legendary: 0, rare: 1, uncommon: 2, common: 3 };
 const here = (b) => !Number.isFinite(b.leftAt);
-const teamReserve = (b) => b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
+let grants = []; // team grants (the snapshot's)
+const teamReserve = (b) => teamOrigin({ reserve: CONFIG.nft.reserve, grants }, b.id, b.from);
 const filters = { q: '', rarity: 'all', trait: 'all', status: 'here', sort: 'new' };
 let all = [], sim = null, info = { contract: null, citizenDays: CONFIG.citizenDays, openedAt: null }, list = [], shown = 0;
 // a Blocky in the city is a citizen (an NFT its wallet can claim) once trading has opened and it has been
@@ -154,7 +156,7 @@ function open(b) {
     [here(b) ? 'Building for' : 'Built for', `${fmt((end - b.arrivedAt) / 3600000)} hours`],
     ['Arrived', day(b.arrivedAt)],
     ...(here(b) ? (Number.isFinite(citizenAt(b)) ? [[citizen ? 'Citizen since' : 'Citizen on', day(citizenAt(b))]] : [['NFT', 'when claims open']]) : [['Left', day(b.leftAt)]]),
-    [teamReserve(b) ? 'Team reserve' : 'Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener" title="${esc(b.from)}">${esc(who(b.from, 30))}</a>` : '—'],
+    [teamReserve(b) || 'Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener" title="${esc(b.from)}">${esc(who(b.from, 30))}</a>` : '—'],
   ];
   $('d-dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const site = CONFIG.siteUrl || location.origin;
@@ -174,6 +176,7 @@ function open(b) {
   $('shown').textContent = 'Loading…';
   const [state, nft] = await Promise.all([fetchColony().catch(() => null), nftInfo()]);
   info = nft;
+  grants = state?.grants || [];
   addNames(state?.names);
   const r = replay(state);
   all = r.blockies;

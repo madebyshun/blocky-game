@@ -47,6 +47,15 @@ export const CONFIG = {
     // never leave the city. Shown on the About page.
     // count 0 for none. (TEAM_RESERVE_WALLET / TEAM_RESERVE_COUNT on the API override it.)
     reserve: { wallet: '0xb7b3bdf2e53b9c877efabc99a74badfc03299823', count: 100 },
+    // Team grants: more Blockies for team wallets after launch, given once each (by id) at the next
+    // numbers, rolled from the block of the ledger update that gives them. Not bought, never sent away,
+    // citizens `citizenDays` after they arrive; their metadata's Origin is "Team". Never remove one.
+    grants: [
+      { id: 'team-1', wallet: '0x92c0a50966ccdb5e25770cffd64b4b249adf42e9', count: 50 },
+      { id: 'team-2', wallet: '0xe7d67cf1108fa1c4836ff1b178c3f37d56844530', count: 50 },
+      { id: 'team-3', wallet: '0xc1d3eb0a2b9bad7eec5566049b5b44fde19c7332', count: 50 },
+      { id: 'team-4', wallet: '0x3eb42d002ade67650a712bc068adaeabe920a133', count: 50 },
+    ],
   },
 
   // Every Blocky rolls a rarity from its number, so anyone can verify it.

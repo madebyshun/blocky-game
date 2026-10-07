@@ -1,7 +1,7 @@
 // The Blocky ledger's rules (src/ledger.js): $ per Blocky per wallet, the hold rule, the waitlist,
 // whales, incremental snapshots, fair rarity seeds, opening day and citizens. Run: npm test
 import assert from 'node:assert/strict';
-import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, citizenAt, citizensOf, openTrading } from '../src/ledger.js';
+import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, citizenAt, citizensOf, openTrading, applyGrants, teamOrigin } from '../src/ledger.js';
 import { rarityOf } from '../src/sim.js';
 
 const cfg = { per: 5, supply: 10000, whaleUsd: 1000 };
@@ -177,3 +177,25 @@ assert.ok(Math.abs(count.legendary / 1000 - 1) < 0.15, `legendary ${count.legend
 assert.ok(Math.abs(count.rare / 1000 - 7) < 0.4, `rare ${count.rare / 1000}%`);
 assert.ok(Math.abs(count.uncommon / 1000 - 22) < 0.6, `uncommon ${count.uncommon / 1000}%`);
 console.log('ledger: all checks pass');
+
+// 6. team grants: once each, at the next numbers, never sent away, citizens a hold after arriving
+{
+  const DAY = 86400e3, c = { ...cfg, unlockUsd: 0, citizenDays: 0.25 };
+  const L = newLedger(0, { wallet: '0xT', count: 3 });
+  applyTrade(L, { who: '0xG', kind: 'buy', usd: 10, tokens: 100, at: DAY - 60e3 }, c); // #4, #5, newcomers
+  const grants = [{ id: 'g1', wallet: '0xG', count: 4 }, { id: 'g2', wallet: '0xH', count: 2 }];
+  assert.equal(applyGrants(L, grants, DAY, c, 'block'), 6);
+  assert.equal(applyGrants(L, grants, 2 * DAY, c, 'block'), 0, 'applied once');
+  assert.deepEqual(L.granted.map((g) => [g.id, g.from, g.to]), [['g1', 6, 9], ['g2', 10, 11]]);
+  assert.deepEqual(walletBlockies(L, '0xg').active, [4, 5, 6, 7, 8, 9]);
+  assert.equal(citizenAt(L, 6, c), DAY + DAY / 4);
+  // selling everything costs the bought newcomers only
+  applyTrade(L, { who: '0xG', kind: 'sell', usd: 10, tokens: 100, at: DAY + 1000 }, c);
+  assert.deepEqual(walletBlockies(L, '0xg').active, [6, 7, 8, 9]);
+  applyBalances(L, { '0xh': 0 }, 3 * DAY, c);
+  assert.equal(walletBlockies(L, '0xh').active.length, 2);
+  const s = snapshot(L, c);
+  assert.equal(teamOrigin({ reserve: { wallet: '0xT', count: 3 }, grants: s.grants }, 2, '0xt'), 'Team reserve');
+  assert.equal(teamOrigin({ reserve: { wallet: '0xT', count: 3 }, grants: s.grants }, 7, '0xg'), 'Team');
+  assert.equal(teamOrigin({ reserve: { wallet: '0xT', count: 3 }, grants: s.grants }, 4, '0xg'), null);
+}
