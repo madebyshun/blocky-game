@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG, holdText } from './config.js';
-import { createCity, updateBoards } from './city.js';
+import { createCity, updateBoards, GRID } from './city.js';
 import { createAgents } from './agents.js';
 import { createCats } from './cats.js';
+import { createGpuDistrict } from './gpu.js';
 import { createMusic } from './music.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
@@ -215,6 +216,7 @@ const traffic = createTraffic(city);
 const metro = createMetro(city);
 const agents = createAgents(city);
 const cats = createCats(city);
+const gpu = createGpuDistrict(city); // the Power Plant's guest, once it stands
 // the NFT market for the news ticker: OpenSea's floor and best offer (api/claim.js), every 5 minutes
 let nftMarket = null;
 const loadMarket = () => fetch('/api/claim', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.market) nftMarket = j.market; }).catch(() => {});
@@ -781,6 +783,9 @@ const FILLER = [
 function headlines() {
   const out = [...news.slice(0, 4)];
   const w = WEATHER[weather.kind];
+  const q = GRID.quote; // the GPU District's grid runs on NVDAc (src/city.js)
+  if (q) out.push(`<b>THE GRID:</b> ${CONFIG.cityName} runs on ${q.symbol} ($${q.priceUsd >= 1 ? q.priceUsd.toFixed(2) : q.priceUsd.toPrecision(3)}${typeof q.change24h === 'number' ? `, ${q.change24h >= 0 ? 'up' : 'down'} ${Math.abs(q.change24h).toFixed(1)}% today` : ''}): the GPU District runs at ${Math.round(GRID.power * 100)}% power`);
+  if (gpu.here) out.push(`<b>GPU DISTRICT:</b> Jensen spotted at the Power Plant again, leather jacket on, holding up a GPU. "The more you buy, the more you build"`);
   if (market) out.push(`<b>WEATHER:</b> ${w.label} over ${CONFIG.cityName} as ${CONFIG.ticker} ${market.change24h >= 0 ? 'climbs' : 'slips'} ${Math.abs(market.change24h).toFixed(1)}% in 24h`);
   if (sim.blocked) out.push(`<b>CITY HALL:</b> the land is full. ${sim.blocked.need - sim.blocked.have} more ${plural} needed to expand`);
   const ruins = sim.ruinCount;
@@ -902,6 +907,7 @@ function frame() {
   metro.update(t, dt);
   agents.update(t, dt);
   cats.update(t, dt);
+  gpu.update(t, dt);
   sky.update(t, dt);
   weather.update(t, dt);
   for (const v of views.values()) v.update(t, dt);
@@ -967,4 +973,4 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   });
 })();
 
-window.blocky = { city, crew, views, agents, cats, cine, music, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };
+window.blocky = { city, crew, views, agents, cats, gpu, cine, music, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };

@@ -253,6 +253,36 @@ export const LOGOS = {
     const n = 5, c = (s * 0.7) / n;
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { g.fillStyle = P[(i * 7 + j * 3 + i * j) % P.length]; g.fillRect(x + s * 0.15 + i * c, y + s * 0.15 + j * c, c - s * 0.01, c - s * 0.01); }
   },
+  // NVIDIA's eye: a white lens on green, a green spiral inside (BaseCity is a meme: fan art, not a partnership)
+  nvidia(g, x, y, s) {
+    g.fillStyle = '#76b900'; rr(g, x, y, s, s, s * 0.12);
+    const cx = x + s * 0.56, cy = y + s * 0.5;
+    g.fillStyle = '#ffffff';
+    g.beginPath(); g.ellipse(cx, cy, s * 0.3, s * 0.2, 0, 0, Math.PI * 2); g.fill();
+    g.fillRect(x + s * 0.12, cy - s * 0.2, s * 0.16, s * 0.4);
+    g.strokeStyle = '#76b900'; g.lineCap = 'round'; g.lineWidth = s * 0.055;
+    g.beginPath(); g.ellipse(cx, cy, s * 0.2, s * 0.12, 0, Math.PI * 0.15, Math.PI * 1.75); g.stroke();
+    g.beginPath(); g.ellipse(cx + s * 0.02, cy, s * 0.1, s * 0.055, 0, Math.PI * 0.3, Math.PI * 1.9); g.stroke();
+    g.fillStyle = '#76b900'; g.beginPath(); g.arc(cx + s * 0.03, cy, s * 0.025, 0, Math.PI * 2); g.fill();
+  },
+  // Onchain Summit SF: hand-drawn white letters on blue, each one tilted a little
+  onchainsf(g, x, y, s) {
+    g.fillStyle = '#1f5cf2'; rr(g, x, y, s, s, s * 0.12);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    const word = (text, cy, size, step) => {
+      g.font = `400 ${Math.round(size)}px "Lilita One", Inter, system-ui, sans-serif`;
+      [...text].forEach((ch, i) => {
+        g.save();
+        g.translate(x + s / 2 + (i - (text.length - 1) / 2) * step, cy + (i % 2 ? s * 0.012 : -s * 0.012));
+        g.rotate(((i * 37) % 7 - 3) * 0.035);
+        g.lineWidth = s * 0.03; g.strokeStyle = '#10204a'; g.strokeText(ch, 0, 0);
+        g.fillStyle = '#ffffff'; g.fillText(ch, 0, 0);
+        g.restore();
+      });
+    };
+    word('ONCHAIN', y + s * 0.4, s * 0.19, s * 0.115);
+    word('Summit', y + s * 0.62, s * 0.2, s * 0.12);
+  },
   // three tilted rings: blue, light blue, red
   aero(g, x, y, s) {
     g.fillStyle = '#efefef'; rr(g, x, y, s, s, s * 0.12);
@@ -321,6 +351,15 @@ const BIG_TEX = new THREE.CanvasTexture(bigCanvas);
 BIG_TEX.colorSpace = THREE.SRGBColorSpace;
 const BIG_MAT = new THREE.MeshBasicMaterial({ map: BIG_TEX });
 
+// The grid: the GPU District runs on NVDAc, the token $BLOCKY trades against. Its 24h move sets the
+// power (0.55 to 1.5): the green lights of every GPU farm and how fast the Power Plant's fans spin.
+export const GRID = { power: 1, quote: null };
+const gpuCanvas = document.createElement('canvas');
+gpuCanvas.width = 512; gpuCanvas.height = 256;
+const GPU_TEX = new THREE.CanvasTexture(gpuCanvas);
+GPU_TEX.colorSpace = THREE.SRGBColorSpace;
+const GPU_MAT = new THREE.MeshLambertMaterial({ map: GPU_TEX, emissive: 0xffffff, emissiveMap: GPU_TEX, emissiveIntensity: 0.55 });
+
 const price = (v) => (v >= 1 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(4) : v.toPrecision(4));
 const compact = (v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}K` : v.toFixed(0));
 const pct = (c) => `${c >= 0 ? '▲' : '▼'} ${Math.abs(c).toFixed(1)}%`;
@@ -357,6 +396,21 @@ export function updateBoards({ market = null, population = 0 } = {}) {
     b.fillStyle = '#9aa6b8'; b.font = '700 34px Inter, system-ui, sans-serif'; b.fillText('MARKET OPENING', 256, 150);
   }
   BIG_TEX.needsUpdate = true;
+
+  const q = (market?.stocks || []).find((st) => /nvda/i.test(st.symbol)) || null;
+  GRID.quote = q;
+  GRID.power = q && typeof q.change24h === 'number' ? Math.max(0.55, Math.min(1.5, 1 + q.change24h / 8)) : 1;
+  const v = gpuCanvas.getContext('2d');
+  v.fillStyle = '#05070b'; v.fillRect(0, 0, 512, 256);
+  v.strokeStyle = '#76b900'; v.lineWidth = 8; v.strokeRect(4, 4, 504, 248);
+  v.textAlign = 'center'; v.textBaseline = 'middle';
+  v.fillStyle = '#76b900'; v.font = '800 50px Inter, system-ui, sans-serif'; v.fillText(q?.symbol || 'NVDAc', 256, 52);
+  v.fillStyle = '#ffffff'; v.font = '800 70px Inter, system-ui, sans-serif'; v.fillText(q ? `$${price(q.priceUsd)}` : 'THE GRID', 256, 122);
+  if (q && typeof q.change24h === 'number') { v.fillStyle = q.change24h >= 0 ? '#2ee87a' : '#ff5c5c'; v.font = '800 36px Inter, system-ui, sans-serif'; v.fillText(`${pct(q.change24h)} 24H`, 256, 178); }
+  v.fillStyle = '#1f2937'; v.fillRect(40, 208, 432, 24);
+  v.fillStyle = '#76b900'; v.fillRect(40, 208, Math.min(432, 432 * (GRID.power / 1.5)), 24);
+  v.fillStyle = '#ffffff'; v.font = '800 20px Inter, system-ui, sans-serif'; v.fillText(`GRID ${Math.round(GRID.power * 100)}%`, 256, 221);
+  GPU_TEX.needsUpdate = true;
 }
 updateBoards();
 
@@ -1540,6 +1594,45 @@ const HQ = {
     brandPanel(k, b, 'logo', 0.82, 0.82, 2.45, Y + 1.85, 2.91);
     brandPanel(k, b, 'logo', 0.82, 0.82, 2.91, Y + 1.85, 2.45, SIDE);
   },
+  // The GPU District Power Plant: a dark data hall with green light strips, the world's biggest GPU on
+  // its roof (its fans spin with the grid), cooling stacks, and a screen with NVDAc live
+  gpu(k, b) {
+    const hall = 0x16191e, card = 0x2b2f36, green = 0x76b900;
+    sidewalk(k, 0x9aa3ad);
+    k.box(5.4, 2.6, 4.2, hall, 0, Y, -0.6);
+    for (const y of [0.5, 1.2, 1.9]) { k.green(5.0, 0.08, 0.05, 0, Y + y, 1.53); k.green(0.05, 0.08, 3.8, 2.73, Y + y, -0.6); }
+    k.box(1.2, 1.3, 0.08, C.dark, -1.6, Y, 1.55); // the door
+    brandPanel(k, b, 'name', 3.0, 0.62, 0.9, Y + 0.85, 1.56);
+    // the GPU: a card lying across the roof, three fans facing up
+    const top = Y + 2.6;
+    k.box(4.8, 0.55, 2.4, card, 0, top + 0.3, -0.6);
+    k.box(4.9, 0.12, 2.5, green, 0, top + 0.85, -0.6);
+    k.box(4.8, 0.3, 0.12, 0xc9a227, 0, top, 0.62); // the gold edge connector
+    for (let i = 0; i < 3; i++) {
+      const fan = new THREE.Group();
+      fan.position.set(-1.55 + i * 1.55, top + 0.98, -0.6);
+      const blades = new Kit();
+      for (let j = 0; j < 5; j++) {
+        const g = UNIT.clone(); g.scale(0.24, 0.05, 0.62); g.translate(0, 0, 0.33); g.rotateY((j * Math.PI * 2) / 5);
+        blades.lists.body.push(colored(g, 0x0c0d10));
+      }
+      blades.box(0.3, 0.07, 0.3, 0x76b900, 0, 0, 0);
+      fan.add(blades.build());
+      const dir = i % 2 ? -1 : 1;
+      fan.userData.animate = (t, dt) => { fan.rotation.y += dt * dir * 7 * GRID.power; };
+      k.extras.push(fan);
+      k.box(1.45, 0.04, 1.45, 0x3a3f47, -1.55 + i * 1.55, top + 0.94, -0.6);
+    }
+    brandPanel(k, b, 'logo', 0.9, 0.9, 2.46, top + 0.45, -0.6, SIDE);
+    for (const x of [-2.4, 2.4]) { k.box(0.7, 3.4, 0.7, 0x5d6670, x, Y, -2.6); k.green(0.74, 0.1, 0.74, x, Y + 3.0, -2.6); } // cooling stacks
+    // the screen by the door: NVDAc live, and the grid's power
+    k.box(0.16, 1.6, 0.16, C.dark, -1.95, Y, 2.55);
+    k.box(2.0, 1.05, 0.1, C.dark, -1.95, Y + 1.55, 2.5);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 0.93), GPU_MAT);
+    screen.position.set(-1.95, Y + 2.07, 2.56);
+    k.extras.push(screen);
+    brandPanel(k, b, 'logo', 0.7, 0.7, -1.6, Y + 1.85, 1.56); // over the door
+  },
   // Cat Town Plaza: the town cat as a statue on a plinth (its name on the front), a cat tree, food
   // bowls and the logo on a pylon; cats stroll and nap around it (src/cats.js)
   cats(k, b, p) {
@@ -2105,7 +2198,7 @@ export function createCity(scene) {
     hemi.intensity = (0.55 + 1.3 * dl) * (1 - 0.35 * gloom) + flash * 3;
     hemi.color.setHSL(0.58, 0.6, 0.45 + 0.45 * dl);
     GLOW_MAT.emissiveIntensity = 0.15 + 1.1 * (1 - dl);
-    GREEN_GLOW.emissiveIntensity = 0.4 + 0.8 * (1 - dl);
+    GREEN_GLOW.emissiveIntensity = (0.4 + 0.8 * (1 - dl)) * GRID.power; // the GPU District's grid (NVDAc)
     pulse = Math.max(0, pulse - dt * 1.5);
     BLUE_GLOW.emissiveIntensity = 0.8 + pulse * 1.5;
     const top = env.skyTop.copy(sky.nightTop).lerp(sky.dayTop, dl).lerp(sky.stormTop, gloom * 0.8), bot = env.skyBottom.copy(sky.nightBot).lerp(sky.dayBot, dl).lerp(sky.stormBot, gloom * 0.8);

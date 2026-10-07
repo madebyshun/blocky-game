@@ -163,6 +163,19 @@ function shots(city, sim) {
         o.look.set(b.x, b.h * 0.35, b.z);
         o.pivot = o.look; o.fov = 40; o.focus = false; // a taller tower in the way: the camera moves in front of it
       } },
+    { id: 'gpucam', label: 'GPU District', dur: 11, // the Power Plant: the giant GPU, its fans and the NVDAc screen
+      start: (s) => {
+        const b = city.built.find((x) => x.type === 'hq-gpu');
+        if (!b) return false;
+        s.c = v3().set(b.x, 0, b.z); s.a0 = Math.PI * (0.3 + Math.random() * 0.4); s.dir = Math.random() < 0.5 ? -1 : 1;
+        return true;
+      },
+      frame: (s, u, o) => {
+        const a = s.a0 + s.dir * u * 0.5;
+        o.pos.set(s.c.x + Math.cos(a) * 9.5, 6.2 - u * 1.2, s.c.z + Math.sin(a) * 9.5);
+        o.look.set(s.c.x, 2.4, s.c.z);
+        o.pivot = o.look; o.fov = 42; o.focus = false;
+      } },
     { id: 'skyline', label: 'Skyline', dur: 11,
       start: (s) => {
         const t = tallest();
@@ -270,7 +283,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
 
   const SHOTS = shots(city, sim);
   // Auto (and the livestream): no close-ups, a work cam between two wide shots. ◀ ▶ reach every shot.
-  const AUTO = ['aerial', 'sitecam', 'rooftops', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
+  const AUTO = ['aerial', 'sitecam', 'gpucam', 'rooftops', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
   const STREAM = AUTO;
   const st = {
     active: false, stream: false, format: 1, light: 1, clip: 0, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false, // format 1: 16:9, like the livestream

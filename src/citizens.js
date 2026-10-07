@@ -66,6 +66,30 @@ export const LEGEND_LOOKS = {
       B(arms[1], 0.14, 0.035, 0.17, 0x2b2f36, 0, -0.39); // bracelet
     },
   },
+  // the GPU District's meme guest (src/gpu.js): silver swept-back hair, black leather jacket over a
+  // black tee, a silver zip, and a graphics card in the right hand
+  leather: {
+    skin: 0xefc3a0, shirt: 0x141414, pants: 0x1c1c1c,
+    dress(g, arms) {
+      const hair = 0xc9c9c9, jacket = 0x141414, shine = 0x3a3a3a;
+      B(g, 0.46, 0.12, 0.46, hair, 0, 1.18, -0.03); B(g, 0.44, 0.1, 0.1, hair, 0, 1.22, 0.16); // swept back
+      B(g, 0.06, 0.2, 0.36, hair, -0.235, 0.98, -0.05); B(g, 0.06, 0.2, 0.36, hair, 0.235, 0.98, -0.05);
+      B(g, 0.46, 0.22, 0.06, hair, 0, 0.92, -0.22);
+      for (const x of [-0.1, 0.1]) { B(g, 0.07, 0.07, 0.02, 0x111111, x, 0.94, 0.215); B(g, 0.1, 0.025, 0.02, 0x8a8a8a, x, 1.0, 0.215); }
+      B(g, 0.06, 0.05, 0.03, 0xe0ad8c, 0, 0.87, 0.225); // nose
+      B(g, 0.14, 0.03, 0.02, 0x8a4a44, 0, 0.8, 0.216); B(g, 0.03, 0.03, 0.02, 0x8a4a44, -0.075, 0.815, 0.216); B(g, 0.03, 0.03, 0.02, 0x8a4a44, 0.075, 0.815, 0.216); // smile
+      B(g, 0.12, 0.42, 0.02, 0x222222, 0, 0.38, 0.145); // the tee under the open jacket
+      B(g, 0.02, 0.42, 0.03, 0xbfc5cc, -0.07, 0.38, 0.15); // zip
+      B(g, 0.1, 0.16, 0.03, jacket, -0.15, 0.64, 0.155); B(g, 0.1, 0.16, 0.03, jacket, 0.15, 0.64, 0.155); // lapels
+      B(g, 0.5, 0.08, 0.32, jacket, 0, 0.76); // collar
+      for (const y of [0.48, 0.66]) B(g, 0.47, 0.02, 0.29, shine, 0, y); // leather shine
+      for (const a of arms) B(a, 0.14, 0.03, 0.17, shine, 0, -0.18);
+      // the GPU: a green-trimmed card with two fans, held up in the right hand
+      B(arms[1], 0.06, 0.24, 0.46, 0x2b2f36, 0.06, -0.62, 0.12);
+      B(arms[1], 0.065, 0.03, 0.46, 0x76b900, 0.06, -0.4, 0.12);
+      for (const z of [0.0, 0.24]) B(arms[1], 0.07, 0.15, 0.15, 0x0c0d10, 0.065, -0.57, z);
+    },
+  },
   // blue hard hat, golden halo, purple ski goggles, party blower, white tee with a blue sash
   halo: {
     skin: 0xf3e3a6, shirt: 0xf4f4f0,

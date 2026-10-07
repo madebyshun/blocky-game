@@ -18,7 +18,21 @@ export async function fetchMarket({ token = CONFIG.tokenAddress, pool = CONFIG.p
       if (p && Number(p.priceUsd) > 0) {
         const quotes = [];
         const native = Number(p.priceNative);
-        if (p.quoteToken?.symbol && native > 0) quotes.push({ symbol: p.quoteToken.symbol, priceUsd: Number(p.priceUsd) / native });
+        if (p.quoteToken?.symbol && native > 0) {
+          // the token $BLOCKY trades against (NVDAc): its price from the pair, its 24h move from its own
+          // best pair (it powers the GPU District's grid, src/city.js)
+          const q = { symbol: p.quoteToken.symbol, priceUsd: Number(p.priceUsd) / native };
+          const qa = p.quoteToken.address?.toLowerCase();
+          if (qa && !stocks.includes(qa)) {
+            try {
+              const r = await fetch(`https://api.dexscreener.com/tokens/v1/base/${qa}`);
+              const own = r.ok ? best(await r.json(), qa) : null;
+              const ch = Number(own?.priceChange?.h24);
+              if (own && Number.isFinite(ch)) q.change24h = ch;
+            } catch { /* the price alone */ }
+          }
+          quotes.push(q);
+        }
         for (const a of stocks) {
           const s = best(pairs, a);
           if (s && !quotes.some((x) => x.symbol === s.baseToken.symbol)) quotes.push({ symbol: s.baseToken.symbol, priceUsd: Number(s.priceUsd), change24h: Number(s.priceChange?.h24 ?? 0) });
