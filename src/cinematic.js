@@ -24,7 +24,7 @@ const LIGHTS = [
   { label: '🌙 Night', phase: 0.78, warm: 0 },
   { label: '🌤 Noon', phase: 0.25, warm: 0 },
 ];
-const CLIP_S = 10;
+const CLIPS = [10, 30, 60]; // clip lengths, in seconds
 const ease = (u) => u * u * (3 - 2 * u);
 const v3 = () => new THREE.Vector3();
 const angleTo = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
@@ -245,7 +245,8 @@ function shots(city, sim) {
 // views(): the Blockies drawn now (id -> BuilderView); selected(): the id of the one picked, if any;
 // sim(): the city sim; stats(): { day, minted }; onExit(): put the city view back.
 // solids: more things the camera must not go through (the metro), besides the city's buildings and trees
-export function createCinematic({ renderer, scene, city, controls, views, selected, sim, stats, onExit, onCaption = () => {}, solids = [] }) {
+// audio(): a MediaStream of the music for the clips' sound (null: silent clips)
+export function createCinematic({ renderer, scene, city, controls, views, selected, sim, stats, onExit, onCaption = () => {}, audio = () => null, solids = [] }) {
   const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 700);
   const skyMat = new THREE.ShaderMaterial({
     ...SKY, side: THREE.BackSide, depthWrite: false,
@@ -268,11 +269,11 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   }
 
   const SHOTS = shots(city, sim);
-  const AUTO = ['hero', 'skyline', 'sitecam', 'aerial', 'follow', 'carrycam', 'flyover', 'site', 'crewcam', 'rooftops', 'cranecam', 'crane', 'river'];
-  // the livestream: no close-ups, a work cam between two wide shots
-  const STREAM = ['aerial', 'sitecam', 'rooftops', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
+  // Auto (and the livestream): no close-ups, a work cam between two wide shots. ◀ ▶ reach every shot.
+  const AUTO = ['aerial', 'sitecam', 'rooftops', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
+  const STREAM = AUTO;
   const st = {
-    active: false, stream: false, format: 0, light: 1, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false,
+    active: false, stream: false, format: 1, light: 1, clip: 0, auto: true, // 16:9 by default, like the livestream i: 0, shot: null, s: null, t: 0, rec: null, busy: false,
     caption: ['', ''], size: [1, 1], pr: 1, captureEdge: 0,
   };
   const o = { pos: v3(), look: v3(), fov: 35, focus: false, pivot: null, focusAt: null };
@@ -296,8 +297,8 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     const len = pos.distanceTo(pivot);
     pos.lerpVectors(pivot, pos, Math.max(0.5, d - 0.4) / len);
   }
-  try { const saved = JSON.parse(localStorage.getItem('basecity:cine') || 'null'); if (saved) { st.format = saved.format % FORMATS.length; st.light = saved.light % LIGHTS.length; } } catch { /* storage unavailable */ }
-  const remember = () => { try { localStorage.setItem('basecity:cine', JSON.stringify({ format: st.format, light: st.light })); } catch { /* ignore */ } };
+  try { const saved = JSON.parse(localStorage.getItem('basecity:cine') || 'null'); if (saved) { st.format = saved.format % FORMATS.length; st.light = saved.light % LIGHTS.length; st.clip = (saved.clip || 0) % CLIPS.length; } } catch { /* storage unavailable */ }
+  const remember = () => { try { localStorage.setItem('basecity:cine', JSON.stringify({ format: st.format, light: st.light, clip: st.clip })); } catch { /* ignore */ } };
 
   // ---------- the controls, the overlay, the result sheet ----------
   const el = (tag, cls, html = '') => { const e = document.createElement(tag); e.className = cls; e.innerHTML = html; return e; };
@@ -308,7 +309,8 @@ export function createCinematic({ renderer, scene, city, controls, views, select
       <button type="button" data-act="light" title="Light"></button>
       <button type="button" data-act="format" title="Frame"></button>
       <button type="button" data-act="photo" title="Save a photo">📸 Photo</button>
-      <button type="button" data-act="rec" title="Record a ${CLIP_S}-second clip">⏺ ${CLIP_S}s clip</button>
+      <button type="button" data-act="len" title="Clip length"></button>
+      <button type="button" data-act="rec" title="Record a clip, with the music">⏺ Record</button>
       <button type="button" data-act="exit" title="Exit (Esc)">✕</button>
     </div>`);
   const overlay = el('canvas', 'cine-overlay');
@@ -318,7 +320,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
       <div class="cine-actions"><button type="button" class="btn primary" data-act="share">Share</button><a class="btn" data-act="save">Save</a><button type="button" class="btn" data-act="close">Close</button></div></div>`);
   for (const e of [ui, overlay, recPill, sheet]) { e.hidden = true; document.body.appendChild(e); }
   const canRecord = typeof MediaRecorder === 'function' && typeof HTMLCanvasElement.prototype.captureStream === 'function';
-  ui.querySelector('[data-act="rec"]').hidden = !canRecord;
+  ui.querySelector('[data-act="rec"]').hidden = ui.querySelector('[data-act="len"]').hidden = !canRecord;
 
   let idle = 0;
   function poke() { if (st.stream) return; idle = 0; ui.classList.remove('idle'); }
@@ -328,6 +330,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     b('[data-act="auto"]').classList.toggle('on', st.auto);
     b('[data-act="light"]').textContent = LIGHTS[st.light].label;
     b('[data-act="format"]').textContent = `▭ ${FORMATS[st.format].label}`;
+    b('[data-act="len"]').textContent = `⏱ ${CLIPS[st.clip]}s`;
   }
   ui.addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
@@ -338,6 +341,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     if (act === 'auto') { st.auto = !st.auto; label(); }
     if (act === 'light') { st.light = (st.light + 1) % LIGHTS.length; light(); remember(); label(); }
     if (act === 'format') { st.format = (st.format + 1) % FORMATS.length; layout(); remember(); label(); }
+    if (act === 'len') { st.clip = (st.clip + 1) % CLIPS.length; remember(); label(); }
     if (act === 'photo') photo();
     if (act === 'rec') record();
   });
@@ -551,7 +555,11 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   }
   function record() {
     if (st.busy || !canRecord) return;
-    const type = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'].find((m) => MediaRecorder.isTypeSupported?.(m));
+    const sound = audio()?.getAudioTracks().filter((t) => t.readyState === 'live') || [];
+    const types = sound.length
+      ? ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+      : ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+    const type = types.find((m) => MediaRecorder.isTypeSupported?.(m));
     if (!type) return;
     st.busy = true;
     st.captureEdge = 1280;
@@ -559,7 +567,8 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     const canvas = document.createElement('canvas');
     canvas.width = renderer.domElement.width; canvas.height = renderer.domElement.height;
     const g = canvas.getContext('2d');
-    const recorder = new MediaRecorder(canvas.captureStream(30), { mimeType: type, videoBitsPerSecond: 8e6 });
+    const stream = new MediaStream([...canvas.captureStream(30).getVideoTracks(), ...sound]); // the picture, and the music if it's on
+    const recorder = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 8e6, audioBitsPerSecond: 160e3 });
     const chunks = [];
     recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     recorder.onstop = () => {
@@ -570,15 +579,16 @@ export function createCinematic({ renderer, scene, city, controls, views, select
       const blob = new Blob(chunks, { type: type.split(';')[0] });
       if (blob.size) show(blob, `${CONFIG.cityName}-clip.${type.includes('mp4') ? 'mp4' : 'webm'}`);
     };
-    st.rec = { recorder, canvas, g, left: CLIP_S };
+    const secs = CLIPS[st.clip];
+    st.rec = { recorder, canvas, g, left: secs };
     recorder.start(250);
     ui.hidden = true;
     recPill.hidden = false;
-    recPill.textContent = `● REC ${CLIP_S}s · tap to stop`;
+    recPill.textContent = `● REC ${secs}s${sound.length ? ' ♪' : ''} · tap to stop`;
     st.rec.tick = setInterval(() => {
       if (!st.rec) return;
       st.rec.left -= 1;
-      recPill.textContent = `● REC ${st.rec.left}s · tap to stop`;
+      recPill.textContent = `● REC ${st.rec.left}s${sound.length ? ' ♪' : ''} · tap to stop`;
       if (st.rec.left <= 0 && recorder.state === 'recording') recorder.stop();
     }, 1000);
   }
@@ -616,7 +626,10 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     layout();
     st.auto = subjectId == null;
     st.i = -1;
-    if (subjectId != null) { st.i = 0; if (!begin(SHOTS[0], subjectId)) cut(1); } else cut(1);
+    if (subjectId != null) { // a Blocky picked to film: from up the street first, then ◀ ▶ through every shot
+      st.i = SHOTS.findIndex((x) => x.id === 'medium');
+      if (!begin(SHOTS[st.i], subjectId)) cut(1);
+    } else cut(1);
     poke();
   }
   function exit() {

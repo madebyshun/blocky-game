@@ -629,6 +629,7 @@ const cine = createCinematic({
   stats: () => ({ day: Math.floor((now() - cityStart) / 86400000) + 1, minted }),
   onExit: () => { document.body.classList.remove('stream'); $('stream-hud').hidden = true; renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); resize(); },
   onCaption: ([title, sub]) => { if (STREAM) { $('sh-now-title').textContent = title; $('sh-now-sub').textContent = sub; } },
+  audio: () => (music.playing ? music.stream() : null), // clips carry the music when it's on
   solids: [metro.group],
 });
 $('cine-btn').onclick = () => cine.enter(selected?.b.id ?? null);

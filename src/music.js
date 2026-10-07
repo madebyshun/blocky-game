@@ -18,7 +18,7 @@ const rand = (a) => a[Math.floor(Math.random() * a.length)];
 
 // keepPlaying: don't go quiet in a hidden tab (the livestream: OBS may report its page as hidden)
 export function createMusic({ keepPlaying = false } = {}) {
-  let ctx = null, out = null, keysLp = null, drumBus = null, delay = null, crackle = null, noise = null, bells = null;
+  let ctx = null, out = null, comp = null, tap = null, keysLp = null, drumBus = null, delay = null, crackle = null, noise = null, bells = null;
   let on = false, timer = null, step = 0, nextAt = 0;
   const mood = { bright: 1, drums: 1 }; // eased toward the city's daylight and weather
 
@@ -28,7 +28,7 @@ export function createMusic({ keepPlaying = false } = {}) {
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     out = ctx.createGain();
     out.gain.value = 0;
-    const comp = ctx.createDynamicsCompressor();
+    comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -18;
     comp.ratio.value = 3;
     out.connect(comp).connect(ctx.destination);
@@ -247,6 +247,12 @@ export function createMusic({ keepPlaying = false } = {}) {
     get on() { return on; },
     get playing() { return on && ctx?.state === 'running'; }, // on, and the browser lets it play
     chime,
+    // what's playing, as a stream (for the cinematic clips' sound); null until the music has started
+    stream() {
+      if (!ctx) return null;
+      if (!tap) { tap = ctx.createMediaStreamDestination(); comp.connect(tap); }
+      return tap.stream;
+    },
     async set(v) {
       on = v;
       try { if (v) await start(); else stop(); } catch (e) { on = false; console.warn('[music]', e.message); }
