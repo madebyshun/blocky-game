@@ -5,6 +5,7 @@ import { createCity, updateBoards, GRID } from './city.js';
 import { createAgents } from './agents.js';
 import { createCats } from './cats.js';
 import { createGpuDistrict } from './gpu.js';
+import { createDirectory } from './directory.js';
 import { createMusic } from './music.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
@@ -171,7 +172,7 @@ function tourStep(dt) {
   camera.zoom += (g.zoom - camera.zoom) * k;
   camera.updateProjectionMatrix();
 }
-controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); });
+controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; focus = null; clearTimeout(idleTimer); });
 controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); }); // the view stays where you leave it
 $('rotate-btn').onclick = () => setRotate(!rotatePref);
 // The livestream (/live, or ?stream): the film camera's auto shots in 16:9, a HUD made for a stream,
@@ -196,6 +197,31 @@ $('music-btn').onclick = () => setMusic(!music.on);
 let musicPref = null;
 try { musicPref = localStorage.getItem('basecity:music'); } catch { /* ignore */ }
 if (musicPref !== '0' || STREAM) GESTURES.forEach((g) => addEventListener(g, firstGesture, true));
+// ---------- the city directory: pick a building, the camera flies there (src/directory.js) ----------
+
+let focus = null; // where the camera is flying: { x, y, z, zoom, t }
+const BEACON_MAT = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0, depthWrite: false });
+const beacon = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), BEACON_MAT);
+beacon.visible = false;
+let beaconT = 0;
+function flyTo({ lot, h = 2 }) {
+  const x = lot[0] * PITCH, z = lot[1] * PITCH, y = Math.min(6, h * 0.3);
+  const zoom = wideZoom() * (h > 12 ? 2.1 : h > 6 ? 2.5 : 3);
+  following = false; goHome = false;
+  focus = { x, y, z, zoom, t: 0 };
+  if (controls.autoRotate) { tour.goal = { at: [x, z], y, zoom, phi: 0.95 }; tour.t = 20; } // Rotate stays on it a while
+  if (!beacon.parent) city.root.add(beacon);
+  beacon.scale.set(6.6, h + 8, 6.6); beacon.position.set(x, (h + 8) / 2, z);
+  beacon.visible = true; beaconT = 0;
+}
+const directory = createDirectory({
+  sim: () => sim,
+  districts: () => districts,
+  minted: () => minted,
+  who: (a) => (a ? whoHtml(a, 28) : ''),
+  onPick: flyTo,
+});
+$('dir-btn').onclick = () => directory.toggle();
 $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
 addEventListener('keydown', (e) => {
@@ -204,6 +230,7 @@ addEventListener('keydown', (e) => {
   if (cine.active) { if (e.key === 'Escape' || e.key === 'f' || e.key === 'F') cine.exit(); return; }
   if (e.key === 'r' || e.key === 'R') setRotate(!rotatePref);
   if (e.key === 'm' || e.key === 'M') setMusic(!music.on);
+  if (e.key === 'b' || e.key === 'B') directory.toggle();
   if (e.key === 'p' || e.key === 'P') setPhoto(!photo);
   if (e.key === 'f' || e.key === 'F') cine.enter(selected?.b.id ?? null); // F: film
   if (e.key === 'Escape' && photo) setPhoto(false);
@@ -924,7 +951,15 @@ function frame() {
     return;
   }
   fadeBlockers(dt);
-  if (selected && following) {
+  if (beacon.visible) { beaconT += dt; BEACON_MAT.opacity = Math.max(0, 0.32 * Math.sin(Math.min(1, beaconT / 0.4) * Math.PI / 2) * (beaconT < 5 ? 0.75 + 0.25 * Math.sin(beaconT * 6) : Math.max(0, 1 - (beaconT - 5)))); if (beaconT > 6) beacon.visible = false; }
+  if (focus) { // flying to a building picked in the directory
+    focus.t += dt;
+    const k = 1 - Math.exp(-dt * 2.2), tg = controls.target, want = city.root.localToWorld(tmp.set(focus.x, focus.y, focus.z));
+    const step = want.sub(tg).multiplyScalar(k);
+    tg.add(step); camera.position.add(step);
+    camera.zoom += (focus.zoom - camera.zoom) * k; camera.updateProjectionMatrix();
+    if ((step.length() < 0.01 && Math.abs(focus.zoom - camera.zoom) < 0.01) || focus.t > 8) focus = null; // there
+  } else if (selected && following) {
     selected.group.getWorldPosition(tmp);
     const step = tmp.sub(controls.target).multiplyScalar(1 - Math.exp(-dt * 2.5)); // eased, so a sharp turn doesn't jolt it
     controls.target.add(step);
