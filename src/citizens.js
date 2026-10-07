@@ -485,6 +485,95 @@ export const LEGEND_LOOKS = {
       for (const [y, z] of [[-0.74, -0.02], [-0.68, 0.08], [-0.62, 0.0]]) B(arms[0], 0.065, 0.03, 0.05, 0xc0c0b8, 0.02, y, z);
     },
   },
+  // cartoon: brown jaw-length hair with side-swept bangs, big black glasses, rosy cheeks, a red smile,
+  // a tan blazer over a black top and a little pendant
+  specs: {
+    skin: 0xf8ddd0, shirt: 0xc9a272, pants: 0x2b2f36,
+    dress(g) {
+      const hair = 0x4a382e, frame = 0x1b1b1b;
+      B(g, 0.48, 0.14, 0.48, hair, 0, 1.17, -0.02);
+      B(g, 0.3, 0.12, 0.05, hair, -0.08, 1.08, 0.215); B(g, 0.14, 0.07, 0.05, hair, 0.12, 1.13, 0.215); // side-swept bangs
+      B(g, 0.07, 0.4, 0.42, hair, -0.245, 0.78, -0.03); B(g, 0.07, 0.4, 0.42, hair, 0.245, 0.78, -0.03); // down to the jaw
+      B(g, 0.48, 0.42, 0.08, hair, 0, 0.76, -0.24);
+      for (const x of [-0.1, 0.1]) {
+        B(g, 0.17, 0.15, 0.02, frame, x, 0.89, 0.217);
+        B(g, 0.13, 0.11, 0.022, 0xeef3f6, x, 0.91, 0.218);
+        B(g, 0.05, 0.06, 0.024, 0x222222, x, 0.93, 0.219);
+        B(g, 0.06, 0.03, 0.02, 0xf2a5a0, x * 1.55, 0.855, 0.216); // cheeks
+      }
+      B(g, 0.05, 0.03, 0.02, frame, 0, 0.98, 0.217);
+      B(g, 0.1, 0.03, 0.02, 0xd9534f, 0.03, 0.815, 0.216); // smile
+      B(g, 0.16, 0.4, 0.02, 0x161616, 0, 0.4, 0.141); // black top
+      B(g, 0.05, 0.2, 0.025, 0xb08a5c, -0.1, 0.58, 0.142); B(g, 0.05, 0.2, 0.025, 0xb08a5c, 0.1, 0.58, 0.142); // lapels
+      B(g, 0.1, 0.015, 0.02, 0xd0d4d8, 0, 0.7, 0.143); B(g, 0.04, 0.05, 0.022, 0xf4f4f0, 0, 0.64, 0.144); // pendant
+    },
+  },
+  // long dark hair with a side part (down her back, one lock in front), lashes, nude lips, a black
+  // off-the-shoulder top
+  muse: {
+    skin: 0xe9c3a6, shirt: 0x141414, pants: 0x1a1a1a,
+    dress(g, arms) {
+      const hair = 0x1c1512;
+      B(g, 0.48, 0.14, 0.48, hair, 0, 1.16, -0.02); B(g, 0.22, 0.06, 0.4, hair, -0.12, 1.3, -0.02); // side part
+      B(g, 0.22, 0.16, 0.05, hair, -0.12, 1.04, 0.215); // swept over one side of the forehead
+      B(g, 0.07, 0.42, 0.42, hair, -0.245, 0.78, -0.03); B(g, 0.07, 0.42, 0.42, hair, 0.245, 0.78, -0.03);
+      B(g, 0.48, 0.82, 0.08, hair, 0, 0.42, -0.24); // long, down her back
+      B(g, 0.1, 0.32, 0.06, hair, 0.14, 0.5, 0.17); // a lock over the front
+      for (const x of [-0.1, 0.1]) {
+        B(g, 0.08, 0.06, 0.02, 0x2a1a12, x, 0.95, 0.215);
+        B(g, 0.11, 0.02, 0.02, 0x111111, x, 1.01, 0.216); // lashes
+      }
+      B(g, 0.1, 0.02, 0.02, hair, 0.1, 1.06, 0.216); // brow
+      B(g, 0.04, 0.05, 0.02, 0xdcae90, 0, 0.87, 0.217); // nose
+      B(g, 0.1, 0.035, 0.02, 0xc08070, 0, 0.815, 0.216); // lips
+      B(g, 0.47, 0.06, 0.29, 0xe9c3a6, 0, 0.74); // off the shoulder
+      for (const a of arms) B(a, 0.135, 0.1, 0.165, 0xe9c3a6, 0, -0.1);
+    },
+  },
+  // light blue cap with an oval patch, grey-blue hair, big anime eyes, a safety-pin earring, a white
+  // tank top with a bead necklace and a smiley
+  milady: {
+    skin: 0xf2dccd, shirt: 0xf8f8f6, pants: 0x7d93b0,
+    dress(g, arms) {
+      const hair = 0x9aa6b8, cap = 0xb9cdea;
+      B(g, 0.07, 0.38, 0.42, hair, -0.245, 0.8, -0.03); B(g, 0.07, 0.38, 0.42, hair, 0.245, 0.8, -0.03);
+      B(g, 0.48, 0.4, 0.08, hair, 0, 0.8, -0.24);
+      B(g, 0.12, 0.08, 0.03, hair, -0.14, 1.08, 0.215); B(g, 0.1, 0.06, 0.03, hair, 0.15, 1.1, 0.215); // fringe
+      B(g, 0.48, 0.16, 0.48, cap, 0, 1.16); B(g, 0.42, 0.04, 0.24, cap, 0, 1.16, 0.32);
+      B(g, 0.22, 0.1, 0.02, 0xe0a030, 0, 1.2, 0.245); B(g, 0.18, 0.07, 0.022, 0x2f7a3a, 0, 1.215, 0.246); B(g, 0.1, 0.015, 0.024, 0xf4f4f0, 0, 1.24, 0.247); // the patch
+      for (const x of [-0.1, 0.1]) {
+        B(g, 0.12, 0.14, 0.02, 0x2b2f36, x, 0.89, 0.215);
+        B(g, 0.08, 0.09, 0.022, 0x5f7f86, x, 0.9, 0.216);
+        B(g, 0.035, 0.035, 0.024, 0xffffff, x + 0.025, 0.97, 0.217);
+        B(g, 0.14, 0.025, 0.022, 0x111111, x, 1.03, 0.216); // lashes
+        B(g, 0.06, 0.025, 0.02, 0xf2b8b8, x * 1.6, 0.85, 0.216); // blush
+      }
+      B(g, 0.06, 0.02, 0.02, 0x5a3a3a, 0.02, 0.815, 0.216); // smile
+      B(g, 0.02, 0.07, 0.02, 0xc8ccd2, -0.285, 0.86, 0.06); B(g, 0.02, 0.07, 0.02, 0xc8ccd2, -0.285, 0.86, 0.1); // safety pins
+      for (const a of arms) B(a, 0.135, 0.37, 0.165, 0xf2dccd, 0, -0.37); // bare arms
+      B(g, 0.2, 0.05, 0.02, 0xf2dccd, 0, 0.75, 0.141); // neckline
+      [0xe74c3c, 0x3a7ae0, 0xf4f4f0, 0x2ecc71, 0xf4f4f0, 0x3a7ae0, 0xe74c3c].forEach((c, i) => B(g, 0.025, 0.025, 0.02, c, (i - 3) * 0.03, 0.71, 0.143)); // beads
+      B(g, 0.04, 0.04, 0.022, 0xf4d03f, 0, 0.66, 0.144); // smiley
+      B(g, 0.26, 0.03, 0.02, 0x2b2b2b, 0, 0.56, 0.141); // the print across the top
+    },
+  },
+  // pixel punk: black hair, an eyepatch on its strap, a white medical mask, a black tee
+  patchpunk: {
+    skin: 0x7b4a2b, shirt: 0x1f1f22, pants: 0x1b1b1b,
+    dress(g) {
+      const hair = 0x111111;
+      B(g, 0.48, 0.16, 0.48, hair, 0, 1.16, -0.02); B(g, 0.14, 0.06, 0.14, 0x9a5a34, -0.11, 1.32, 0.02); B(g, 0.14, 0.06, 0.14, 0x9a5a34, 0.11, 1.32, 0.02); // tufts
+      B(g, 0.07, 0.36, 0.42, hair, -0.245, 0.82, -0.03); B(g, 0.07, 0.36, 0.42, hair, 0.245, 0.82, -0.03);
+      B(g, 0.48, 0.4, 0.08, hair, 0, 0.8, -0.24);
+      B(g, 0.44, 0.1, 0.05, hair, 0, 1.07, 0.215); // fringe
+      B(g, 0.44, 0.03, 0.44, 0x111111, 0, 1.04); // the patch's strap
+      B(g, 0.14, 0.13, 0.025, 0x111111, -0.1, 0.9, 0.218); // eyepatch
+      B(g, 0.08, 0.08, 0.02, 0x111111, 0.1, 0.92, 0.215); B(g, 0.04, 0.04, 0.022, 0x8a3a10, 0.11, 0.94, 0.216); // the other eye
+      B(g, 0.38, 0.1, 0.03, 0xdcdcdc, 0, 0.8, 0.22); // mask
+      B(g, 0.04, 0.03, 0.032, 0xb0b0b0, -0.08, 0.84, 0.221); B(g, 0.04, 0.03, 0.032, 0xb0b0b0, 0.08, 0.84, 0.221);
+      B(g, 0.03, 0.025, 0.28, 0xdcdcdc, -0.215, 0.86, 0.03); B(g, 0.03, 0.025, 0.28, 0xdcdcdc, 0.215, 0.86, 0.03); // its straps
+    },
+  },
 };
 
 // Uniforms worn instead of the role outfit: a Base Builder without a hand-made look wears `base`.
