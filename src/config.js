@@ -13,11 +13,11 @@ export const CONFIG = {
   // Trading opens when this much $BLOCKY has been bought in total (the HUD's "Bought"); 0: open now.
   // Until then every Blocky is a newcomer, and leaves if its wallet sells. From then on a Blocky that
   // has been in the city `citizenDays` days is a citizen for good: an NFT its wallet claims, free to
-  // trade at once (so on opening day, everyone who held a day). Only `supply` NFTs can ever exist
+  // trade at once (so on opening day, everyone who held that long). Only `supply` NFTs can ever exist
   // (MAX_SUPPLY in the contract): first come, first claimed. Lower either any time; never raise them
   // after launch. (UNLOCK_USD / CITIZEN_DAYS on the API override them.)
   unlockUsd: 0,
-  citizenDays: 1,
+  citizenDays: 0.25, // 6 hours
   supply: 10000, // must match MAX_SUPPLY on the API
   whaleUsd: 1000, // a single buy this big also builds something with the buyer's name (WHALE_USD on the API)
   // What a whale buy builds, by its size: the biggest tier it reaches. It goes up next, named after the
@@ -229,4 +229,11 @@ export const CONFIG = {
   // and the land is at least `land` rings out (6: 13x13 lots), so it circles a real city, not a few
   // blocks downtown. It grows with the land and its train stops at a station on every side.
   metro: { at: 1000, land: 6, label: 'BaseCity Metro', cost: 700 },
+};
+
+// How long a Blocky is held before it's a citizen, in words: "6 hours", "a day", "3 days".
+export const holdText = (days = CONFIG.citizenDays) => {
+  if (days >= 1) return days === 1 ? 'a day' : `${days} days`;
+  const h = Math.max(1, Math.round(days * 24));
+  return h === 1 ? 'an hour' : `${h} hours`;
 };

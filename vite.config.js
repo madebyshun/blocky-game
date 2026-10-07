@@ -1,5 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
-import { CONFIG } from './src/config.js';
+import { CONFIG, holdText } from './src/config.js';
 
 // `npm run dev` also serves the API (api/*.js, the same code Vercel runs), reading variables from
 // .env.local, so the live flow can be tested locally.
@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
           const out = html
             .replace(/%PRICE%/g, String(Number(env.USD_PER_BLOCKY) || CONFIG.usdPerBlocky))
             .replace(/%UNLOCK%/g, (Number(env.UNLOCK_USD) || CONFIG.unlockUsd).toLocaleString('en-US'))
-            .replace(/%HELD%/g, ((d) => (d === 1 ? 'a day' : `${d} days`))(Number(env.CITIZEN_DAYS) || CONFIG.citizenDays))
+            .replace(/%HELD%/g, holdText(Number(env.CITIZEN_DAYS) || CONFIG.citizenDays))
             .replace(/%SITE%/g, site)
             .replace(/%X%/g, CONFIG.xHandle);
           return site ? out.replace(/content="\/(og(?:-[a-z]+)?\.png)"/g, `content="${site}/$1"`) : out;

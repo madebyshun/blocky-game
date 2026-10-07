@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { CONFIG } from './config.js';
+import { CONFIG, holdText } from './config.js';
 import { createCity, updateBoards } from './city.js';
 import { createAgents } from './agents.js';
 import { renderPfp, downloadPfp } from './pfp.js';
@@ -190,7 +190,7 @@ let supply = CONFIG.supply;
 let citizenDays = CONFIG.citizenDays; // after opening, a Blocky's newcomer days (the API's): then a citizen, an NFT
 let unlockUsd = CONFIG.unlockUsd; // total bought that opens trading
 let openedAt = null; // when it did (ms)
-const dayText = () => (citizenDays === 1 ? 'a day' : `${citizenDays} days`);
+const dayText = () => holdText(citizenDays);
 let whales = [];
 let bought = 0; // USD bought (or fees earned in fee mode)
 const loggedBuys = new Set();

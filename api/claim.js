@@ -19,6 +19,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { allowance, citizenAt, citizensOf, walletBlockies } from '../src/ledger.js';
 import { env, client, LEDGER, NFT, useKv, loadLedger } from './_store.js';
 import { claimTypedData, CLAIM_ABI } from './_sig.js';
+import { holdText } from '../src/config.js';
 import { namesFor, addressOf } from './_names.js';
 
 const SIGNER = /^0x[0-9a-fA-F]{64}$/.test(env.CLAIM_SIGNER_KEY || '') ? privateKeyToAccount(env.CLAIM_SIGNER_KEY) : null;
@@ -111,7 +112,7 @@ export default async function handler(req, res) {
     if (L.openedAt == null) return res.status(409).json({ error: L.bought >= LEDGER.unlockUsd ? 'Claims open at the next ledger update, in a minute or so. Try again shortly' : `Trading opens when ${dollars(LEDGER.unlockUsd)} of $BLOCKY has been bought: ${dollars(L.bought)} so far. Keep holding: your Blockies become NFTs then` });
     if (!citizens.length) {
       const next = Math.min(...unclaimed.map(citizen));
-      return res.status(409).json({ error: `Your Blockies are newcomers: the first becomes a citizen on ${new Date(next).toUTCString()}, a day after it arrived, then you can claim it`, citizenAt: next });
+      return res.status(409).json({ error: `Your Blockies are newcomers: the first becomes a citizen on ${new Date(next).toUTCString()}, ${holdText(LEDGER.citizenDays)} after it arrived, then you can claim it`, citizenAt: next });
     }
     const { left: free, max } = await room();
     if (free < 1) return res.status(409).json({ error: `All ${max.toLocaleString('en-US')} Blockies are claimed: the collection is complete` });

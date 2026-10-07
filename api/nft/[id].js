@@ -7,7 +7,7 @@
 // what the city shows: rarity, look, status (newcomer, citizen, gone) and the blocks each Blocky has
 // placed so far. Only citizens are ever minted; the site shows the others too.
 
-import { CONFIG } from '../../src/config.js';
+import { CONFIG, holdText } from '../../src/config.js';
 import { cityCrew, makeBlocky, makeFounder, CitySim, TRAIT_LABEL } from '../../src/sim.js';
 import { blockySvg } from '../../src/voxel-svg.js';
 import { loadLedger, LEDGER, SITE, RESERVE } from '../_store.js';
@@ -68,7 +68,7 @@ function collection(site) {
   return {
     name: NFT.name,
     symbol: NFT.symbol,
-    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, at most ${LEDGER.supply.toLocaleString('en-US')} at once. A newcomer leaves if its wallet sells; a Blocky held ${LEDGER.citizenDays === 1 ? 'a day' : `${LEDGER.citizenDays} days`} is a citizen for good, and its wallet claims it as an NFT, free to trade at once. Only ${LEDGER.supply.toLocaleString('en-US')} can ever be claimed: first come, first claimed. You don't mint a Blocky, you earn one.`,
+    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, at most ${LEDGER.supply.toLocaleString('en-US')} at once. A newcomer leaves if its wallet sells; a Blocky held ${holdText(LEDGER.citizenDays)} is a citizen for good, and its wallet claims it as an NFT, free to trade at once. Only ${LEDGER.supply.toLocaleString('en-US')} can ever be claimed: first come, first claimed. You don't mint a Blocky, you earn one.`,
     image: `${site}/api/nft/collection.svg`,
     featured_image: `${site}/api/nft/collection.svg`,
     banner_image: `${site}/og.png`,

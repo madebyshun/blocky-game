@@ -2,7 +2,7 @@
 // (a Blocky is a newcomer for its first `citizenDays` days in the city). The API signs what the ledger
 // says the wallet owns; the wallet sends the claim and pays the gas.
 import { encodeFunctionData, getAddress, isAddress } from 'viem';
-import { CONFIG } from './config.js';
+import { CONFIG, holdText } from './config.js';
 import { CLAIM_ABI } from '../api/_sig.js';
 import { makeBlocky, TRAIT_LABEL } from './sim.js';
 import { lazyPortrait } from './portraits.js';
@@ -19,7 +19,7 @@ let info = { open: false, contract: null, live: false, unlockUsd: CONFIG.unlockU
 const when = (ms) => new Date(ms).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const until = (ms) => { const h = (ms - Date.now()) / 3600e3; return h > 48 ? `${Math.ceil(h / 24)}d` : h >= 1 ? `${Math.ceil(h)}h` : `${Math.max(1, Math.ceil(h * 60))}m`; };
 const dollars = (v) => `$${Math.round(v).toLocaleString('en-US')}`;
-const held = () => (info.citizenDays === 1 ? 'a day' : `${info.citizenDays} days`);
+const held = () => holdText(info.citizenDays);
 let provider = null; // the connected wallet
 let account = null; // its address
 let viewing = null; // the address on screen (connected or looked up)
