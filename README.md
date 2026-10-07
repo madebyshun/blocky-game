@@ -129,6 +129,7 @@ Environment variables (see `.env.example`):
 - Pages: `builders.html`, `collection.html`, `claim.html`, `about.html` with `src/site.js` + `src/site.css` (nav, footer, shared styles).
 - `src/agents.js`: the AI agent drones.
 - `src/cats.js`: Cat Town's cats and the plaza's statue.
+- `src/music.js`: the city's lo-fi music, played live with the Web Audio API (no audio files): ♪ Music or M. It gets darker at night and quieter in the rain.
 - `src/votes.js`, `api/vote.js`, `/vote.html`: the citizens' vote. Holders of BaseCity Blockies NFTs pick what the city builds next, 1 NFT = 1 vote (the team's reserve and grants don't vote), signed for free (smart wallets too), counted per NFT in KV. The round lives in `vote` in `src/config.js`; the winner goes into `src/projects.js` by hand when it ends.
 - `src/citizens.js`: builders walking the roads, hauling and placing blocks.
 

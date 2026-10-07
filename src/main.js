@@ -4,6 +4,7 @@ import { CONFIG, holdText } from './config.js';
 import { createCity, updateBoards } from './city.js';
 import { createAgents } from './agents.js';
 import { createCats } from './cats.js';
+import { createMusic } from './music.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
@@ -139,6 +140,22 @@ function setPhoto(on) {
 controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); });
 controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); }); // the view stays where you leave it
 $('rotate-btn').onclick = () => setRotate(!rotatePref);
+// music (src/music.js): off by default; a visitor who turned it on gets it back on their next click
+const music = createMusic();
+const syncMusic = () => { $('music-btn').textContent = music.on ? '♪ Music: on' : '♪ Music: off'; $('music-btn').classList.toggle('on', music.on); };
+async function setMusic(v) {
+  await music.set(v);
+  try { localStorage.setItem('basecity:music', music.on ? '1' : '0'); } catch { /* ignore */ }
+  syncMusic();
+}
+$('music-btn').onclick = () => setMusic(!music.on);
+try {
+  if (localStorage.getItem('basecity:music') === '1') { // browsers only play sound after a click or key
+    const resume = (e) => { if (e.target?.closest?.('#music-btn')) return; removeEventListener('pointerdown', resume); removeEventListener('keydown', resume); if (!music.on) setMusic(true); };
+    addEventListener('pointerdown', resume);
+    addEventListener('keydown', resume);
+  }
+} catch { /* ignore */ }
 $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
 addEventListener('keydown', (e) => {
@@ -146,6 +163,7 @@ addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return; // Cmd/Ctrl+C, R, P: copy, reload, print, not our shortcuts
   if (cine.active) { if (e.key === 'Escape' || e.key === 'f' || e.key === 'F') cine.exit(); return; }
   if (e.key === 'r' || e.key === 'R') setRotate(!rotatePref);
+  if (e.key === 'm' || e.key === 'M') setMusic(!music.on);
   if (e.key === 'p' || e.key === 'P') setPhoto(!photo);
   if (e.key === 'f' || e.key === 'F') cine.enter(selected?.b.id ?? null); // F: film
   if (e.key === 'Escape' && photo) setPhoto(false);
@@ -816,7 +834,7 @@ function frame() {
   simAcc += dt;
   if (simAcc > 0.5) { simAcc = 0; stepCity(true); }
   slowAcc += dt;
-  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); renderCard(); renderHud(); nextUnlockText(); }
+  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); renderCard(); renderHud(); nextUnlockText(); music.setMood(city.env.daylight, city.env.gloom || 0); }
 
   if (cine.active) { // the film camera takes over
     cine.frame(t, dt);
