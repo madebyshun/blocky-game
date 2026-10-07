@@ -68,7 +68,7 @@ function body(req) {
 
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
-  if (!ROUND) return res.status(404).json({ error: 'No vote is running' });
+  if (!ROUND) return res.status(200).json({ round: null }); // no round yet: the page says the first one opens soon
   try {
     const round = { id: ROUND.id, title: ROUND.title, question: ROUND.question, ends: ROUND.ends, choices: ROUND.choices, open: isOpen() };
     if (req.method === 'POST') {

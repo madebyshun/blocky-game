@@ -2,8 +2,12 @@
 import assert from 'node:assert/strict';
 import { privateKeyToAccount } from 'viem/accounts';
 import { verifyMessage } from 'viem';
-import { ROUND, voteMessage, count } from '../src/votes.js';
-import { castVote, heldBy } from '../api/vote.js';
+import { CONFIG } from '../src/config.js';
+
+// a round for the test (the config may have none open)
+CONFIG.vote = { id: 'test', title: 'Test', question: 'Which?', ends: '2030-01-01T00:00Z', choices: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }, { id: 'c', label: 'C' }] };
+const { ROUND, voteMessage, count } = await import('../src/votes.js');
+const { castVote, heldBy } = await import('../api/vote.js');
 
 const acc = privateKeyToAccount(`0x${'42'.repeat(32)}`);
 const before = Date.parse(ROUND.ends) - 3600e3, time = new Date(before).toISOString(), choice = ROUND.choices[0].id;

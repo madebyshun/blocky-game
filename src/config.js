@@ -240,18 +240,10 @@ export const CONFIG = {
   // voting doesn't count twice: the vote stays with the NFT, and its new holder can change it. The
   // team's Blockies (reserve, grants) don't vote. When the
   // round ends, the winner goes into src/projects.js (Base Avenue) by hand, with today as `added`.
-  vote: {
-    id: 'r1',
-    title: 'Next on Base Avenue',
-    question: 'Which Base project gets the next HQ on Base Avenue?',
-    ends: '2026-10-10T14:00Z',
-    choices: [
-      { id: 'moonwell', label: 'Moonwell', tagline: 'Lending and borrowing on Base', color: '#6a4cff' },
-      { id: 'clanker', label: 'Clanker', tagline: 'Token launches on Base', color: '#8b5cf6' },
-      { id: 'talent', label: 'Talent Protocol', tagline: 'Onchain builder reputation', color: '#f97316' },
-      { id: 'seamless', label: 'Seamless', tagline: 'DeFi lending on Base', color: '#0ea5e9' },
-    ],
-  },
+  // No round yet: set one like
+  //   vote: { id: 'r1', title: 'Next on Base Avenue', question: 'Which Base project gets the next HQ on Base Avenue?',
+  //           ends: '2026-10-20T14:00Z', choices: [{ id: 'aave', label: 'Aave', tagline: '…', color: '#b6509e' }, …] },
+  vote: null,
 
   // Base Avenue: plots reserved for Base projects' headquarters, numbered 1, 2, ... on their signs.
   // Projects take them in src/projects.js; a plot nobody has taken advertises itself. [x, z] like

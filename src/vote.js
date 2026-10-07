@@ -20,7 +20,16 @@ function left(ends) {
 
 function render() {
   const r = state?.round || ROUND;
-  if (!r) { $('question').textContent = 'No vote is running right now'; return; }
+  if (!r) {
+    $('question').textContent = 'The first vote opens soon';
+    $('meta').innerHTML = '<span>Holders of BaseCity Blockies NFTs will pick what the city builds next. Claim yours now to have a say.</span>';
+    $('choices').innerHTML = '<div><a class="btn primary" href="/claim.html">Claim your Blockies</a></div>';
+    $('status').className = 'note';
+    $('status').innerHTML = '<b>No round is open yet.</b> Follow @' + esc(CONFIG.xHandle || 'blockyonbase') + ' for the first one.';
+    $('connect').hidden = true;
+    return;
+  }
+  $('connect').hidden = false;
   $('title').textContent = r.title || 'Citizens vote';
   $('question').textContent = r.question;
   const total = state?.total ?? 0, open = state ? state.round.open : Date.now() < Date.parse(r.ends);
@@ -47,7 +56,7 @@ async function load() {
   const res = await fetch(`/api/vote${q}`, { cache: 'no-store' });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-  state = j;
+  state = j.round ? j : null;
   mine = j.mine || null;
   render();
 }
