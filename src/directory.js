@@ -9,7 +9,8 @@ const regionOf = (lot) => `${Math.round(lot[0] / 3)},${Math.round(lot[1] / 3)}`;
 
 // sim(): the city sim; districts(): [{ key, name }]; minted(): Blockies in the city now; who(address): a
 // short HTML name for a wallet; onPick({ lot, h, name }): fly there
-export function createDirectory({ sim, districts, minted, who, onPick }) {
+// note(p): a word on a building, if any (src/chips.js: waiting for chips)
+export function createDirectory({ sim, districts, minted, who, onPick, note = () => '' }) {
   const el = document.createElement('aside');
   el.className = 'directory panel';
   el.hidden = true;
@@ -36,9 +37,10 @@ export function createDirectory({ sim, districts, minted, who, onPick }) {
       if (!p.lot) continue;
       standing.add(p.type);
       const ruin = !!p.ruinedAt;
-      if (p.kind === 'landmark') out.push({ group: p.brand ? 'avenue' : 'landmark', name: p.name, sub: p.brand ? `Plot ${p.brand.plot} · ${p.brand.tagline || ''}` : names.get(regionOf(p.lot)) || '', lot: p.lot, h: p.h });
+      const n = note(p);
+      if (p.kind === 'landmark') out.push({ group: p.brand ? 'avenue' : 'landmark', name: p.name, sub: n || (p.brand ? `Plot ${p.brand.plot} · ${p.brand.tagline || ''}` : names.get(regionOf(p.lot)) || ''), lot: p.lot, h: p.h });
       else if (p.kind === 'wonder') out.push({ group: 'whale', name: p.name, sub: p.whale?.lostAt < Infinity ? 'gone dark: for sale to the next whale' : `named after ${who(p.whale?.from) || 'a whale'}`, html: true, lot: p.lot, h: p.h });
-      else out.push({ group: `d:${regionOf(p.lot)}`, district: names.get(regionOf(p.lot)) || 'The outskirts', name: p.name, sub: ruin ? '🏚 abandoned' : '', lot: p.lot, h: p.h });
+      else out.push({ group: `d:${regionOf(p.lot)}`, district: names.get(regionOf(p.lot)) || 'The outskirts', name: p.name, sub: ruin ? '🏚 abandoned' : n, lot: p.lot, h: p.h });
     }
     // Base Avenue plots still waiting for their HQ
     for (const l of LANDMARKS) {

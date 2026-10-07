@@ -268,7 +268,7 @@ export function whaleTier(usd) {
 const WHALE_SIZE = { tower: [5, 5, 18], skyscraper: [5, 5, 28] };
 const WHALE_COLOR = { tower: 0x2c4a7a, skyscraper: 0x1d3557 };
 // a Base project's HQ by its style: [w, d, h, blocks] (designs: HQ in src/city.js)
-export const HQ_SIZE = { tower: [5, 5, 14, 520], campus: [6, 5, 4, 300], spire: [4, 4, 16, 600], dome: [6, 6, 6, 420], cats: [6, 6, 5, 160], gpu: [6, 6, 5, 260] };
+export const HQ_SIZE = { tower: [5, 5, 14, 520], campus: [6, 5, 4, 300], spire: [4, 4, 16, 600], dome: [6, 6, 6, 420], cats: [6, 6, 5, 160], gpu: [6, 6, 5, 260], fab: [6, 6, 4, 300] };
 
 // Every landmark: the city's own and a headquarters for each Base project on Base Avenue, in the order
 // they unlock. An HQ waits for its goal (`at` Blockies) and for the day it was added (`from`).

@@ -179,6 +179,20 @@ export const CONFIG = {
     { name: 'T.P', title: 'Core at Virtuals', office: 'risk', look: 'patchpunk', joined: '2026-10-07T06:00:00Z', x: '0xTP91', bg: '#638596' },
   ],
 
+  // The chip economy (src/chips.js): the Chip Fab on Base Avenue (src/projects.js, 'fab') makes chips
+  // from silicon, as fast as the grid's power allows, and tech buildings need them to switch on. Only
+  // from `from` on (when it was added: the city before that never changes). In-game, not tokens.
+  chips: {
+    from: '2026-10-07T19:30:00Z',
+    siliconPerBlocky: 12, // a crate of silicon with every Blocky bought
+    dredgePerHour: 6, // the Fab's river dredge, once it stands
+    fabPerHour: 40, // the Fab's top speed (chips an hour)
+    powerBase: 12, powerPerPlant: 7, // what the grid feeds it: a base, plus every windmill and solar farm
+    cost: { gpufarm: 120, aistartup: 60, devhub: 40, datalab: 90, agenthub: 100 }, // chips to switch one on
+    // the Power Plant's GPU (src/city.js) at every tier of chips made
+    tiers: [[0, 'RTX 4090'], [2000, 'RTX 5090'], [10000, 'Blackwell'], [50000, 'Rubin']],
+  },
+
   // The City Council: the jobs Base Builders hold in the city, in order of rank. `home`: the landmarks
   // or kinds of buildings (ids in src/sim.js) where the office holder spends breaks once one stands;
   // `duty`: a line for the news ticker.

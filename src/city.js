@@ -253,6 +253,19 @@ export const LOGOS = {
     const n = 5, c = (s * 0.7) / n;
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { g.fillStyle = P[(i * 7 + j * 3 + i * j) % P.length]; g.fillRect(x + s * 0.15 + i * c, y + s * 0.15 + j * c, c - s * 0.01, c - s * 0.01); }
   },
+  // a silicon wafer: a disc with a flat, a grid of dies, and a chip in the middle
+  fab(g, x, y, s) {
+    g.fillStyle = '#111827'; rr(g, x, y, s, s, s * 0.12);
+    const cx = x + s / 2, cy = y + s / 2, r = s * 0.36;
+    const grad = g.createLinearGradient(x, y, x + s, y + s); grad.addColorStop(0, '#c7d2fe'); grad.addColorStop(0.5, '#7dd3fc'); grad.addColorStop(1, '#c4b5fd');
+    g.fillStyle = grad; g.beginPath(); g.arc(cx, cy, r, Math.PI * 0.62, Math.PI * 2.38); g.closePath(); g.fill();
+    g.save(); g.beginPath(); g.arc(cx, cy, r * 0.96, 0, Math.PI * 2); g.clip();
+    g.strokeStyle = 'rgba(17,24,39,0.35)'; g.lineWidth = s * 0.012;
+    for (let i = -4; i <= 4; i++) { g.beginPath(); g.moveTo(cx + i * s * 0.08, cy - r); g.lineTo(cx + i * s * 0.08, cy + r); g.stroke(); g.beginPath(); g.moveTo(cx - r, cy + i * s * 0.08); g.lineTo(cx + r, cy + i * s * 0.08); g.stroke(); }
+    g.restore();
+    g.fillStyle = '#111827'; rr(g, cx - s * 0.1, cy - s * 0.1, s * 0.2, s * 0.2, s * 0.02);
+    g.fillStyle = '#76b900'; rr(g, cx - s * 0.06, cy - s * 0.06, s * 0.12, s * 0.12, s * 0.015);
+  },
   // NVIDIA's eye: a white lens on green, a green spiral inside (BaseCity is a meme: fan art, not a partnership)
   nvidia(g, x, y, s) {
     g.fillStyle = '#76b900'; rr(g, x, y, s, s, s * 0.12);
@@ -353,7 +366,7 @@ const BIG_MAT = new THREE.MeshBasicMaterial({ map: BIG_TEX });
 
 // The grid: the GPU District runs on NVDAc, the token $BLOCKY trades against. Its 24h move sets the
 // power (0.55 to 1.5): the green lights of every GPU farm and how fast the Power Plant's fans spin.
-export const GRID = { power: 1, quote: null };
+export const GRID = { power: 1, quote: null, tier: '', level: 0 };
 const gpuCanvas = document.createElement('canvas');
 gpuCanvas.width = 512; gpuCanvas.height = 256;
 const GPU_TEX = new THREE.CanvasTexture(gpuCanvas);
@@ -400,6 +413,16 @@ export function updateBoards({ market = null, population = 0 } = {}) {
   const q = (market?.stocks || []).find((st) => /nvda/i.test(st.symbol)) || null;
   GRID.quote = q;
   GRID.power = q && typeof q.change24h === 'number' ? Math.max(0.55, Math.min(1.5, 1 + q.change24h / 8)) : 1;
+  drawGpuScreen();
+}
+// the Power Plant's GPU, upgraded as the Chip Fab makes chips (src/chips.js): its name on the screen
+export function setGpuTier(name, level) {
+  if (GRID.tier === name) return;
+  GRID.tier = name; GRID.level = level;
+  drawGpuScreen();
+}
+function drawGpuScreen() {
+  const q = GRID.quote;
   const v = gpuCanvas.getContext('2d');
   v.fillStyle = '#05070b'; v.fillRect(0, 0, 512, 256);
   v.strokeStyle = '#76b900'; v.lineWidth = 8; v.strokeRect(4, 4, 504, 248);
@@ -409,7 +432,7 @@ export function updateBoards({ market = null, population = 0 } = {}) {
   if (q && typeof q.change24h === 'number') { v.fillStyle = q.change24h >= 0 ? '#2ee87a' : '#ff5c5c'; v.font = '800 36px Inter, system-ui, sans-serif'; v.fillText(`${pct(q.change24h)} 24H`, 256, 178); }
   v.fillStyle = '#1f2937'; v.fillRect(40, 208, 432, 24);
   v.fillStyle = '#76b900'; v.fillRect(40, 208, Math.min(432, 432 * (GRID.power / 1.5)), 24);
-  v.fillStyle = '#ffffff'; v.font = '800 20px Inter, system-ui, sans-serif'; v.fillText(`GRID ${Math.round(GRID.power * 100)}%`, 256, 221);
+  v.fillStyle = '#ffffff'; v.font = '800 20px Inter, system-ui, sans-serif'; v.fillText(`GRID ${Math.round(GRID.power * 100)}%${GRID.tier ? ` · GPU: ${GRID.tier.toUpperCase()}` : ''}`, 256, 221);
   GPU_TEX.needsUpdate = true;
 }
 updateBoards();
@@ -948,6 +971,26 @@ function whaleTower(k, p) {
   if (!p.dark) k.box(s + 0.12, 0.18, s + 0.12, C.gold, 0, y + s * 0.19 + 0.12, 0); // a gold band over the name
 }
 // lights out: a whale that sold leaves its building dark
+// a tech building waiting for chips (src/chips.js): its lights off, and a sign over it
+const WAIT_SIGN = (() => {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128;
+  const g = cv.getContext('2d');
+  g.fillStyle = 'rgba(10,14,24,0.85)'; g.beginPath(); g.roundRect(4, 4, 504, 120, 28); g.fill();
+  g.strokeStyle = '#ffd23f'; g.lineWidth = 6; g.stroke();
+  g.fillStyle = '#ffd23f'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  let size = 54; // fits whatever font is there when it's drawn
+  do { g.font = `800 ${size}px Inter, system-ui, sans-serif`; size -= 2; } while (g.measureText('WAITING FOR CHIPS').width > 460 && size > 20);
+  g.fillText('WAITING FOR CHIPS', 256, 66);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.SpriteMaterial({ map: tex, depthWrite: false });
+})();
+export function offline(group, h = 3) {
+  group.traverse((o) => { if (o.isMesh && (o.material === GLOW_MAT || o.material === GREEN_GLOW || o.material === BLUE_GLOW)) o.material = RUIN_SHUT; });
+  const sign = new THREE.Sprite(WAIT_SIGN);
+  sign.scale.set(3.4, 0.85, 1); sign.position.set(0, h + 1.4, 0); sign.renderOrder = 5;
+  group.add(sign);
+  return group;
+}
 export function darken(group) {
   group.traverse((o) => { if (o.isMesh && o.material === GLOW_MAT) o.material = RUIN_SHUT; });
   return group;
@@ -1597,7 +1640,7 @@ const HQ = {
   // The GPU District Power Plant: a dark data hall with green light strips, the world's biggest GPU on
   // its roof (its fans spin with the grid), cooling stacks, and a screen with NVDAc live
   gpu(k, b) {
-    const hall = 0x16191e, card = 0x2b2f36, green = 0x76b900;
+    const hall = 0x16191e, card = 0x2b2f36, green = [0x76b900, 0xb9c4cc, 0xd4af37, 0xb06cff][GRID.level || 0] ?? 0x76b900; // the shroud: its GPU tier
     sidewalk(k, 0x9aa3ad);
     k.box(5.4, 2.6, 4.2, hall, 0, Y, -0.6);
     for (const y of [0.5, 1.2, 1.9]) { k.green(5.0, 0.08, 0.05, 0, Y + y, 1.53); k.green(0.05, 0.08, 3.8, 2.73, Y + y, -0.6); }
@@ -1632,6 +1675,25 @@ const HQ = {
     screen.position.set(-1.95, Y + 2.07, 2.56);
     k.extras.push(screen);
     brandPanel(k, b, 'logo', 0.7, 0.7, -1.6, Y + 1.85, 1.56); // over the door
+  },
+  // The Chip Fab: a white cleanroom with a blue-lit band, a second tier with the ducts and air
+  // handlers on top, two exhaust stacks, a silicon silo fed from the river side, and the wafer logo
+  fab(k, b) {
+    const white = 0xf2f4f7, grey = 0xd5d9df, duct = 0xb8c0c8;
+    sidewalk(k, 0xd5d8dc);
+    k.box(5.4, 2.2, 3.8, white, 0.2, Y, -0.6);
+    k.blue(5.0, 0.28, 0.05, 0.2, Y + 1.25, 1.31); k.blue(0.05, 0.28, 3.4, 2.91, Y + 1.25, -0.6);
+    k.box(5.5, 0.12, 3.9, grey, 0.2, Y + 2.2, -0.6);
+    k.box(4.0, 0.9, 2.6, 0xe6e9ee, 0.6, Y + 2.32, -1.0);
+    for (const x of [-0.6, 0.6, 1.8]) { k.box(0.8, 0.45, 0.8, 0x9aa3ad, x, Y + 3.22, -1.0); k.box(0.6, 0.04, 0.6, 0x3a3f47, x, Y + 3.67, -1.0); } // air handlers
+    k.box(4.2, 0.22, 0.3, duct, 0.6, Y + 3.0, 0.4); k.box(0.3, 0.22, 2.0, duct, -1.5, Y + 2.6, -0.4); // ducts
+    for (const [x, z] of [[-2.3, -2.3], [2.6, -2.4]]) { k.box(0.5, 4.2, 0.5, 0xe6e9ee, x, Y, z); k.box(0.56, 0.2, 0.56, 0xc0392b, x, Y + 3.7, z); k.win(0.5, 0.12, 0.5, x, Y + 4.2, z); } // exhaust stacks
+    // the silicon silo and its hopper, on the river side
+    k.box(1.0, 2.6, 1.0, 0xc9ced6, -2.45, Y, 1.5); k.box(1.1, 0.3, 1.1, duct, -2.45, Y + 2.6, 1.5); k.box(0.6, 0.6, 0.6, 0xe8d9b5, -2.45, Y + 2.9, 1.5);
+    k.box(0.3, 0.2, 1.6, 0x7f8c8d, -2.45, Y + 2.4, 0.4); // the belt into the hall
+    brandPanel(k, b, 'name', 2.8, 0.62, 0.7, Y + 0.7, 1.32);
+    brandPanel(k, b, 'logo', 0.9, 0.9, 2.92, Y + 1.85, -0.2, SIDE);
+    k.box(1.0, 1.1, 0.08, C.dark, -1.0, Y, 1.32); // the door
   },
   // Cat Town Plaza: the town cat as a statue on a plinth (its name on the front), a cat tree, food
   // bowls and the logo on a pylon; cats stroll and nap around it (src/cats.js)
@@ -2134,6 +2196,7 @@ export function createCity(scene) {
 
 
   // Bring the rendered city in line with a simulation snapshot.
+  let waiting = new Set(); // tech buildings waiting for chips (their project k), from main.js
   function sync(sim, animate) {
     if (sim.land !== land) buildLand(sim.land, animate && land > 0);
     // what stands on each lot now; a lot being rebuilt shows its construction site instead
@@ -2143,11 +2206,12 @@ export function createCity(scene) {
     for (const [key, p] of sim.standing) {
       if (busy.has(key)) continue;
       // a whale's building shows its name, until its whale sells (then it goes dark)
-      const dark = p.whale?.lostAt <= sim.now, kind = p.ruinedAt ? 'ruin' : 'built', sig = `${p.whale?.name || ''}${dark ? '|dark' : ''}`;
+      const dark = p.whale?.lostAt <= sim.now, kind = p.ruinedAt ? 'ruin' : 'built', off = waiting.has(p.k);
+      const sig = `${p.whale?.name || ''}${dark ? '|dark' : ''}${off ? '|off' : ''}${p.type === 'hq-gpu' ? `|gpu${GRID.level}` : ''}`;
       const cur = lots.get(key);
       if (cur?.kind === kind && cur.k === p.k && cur.sig === sig) continue;
       sites.delete(p.k);
-      const group = kind === 'ruin' ? ruinGroup(p) : dark ? darken(buildingGroup({ ...p, dark })) : buildingGroup(p);
+      const group = kind === 'ruin' ? ruinGroup(p) : dark ? darken(buildingGroup({ ...p, dark })) : off ? offline(buildingGroup(p), p.h) : buildingGroup(p);
       setLot(key, p.lot, kind, p.k, group, animate && kind === 'built' && cur?.k !== p.k, sig);
     }
     for (const key of busy) dev.add(key);
@@ -2294,6 +2358,7 @@ export function createCity(scene) {
 
   return {
     root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, officeSpot, riverPath, billboards,
+    setWaiting(set) { waiting = set; }, // src/chips.js: the next sync shows them dark
     solids: lotsGroup, // buildings, sites, trees: what a film camera must not go through
     feePulse: () => (pulse = 1),
     get land() { return land; },

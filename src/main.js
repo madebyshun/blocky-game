@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG, holdText } from './config.js';
-import { createCity, updateBoards, GRID } from './city.js';
+import { createCity, updateBoards, GRID, setGpuTier } from './city.js';
 import { createAgents } from './agents.js';
 import { createCats } from './cats.js';
 import { createGpuDistrict } from './gpu.js';
 import { createDirectory } from './directory.js';
+import { chipEconomy, teamWallets, FAB } from './chips.js';
+import { createFabDecor } from './fab.js';
 import { createMusic } from './music.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
@@ -220,6 +222,7 @@ const directory = createDirectory({
   minted: () => minted,
   who: (a) => (a ? whoHtml(a, 28) : ''),
   onPick: flyTo,
+  note: (p) => (chips?.waiting.some((w) => w.k === p.k) ? `⏳ waiting for ${fmt(CONFIG.chips.cost[p.type])} chips` : ''),
 });
 $('dir-btn').onclick = () => directory.toggle();
 // the directory opens right under the brand block (title, tagline, chips, its button), however tall it is
@@ -249,6 +252,7 @@ const metro = createMetro(city);
 const agents = createAgents(city);
 const cats = createCats(city);
 const gpu = createGpuDistrict(city); // the Power Plant's guest, once it stands
+const fabDecor = createFabDecor(city); // the Chip Fab's dredge, pipe and silicon crates
 // the NFT market for the news ticker: OpenSea's floor and best offer (api/claim.js), every 5 minutes
 let nftMarket = null;
 const loadMarket = () => fetch('/api/claim', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.market) nftMarket = j.market; }).catch(() => {});
@@ -799,6 +803,43 @@ function updateDistricts() {
   }
 }
 
+// ---------- the chip economy: the Chip Fab, silicon, power, tech buildings waiting (src/chips.js) ----------
+
+const TEAM = teamWallets(), CHIPS_FROM = Date.parse(CONFIG.chips.from);
+let chips = null, chipLevel = -1, chipWaiting = -1;
+function updateChips() {
+  if (!sim) return;
+  const t = now();
+  const deliveries = [];
+  for (const b of crew) if (b.kind === 'blocky' && b.from && !TEAM.has(String(b.from).toLowerCase()) && b.arrivedAt <= t) deliveries.push(b.arrivedAt);
+  const fab = sim.done.find((p) => p.type === FAB), standing = new Set();
+  for (const p of sim.standing.values()) if (!p.ruinedAt) standing.add(p.k);
+  chips = chipEconomy({ done: sim.done, standing, deliveries, fabAt: fab ? fab.at : Infinity, now: t });
+  city.setWaiting(new Set(chips.waiting.map((p) => p.k)));
+  const level = CONFIG.chips.tiers.indexOf(chips.tier);
+  setGpuTier(t >= CHIPS_FROM ? chips.tier[1] : '', level);
+  if (chipLevel >= 0 && level > chipLevel) { // a GPU upgrade
+    toast('⚡ GPU UPGRADE', chips.tier[1], `the Power Plant's new GPU, after ${fmt(chips.made)} chips made`);
+    weather.celebrate();
+    log(`⚡ The GPU District upgraded to a ${chips.tier[1]}: ${fmt(chips.made)} chips made by the Chip Fab`, t);
+  }
+  if (chipWaiting === 0 && chips.waiting.length) log(`⏳ Chip shortage: ${chips.waiting[0].name} is waiting for chips`, t);
+  chipLevel = level; chipWaiting = chips.waiting.length;
+  const row = $('chips-row');
+  row.hidden = t < CHIPS_FROM;
+  $('chips').textContent = !Number.isFinite(chips.fabAt) || chips.fabAt > t ? 'Fab coming' : `${fmt(chips.stock)} · ${fmt(chips.made)} made`;
+}
+const chipLimit = (c) => ({ full: 'full speed', power: `power-limited: ${c.plants} windmill${c.plants === 1 ? '' : 's'} and solar farm${c.plants === 1 ? '' : 's'} feed it, build more`, silicon: 'out of silicon: every Blocky bought brings a crate', nofab: 'not built yet' })[c.limit];
+function chipNews() {
+  const c = chips, out = [];
+  if (!c || now() < CHIPS_FROM) return out;
+  if (!Number.isFinite(c.fabAt) || c.fabAt > now()) out.push(`<b>CHIP FAB:</b> breaking ground on Base Avenue. From now on the city's tech buildings need its chips to switch on, and every Blocky bought brings a crate of silicon`);
+  else out.push(`<b>CHIP FAB:</b> ${fmt(c.made)} chips made, ${fmt(c.stock)} in stock, ${fmt(c.silicon)} silicon waiting. Running at ${Math.round(c.rate)} chips an hour: ${chipLimit(c)}`);
+  if (c.waiting.length) out.push(`<b>CHIP SHORTAGE:</b> ${c.waiting.length} tech building${c.waiting.length > 1 ? 's' : ''} waiting for chips, ${esc(c.waiting[0].name)} first in line`);
+  if (Number.isFinite(c.fabAt) && c.fabAt <= now()) out.push(`<b>GPU DISTRICT:</b> the Power Plant runs a ${c.tier[1]}${c.next ? `, a ${c.next[1]} at ${fmt(c.next[0])} chips made` : ''}`);
+  return out;
+}
+
 // ---------- SimCity-style news ticker ----------
 
 const FILLER = [
@@ -815,6 +856,7 @@ const FILLER = [
 function headlines() {
   const out = [...news.slice(0, 4)];
   const w = WEATHER[weather.kind];
+  out.push(...chipNews());
   const q = GRID.quote; // the GPU District's grid runs on NVDAc (src/city.js)
   if (q) out.push(`<b>THE GRID:</b> ${CONFIG.cityName} runs on ${q.symbol} ($${q.priceUsd >= 1 ? q.priceUsd.toFixed(2) : q.priceUsd.toPrecision(3)}${typeof q.change24h === 'number' ? `, ${q.change24h >= 0 ? 'up' : 'down'} ${Math.abs(q.change24h).toFixed(1)}% today` : ''}): the GPU District runs at ${Math.round(GRID.power * 100)}% power`);
   if (gpu.here) out.push(`<b>GPU DISTRICT:</b> Jensen spotted at the Power Plant again, leather jacket on, holding up a GPU. "The more you buy, the more you build"`);
@@ -940,6 +982,7 @@ function frame() {
   agents.update(t, dt);
   cats.update(t, dt);
   gpu.update(t, dt);
+  fabDecor.update(t, dt, chips);
   sky.update(t, dt);
   weather.update(t, dt);
   for (const v of views.values()) v.update(t, dt);
@@ -948,7 +991,7 @@ function frame() {
   simAcc += dt;
   if (simAcc > 0.5) { simAcc = 0; stepCity(true); }
   slowAcc += dt;
-  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); renderCard(); renderHud(); renderStream(); nextUnlockText(); music.setMood(city.env.daylight, city.env.gloom || 0); }
+  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); updateChips(); renderCard(); renderHud(); renderStream(); nextUnlockText(); music.setMood(city.env.daylight, city.env.gloom || 0); }
 
   if (cine.active) { // the film camera takes over
     cine.frame(t, dt);
@@ -1013,4 +1056,4 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   });
 })();
 
-window.blocky = { city, crew, views, agents, cats, gpu, cine, music, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };
+window.blocky = { city, crew, views, agents, cats, gpu, cine, music, get chips() { return chips; }, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };

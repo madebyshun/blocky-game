@@ -13,7 +13,7 @@
 // - added: the day you add it (UTC, or a time like '2026-10-06T15:00Z'). Its HQ is never built before
 //   then, so adding a project never changes what the city already built.
 // - style: tower, campus, spire, dome, cats (Cat Town Plaza: a cat statue, src/cats.js) or gpu (the GPU
-//   District Power Plant: a giant GPU whose fans spin with NVDAc). color / accent: the building's colours (#rrggbb).
+//   District Power Plant: a giant GPU whose fans spin with NVDAc) or fab (the Chip Fab, src/chips.js). color / accent: the building's colours (#rrggbb).
 // - logo: one drawn in code (cbwallet, o1, virtuals, bankr, aero, uniswap, morpho, usdc, basenames,
 //   limitless, x402, basepaint, onchainsf, nvidia), or a square image in public/logos/ ('/logos/name.png'), or nothing:
 //   the project's initial on its colour.
@@ -35,4 +35,5 @@ export const PROJECTS = [
   { id: 'cattown', name: 'Cat Town', label: 'Cat Town Plaza', tagline: 'The cats of Base', url: 'https://x.com/cattownbase', color: '#6178a8', accent: '#e8e0ff', logo: '/logos/cattown.png', style: 'cats', plot: 14, at: 0, added: '2026-10-07T06:30Z' },
   { id: 'onchainsf', name: 'Onchain Summit SF', label: 'Onchain Summit SF', tagline: 'Onchain builders, together in San Francisco', url: 'https://x.com/onchainsf', color: '#1f5cf2', accent: '#ffffff', logo: 'onchainsf', style: 'campus', plot: 13, at: 1750, added: '2026-10-01' }, // was BasePaint (not built yet)
   { id: 'gpu', name: 'NVDAc', label: 'GPU District Power Plant', tagline: 'BaseCity runs on NVDAc', url: 'https://dexscreener.com/base/0xE72A0C42b584a3E7A4503a82D1337dEB52adE885', color: '#16191e', accent: '#76b900', logo: 'nvidia', style: 'gpu', plot: 16, at: 0, added: '2026-10-07T16:30Z' }, // a meme tribute: $BLOCKY trades against NVDAc
+  { id: 'fab', name: 'Blocky Semiconductor', label: 'BaseCity Chip Fab', tagline: 'Silicon in, chips out', url: 'https://basecity.space', color: '#f2f4f7', accent: '#7dd3fc', text: '#111827', logo: 'fab', style: 'fab', plot: 15, at: 0, added: '2026-10-07T19:30Z' }, // the chip economy (src/chips.js): its `added` is CONFIG.chips.from
 ];

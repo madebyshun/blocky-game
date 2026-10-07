@@ -176,6 +176,19 @@ function shots(city, sim) {
         o.look.set(s.c.x, 2.4, s.c.z);
         o.pivot = o.look; o.fov = 42; o.focus = false;
       } },
+    { id: 'fabcam', label: 'Chip Fab', dur: 11, // the Fab, its dredge on the river and the pipe between
+      start: (s) => {
+        const b = city.built.find((x) => x.type === 'hq-fab');
+        if (!b) return false;
+        s.c = v3().set(b.x - 3, 0, b.z - 3); s.a0 = Math.PI * (1.05 + Math.random() * 0.4); s.dir = Math.random() < 0.5 ? -1 : 1;
+        return true;
+      },
+      frame: (s, u, o) => {
+        const a = s.a0 + s.dir * u * 0.45;
+        o.pos.set(s.c.x + Math.cos(a) * 11, 7 - u * 1.5, s.c.z + Math.sin(a) * 11);
+        o.look.set(s.c.x, 1.2, s.c.z);
+        o.pivot = null; o.fov = 44; o.focus = false;
+      } },
     { id: 'skyline', label: 'Skyline', dur: 11,
       start: (s) => {
         const t = tallest();
@@ -283,7 +296,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
 
   const SHOTS = shots(city, sim);
   // Auto (and the livestream): no close-ups, a work cam between two wide shots. ◀ ▶ reach every shot.
-  const AUTO = ['aerial', 'sitecam', 'gpucam', 'rooftops', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
+  const AUTO = ['aerial', 'sitecam', 'gpucam', 'rooftops', 'fabcam', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
   const STREAM = AUTO;
   const st = {
     active: false, stream: false, format: 1, light: 1, clip: 0, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false, // format 1: 16:9, like the livestream
