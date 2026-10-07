@@ -242,3 +242,38 @@ body.cine .chips, body.cine .toast, body.cine .districts, body.cine .brand, body
   .cine-bar { gap: 4px; padding: 6px; }
   .cine-bar button { padding: 6px 8px; font-size: 11px; }
 }
+
+/* the livestream (/live): made for a 1920×1080 OBS browser source, scales with the window's height */
+body.stream { cursor: none; }
+body.cine.stream .ticker { display: flex !important; }
+body.cine.stream .toast:not([hidden]) { display: block !important; }
+body.stream .toast { top: 30%; font-size: 1.4vh; padding: 1.4vh 2.6vh; animation-duration: 7s; z-index: 7; }
+body.stream .toast .eyebrow { font-size: 1.3vh; }
+body.stream .toast .big { font-size: 4.2vh; }
+body.stream .toast .label { font-size: 1.6vh; }
+.stream-hud { position: fixed; inset: 0 0 32px; z-index: 6; pointer-events: none; color: #fff; font: 700 clamp(11px, 1.5vh, 24px) Inter, system-ui, sans-serif; }
+.stream-hud[hidden] { display: none; }
+.stream-hud > * { position: absolute; background: rgba(10, 14, 24, 0.62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1em; }
+.sh-brand { top: 2.2vh; left: 2.2vh; display: flex; align-items: center; gap: 0.8em; padding: 0.6em 1em 0.6em 0.6em; }
+.sh-brand b { display: block; font: 400 2em/1 'Lilita One', Inter, sans-serif; letter-spacing: 0.01em; }
+.sh-brand span:not(.sh-live) { display: block; color: #b9c3d6; font-size: 0.85em; margin-top: 0.2em; }
+.sh-live { display: inline-flex; align-items: center; gap: 0.4em; background: #e0262e; padding: 0.35em 0.7em; border-radius: 0.5em; font-weight: 800; letter-spacing: 0.08em; }
+.sh-live i { width: 0.55em; height: 0.55em; border-radius: 50%; background: #fff; animation: cine-blink 1.2s ease-in-out infinite; }
+.sh-stats { top: 2.2vh; right: 2.2vh; margin: 0; padding: 0.8em 1em; display: grid; grid-template-columns: repeat(4, auto); gap: 0.6em 1.6em; }
+.sh-stats dt { color: #9aa6bd; font-size: 0.72em; letter-spacing: 0.08em; text-transform: uppercase; }
+.sh-stats dd { margin: 0.15em 0 0; font-size: 1.25em; font-weight: 800; white-space: nowrap; }
+.sh-stats .wide { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 1em; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 0.5em; }
+.sh-stats .wide dt, .sh-stats .wide dd { margin: 0; font-size: 0.85em; text-transform: none; letter-spacing: 0; }
+.sh-stats .wide dd { color: #ffd23f; overflow: hidden; text-overflow: ellipsis; max-width: 24em; }
+#sh-change { font-size: 0.7em; }
+#sh-change.up { color: #3ddc84; }
+#sh-change.down { color: #ff5c5c; }
+.sh-now { left: 2.2vh; bottom: 2.2vh; padding: 0.6em 1em; max-width: 40%; }
+.sh-now:has(b:empty) { display: none; }
+.sh-now b { display: block; font: 400 1.7em/1.1 'Lilita One', Inter, sans-serif; }
+.sh-now span { color: #b9c3d6; font-size: 0.85em; }
+.sh-cta { right: 2.2vh; bottom: 2.2vh; padding: 0.7em 1em; text-align: right; max-width: 52%; }
+.sh-steps { font-size: 1.05em; }
+.sh-steps i { color: #ffd23f; font-style: normal; margin: 0 0.25em; }
+.sh-cta b { color: #4d8bff; font-size: 1.15em; }
+#sh-ca { color: #9aa6bd; font-size: 0.75em; margin-left: 0.6em; font-family: ui-monospace, Menlo, monospace; }

@@ -137,9 +137,45 @@ function setPhoto(on) {
   document.body.classList.toggle('photo', on);
   syncRotate();
 }
+// ⟳ Rotate tours the city: every 16 s the slow orbit glides to another view (the whole city, from high up
+// or near the horizon, downtown's tallest tower, the construction site, a street of houses) and turns
+// at its own speed, either way.
+const wideZoom = () => (innerWidth < innerHeight ? 1.5 : 1.05);
+const TOUR = [
+  () => ({ at: [0, 0], zoom: wideZoom(), phi: 0.95 }),
+  () => { const t = city.built.reduce((best, b) => (!best || b.h > best.h ? b : best), null); return t && t.h >= 4 && { at: [t.x, t.z], y: Math.min(6, t.h * 0.3), zoom: wideZoom() * 2, phi: 1.08 }; },
+  () => ({ at: [0, 0], zoom: wideZoom() * 0.95, phi: 0.55 }),
+  () => { const p = sim?.next; return p?.lot && { at: [p.lot[0] * PITCH, p.lot[1] * PITCH], zoom: wideZoom() * 2.8, phi: 0.85 }; },
+  () => ({ at: [0, 0], zoom: wideZoom() * 1.35, phi: 1.18 }),
+  () => { const lots = city.built.filter((b) => b.h >= 2); const b = lots[Math.floor(Math.random() * lots.length)]; return b && { at: [b.x, b.z], zoom: wideZoom() * 2.4, phi: 1.0 }; },
+];
+const tour = { i: 0, t: 10, goal: null };
+const tourSph = new THREE.Spherical(), tourOff = new THREE.Vector3();
+function tourStep(dt) {
+  tour.t -= dt;
+  if (tour.t <= 0) {
+    for (let n = 0; n < TOUR.length; n++) { tour.i = (tour.i + 1) % TOUR.length; tour.goal = TOUR[tour.i](); if (tour.goal) break; }
+    tour.t = 16;
+    controls.autoRotateSpeed = (0.25 + Math.random() * 0.3) * (Math.random() < 0.3 ? -1 : 1);
+  }
+  const g = tour.goal;
+  if (!g) return;
+  goHome = false;
+  const k = 1 - Math.exp(-dt * 0.7), tg = controls.target;
+  tourOff.copy(camera.position).sub(tg);
+  tourSph.setFromVector3(tourOff);
+  tourSph.phi += (g.phi - tourSph.phi) * k;
+  tg.set(tg.x + (g.at[0] - tg.x) * k, tg.y + ((g.y || 0) - tg.y) * k, tg.z + (g.at[1] - tg.z) * k);
+  camera.position.copy(tg).add(tourOff.setFromSpherical(tourSph));
+  camera.zoom += (g.zoom - camera.zoom) * k;
+  camera.updateProjectionMatrix();
+}
 controls.addEventListener('start', () => { controls.autoRotate = false; goHome = false; clearTimeout(idleTimer); });
 controls.addEventListener('end', () => { idleTimer = setTimeout(syncRotate, 8000); }); // the view stays where you leave it
 $('rotate-btn').onclick = () => setRotate(!rotatePref);
+// The livestream (/live, or ?stream): the film camera's auto shots in 16:9, a HUD made for a stream,
+// a cut to every new Blocky, and the music on. For OBS (a 1920×1080 browser source) streaming 24/7.
+const STREAM = location.pathname.replace(/\/+$/, '') === '/live' || new URLSearchParams(location.search).has('stream');
 // music (src/music.js): on by default. Browsers only play sound after a tap or key, so it starts on the
 // visitor's first one; whoever turns it off keeps it off on their next visits.
 const music = createMusic();
@@ -147,7 +183,7 @@ const syncMusic = () => { $('music-btn').textContent = music.on ? '🔊 Music: o
 const GESTURES = ['pointerup', 'touchend', 'click', 'keydown']; // pointerdown isn't a gesture on phones
 const firstGesture = (e) => {
   if (e.target?.closest?.('#music-btn') || e.key === 'm' || e.key === 'M') return; // those toggle it themselves
-  if (!music.on) setMusic(true);
+  if (!music.playing) setMusic(true);
 };
 async function setMusic(v) {
   GESTURES.forEach((g) => removeEventListener(g, firstGesture, true)); // any choice beats the default
@@ -158,7 +194,7 @@ async function setMusic(v) {
 $('music-btn').onclick = () => setMusic(!music.on);
 let musicPref = null;
 try { musicPref = localStorage.getItem('basecity:music'); } catch { /* ignore */ }
-if (musicPref !== '0') GESTURES.forEach((g) => addEventListener(g, firstGesture, true));
+if (musicPref !== '0' || STREAM) GESTURES.forEach((g) => addEventListener(g, firstGesture, true));
 $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
 addEventListener('keydown', (e) => {
@@ -402,6 +438,7 @@ function land(batch) {
   } else {
     toast(`+${arrived.length} ${plural.toUpperCase()} ARRIVED`, `${CONFIG.citizen} ${nums}`, best ? `incl. ✨ ${best.rarity.label} ${TRAIT_LABEL[best.trait]} (${best.name})` : first.from ? `brought by ${whoHtml(first.from)}` : '');
   }
+  if (STREAM) featureArrival((best || first).id);
   if (best && best.rarity.id !== 'uncommon') {
     weather.celebrate();
     news.unshift(`<b>RARE ${CONFIG.citizen.toUpperCase()}:</b> ${best.name} arrived with ${TRAIT_LABEL[best.trait]} (${best.rarity.label}, ${+(best.rarity.chance * 100).toFixed(1)}% chance)`);
@@ -450,7 +487,7 @@ function toast(eyebrow, big, sub = '') {
   void el.offsetWidth;
   el.style.animation = '';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.hidden = true), 3200);
+  toastTimer = setTimeout(() => (el.hidden = true), STREAM ? 7000 : 3200);
 }
 
 const news = []; // freshest first; read by the ticker
@@ -588,10 +625,42 @@ const cine = createCinematic({
   selected: () => selected?.b.id ?? null,
   sim: () => sim,
   stats: () => ({ day: Math.floor((now() - cityStart) / 86400000) + 1, minted }),
-  onExit: () => { renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); resize(); },
+  onExit: () => { document.body.classList.remove('stream'); $('stream-hud').hidden = true; renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); resize(); },
+  onCaption: ([title, sub]) => { if (STREAM) { $('sh-now-title').textContent = title; $('sh-now-sub').textContent = sub; } },
   solids: [metro.group],
 });
 $('cine-btn').onclick = () => cine.enter(selected?.b.id ?? null);
+
+// ---------- the livestream (/live) ----------
+
+let featuredAt = -Infinity;
+function featureArrival(id) { // a new Blocky: the camera cuts to it (at most every 12 s, so a big buy doesn't strobe)
+  if (!cine.active || performance.now() - featuredAt < 12000) return;
+  if (cine.feature(id)) featuredAt = performance.now();
+}
+function startStream() {
+  document.body.classList.add('stream');
+  $('stream-hud').hidden = false;
+  if (CONFIG.tokenAddress) $('sh-ca').textContent = `CA ${CONFIG.tokenAddress}`;
+  $('sh-site').textContent = (CONFIG.siteUrl || location.origin).replace(/^https?:\/\//, '');
+  cine.enter(null, { stream: true });
+  music.set(true).then(syncMusic); // OBS plays sound right away; a browser waits for a click (the gesture hook)
+  setTimeout(() => location.reload(), 6 * HOUR); // a fresh page every few hours keeps a 24/7 stream smooth
+}
+function renderStream() {
+  if (!STREAM || !sim) return;
+  const day = Math.floor((now() - cityStart) / 86400000) + 1, w = WEATHER[weather.kind];
+  $('sh-price').textContent = market?.priceUsd ? `$${+market.priceUsd.toPrecision(3)}` : '–';
+  const ch = $('sh-change');
+  const pct = typeof market?.change24h === 'number' ? market.change24h : null;
+  ch.textContent = pct == null ? '' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% 24h`;
+  ch.className = pct < 0 ? 'down' : 'up';
+  $('sh-blockies').textContent = fmt(minted);
+  $('sh-buildings').textContent = fmt(sim.buildingCount);
+  $('sh-day').textContent = `Day ${day} · ${w.icon} ${w.label}`;
+  $('sh-floor').textContent = nftMarket?.floor ? `${+nftMarket.floor.toPrecision(2)} ETH` : '–';
+  $('sh-site-name').textContent = sim.blocked ? 'Land full: waiting for buyers' : `Building ${sim.next.name}`;
+}
 
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
@@ -837,7 +906,7 @@ function frame() {
   simAcc += dt;
   if (simAcc > 0.5) { simAcc = 0; stepCity(true); }
   slowAcc += dt;
-  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); renderCard(); renderHud(); nextUnlockText(); music.setMood(city.env.daylight, city.env.gloom || 0); }
+  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); renderCard(); renderHud(); renderStream(); nextUnlockText(); music.setMood(city.env.daylight, city.env.gloom || 0); }
 
   if (cine.active) { // the film camera takes over
     cine.frame(t, dt);
@@ -850,6 +919,8 @@ function frame() {
     const step = tmp.sub(controls.target).multiplyScalar(1 - Math.exp(-dt * 2.5)); // eased, so a sharp turn doesn't jolt it
     controls.target.add(step);
     camera.position.add(step); // the camera travels with the Blocky, its angle stays
+  } else if (controls.autoRotate) {
+    tourStep(dt);
   } else if (goHome) {
     controls.target.lerp(home, Math.min(1, dt * 2));
   }
@@ -882,6 +953,7 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   refreshTicker();
   welcomeBack();
   requestAnimationFrame(frame);
+  if (STREAM) startStream();
   setInterval(async () => applyState(await fetchColony(known, knownGone), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
   if (s.source !== 'demo') watchLive(({ now: watching, total }) => {
     $('live').textContent = fmt(watching);

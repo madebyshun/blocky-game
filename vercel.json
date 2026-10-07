@@ -10,6 +10,10 @@
       "destination": "/api/recap?day=:day"
     },
     {
+      "source": "/live",
+      "destination": "/index.html"
+    },
+    {
       "source": "/b",
       "destination": "/blocky.html"
     },

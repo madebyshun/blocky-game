@@ -195,6 +195,7 @@ export function createMusic() {
 
   return {
     get on() { return on; },
+    get playing() { return on && ctx?.state === 'running'; }, // on, and the browser lets it play
     async set(v) {
       on = v;
       try { if (v) await start(); else stop(); } catch (e) { on = false; console.warn('[music]', e.message); }

@@ -57,6 +57,35 @@ function shots(city, sim) {
         o.look.set(s.sp.x, 0.85, s.sp.z);
         o.pivot = o.look; o.fov = 30; o.focus = true;
       } },
+    { id: 'medium', label: 'Street level', dur: 10, subject: true, // from up the street: the Blocky and the block around it
+      start: (s) => { s.side = Math.random() < 0.5 ? -1 : 1; [s.off, s.free] = s.clearAngle(s.side * 0.9, 11, 5.5); return s.free >= 7; },
+      frame: (s, u, o) => {
+        const a = s.face + s.off + s.side * u * 0.35, r = Math.min(s.free, 11);
+        o.pos.set(s.sp.x + Math.sin(a) * r, 5.5 + u * 0.8, s.sp.z + Math.cos(a) * r);
+        o.look.set(s.sp.x, 0.7, s.sp.z);
+        o.pivot = s.head; o.focusAt = s.head; o.fov = 42; o.focus = false;
+      } },
+    { id: 'aerial', label: 'Aerial', dur: 14, // the whole city from high up, turning slowly
+      start: (s) => { s.H = city.land * PITCH; s.a0 = Math.random() * Math.PI * 2; s.dir = Math.random() < 0.5 ? -1 : 1; return true; },
+      frame: (s, u, o) => {
+        const a = s.a0 + s.dir * u * 0.5, R = s.H * 1.15 + 12;
+        o.pos.set(Math.cos(a) * R, s.H * 0.75 + 14, Math.sin(a) * R);
+        o.look.set(0, 0, 0);
+        o.pivot = null; o.fov = 42; o.focus = false;
+      } },
+    { id: 'rooftops', label: 'Over the rooftops', dur: 12, // a slow orbit over one part of town
+      start: (s) => {
+        const lots = city.built.filter((b) => b.h >= 2);
+        if (!lots.length) return false;
+        s.b = lots[Math.floor(Math.random() * lots.length)]; s.a0 = Math.random() * Math.PI * 2; s.dir = Math.random() < 0.5 ? -1 : 1;
+        return true;
+      },
+      frame: (s, u, o) => {
+        const a = s.a0 + s.dir * u * 0.6, b = s.b, r = 15 + b.h * 0.6;
+        o.pos.set(b.x + Math.cos(a) * r, 8 + b.h * 0.9, b.z + Math.sin(a) * r);
+        o.look.set(b.x, b.h * 0.35, b.z);
+        o.pivot = o.look; o.fov = 40; o.focus = false; // a taller tower in the way: the camera moves in front of it
+      } },
     { id: 'skyline', label: 'Skyline', dur: 11,
       start: (s) => {
         const t = tallest();
@@ -139,7 +168,7 @@ function shots(city, sim) {
 // views(): the Blockies drawn now (id -> BuilderView); selected(): the id of the one picked, if any;
 // sim(): the city sim; stats(): { day, minted }; onExit(): put the city view back.
 // solids: more things the camera must not go through (the metro), besides the city's buildings and trees
-export function createCinematic({ renderer, scene, city, controls, views, selected, sim, stats, onExit, solids = [] }) {
+export function createCinematic({ renderer, scene, city, controls, views, selected, sim, stats, onExit, onCaption = () => {}, solids = [] }) {
   const cam = new THREE.PerspectiveCamera(35, 1, 0.1, 700);
   const skyMat = new THREE.ShaderMaterial({
     ...SKY, side: THREE.BackSide, depthWrite: false,
@@ -162,9 +191,10 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   }
 
   const SHOTS = shots(city, sim);
-  const AUTO = ['hero', 'skyline', 'follow', 'flyover', 'site', 'crane', 'river'];
+  const AUTO = ['hero', 'skyline', 'aerial', 'follow', 'flyover', 'site', 'rooftops', 'crane', 'river'];
+  const STREAM = ['aerial', 'rooftops', 'skyline', 'site', 'flyover', 'medium', 'rooftops', 'crane', 'aerial', 'river']; // no close-ups
   const st = {
-    active: false, format: 0, light: 1, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false,
+    active: false, stream: false, format: 0, light: 1, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false,
     caption: ['', ''], size: [1, 1], pr: 1, captureEdge: 0,
   };
   const o = { pos: v3(), look: v3(), fov: 35, focus: false, pivot: null, focusAt: null };
@@ -213,7 +243,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   ui.querySelector('[data-act="rec"]').hidden = !canRecord;
 
   let idle = 0;
-  function poke() { idle = 0; ui.classList.remove('idle'); }
+  function poke() { if (st.stream) return; idle = 0; ui.classList.remove('idle'); }
   function label() {
     const b = ui.querySelector.bind(ui);
     b('[data-act="auto"]').textContent = `${st.auto ? 'Auto · ' : ''}${st.shot?.label || ''}`;
@@ -359,6 +389,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     if (!shot.start(s)) return false;
     st.shot = shot; st.s = s; st.t = 0;
     st.caption = caption(shot, s.subject);
+    onCaption(st.caption, s.subject?.b.id ?? null);
     paintOverlay();
     label();
     shot.frame(s, 0, o);
@@ -368,7 +399,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     return true;
   }
   function cut(step = 1, prefer) {
-    const order = st.auto ? AUTO : SHOTS.map((x) => x.id);
+    const order = st.stream ? STREAM : st.auto ? AUTO : SHOTS.map((x) => x.id);
     for (let n = 1; n <= order.length; n++) {
       st.i = (st.i + step + order.length) % order.length;
       if (begin(SHOTS.find((x) => x.id === order[st.i]), prefer)) return;
@@ -490,14 +521,18 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   }
 
   // ---------- in and out ----------
-  function enter(subjectId = null) {
+  // stream: the livestream (/live): 16:9 in the city's own light, no controls or watermark (the page's
+  // stream HUD shows the captions), and the shots never stop
+  function enter(subjectId = null, { stream = false } = {}) {
     if (st.active) return;
     passes();
     st.active = true;
+    st.stream = stream;
+    if (stream) { st.format = 1; st.light = 0; }
     document.body.classList.add('cine');
     controls.enabled = false;
     scene.add(dome);
-    ui.hidden = overlay.hidden = false;
+    ui.hidden = overlay.hidden = stream;
     light();
     layout();
     st.auto = subjectId == null;
@@ -510,6 +545,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     if (st.rec?.recorder.state === 'recording') st.rec.recorder.stop();
     if (st.snap) { st.snap = null; st.captureEdge = 0; st.busy = false; } // a photo that never got its frame
     st.active = false;
+    st.stream = false;
     closeSheet();
     document.body.classList.remove('cine');
     controls.enabled = true;
@@ -521,8 +557,19 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     onExit();
   }
 
+  // cut to this Blocky now (a new arrival on the livestream); false if it can't be filmed right now
+  function feature(id) {
+    if (!st.active || !views().has(id)) return false;
+    const order = st.stream ? STREAM : AUTO;
+    for (const sid of st.stream ? ['medium', 'follow'] : ['hero', 'follow']) {
+      const shot = SHOTS.find((x) => x.id === sid);
+      if (tryShot(shot, id, false)) { st.i = order.indexOf(sid); return true; }
+    }
+    return false; // no clear view of it: the current shot goes on
+  }
+
   return {
-    enter, exit, frame, poke,
+    enter, exit, frame, poke, feature,
     resize: () => layout(),
     get active() { return st.active; },
   };

@@ -128,6 +128,26 @@
     </div>
 
     <div id="toast" class="toast" hidden></div>
+
+    <!-- the livestream's HUD (/live): src/main.js fills it -->
+    <div id="stream-hud" class="stream-hud" hidden>
+      <div class="sh-brand">
+        <span class="sh-live"><i></i>LIVE</span>
+        <div><b>BaseCity</b><span>a city built 24/7 by real $BLOCKY buys on Base</span></div>
+      </div>
+      <dl class="sh-stats">
+        <div><dt>$BLOCKY</dt><dd><span id="sh-price">–</span> <small id="sh-change"></small></dd></div>
+        <div><dt>Blockies building</dt><dd id="sh-blockies">–</dd></div>
+        <div><dt>Buildings</dt><dd id="sh-buildings">–</dd></div>
+        <div><dt>NFT floor</dt><dd id="sh-floor">–</dd></div>
+        <div class="wide"><dt id="sh-day">–</dt><dd id="sh-site-name">–</dd></div>
+      </dl>
+      <div class="sh-now"><b id="sh-now-title"></b><span id="sh-now-sub"></span></div>
+      <div class="sh-cta">
+        <div class="sh-steps">Buy $BLOCKY <i>→</i> your Blocky flies in and builds <i>→</i> claim it as an NFT</div>
+        <div><b id="sh-site">basecity.space</b> <span id="sh-ca"></span></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
