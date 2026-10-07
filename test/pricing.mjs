@@ -38,3 +38,12 @@ assert.ok(!blockyListing({ parameters: { offer: [{ itemType: 2, token: '0x000000
 assert.ok(!blockyListing({ parameters: { offer: [{ itemType: 1, token: NFT }] } }), 'no ERC-20s');
 assert.ok(!blockyListing({}));
 console.log('pricing: offers and the OpenSea relay pass');
+
+// the Base RPC relay: reads only, calls only to the contracts a listing touches
+import { refuse } from '../api/rpc.js';
+assert.equal(refuse({ method: 'eth_call', params: [{ to: NFT, data: '0x6352211e' }] }), null);
+assert.equal(refuse({ method: 'eth_call', params: [{ to: '0x0000000000000068F116a894984e2DB1123eB395' }] }), null);
+assert.ok(refuse({ method: 'eth_call', params: [{ to: '0x0000000000000000000000000000000000000001' }] }));
+assert.ok(refuse({ method: 'eth_sendRawTransaction', params: ['0x'] }));
+assert.equal(refuse({ method: 'eth_chainId', params: [] }), null);
+console.log('pricing: the RPC relay passes');

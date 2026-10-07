@@ -10,7 +10,7 @@ import { toBase, sendTx, waitTx } from './wallet.js';
 
 globalThis.Buffer ??= Buffer; // the SDK's merkle trees (bulk listings) expect Node's Buffer
 
-const RPC = 'https://mainnet.base.org';
+const RPC = `${location.origin}/api/rpc`; // Base reads through BaseCity's RPC (api/rpc.js), not the rate-limited public one
 const CONDUIT = '0x1E0049783F008A0085193E00003D00cd54003c71'; // OpenSea's conduit: what a Seaport listing transfers through
 const ERC721 = [
   { type: 'function', name: 'isApprovedForAll', stateMutability: 'view', inputs: [{ type: 'address' }, { type: 'address' }], outputs: [{ type: 'bool' }] },
@@ -33,7 +33,8 @@ async function approve({ publicClient, provider, account, contract, onStep }) {
 // An error in words, with the contract call behind it when there is one (ethers' CALL_EXCEPTION)
 const NAMES = { '0xf07ec373': 'getCounter', '0xe985e9c5': 'isApprovedForAll', '0x6352211e': 'ownerOf', '0xa22cb465': 'setApprovalForAll', '0x70a08231': 'balanceOf', '0x01ffc9a7': 'supportsInterface', '0xf47b7740': 'information', '0x46423aa7': 'getOrderStatus' };
 export function explain(e) {
-  const msg = e?.shortMessage || e?.message || String(e);
+  const rpcErr = e?.info?.error?.message; // what the RPC actually said, under ethers' "missing revert data"
+  const msg = `${e?.shortMessage || e?.message || String(e)}${rpcErr ? `: ${rpcErr}` : ''}`;
   const tx = e?.transaction || e?.info?.transaction;
   if (!tx?.to) return msg;
   const sel = String(tx.data || '').slice(0, 10);
