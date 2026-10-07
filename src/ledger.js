@@ -6,8 +6,9 @@
 //   Each buy counts at the price of its day (fractions carry over), so changing `per` only affects
 //   later buys. Numbers are never reused.
 // - At most `supply` Blockies live in the city at once.
-// - Trading opens when `unlockUsd` has been bought in total (L.openedAt). Until then every Blocky is a
-//   newcomer. From then on a Blocky that has been in the city `citizenDays` days is a citizen for good:
+// - Trading opens when `unlockUsd` has been bought in total (L.openedAt; 0 opens it at the next update,
+//   no setting never). Until then every Blocky is a newcomer. From then on a Blocky that has been in
+//   the city `citizenDays` days is a citizen for good:
 //   an NFT its wallet can claim, free to trade, whatever the wallet does with its $BLOCKY afterwards.
 // - A wallet's newcomers stay while the $BLOCKY it holds (its balance: tokens it had before count too)
 //   covers them, at what it paid per Blocky on average; sell, and the newest newcomers leave the city. With only newcomers: sell half and half
@@ -82,9 +83,16 @@ export function allowance(a, citizens = 0) {
   return grant + Math.min(earned, citizens + covered);
 }
 
+// Trading opens once `unlockUsd` has been bought (0: at the first update). True if it just did.
+export function openTrading(L, at, cfg) {
+  if (L.openedAt != null || !(L.bought >= (cfg.unlockUsd ?? Infinity))) return false;
+  L.openedAt = at;
+  return true;
+}
+
 function rebalance(L, at, cfg, touched, source) {
   const added = {}, left = {}, s = sec(L, at);
-  if (L.openedAt == null && cfg.unlockUsd > 0 && L.bought >= cfg.unlockUsd) L.openedAt = at; // trading opens
+  openTrading(L, at, cfg);
   // 1. wallets that sold lose their newest newcomers (citizens and the reserve stay)
   for (const wi of touched) {
     const a = L.acct[wi], keep = allowance(a, citizensOf(L, a, at, cfg));

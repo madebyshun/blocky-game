@@ -68,7 +68,7 @@ function collection(site) {
   return {
     name: NFT.name,
     symbol: NFT.symbol,
-    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, at most ${LEDGER.supply.toLocaleString('en-US')} at once. Trading opens once $${LEDGER.unlockUsd.toLocaleString('en-US')} of ${CONFIG.ticker} has been bought; until then a Blocky leaves if its wallet sells. From then on a Blocky that has held ${LEDGER.citizenDays === 1 ? 'a day' : `${LEDGER.citizenDays} days`} is a citizen for good, and its wallet claims it as an NFT, free to trade at once.`,
+    description: `${NFT.name} (${NFT.symbol}): the builders of ${CONFIG.cityName}, a voxel city on Base built 24/7. Every $${LEDGER.per} of ${CONFIG.ticker} a wallet buys brings one Blocky to the city, at most ${LEDGER.supply.toLocaleString('en-US')} at once. A newcomer leaves if its wallet sells; a Blocky held ${LEDGER.citizenDays === 1 ? 'a day' : `${LEDGER.citizenDays} days`} is a citizen for good, and its wallet claims it as an NFT, free to trade at once. Only ${LEDGER.supply.toLocaleString('en-US')} can ever be claimed: first come, first claimed. You don't mint a Blocky, you earn one.`,
     image: `${site}/api/nft/collection.svg`,
     featured_image: `${site}/api/nft/collection.svg`,
     banner_image: `${site}/og.png`,

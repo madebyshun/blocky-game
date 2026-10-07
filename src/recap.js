@@ -28,7 +28,7 @@ function render(s, days) {
         ${stat(fmt(s.left.length), 'Left the city', 'sold before they stayed')}
         ${stat(fmt(s.buildings), 'Buildings', `${plus(s.built)} today`)}
         ${stat(fmt(s.blocks), 'Blocks placed today', `${fmt(s.totalBlocks)} in all`)}
-        ${stat(usd(s.bought), 'Bought so far', `of ${usd(CONFIG.unlockUsd)} to open NFT trading`)}
+        ${stat(usd(s.bought), 'Bought so far', `since launch · $${CONFIG.usdPerBlocky} = 1 Blocky`)}
       </div>
       <div class="rc-row">
         <div class="rc-list"><h3>Milestones</h3>${lines.length ? lines.slice(0, 3).map((l) => `<div>${l}</div>`).join('') + (lines.length > 3 ? `<div class="muted">+${lines.length - 3} more</div>` : '') : '<div class="muted">The crew kept building homes and shops</div>'}</div>

@@ -31,6 +31,7 @@ function stats(state) {
   const live = state && state.source !== 'demo';
   $('stats').innerHTML = [
     [`${CONFIG.citizenPlural} in the city`, `${fmt(inCity.length)} <small>/ ${fmt(CONFIG.supply)}</small>`],
+    ...(info.claimed != null ? [['NFTs claimed', `${fmt(info.claimed)} <small>/ ${fmt(info.max)}</small>`]] : []),
     ['Holders', fmt(holders)],
     ['Legendary', fmt(legendary)],
     ['Left the city', fmt(all.length - inCity.length)],
@@ -152,7 +153,7 @@ function open(b) {
     ['Blocks placed', fmt(blocks)],
     [here(b) ? 'Building for' : 'Built for', `${fmt((end - b.arrivedAt) / 3600000)} hours`],
     ['Arrived', day(b.arrivedAt)],
-    ...(here(b) ? (Number.isFinite(citizenAt(b)) ? [[citizen ? 'Citizen since' : 'Citizen on', day(citizenAt(b))]] : [['NFT', 'when trading opens']]) : [['Left', day(b.leftAt)]]),
+    ...(here(b) ? (Number.isFinite(citizenAt(b)) ? [[citizen ? 'Citizen since' : 'Citizen on', day(citizenAt(b))]] : [['NFT', 'when claims open']]) : [['Left', day(b.leftAt)]]),
     [teamReserve(b) ? 'Team reserve' : 'Brought by', b.from ? `<a href="${basescan(`address/${b.from}`)}" target="_blank" rel="noopener" title="${esc(b.from)}">${esc(who(b.from, 30))}</a>` : '—'],
   ];
   $('d-dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');

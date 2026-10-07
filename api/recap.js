@@ -55,7 +55,7 @@ function card(s, bg) {
         stat(fmt(s.left.length), 'Left the city', 'sold before they stayed'),
         stat(fmt(s.buildings), 'Buildings', `${plus(s.built)} today`),
         stat(fmt(s.blocks), 'Blocks placed today', `${fmt(s.totalBlocks)} in all`),
-        stat(usd(s.bought), 'Bought so far', `of ${usd(CONFIG.unlockUsd)} to open NFT trading`)),
+        stat(usd(s.bought), 'Bought so far', `since launch · $${CONFIG.usdPerBlocky} = 1 Blocky`)),
       h('div', { marginTop: 22, gap: 30 },
         h('div', { flexDirection: 'column', width: 440 },
           h('div', { fontSize: 15, fontWeight: 800, color: '#9fb6ff', letterSpacing: 2, marginBottom: 6 }, 'MILESTONES'),

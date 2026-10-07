@@ -1,7 +1,7 @@
 // The Blocky ledger's rules (src/ledger.js): $ per Blocky per wallet, the hold rule, the waitlist,
 // whales, incremental snapshots, fair rarity seeds, opening day and citizens. Run: npm test
 import assert from 'node:assert/strict';
-import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, citizenAt, citizensOf } from '../src/ledger.js';
+import { newLedger, applyTrade, applyBalances, snapshot, walletBlockies, rollSeed, citizenAt, citizensOf, openTrading } from '../src/ledger.js';
 import { rarityOf } from '../src/sim.js';
 
 const cfg = { per: 5, supply: 10000, whaleUsd: 1000 };
@@ -106,6 +106,17 @@ assert.equal(snapshot(L, cfg).minted, 120);
   applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: 1000 }, c);
   applyBalances(L, { '0xe': 500 }, 3 * DAY, { ...c, unlockUsd: 50 });
   assert.equal(L.openedAt, 3 * DAY);
+  // unlockUsd 0: open at the first update, citizens a day after they arrived
+  L = newLedger(0);
+  applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: 1000 }, { ...cfg, citizenDays: 1 });
+  assert.equal(L.openedAt, undefined);
+  assert.equal(openTrading(L, 2 * DAY, { ...c, unlockUsd: 0 }), true);
+  assert.equal(openTrading(L, 3 * DAY, { ...c, unlockUsd: 0 }), false, 'opens once');
+  assert.equal(citizenAt(L, 1, c), 2 * DAY);
+  L = newLedger(0);
+  applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: 1000 }, { ...c, unlockUsd: 0 });
+  assert.equal(L.openedAt, 1000);
+  assert.equal(citizenAt(L, 1, c), 1000 + DAY);
   // no setting, no opening: the plain hold rule forever
   L = newLedger(0);
   applyTrade(L, { who: '0xE', kind: 'buy', usd: 50, tokens: 500, at: at() }, cfg);

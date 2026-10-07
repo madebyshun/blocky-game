@@ -81,7 +81,8 @@ const CAPTIONS = [
   `Every buy shows up in the <em>city log</em>`,
   `${plural} build <em>24/7</em>, even when no one is watching`,
   `Land full? More ${plural} <em>expand the land</em>`,
-  () => (openedAt ? `Trading is open: a ${CONFIG.citizen} held <em>${dayText()}</em> is an <em>NFT</em> you claim` : `Trading opens at <em>${money(unlockUsd)}</em> bought: every ${CONFIG.citizen} becomes an <em>NFT</em>`),
+  () => `Hold a ${CONFIG.citizen} <em>${dayText()}</em>: it's an <em>NFT</em> you claim`,
+  () => `Only <em>${fmt(supply)}</em> ${plural} NFTs, ever: first come, first claimed`,
 ];
 let capIdx = 0;
 function rotateCaption() {
@@ -524,7 +525,7 @@ function renderCard() {
   $('card-share').textContent = `${sim.work ? ((placed / sim.work) * 100).toFixed(1) : 0}%`;
   const citizen = Math.max(b.arrivedAt + citizenDays * 86400e3, openedAt ?? Infinity);
   const left = citizen - ts;
-  $('card-joined').textContent = `${ago(b.arrivedAt)}${b.kind !== 'blocky' ? '' : left <= 0 ? ' · citizen' : !openedAt ? ' · NFT on opening day' : ` · citizen in ${left > 3600e3 ? `${Math.ceil(left / 3600e3)}h` : `${Math.ceil(left / 60e3)}m`}`}`;
+  $('card-joined').textContent = `${ago(b.arrivedAt)}${b.kind !== 'blocky' ? '' : left <= 0 ? ' · citizen' : !openedAt ? ' · NFT soon' : ` · citizen in ${left > 3600e3 ? `${Math.ceil(left / 3600e3)}h` : `${Math.ceil(left / 60e3)}m`}`}`;
   const team = b.kind === 'blocky' && b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
   $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : team ? `Team reserve (${who(b.from)})` : b.from ? who(b.from, 28) : '—';
   $('card-follow').textContent = following ? 'Unfollow' : 'Follow';
@@ -690,8 +691,8 @@ function headlines() {
   const services = Object.entries({ firestation: 'fire trucks', police: 'police cars', hospital: 'ambulances', recycling: 'garbage trucks' }).filter(([t]) => city.counts[t]);
   if (services.length) out.push(`<b>CITY SERVICES:</b> ${services.map(([, v]) => v).join(', ')} on patrol in ${CONFIG.cityName}`);
   out.push(`<b>MINT:</b> ${fmt(minted)} of ${fmt(supply)} ${plural} are in ${CONFIG.cityName}. ${minted < supply ? `Only ${fmt(supply - minted)} left` : 'Sold out'}`);
-  if (openedAt) out.push(`<b>MARKET OPEN:</b> every ${CONFIG.citizen} held ${dayText()} is a citizen for good: an NFT its wallet claims on the claim page, free to trade at once`);
-  else if (unlockUsd) out.push(`<b>OPENING DAY:</b> ${CONFIG.citizen} NFTs start trading at ${money(unlockUsd)} bought. ${usd(bought)} so far, ${Math.min(99, Math.floor((bought / unlockUsd) * 100))}% of the way. Hold: sellers' ${plural} leave`);
+  if (openedAt || !unlockUsd) out.push(`<b>CLAIMS OPEN:</b> every ${CONFIG.citizen} held ${dayText()} is a citizen for good: an NFT its wallet claims on the claim page, free to trade at once. Only ${fmt(supply)} will ever exist`);
+  else out.push(`<b>OPENING DAY:</b> ${CONFIG.citizen} NFTs start trading at ${money(unlockUsd)} bought. ${usd(bought)} so far, ${Math.min(99, Math.floor((bought / unlockUsd) * 100))}% of the way. Hold: sellers' ${plural} leave`);
   const builders = crew.filter((b) => b.kind === 'legend' && b.arrivedAt <= now()).length;
   if (builders) out.push(`<b>BASE BUILDERS:</b> ${builders} real Base builders are building ${CONFIG.cityName} with the ${plural}`);
   // the City Council at work: someone holding office (CONFIG.offices) and what they're up to
@@ -710,7 +711,7 @@ function headlines() {
   const sponsors = CONFIG.sponsors || [];
   if (sponsors.length) { const sp = sponsors[Math.floor(Math.random() * sponsors.length)]; out.push(`<b>${sp.sponsored ? 'SPONSORED' : 'BUILT ON BASE'}:</b> ${sp.name}${sp.tagline ? `, ${sp.tagline}` : ''}`); }
   if (Math.random() < 0.5 || !sponsors.length) out.push(`<b>ADVERTISE:</b> put your Base project on ${CONFIG.cityName} billboards${CONFIG.adContact || CONFIG.xHandle ? `. ${CONFIG.adContact || `DM @${CONFIG.xHandle}`}` : ''}`);
-  out.push(`<b>${CONFIG.ticker}:</b> every ${money(price)} you buy brings a ${CONFIG.citizen}, an NFT once trading opens; at most ${fmt(supply)} in the city. One big buy builds a ${whaleTiersText()} with your name`);
+  out.push(`<b>${CONFIG.ticker}:</b> every ${money(price)} you buy brings a ${CONFIG.citizen}, an NFT once held ${dayText()}; at most ${fmt(supply)} in the city. One big buy builds a ${whaleTiersText()} with your name`);
   const dark = [...sim.standing.values()].filter((p) => p.whale && p.build !== 'fountain' && p.whale.lostAt <= now()).length;
   if (dark) out.push(`<b>FOR SALE:</b> ${dark} whale tower${dark > 1 ? 's' : ''} went dark when ${dark > 1 ? 'their whales' : 'its whale'} sold. The next big buy takes ${dark > 1 ? 'one' : 'it'} over`);
   return out;

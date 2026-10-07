@@ -28,7 +28,7 @@
 
 import { erc20Abi, parseAbi, getAddress } from 'viem';
 import { base } from 'viem/chains';
-import { applyTrade, applyBalances, snapshot, holders } from '../src/ledger.js';
+import { applyTrade, applyBalances, openTrading, snapshot, holders } from '../src/ledger.js';
 import { env, TOKEN, LEDGER, LAUNCH, client, kv, useKv, KEY_BASE, loadLedger, saveLedger } from './_store.js';
 import { namesFor } from './_names.js';
 import { fetchMarket } from '../src/market.js';
@@ -224,6 +224,7 @@ async function updateLedger() {
     try { await checkBalances(L); changed = true; } catch (e) { console.warn('[colony] balance check skipped:', e.shortMessage || e.message); }
     L.checkedAt = now;
   }
+  if (openTrading(L, now, LEDGER)) changed = true; // e.g. unlockUsd lowered to 0: open now, not at the next trade
   L.seen = [...seen].slice(-1000);
   if (changed) await saveLedger(L);
   return L;

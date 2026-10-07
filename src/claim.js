@@ -15,7 +15,7 @@ const $ = (id) => document.getElementById(id);
 for (const el of document.querySelectorAll('.tk')) el.textContent = CONFIG.ticker;
 for (const el of document.querySelectorAll('.supply')) el.textContent = fmt(CONFIG.supply);
 
-let info = { open: false, contract: null, live: false, unlockUsd: CONFIG.unlockUsd, bought: null, openedAt: null, citizenDays: CONFIG.citizenDays };
+let info = { open: false, contract: null, live: false, unlockUsd: CONFIG.unlockUsd, bought: null, openedAt: null, citizenDays: CONFIG.citizenDays, claimed: null, max: CONFIG.supply };
 const when = (ms) => new Date(ms).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const until = (ms) => { const h = (ms - Date.now()) / 3600e3; return h > 48 ? `${Math.ceil(h / 24)}d` : h >= 1 ? `${Math.ceil(h)}h` : `${Math.max(1, Math.ceil(h * 60))}m`; };
 const dollars = (v) => `$${Math.round(v).toLocaleString('en-US')}`;
@@ -24,6 +24,9 @@ let provider = null; // the connected wallet
 let account = null; // its address
 let viewing = null; // the address on screen (connected or looked up)
 let busy = false;
+
+// "1,234 / 10,000 claimed · 8,766 left" (the contract's totalSupply), when the chain could be read
+const count = () => (info.claimed == null ? '' : `<span class="count"><b>${fmt(info.claimed)}</b> / ${fmt(info.max)} claimed · <b>${fmt(Math.max(0, info.max - info.claimed))}</b> left</span> `);
 
 function status() {
   const s = $('status');
@@ -34,8 +37,10 @@ function status() {
   } else if (info.open) {
     s.className = 'note ok';
     s.innerHTML = info.openedAt
-      ? `Trading is open. Every Blocky held ${held()} is a citizen: claim it here as an NFT, free to trade at once. You pay the gas, a few cents on Base. ${sea}`
-      : `<b>Trading opens at ${dollars(info.unlockUsd)} of ${CONFIG.ticker} bought${info.bought != null ? `: ${dollars(info.bought)} so far` : ''}.</b> Then every Blocky held ${held()} becomes an NFT you claim here, free to trade at once. Until then, hold: sellers' Blockies leave the city.`;
+      ? `${count()}<b>Claims are open.</b> Every Blocky held ${held()} is a citizen: claim it here as an NFT, free to trade at once. You pay the gas, a few cents on Base. ${sea}`
+      : info.bought != null && info.bought < info.unlockUsd
+        ? `<b>Trading opens at ${dollars(info.unlockUsd)} of ${CONFIG.ticker} bought: ${dollars(info.bought)} so far.</b> Then every Blocky held ${held()} becomes an NFT you claim here, free to trade at once. Until then, hold: sellers' Blockies leave the city.`
+        : `<b>Claims open in a minute or so</b>, at the ledger's next update. Every Blocky held ${held()} becomes an NFT you claim here, free to trade at once.`;
   } else {
     s.className = 'note';
     s.textContent = `Claims open soon. Every Blocky your wallet brings is saved in the ledger: keep holding ${CONFIG.ticker} while they're newcomers, and claim your citizens here when the contract goes live.`;
@@ -154,7 +159,7 @@ function render(j) {
   const toNext = j?.toNext ?? price;
   $('mystats').innerHTML = !j ? '' : [
     [`${CONFIG.citizenPlural} in the city`, fmt(list.length)],
-    ['Newcomers', newcomers.length ? `${fmt(newcomers.length)} <small class="line">${Number.isFinite(nextCitizen) ? `next citizen ${when(nextCitizen)}` : `NFTs at ${dollars(j.unlockUsd ?? info.unlockUsd)} bought`}</small>` : '0'],
+    ['Newcomers', newcomers.length ? `${fmt(newcomers.length)} <small class="line">${Number.isFinite(nextCitizen) ? `next citizen ${when(nextCitizen)}` : (j.openedAt ? 'next citizen soon' : 'NFTs when claims open')}</small>` : '0'],
     ['Claimed', fmt(claimed)],
     ['To claim', fmt(claimable)],
     ...(j.waiting ? [['Waiting for a place', fmt(j.waiting)]] : []),
@@ -179,7 +184,7 @@ function render(j) {
   if (!info.open) say('Claims open soon: these Blockies stay saved for this wallet while it holds.');
   else if (!n && newcomers.length) say(Number.isFinite(nextCitizen)
     ? `${claimed ? 'Every citizen claimed ✓ ' : ''}Next citizen ${when(nextCitizen)}: keep holding ${CONFIG.ticker} until then, or newcomers leave the city.`
-    : `Your Blockies become NFTs when trading opens at ${dollars(j.unlockUsd ?? info.unlockUsd)} bought. Keep holding ${CONFIG.ticker}: sellers' Blockies leave the city.`);
+    : `Your Blockies become NFTs when claims open, in a minute or so. Keep holding ${CONFIG.ticker}: sellers' Blockies leave the city.`);
   else if (!n) say(list.length ? `All claimed ✓ ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>` : ''}` : '', list.length ? 'ok' : '');
   else if (!mineNow) say('Connect this wallet to claim. Only the wallet that brought a Blocky can claim it.');
   else say(claimable > 50 ? `Claims go 50 at a time: ${fmt(claimable)} to claim.` : 'Ready. You pay the gas.');

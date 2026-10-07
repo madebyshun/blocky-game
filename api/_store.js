@@ -15,7 +15,7 @@ export const LEDGER = {
   per: Number(env.USD_PER_BLOCKY || CONFIG.usdPerBlocky), // USD of $BLOCKY per Blocky
   supply: Number(env.MAX_SUPPLY || 10000),
   whaleUsd: Number(env.WHALE_USD || 1000),
-  unlockUsd: Number(env.UNLOCK_USD || CONFIG.unlockUsd), // total bought that opens trading
+  unlockUsd: Number(env.UNLOCK_USD ?? CONFIG.unlockUsd), // total bought that opens trading
   citizenDays: Number(env.CITIZEN_DAYS || CONFIG.citizenDays), // then a Blocky is a citizen (an NFT) after this many days
 };
 export const LAUNCH = Number(env.LAUNCH_TIME_MS || 0) || null; // when the city starts from empty land

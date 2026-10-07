@@ -60,16 +60,17 @@ export async function downloadSvgPng(svg, name, size = 1024) {
   a.click();
 }
 
-// Whether NFT claims are open, the contract (from the API; the config as a fallback), the road to opening
-// day (unlockUsd, bought, openedAt) and, from then, a Blocky's newcomer days before it's a citizen.
+// Whether NFT claims are open, the contract (from the API; the config as a fallback), opening day
+// (unlockUsd, bought, openedAt), a Blocky's newcomer days before it's a citizen, and how many of the
+// `max` NFTs are claimed (null if unknown).
 export async function nftInfo() {
   try {
     const res = await fetch('/api/claim', { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
     const num = (v, d) => (typeof v === 'number' ? v : d);
-    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, unlockUsd: num(s.unlockUsd, CONFIG.unlockUsd), bought: num(s.bought, null), openedAt: num(s.openedAt, null), citizenDays: num(s.citizenDays, CONFIG.citizenDays), live: true };
+    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, unlockUsd: num(s.unlockUsd, CONFIG.unlockUsd), bought: num(s.bought, null), openedAt: num(s.openedAt, null), citizenDays: num(s.citizenDays, CONFIG.citizenDays), claimed: num(s.claimed, null), max: num(s.max, CONFIG.supply), live: true };
   } catch {
-    return { open: false, contract: CONFIG.nft.contract || null, unlockUsd: CONFIG.unlockUsd, bought: null, openedAt: null, citizenDays: CONFIG.citizenDays, live: false };
+    return { open: false, contract: CONFIG.nft.contract || null, unlockUsd: CONFIG.unlockUsd, bought: null, openedAt: null, citizenDays: CONFIG.citizenDays, claimed: null, max: CONFIG.supply, live: false };
   }
 }
