@@ -34,6 +34,7 @@ A live, watch-only voxel city tied to the `$BLOCKY` token on Base.
   - **Base Stock Exchange** (community goal at 25 Blockies): columns, a live LED ticker on the frieze and a big board on the roof showing `$BLOCKY`'s price and 24h move, the token it trades against (NVDAc, priced from the pool) and any `STOCK_TOKENS`. A gold bull stands out front while `$BLOCKY` is up over 24h, a bear when it is down.
   - **AI Agent Hub** (community goal at 40 Blockies): a dark glass tower with glowing floors, server racks and a holographic agent head. It launches the city's **AI agent drones**, which pick up parcels and fly them over the rooftops to other buildings; every **AI Startup** adds two more. **Brokerages** carry the same live ticker.
   - The news ticker adds MARKETS (live quotes) and AGENTS (drones flying, parcels delivered) lines.
+- **Cat Town** ([@cattownbase](https://x.com/cattownbase)): voxel cats stroll the sidewalks around the parks, and **Cat Town Plaza** on Base Avenue (plot 14) has the town cat as a statue, with more cats strolling and napping around it (`src/cats.js`, HQ style `cats`).
 - **City services**: a Fire Station, Police Station, Hospital, Recycling Center and Solar Farm arrive early in every city (more as it grows). Each sends its vehicles out on the roads with flashing light bars: fire trucks, police cars, ambulances and garbage trucks.
 - **BaseCity Metro** (community goal at 1,000 Blockies, once the land is 13×13 lots, so it circles a real city): an elevated loop over the ring road, on pillars between the car lanes. It rises piece by piece while the crew builds it, then a three-car train runs the loop and stops at a station on every side. The loop grows with the land. Set it in `metro` in `src/config.js`.
 - **Billboards** on the Town Square, Builder HQ, the airport and some rooftops show Base projects (Coinbase Wallet, o1.exchange, Virtuals, bankrbot, Aero, logos drawn in code) plus one "YOUR PROJECT HERE" slot that sells the space. Edit `sponsors` in `src/config.js` (`{ name, tagline, color, logo?, url, sponsored? }`); clicking a board opens its link.
@@ -126,6 +127,7 @@ Environment variables (see `.env.example`):
 - `src/ledger.js`: the Blocky ledger (buys, the hold rule, the waitlist, rarity seeds), shared by the API and demo mode.
 - Pages: `builders.html`, `collection.html`, `claim.html`, `about.html` with `src/site.js` + `src/site.css` (nav, footer, shared styles).
 - `src/agents.js`: the AI agent drones.
+- `src/cats.js`: Cat Town's cats and the plaza's statue.
 - `src/citizens.js`: builders walking the roads, hauling and placing blocks.
 
 ## How "24/7, same for every visitor" works

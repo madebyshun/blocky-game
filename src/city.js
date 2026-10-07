@@ -4,6 +4,7 @@ import { CONFIG } from './config.js';
 import { hash, PITCH, isWater, isReserve, LANDMARKS, AVENUE, CATALOG } from './sim.js';
 import { now } from './time.js';
 import { makeService, makeDrone } from './fleet.js';
+import { catStatue } from './cats.js';
 
 // ---------- materials & merged-box kits ----------
 
@@ -1538,6 +1539,22 @@ const HQ = {
     k.box(0.9, 2.4, 0.9, mix(main, 0x000000, 0.35), 2.45, Y, 2.45);
     brandPanel(k, b, 'logo', 0.82, 0.82, 2.45, Y + 1.85, 2.91);
     brandPanel(k, b, 'logo', 0.82, 0.82, 2.91, Y + 1.85, 2.45, SIDE);
+  },
+  // Cat Town Plaza: the town cat as a statue on a plinth (its name on the front), a cat tree, food
+  // bowls and the logo on a pylon; cats stroll and nap around it (src/cats.js)
+  cats(k, b, p) {
+    const main = num(b.color), acc = num(b.accent || '#ffffff');
+    lawn(k);
+    k.box(5.4, 0.04, 5.4, 0xd9d2c4, 0, Y, 0);
+    k.box(2.8, 0.7, 2.8, 0xbfc6cf, 0, Y, -0.6); k.box(2.3, 0.45, 2.3, 0xd9dee5, 0, Y + 0.7, -0.6);
+    catStatue(k, 3.2, 0, Y + 1.15, -0.6);
+    brandPanel(k, b, 'name', 2.6, 0.62, 0, Y + 0.36, 0.81);
+    k.box(0.22, 1.7, 0.22, 0xc8a878, -2.3, Y, 1.9); k.box(0.8, 0.12, 0.8, acc, -2.3, Y + 0.85, 1.9); k.box(0.7, 0.12, 0.7, main, -2.3, Y + 1.7, 1.9); // cat tree
+    for (const [x, c] of [[1.0, 0xff79b0], [1.5, 0x9b7cf0]]) { k.box(0.34, 0.1, 0.34, c, x, Y + 0.04, 2.3); k.box(0.24, 0.03, 0.24, 0x8a5a3a, x, Y + 0.14, 2.3); } // bowls
+    k.box(0.9, 2.3, 0.9, mix(main, 0x000000, 0.35), 2.4, Y, -2.4);
+    brandPanel(k, b, 'logo', 0.82, 0.82, 2.4, Y + 1.75, -1.94);
+    brandPanel(k, b, 'logo', 0.82, 0.82, 2.86, Y + 1.75, -2.4, SIDE);
+    tree(k, -2.5, -2.5, p.k); bush(k, -2.6, 0.2, p.k + 2); bush(k, 2.6, 0.6, p.k + 3); bush(k, 2.6, 1.6, p.k + 4);
   },
 };
 export const brandHq = (k, p) => (HQ[p.brand.style] || HQ.tower)(k, p.brand, p);

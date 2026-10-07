@@ -12,7 +12,7 @@
 //   and the About page). 0: right away.
 // - added: the day you add it (UTC, or a time like '2026-10-06T15:00Z'). Its HQ is never built before
 //   then, so adding a project never changes what the city already built.
-// - style: tower, campus, spire or dome. color / accent: the building's colours (#rrggbb).
+// - style: tower, campus, spire, dome, or cats (Cat Town Plaza: a cat statue, src/cats.js). color / accent: the building's colours (#rrggbb).
 // - logo: one drawn in code (cbwallet, o1, virtuals, bankr, aero, uniswap, morpho, usdc, basenames,
 //   limitless, x402, basepaint), or a square image in public/logos/ ('/logos/name.png'), or nothing:
 //   the project's initial on its colour.
@@ -31,5 +31,6 @@ export const PROJECTS = [
   { id: 'limitless', name: 'Limitless', tagline: 'Trade the future', url: 'https://limitless.exchange', color: '#141414', accent: '#c3ff00', logo: 'limitless', style: 'dome', plot: 10, at: 900, added: '2026-10-01' },
   { id: 'o1', name: 'o1.exchange', tagline: 'Trade onchain', url: 'https://o1.exchange', color: '#1d1d1d', accent: '#9fd0ff', logo: 'o1', style: 'tower', plot: 11, at: 1200, added: '2026-10-01' },
   { id: 'veranta', name: 'Veranta', tagline: 'Trade global markets onchain', url: 'https://www.veranta.xyz', color: '#7e18ff', accent: '#4a71ff', style: 'campus', plot: 12, at: 1400, added: '2026-10-01' }, // was Avantis
+  { id: 'cattown', name: 'Cat Town', label: 'Cat Town Plaza', tagline: 'The cats of Base', url: 'https://x.com/cattownbase', color: '#6178a8', accent: '#e8e0ff', logo: '/logos/cattown.png', style: 'cats', plot: 14, at: 0, added: '2026-10-07T06:30Z' },
   { id: 'basepaint', name: 'BasePaint', tagline: 'Paint together. Mint daily.', url: 'https://basepaint.xyz', color: '#1b1b1b', accent: '#ffd23f', logo: 'basepaint', style: 'campus', plot: 13, at: 1750, added: '2026-10-01' },
 ];

@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG, holdText } from './config.js';
 import { createCity, updateBoards } from './city.js';
 import { createAgents } from './agents.js';
+import { createCats } from './cats.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
@@ -156,6 +157,7 @@ const city = createCity(scene);
 const traffic = createTraffic(city);
 const metro = createMetro(city);
 const agents = createAgents(city);
+const cats = createCats(city);
 const sky = createSky(city, camera);
 const weather = createWeather(city);
 let market = null;
@@ -686,6 +688,7 @@ function headlines() {
     const fmtP = (v) => (v >= 1 ? v.toFixed(2) : v.toPrecision(4));
     out.push(`<b>MARKETS:</b> ${quotes.map(([sym, p, c]) => `${sym} $${fmtP(p)}${typeof c === 'number' ? ` <span class="${c >= 0 ? 'up' : 'down'}">${c >= 0 ? '▲' : '▼'}${Math.abs(c).toFixed(1)}%</span>` : ''}`).join(' · ')}`);
   }
+  if (cats.count) out.push(`<b>CAT TOWN:</b> ${cats.count} cats from @cattownbase roam the streets of ${CONFIG.cityName}${city.built.some((b) => b.type === 'hq-cattown') ? ' and nap on Cat Town Plaza' : ''}`);
   if (agents.count) out.push(`<b>AGENTS:</b> ${agents.count} AI agent drones are flying deliveries over ${CONFIG.cityName}${agents.deliveries ? `, ${fmt(agents.deliveries)} parcels delivered since you arrived` : ''}`);
   if (sim.metroBuilt) out.push(`<b>TRANSIT:</b> ${CONFIG.metro.label} trains run every few minutes around the ring road`);
   const services = Object.entries({ firestation: 'fire trucks', police: 'police cars', hospital: 'ambulances', recycling: 'garbage trucks' }).filter(([t]) => city.counts[t]);
@@ -784,6 +787,7 @@ function frame() {
   traffic.update(t, dt);
   metro.update(t, dt);
   agents.update(t, dt);
+  cats.update(t, dt);
   sky.update(t, dt);
   weather.update(t, dt);
   for (const v of views.values()) v.update(t, dt);
@@ -846,4 +850,4 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   });
 })();
 
-window.blocky = { city, crew, views, agents, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };
+window.blocky = { city, crew, views, agents, cats, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };
