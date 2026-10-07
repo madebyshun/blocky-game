@@ -295,10 +295,11 @@ async function doList() {
   const items = listing.map((x, i) => ({ n: x.n, eth: fixed(prices[i]) }));
   busy = true;
   render(mine);
+  let lib = null;
   try {
     say('Loading OpenSea… then approve the collection if asked (once), and sign the listing.');
-    const { listOnOpenSea } = await import('./listing.js');
-    const r = await listOnOpenSea({ provider, account, contract: info.contract, items, days: Number($('ld-days').value) || 7, onProgress: (d, t) => say(`Listing on OpenSea… ${d}/${t}`) });
+    lib = await import('./listing.js');
+    const r = await lib.listOnOpenSea({ provider, account, contract: info.contract, items, days: Number($('ld-days').value) || 7, onStep: (m) => say(m), onProgress: (d, t) => say(`Listing on OpenSea… ${d}/${t}`) });
     for (const x of mine?.blockies || []) { const it = items.find((i) => i.n === x.n); if (it && r.listed.includes(x.n)) x.listed = Number(it.eth); }
     busy = false;
     render(mine);
@@ -306,7 +307,10 @@ async function doList() {
   } catch (e) {
     busy = false;
     render(mine);
-    say(rejected(e) ? 'Cancelled.' : esc(e.shortMessage || e.message || String(e)), rejected(e) ? '' : 'bad');
+    if (rejected(e)) return say('Cancelled.');
+    console.error('[listing]', e);
+    const where = items.length === 1 ? opensea(info.contract, items[0].n) : opensea(info.contract);
+    say(`${esc(lib ? lib.explain(e) : e.message || String(e))}. <a href="${where}" target="_blank" rel="noopener">List on OpenSea instead ↗</a>`, 'bad');
   }
 }
 
