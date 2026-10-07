@@ -350,6 +350,7 @@ function applyState(s, first) {
   openedAt = s.openedAt ?? null;
   if (s.market) { market = s.market; weather.setMarket(market); }
   updateBoards({ market, population: Math.max(minted, s.minted || 0) });
+  let rung = 0; // buys in this answer that rang a bell (src/music.js)
   for (const b of [...(s.recentBuys || [])].reverse()) {
     const key = `${b.at}|${b.from}|${b.usd}|${b.kind}`;
     if (loggedBuys.has(key)) continue;
@@ -361,6 +362,7 @@ function applyState(s, first) {
     }
     const what = b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : minted >= supply ? ' → waiting for a place in the city' : ' → adds up to the next one';
     log(`🛒 ${whoHtml(b.from)} bought ${usd(b.usd)}${what}`, b.at);
+    if (rung < 8) music.chime({ blockies: b.blockies || 0, whale: b.usd >= CONFIG.whaleUsd, order: rung++ }); // every buy is a note
     if (b.usd >= CONFIG.whaleUsd) {
       weather.celebrate(); setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800);
       news.unshift(`<b>WHALE ALERT:</b> ${whoHtml(b.from)} just bought ${usd(b.usd)}: ${b.blockies} ${plural} are flying in and the city starts a ${whaleTier(b.usd).label} in their name!`);
@@ -964,4 +966,4 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   });
 })();
 
-window.blocky = { city, crew, views, agents, cats, cine, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };
+window.blocky = { city, crew, views, agents, cats, cine, music, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };

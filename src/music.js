@@ -1,7 +1,7 @@
 // BaseCity's music: a lo-fi loop played live with the Web Audio API (no audio files, nothing to
 // license or download). Rhodes-like chords, a sine bass, a pentatonic melody through a delay, swung
 // lo-fi drums and a little vinyl crackle, at 84 BPM. It follows the city: softer and darker at night,
-// hushed in the rain (setMood). Browsers need a tap or key before any sound, so main.js starts it on the first one.
+// hushed in the rain (setMood). Every buy rings a bell in the song's key, on the beat (chime). Browsers need a tap or key before any sound, so main.js starts it on the first one.
 
 const BPM = 84;
 const STEP = 60 / BPM / 4; // a 16th note, in seconds
@@ -18,7 +18,7 @@ const rand = (a) => a[Math.floor(Math.random() * a.length)];
 
 // keepPlaying: don't go quiet in a hidden tab (the livestream: OBS may report its page as hidden)
 export function createMusic({ keepPlaying = false } = {}) {
-  let ctx = null, out = null, keysLp = null, drumBus = null, delay = null, crackle = null, noise = null;
+  let ctx = null, out = null, keysLp = null, drumBus = null, delay = null, crackle = null, noise = null, bells = null;
   let on = false, timer = null, step = 0, nextAt = 0;
   const mood = { bright: 1, drums: 1 }; // eased toward the city's daylight and weather
 
@@ -41,6 +41,13 @@ export function createMusic({ keepPlaying = false } = {}) {
     verbGain.gain.value = 0.28;
     verb.connect(verbGain).connect(out);
 
+    // the buy bells: bright, with more room and the echo
+    bells = ctx.createGain();
+    bells.connect(out);
+    const bellVerb = ctx.createGain();
+    bellVerb.gain.value = 0.9;
+    bells.connect(bellVerb).connect(verb);
+
     // keys and melody: warm low-pass, a dotted-8th echo, some room
     keysLp = ctx.createBiquadFilter();
     keysLp.type = 'lowpass';
@@ -57,6 +64,9 @@ export function createMusic({ keepPlaying = false } = {}) {
     delayLp.frequency.value = 1800;
     delay.connect(delayLp).connect(fb).connect(delay);
     delayLp.connect(keysLp);
+    const bellEcho = ctx.createGain();
+    bellEcho.gain.value = 0.5;
+    bells.connect(bellEcho).connect(delay);
 
     // drums: a little dull, like a tape
     drumBus = ctx.createGain();
@@ -146,6 +156,45 @@ export function createMusic({ keepPlaying = false } = {}) {
   const snare = (t, vel) => { hit(t, vel, 'bandpass', 1900, 0.8, 0.16, 0.22); const g = ctx.createGain(); env(g, t, 0.07 * vel, 0.002, 0.01, 0.08); g.connect(drumBus); osc('triangle', 190, t, 0.1, g); };
   const hat = (t, vel) => hit(t, vel, 'highpass', 7500, 0.7, 0.035, 0.07);
 
+  // a bell: a sine with an inharmonic partial (what makes it ring like metal), and a soft octave
+  function bell(n, t, vel) {
+    const f = midi(n);
+    const g = ctx.createGain();
+    env(g, t, 0.12 * vel, 0.003, 0.02, 1.8);
+    g.connect(bells);
+    osc('sine', f, t, 1.9, g);
+    const g2 = ctx.createGain();
+    env(g2, t, 0.035 * vel, 0.002, 0.005, 0.45);
+    g2.connect(bells);
+    osc('sine', f * 2.76, t, 0.5, g2);
+    const g3 = ctx.createGain();
+    env(g3, t, 0.012 * vel, 0.003, 0.01, 0.9);
+    g3.connect(bells);
+    osc('triangle', f * 2, t, 1, g3);
+  }
+  function gong(n, t) { // a whale: the chord's root, low and long
+    const g = ctx.createGain();
+    env(g, t, 0.2, 0.01, 0.1, 3.2);
+    g.connect(bells);
+    osc('sine', midi(n), t, 3.4, g);
+    osc('sine', midi(n + 12) * 1.003, t, 3.4, g);
+  }
+  // A buy, as notes up the chord that's playing, from the next 16th on: one for a Blocky, more for a
+  // bigger buy, a sparkle on a big one, and a gong under a whale. order: the n-th buy of a batch, a bit later.
+  function chime({ blockies = 1, whale = false, order = 0 } = {}) {
+    if (!on || !ctx || ctx.state !== 'running') return;
+    const chord = SONG[Math.floor(Math.max(0, step - 1) / 16) % SONG.length];
+    const pcs = [...new Set(chord.slice(1).map((n) => n % 12))].sort((a, b) => a - b);
+    const ladder = [];
+    for (let o = 72; o < 108; o += 12) for (const pc of pcs) ladder.push(o + pc);
+    const from = ladder.findIndex((n) => n >= 79) + Math.floor(Math.random() * 2);
+    const notes = whale ? 6 : blockies >= 10 ? 4 : blockies >= 5 ? 3 : blockies >= 2 ? 2 : 1;
+    const t0 = Math.max(nextAt, ctx.currentTime + 0.02) + order * STEP * 3;
+    for (let i = 0; i < notes; i++) bell(ladder[Math.min(ladder.length - 1, from + i)], t0 + i * STEP, blockies ? (i === notes - 1 ? 1 : 0.8) : 0.5);
+    if (whale || blockies >= 10) for (let i = 0; i < 3; i++) bell(ladder[Math.min(ladder.length - 1, from + notes + 2 + i)], t0 + (notes + i * 0.5) * STEP, 0.35);
+    if (whale) gong(chord[0], t0);
+  }
+
   // one 16th: what plays on it
   function play(s, t) {
     const bar = Math.floor(s / 16) % SONG.length, pos = s % 16, chord = SONG[bar], d = mood.drums;
@@ -197,6 +246,7 @@ export function createMusic({ keepPlaying = false } = {}) {
   return {
     get on() { return on; },
     get playing() { return on && ctx?.state === 'running'; }, // on, and the browser lets it play
+    chime,
     async set(v) {
       on = v;
       try { if (v) await start(); else stop(); } catch (e) { on = false; console.warn('[music]', e.message); }
