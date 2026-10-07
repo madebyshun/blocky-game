@@ -41,7 +41,7 @@ export const CONFIG = {
     chainId: 8453,
     contract: '0xD1C1655860eDdb6cCeC9AC986539B3b0E195d5a9', // BaseCity Blockies on Base (NFT_CONTRACT on the API wins)
     royaltyBps: 500,
-    treasury: '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D', // the dev wallet: royalties, and it deploys and owns the contract
+    treasury: '0x8eBA37eF94E6b831Fe8bf6a62e79D0DC6FD8C34D', // the dev wallet (Blocky's MetaMask): royalties, and it deploys and owns the contract (OpenSea collection settings too)
     // The team's reserve: Blockies #1 to #count belong to this wallet from day one (giveaways,
     // partners), citizens `citizenDays` after the city starts like everyone's first Blockies, and they
     // never leave the city. Shown on the About page.
