@@ -23,6 +23,7 @@ const held = () => holdText(info.citizenDays);
 let provider = null; // the connected wallet
 let account = null; // its address
 let viewing = null; // the address on screen (connected or looked up)
+let market = null; // { floor, ethUsd, live, days, lowWarn } (OpenSea, from the API)
 let busy = false;
 
 // "1,234 / 10,000 claimed · 8,766 left" (the contract's totalSupply), when the chain could be read
@@ -136,23 +137,42 @@ async function show(address) {
 }
 
 const citizenNow = (entry) => entry.citizenAt != null && entry.citizenAt <= Date.now();
+// ETH with as many decimals as it needs (0.0055, 0.033, 1.2), and roughly in USD
+const eth = (v) => `${Number(v.toPrecision(2))} ETH`;
+const usdOf = (v) => (market?.ethUsd ? ` <small>~$${Math.round(v * market.ethUsd)}</small>` : '');
+// the market line under a Blocky: its listing (with a warning when the price is well under what it's
+// worth now), or a suggested price and a link to list it on OpenSea
+function priceLine(entry) {
+  if (!info.contract || entry.suggested == null && entry.listed == null) return '';
+  const link = (text) => `<a class="mk-act" href="${opensea(info.contract, entry.n)}" target="_blank" rel="noopener">${text}</a>`;
+  if (entry.listed != null) {
+    const low = entry.suggested != null && entry.listed < entry.suggested * (market?.lowWarn ?? 0.75);
+    return low
+      ? `<div class="mk warn">⚠ Listed ${eth(entry.listed)}, worth ~${eth(entry.suggested)} now ${link('Update ↗')}</div>`
+      : `<div class="mk ok">Listed ${eth(entry.listed)}${usdOf(entry.listed)} ${link('View ↗')}</div>`;
+  }
+  if (entry.claimed) return `<div class="mk">Suggested ${eth(entry.suggested)}${usdOf(entry.suggested)} ${link('List ↗')}</div>`;
+  return citizenNow(entry) ? `<div class="mk dim">Worth ~${eth(entry.suggested)} once claimed</div>` : '';
+}
+
 function tile(entry, gone) {
   const b = makeBlocky(entry.n, entry.at, viewing, entry.seed);
-  const el = document.createElement('a');
+  const el = document.createElement('div');
   el.className = `tile${gone ? ' gone' : ''}`;
-  el.href = `/collection.html#${b.id}`;
-  el.innerHTML = `<div class="pic"><img alt="${esc(b.name)}" width="256" height="256" /></div>
+  el.innerHTML = `<a class="tile-link" href="/collection.html#${b.id}"><div class="pic"><img alt="${esc(b.name)}" width="256" height="256" /></div>
     <div class="info"><div class="name">${esc(b.name)}</div>
     <div class="sub"><span class="rarity ${b.rarity.id}">${b.rarity.label}</span><span>${b.trait ? esc(TRAIT_LABEL[b.trait]) : ''}</span></div></div>
-    <span class="flag ${gone ? 'gone' : entry.claimed ? 'ok' : citizenNow(entry) ? 'claim' : ''}">${gone ? 'Left' : entry.claimed ? 'Claimed ✓' : citizenNow(entry) ? 'To claim' : entry.citizenAt == null ? 'Newcomer' : `Citizen in ${until(entry.citizenAt)}`}</span>`;
+    <span class="flag ${gone ? 'gone' : entry.claimed ? 'ok' : citizenNow(entry) ? 'claim' : ''}">${gone ? 'Left' : entry.claimed ? 'Claimed ✓' : citizenNow(entry) ? 'To claim' : entry.citizenAt == null ? 'Newcomer' : `Citizen in ${until(entry.citizenAt)}`}</span></a>${gone ? '' : priceLine(entry)}`;
   lazyPortrait(el.querySelector('img'), b);
   return el;
 }
 
 function render(j) {
+  market = j?.market || null;
   const list = j?.blockies || [], left = j?.left || [];
   const claimed = list.filter((x) => x.claimed).length;
   const claimable = list.filter((x) => !x.claimed && citizenNow(x)).length;
+  const lowListed = list.filter((x) => x.listed != null && x.suggested != null && x.listed < x.suggested * (market?.lowWarn ?? 0.75)).length;
   const newcomers = list.filter((x) => !citizenNow(x));
   const nextCitizen = Math.min(...newcomers.map((x) => x.citizenAt ?? Infinity)); // Infinity: on opening day
   const price = j?.price || CONFIG.usdPerBlocky, usd = j?.boughtUsd || 0;
@@ -161,6 +181,7 @@ function render(j) {
     [`${CONFIG.citizenPlural} in the city`, fmt(list.length)],
     ['Newcomers', newcomers.length ? `${fmt(newcomers.length)} <small class="line">${Number.isFinite(nextCitizen) ? `next citizen ${when(nextCitizen)}` : (j.openedAt ? 'next citizen soon' : 'NFTs when claims open')}</small>` : '0'],
     ['Claimed', fmt(claimed)],
+    ...(market?.floor ? [['Floor on OpenSea', `${eth(market.floor)}${usdOf(market.floor)}`]] : []),
     ['To claim', fmt(claimable)],
     ...(j.waiting ? [['Waiting for a place', fmt(j.waiting)]] : []),
     ...(left.length ? [['Left the city', fmt(left.length)]] : []),
@@ -185,7 +206,8 @@ function render(j) {
   else if (!n && newcomers.length) say(Number.isFinite(nextCitizen)
     ? `${claimed ? 'Every citizen claimed ✓ ' : ''}Next citizen ${when(nextCitizen)}: keep holding ${CONFIG.ticker} until then, or newcomers leave the city.`
     : `Your Blockies become NFTs when claims open, in a minute or so. Keep holding ${CONFIG.ticker}: sellers' Blockies leave the city.`);
-  else if (!n) say(list.length ? `All claimed ✓ ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>` : ''}` : '', list.length ? 'ok' : '');
+  else if (!n && lowListed) say(`⚠ ${fmt(lowListed)} of your listings ${lowListed > 1 ? 'are' : 'is'} well under what ${lowListed > 1 ? 'they are' : 'it is'} worth at today's floor. Raise the price on OpenSea before someone buys cheap.`, 'bad');
+  else if (!n) say(list.length ? `All claimed ✓ Suggested prices follow the OpenSea floor and each Blocky's rarity. List for ${market?.days ?? 7} days: an old price expires instead of getting sniped. ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>` : ''}` : '', list.length ? 'ok' : '');
   else if (!mineNow) say('Connect this wallet to claim. Only the wallet that brought a Blocky can claim it.');
   else say(claimable > 50 ? `Claims go 50 at a time: ${fmt(claimable)} to claim.` : 'Ready. You pay the gas.');
 }

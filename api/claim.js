@@ -4,7 +4,8 @@
 //                                bought; claimed of max NFTs exist, null if the chain can't be read)
 //   GET  /api/claim?address=0x…  the wallet's Blockies: in the city (each with the time it becomes a
 //                                citizen, and whether it's claimed), waiting, gone, and its Basename.
-//                                address may also be a Basename (name.base.eth).
+//                                address may also be a Basename (name.base.eth). With a suggested
+//                                price for each (src/pricing.js), its OpenSea listing, and the floor.
 //   POST /api/claim { address }  a signed claim for up to 50 of its citizens not claimed yet. The
 //                                wallet sends it to the contract itself and pays the gas.
 // The ledger (api/colony.js) decides who owns which Blocky and when it becomes a citizen (src/ledger.js:
@@ -17,10 +18,12 @@
 import { getAddress, isAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { allowance, citizenAt, citizensOf, walletBlockies } from '../src/ledger.js';
-import { env, client, LEDGER, NFT, useKv, loadLedger } from './_store.js';
+import { env, client, LEDGER, NFT, RESERVE, useKv, loadLedger } from './_store.js';
 import { claimTypedData, CLAIM_ABI } from './_sig.js';
 import { holdText } from '../src/config.js';
 import { namesFor, addressOf } from './_names.js';
+import { getMarket } from './_market.js';
+import { suggestEth, PRICING } from '../src/pricing.js';
 
 const SIGNER = /^0x[0-9a-fA-F]{64}$/.test(env.CLAIM_SIGNER_KEY || '') ? privateKeyToAccount(env.CLAIM_SIGNER_KEY) : null;
 const CHAIN_ID = 8453;
@@ -84,7 +87,14 @@ export default async function handler(req, res) {
 
     if (req.method !== 'POST') {
       const seedOf = (n) => L.blockies[n - 1][3] ?? null, atOf = (n) => L.start + L.blockies[n - 1][1] * 1000;
-      const name = (await namesFor([address]).catch(() => ({})))[address.toLowerCase()] || null;
+      const [names, mk] = await Promise.all([namesFor([address]).catch(() => ({})), getMarket(NFT).catch(() => null)]);
+      const name = names[address.toLowerCase()] || null;
+      // market: OpenSea's floor, ETH in USD, a suggested price for each Blocky and its live listing
+      const me = address.toLowerCase();
+      const priced = (n) => ({
+        suggested: suggestEth(n, seedOf(n), { floor: mk?.floor, ethUsd: mk?.ethUsd, reserveCount: RESERVE.count }),
+        listed: mk?.listings?.[n]?.maker === me ? mk.listings[n].eth : null, // its price on OpenSea, listed by this wallet
+      });
       return res.status(200).json({
         address,
         name, // its Basename
@@ -97,7 +107,8 @@ export default async function handler(req, res) {
         price: LEDGER.per, // USD of $BLOCKY per Blocky
         boughtUsd: Math.round((a?.usd ?? 0) * 100) / 100,
         toNext: Math.round((1 - ((a?.credits ?? 0) % 1)) * LEDGER.per * 100) / 100, // USD more for the next Blocky
-        blockies: active.map((n) => ({ n, at: atOf(n), seed: seedOf(n), citizenAt: ms(citizen(n)), claimed: claimed.has(n) })), // citizenAt null: trading isn't open yet
+        blockies: active.map((n) => ({ n, at: atOf(n), seed: seedOf(n), citizenAt: ms(citizen(n)), claimed: claimed.has(n), ...priced(n) })), // citizenAt null: trading isn't open yet
+        market: { floor: mk?.floor ?? null, ethUsd: mk?.ethUsd ?? null, live: mk?.listings != null, days: PRICING.days, lowWarn: PRICING.lowWarn },
         left: left.map((n) => ({ n, at: atOf(n), seed: seedOf(n) })),
         waiting: a ? Math.max(0, allowance(a, citizensOf(L, a, now, LEDGER)) - a.ids.length) : 0, // owed a place: the city is full
         tokens: a ? { bought: a.tin, sold: a.tout, balance: a.bal } : null, // $BLOCKY the ledger counted (balance: its last check)
