@@ -963,4 +963,4 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   });
 })();
 
-window.blocky = { city, crew, views, agents, cats, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };
+window.blocky = { city, crew, views, agents, cats, cine, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };

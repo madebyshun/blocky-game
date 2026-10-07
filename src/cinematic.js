@@ -48,7 +48,84 @@ const SKY = {
 // frame(s, u, o) places the camera for u in 0..1. o.focus: depth of field on the subject.
 function shots(city, sim) {
   const tallest = () => city.built.reduce((best, b) => (!best || b.h > best.h ? b : best), null);
+  // the work cams: cameras around town that watch the Blockies at work, like a site's CCTV
+  const siteNow = (s) => { // one of the construction sites on a lot (not the land's border or the metro), at random
+    const list = (sim()?.sites || []).filter((x) => x.p?.lot && x.p.kind !== 'expand' && x.p.kind !== 'metro');
+    if (!list.length) return false;
+    s.site = list[Math.floor(Math.random() * list.length)];
+    s.c = new THREE.Vector3(s.site.p.lot[0] * PITCH, 0, s.site.p.lot[1] * PITCH);
+    s.a0 = Math.random() * Math.PI * 2;
+    return true;
+  };
+  const siteUp = (s) => Math.min(1, s.site.placed / s.site.p.cost) * (s.site.p.h || 2); // how high it stands
+  const siteCaption = (label) => (s) => [`📹 ${label}`, `${s.site.p.name} · ${Math.min(99, Math.floor((s.site.placed / s.site.p.cost) * 100))}% built`];
+  const workerCaption = (label) => (s, v) => [v.b.name, `📹 ${label} · ${v.status}`];
+  const sway = (u) => Math.sin(u * Math.PI * 2) * 0.06; // a fixed camera's slow pan
   return [
+    { id: 'sitecam', label: 'Site cam', dur: 12, cam: true, caption: siteCaption('Site cam'), // up a pole down the street, looking at the site's front
+      start: (s) => {
+        if (!siteNow(s)) return false;
+        const a = Math.floor(Math.random() * 4) * (Math.PI / 2), side = Math.random() < 0.5 ? -1 : 1;
+        s.dir = v3().set(Math.cos(a), 0, Math.sin(a)); s.along = v3().set(-Math.sin(a) * side, 0, Math.cos(a) * side);
+        const road = PITCH / 2; // lots are 6 wide with a road of 2 between them: the road's middle, clear of houses and trees
+        s.pole = v3().copy(s.c).addScaledVector(s.dir, road).addScaledVector(s.along, 11);
+        s.edge = v3().copy(s.c).addScaledVector(s.dir, road).setY(2.5);
+        return true;
+      },
+      frame: (s, u, o) => {
+        const up = siteUp(s);
+        o.pos.copy(s.pole).setY(7 + up * 0.3); // above the houses along the street
+        o.look.copy(s.c).addScaledVector(s.dir, 2).addScaledVector(s.along, sway(u) * 4).setY(1 + up * 0.25);
+        o.pivot = s.edge; o.fov = 50; o.focus = false;
+      } },
+    { id: 'pilecam', label: 'Block pile cam', dur: 10, cam: true, caption: siteCaption('Block pile cam'), // the crew loading blocks at the pile by the site
+      start: (s) => {
+        if (!siteNow(s)) return false;
+        s.d = v3().set(s.c.x + (s.c.x > 0 ? -1 : 1) * (PITCH / 2), 1, s.c.z + (s.c.z > 0 ? -1 : 1) * (PITCH / 2));
+        s.out = v3().subVectors(s.d, s.c).setY(0).normalize();
+        s.side = v3().set(-s.out.z, 0, s.out.x).multiplyScalar(Math.random() < 0.5 ? -2 : 2);
+        return true;
+      },
+      frame: (s, u, o) => {
+        o.pos.copy(s.d).addScaledVector(s.out, 5.5).add(s.side).setY(3.2);
+        o.look.lerpVectors(s.d, s.c, 0.4).setY(0.8 + sway(u) * 4);
+        o.pivot = s.d; o.fov = 46; o.focus = false;
+      } },
+    { id: 'cranecam', label: 'Crane cam', dur: 12, cam: true, caption: siteCaption('Crane cam'), // looking down from the crane: the crew like ants
+      start: (s) => siteNow(s),
+      frame: (s, u, o) => {
+        const a = s.a0 + u * 0.4;
+        o.pos.set(s.c.x + Math.cos(a) * 4, 11 + siteUp(s) * 1.1, s.c.z + Math.sin(a) * 4);
+        o.look.set(s.c.x, 0, s.c.z);
+        o.pivot = null; o.fov = 48; o.focus = false;
+      } },
+    { id: 'carrycam', label: 'Delivery cam', dur: 10, subject: true, cam: true, caption: workerCaption('Delivery cam'), // walking alongside one carrying blocks
+      pick: (v) => v.mode === 'toSite',
+      start: (s) => { s.side = Math.random() < 0.5 ? -1 : 1; [s.off, s.free] = s.clearAngle(s.side * 2.3, 6, 3.4); return s.free >= 4; },
+      frame: (s, u, o) => {
+        const a = s.face + s.off, r = Math.min(s.free, 6);
+        o.pos.set(s.sp.x + Math.sin(a) * r, 3.4, s.sp.z + Math.cos(a) * r);
+        o.look.set(s.sp.x + Math.sin(s.face) * 1.5, 0.8, s.sp.z + Math.cos(s.face) * 1.5);
+        o.pivot = s.head; o.fov = 42; o.focus = false;
+      } },
+    { id: 'crewcam', label: 'Crew cam', dur: 10, subject: true, cam: true, caption: workerCaption('Crew cam'), // over the shoulder of one at work
+      pick: (v) => v.mode === 'place' || v.mode === 'toSite',
+      start: (s) => { s.side = Math.random() < 0.5 ? -1 : 1; [s.off, s.free] = s.clearAngle(Math.PI + s.side * 0.45, 5, 3); return s.free >= 3.5; },
+      frame: (s, u, o) => {
+        const a = s.face + s.off, r = Math.min(s.free, 5);
+        o.pos.set(s.sp.x + Math.sin(a) * r, 3 + u * 0.3, s.sp.z + Math.cos(a) * r);
+        o.look.set(s.sp.x + Math.sin(s.face) * 2.5, 1.1, s.sp.z + Math.cos(s.face) * 2.5);
+        o.pivot = s.head; o.fov = 44; o.focus = false;
+      } },
+    { id: 'streetcam', label: 'Street cam', dur: 10, subject: true, cam: true, caption: workerCaption('Street cam'), // the ones off shift, around town
+      pick: (v) => v.mode === 'break' && v.wait > 2, // standing around for a bit yet
+      start: (s) => { s.side = Math.random() < 0.5 ? -1 : 1; [s.off, s.free] = s.clearAngle(s.side * 0.8, 7.5, 4.5); s.at = null; return s.free >= 5; },
+      frame: (s, u, o) => {
+        if (!s.at) { const a = s.face + s.off, r = Math.min(s.free, 7.5); s.at = v3().set(s.sp.x + Math.sin(a) * r, 4.5, s.sp.z + Math.cos(a) * r); } // a fixed pole
+        o.pos.copy(s.at);
+        o.look.set(s.sp.x, 0.8, s.sp.z);
+        o.pivot = s.head; o.fov = 40; o.focus = false;
+      } },
     { id: 'hero', label: 'Close-up', dur: 10, subject: true,
       start: (s) => { s.side = Math.random() < 0.5 ? -1 : 1; [s.off, s.free] = s.clearAngle(s.side * 0.5, 2.6); return s.free >= 2.1; },
       frame: (s, u, o) => {
@@ -191,8 +268,9 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   }
 
   const SHOTS = shots(city, sim);
-  const AUTO = ['hero', 'skyline', 'aerial', 'follow', 'flyover', 'site', 'rooftops', 'crane', 'river'];
-  const STREAM = ['aerial', 'rooftops', 'skyline', 'site', 'flyover', 'medium', 'rooftops', 'crane', 'aerial', 'river']; // no close-ups
+  const AUTO = ['hero', 'skyline', 'sitecam', 'aerial', 'follow', 'carrycam', 'flyover', 'site', 'crewcam', 'rooftops', 'cranecam', 'crane', 'river'];
+  // the livestream: no close-ups, a work cam between two wide shots
+  const STREAM = ['aerial', 'sitecam', 'rooftops', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
   const st = {
     active: false, stream: false, format: 0, light: 1, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false,
     caption: ['', ''], size: [1, 1], pr: 1, captureEdge: 0,
@@ -338,11 +416,11 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   }
 
   // ---------- shots ----------
-  function pickSubject(prefer, random) { // the Blocky asked for (or picked on the card), else a star
-    const all = [...views().values()];
+  function pickSubject(prefer, random, fits) { // the Blocky asked for (or picked on the card), else a star; fits: what the shot needs
+    const all = [...views().values()].filter((v) => !fits || fits(v));
     if (!all.length) return null;
     const want = random ? null : prefer ?? selected();
-    if (want != null && views().has(want)) return views().get(want);
+    if (want != null && views().has(want) && (!fits || fits(views().get(want)))) return views().get(want);
     // someone with a little room around them (not in the queue at the block pile), a star if possible
     const roomy = all.filter((v) => all.every((w) => w === v || w.group.position.distanceToSquared(v.group.position) > 2.25));
     const pool = roomy.length ? roomy : all;
@@ -350,7 +428,8 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     const from = stars.length && Math.random() < 0.6 ? stars : pool;
     return from[Math.floor(Math.random() * from.length)];
   }
-  function caption(shot, subject) {
+  function caption(shot, subject, s) {
+    if (shot.caption) return shot.caption(s, subject);
     if (shot.subject && subject) {
       const b = subject.b;
       const sub = b.kind === 'legend' || b.kind === 'founder' ? [b.office?.label, b.legend?.title || 'Base Builder'].filter(Boolean).join(' · ') : [b.rarity?.label, b.trait && TRAIT_LABEL[b.trait], b.role?.label].filter(Boolean).join(' · ');
@@ -367,7 +446,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     const s = { subject: null, sp: v3(), face: 0, head: v3() };
     crowd = [];
     if (shot.subject) {
-      s.subject = pickSubject(prefer, random);
+      s.subject = pickSubject(prefer, random, shot.pick);
       if (!s.subject) return false;
       crowd = [...views().values()].filter((v) => v !== s.subject).map((v) => v.hit);
       s.sp.copy(s.subject.group.position);
@@ -388,7 +467,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     }
     if (!shot.start(s)) return false;
     st.shot = shot; st.s = s; st.t = 0;
-    st.caption = caption(shot, s.subject);
+    st.caption = caption(shot, s.subject, s);
     onCaption(st.caption, s.subject?.b.id ?? null);
     paintOverlay();
     label();
@@ -570,6 +649,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
 
   return {
     enter, exit, frame, poke, feature,
+    play: (id) => { const shot = SHOTS.find((x) => x.id === id); return !!(st.active && shot && begin(shot, null)); }, // a shot by id (testing, recording)
     resize: () => layout(),
     get active() { return st.active; },
   };
