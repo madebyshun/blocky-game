@@ -222,6 +222,11 @@ const directory = createDirectory({
   onPick: flyTo,
 });
 $('dir-btn').onclick = () => directory.toggle();
+// the directory opens right under the brand block (title, tagline, chips, its button), however tall it is
+const brandEl = document.querySelector('.brand');
+const placeDir = () => document.documentElement.style.setProperty('--brand-bottom', `${Math.ceil(brandEl.getBoundingClientRect().bottom)}px`);
+if (typeof ResizeObserver === 'function') new ResizeObserver(placeDir).observe(brandEl);
+addEventListener('resize', placeDir);
 $('photo-btn').onclick = () => setPhoto(true);
 $('photo-exit').onclick = () => setPhoto(false);
 addEventListener('keydown', (e) => {

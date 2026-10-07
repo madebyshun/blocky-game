@@ -281,15 +281,18 @@ body.stream .toast .label { font-size: 1.6vh; }
 .sh-sound[hidden] { display: none; }
 
 /* the city directory (src/directory.js): a drawer on the left; a sheet from the bottom on phones */
-.dir-btn { position: fixed; left: 16px; top: 104px; z-index: 4; }
-.directory { position: fixed; left: 16px; top: 96px; bottom: 112px; width: 300px; z-index: 5; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 8px; }
+.dir-btn { display: block; margin-top: 8px; pointer-events: auto; } /* under the chips, in the brand block */
+.directory { position: fixed; left: 16px; top: calc(var(--brand-bottom, 150px) + 8px); bottom: 112px; width: 300px; z-index: 5; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 8px; }
 .directory[hidden] { display: none; }
 .dir-head { display: flex; align-items: center; justify-content: space-between; }
 .dir-head h3 { margin: 0; font-size: 13px; letter-spacing: 0.02em; }
 .dir-head small { color: var(--muted); font-weight: 700; margin-left: 4px; }
 .dir-close { border: 0; background: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 2px 6px; }
 #dir-q { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.06); color: inherit; font: 600 13px Inter, system-ui, sans-serif; }
-.dir-list { overflow-y: auto; flex: 1; margin: 0 -4px; padding: 0 4px; }
+.dir-list { overflow-y: auto; flex: 1; margin: 0 -4px; padding: 0 4px; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
+.dir-list::-webkit-scrollbar { width: 6px; }
+.dir-list::-webkit-scrollbar-track { background: transparent; }
+.dir-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 6px; }
 .dir-list details { border-top: 1px solid rgba(255, 255, 255, 0.07); }
 .dir-list summary { cursor: pointer; padding: 8px 2px; font-weight: 800; font-size: 12px; list-style: none; display: flex; justify-content: space-between; }
 .dir-list summary::-webkit-details-marker { display: none; }
@@ -305,6 +308,6 @@ body.stream .toast .label { font-size: 1.6vh; }
 body.photo .directory, body.cine .directory, body.photo .dir-btn, body.cine .dir-btn { display: none !important; }
 @media (max-width: 900px) {
   .directory { left: 8px; right: 8px; top: auto; bottom: 40px; width: auto; max-height: 58vh; }
-  .dir-btn { top: auto; left: 12px; bottom: 120px; width: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 20px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
+  .dir-btn { position: fixed; margin: 0; top: auto; left: 12px; bottom: 120px; width: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 20px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
   .dir-btn span { display: none; }
 }
