@@ -46,6 +46,20 @@ export function parseListings(list, contract) {
   return out;
 }
 
+// The best collection offer, per Blocky (ETH or WETH): what a holder can sell one for right now.
+export function parseTopOffer(list) {
+  let best = null;
+  for (const o of list || []) {
+    const cur = o?.price;
+    const qty = Number(o?.remaining_quantity ?? o?.protocol_data?.parameters?.consideration?.[0]?.startAmount ?? 1) || 1;
+    if (!cur || !/ETH$/i.test(cur.currency || '')) continue;
+    const eth = Number(cur.value) / 10 ** (cur.decimals ?? 18) / qty;
+    if (eth > 0 && (best == null || eth > best)) best = eth;
+  }
+  return best;
+}
+const topOffer = async () => parseTopOffer((await os(`offers/collection/${SLUG}`))?.offers);
+
 async function listings(contract) {
   const all = [];
   let next = '';
@@ -58,13 +72,13 @@ async function listings(contract) {
   return parseListings(all, contract);
 }
 
-// { floor, ethUsd, listings, at }: each part null if it couldn't be read.
+// { floor, topOffer, ethUsd, listings, at }: each part null if it couldn't be read.
 export async function getMarket(contract) {
   if (cache && Date.now() - cache.at < TTL) return cache;
   const ok = KEY && SLUG;
-  const [f, e, l] = await Promise.allSettled([ok ? floor() : null, ethUsd(), ok ? listings(contract) : null]);
+  const [f, e, l, o] = await Promise.allSettled([ok ? floor() : null, ethUsd(), ok ? listings(contract) : null, ok ? topOffer() : null]);
   const val = (r) => (r.status === 'fulfilled' ? r.value : null);
-  for (const r of [f, e, l]) if (r.status === 'rejected') console.warn('[market]', r.reason?.message || r.reason);
-  cache = { floor: val(f), ethUsd: val(e), listings: val(l), at: Date.now() };
+  for (const r of [f, e, l, o]) if (r.status === 'rejected') console.warn('[market]', r.reason?.message || r.reason);
+  cache = { floor: val(f), topOffer: val(o), ethUsd: val(e), listings: val(l), at: Date.now() };
   return cache;
 }

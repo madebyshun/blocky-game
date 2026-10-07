@@ -25,3 +25,16 @@ const L = (id, wei, who, token = '0xD1C1') => ({ price: { current: { currency: '
 const got = parseListings([L(5, 6e15, '0xAA'), L(5, 5e15, '0xBB'), L(7, 9e15, '0xAA'), L(8, 1e15, '0xAA', '0xother'), { price: { current: { currency: 'USDC', decimals: 6, value: '1000' } }, protocol_data: { parameters: { offerer: '0xaa', offer: [{ token: '0xD1C1', identifierOrCriteria: '9' }] } } }], '0xd1c1');
 assert.deepEqual(got, { 5: { eth: 0.005, maker: '0xbb' }, 7: { eth: 0.009, maker: '0xaa' } });
 console.log('pricing: all checks pass');
+
+// the best collection offer, per Blocky
+import { parseTopOffer } from '../api/_market.js';
+import { blockyListing } from '../api/opensea.js';
+assert.equal(parseTopOffer([{ price: { currency: 'WETH', decimals: 18, value: String(4e16) }, remaining_quantity: 10 }, { price: { currency: 'WETH', decimals: 18, value: String(5e15) }, remaining_quantity: 1 }, { price: { currency: 'USDC', decimals: 6, value: '9000000' } }]), 0.005);
+assert.equal(parseTopOffer([]), null);
+// the OpenSea relay only passes listings of BaseCity Blockies
+const NFT = '0xD1C1655860eDdb6cCeC9AC986539B3b0E195d5a9';
+assert.ok(blockyListing({ parameters: { offer: [{ itemType: 2, token: NFT.toLowerCase() }] } }));
+assert.ok(!blockyListing({ parameters: { offer: [{ itemType: 2, token: '0x0000000000000000000000000000000000000001' }] } }));
+assert.ok(!blockyListing({ parameters: { offer: [{ itemType: 1, token: NFT }] } }), 'no ERC-20s');
+assert.ok(!blockyListing({}));
+console.log('pricing: offers and the OpenSea relay pass');

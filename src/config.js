@@ -56,6 +56,7 @@ export const CONFIG = {
       { id: 'team-2', wallet: '0xe7d67cf1108fa1c4836ff1b178c3f37d56844530', count: 50 },
       { id: 'team-3', wallet: '0xc1d3eb0a2b9bad7eec5566049b5b44fde19c7332', count: 50 },
       { id: 'team-4', wallet: '0x3eb42d002ade67650a712bc068adaeabe920a133', count: 50 },
+      { id: 'treasury-1', wallet: '0x8eba37ef94e6b831fe8bf6a62e79d0dc6fd8c34d', count: 200 }, // Blocky's MetaMask
     ],
   },
 

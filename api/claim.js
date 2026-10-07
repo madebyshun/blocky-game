@@ -1,6 +1,6 @@
 // Vercel serverless function: claim BaseCity Blockies as NFTs (contracts/BaseCityBlockies.sol).
 //   GET  /api/claim              whether claims are open: { open, contract, chainId, unlockUsd, bought,
-//                                openedAt, citizenDays, claimed, max } (trading opens at unlockUsd
+//                                openedAt, citizenDays, claimed, max, market } (trading opens at unlockUsd
 //                                bought; claimed of max NFTs exist, null if the chain can't be read)
 //   GET  /api/claim?address=0x…  the wallet's Blockies: in the city (each with the time it becomes a
 //                                citizen, and whether it's claimed), waiting, gone, and its Basename.
@@ -66,8 +66,9 @@ export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
   const raw = req.method === 'POST' ? body(req).address : req.query?.address ?? new URL(req.url, 'http://x').searchParams.get('address');
   if (!raw && req.method !== 'POST') {
-    const [L, { claimed, max }] = await Promise.all([loadLedger().then((r) => r.ledger).catch(() => null), room()]);
-    return res.status(200).json({ open: isOpen(), contract: NFT || null, chainId: CHAIN_ID, unlockUsd: LEDGER.unlockUsd, bought: L ? Math.round(L.bought * 100) / 100 : null, openedAt: L?.openedAt ?? null, citizenDays: LEDGER.citizenDays, claimed, max });
+    const [L, { claimed, max }, mk] = await Promise.all([loadLedger().then((r) => r.ledger).catch(() => null), room(), getMarket(NFT).catch(() => null)]);
+    const market = { floor: mk?.floor ?? null, topOffer: mk?.topOffer ?? null, ethUsd: mk?.ethUsd ?? null, perUsd: LEDGER.per };
+    return res.status(200).json({ open: isOpen(), contract: NFT || null, chainId: CHAIN_ID, unlockUsd: LEDGER.unlockUsd, bought: L ? Math.round(L.bought * 100) / 100 : null, openedAt: L?.openedAt ?? null, citizenDays: LEDGER.citizenDays, claimed, max, market });
   }
   let address = isAddress(raw || '', { strict: false }) ? getAddress(raw) : null;
   if (!address && req.method !== 'POST' && /\.base\.eth$/i.test(String(raw || '').trim())) {
@@ -108,7 +109,7 @@ export default async function handler(req, res) {
         boughtUsd: Math.round((a?.usd ?? 0) * 100) / 100,
         toNext: Math.round((1 - ((a?.credits ?? 0) % 1)) * LEDGER.per * 100) / 100, // USD more for the next Blocky
         blockies: active.map((n) => ({ n, at: atOf(n), seed: seedOf(n), citizenAt: ms(citizen(n)), claimed: claimed.has(n), ...priced(n) })), // citizenAt null: trading isn't open yet
-        market: { floor: mk?.floor ?? null, ethUsd: mk?.ethUsd ?? null, live: mk?.listings != null, days: PRICING.days, lowWarn: PRICING.lowWarn },
+        market: { floor: mk?.floor ?? null, topOffer: mk?.topOffer ?? null, ethUsd: mk?.ethUsd ?? null, live: mk?.listings != null, days: PRICING.days, lowWarn: PRICING.lowWarn },
         left: left.map((n) => ({ n, at: atOf(n), seed: seedOf(n) })),
         waiting: a ? Math.max(0, allowance(a, citizensOf(L, a, now, LEDGER)) - a.ids.length) : 0, // owed a place: the city is full
         tokens: a ? { bought: a.tin, sold: a.tout, balance: a.bal } : null, // $BLOCKY the ledger counted (balance: its last check)

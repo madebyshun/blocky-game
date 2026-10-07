@@ -7,6 +7,7 @@ import { CLAIM_ABI } from '../api/_sig.js';
 import { makeBlocky, TRAIT_LABEL } from './sim.js';
 import { lazyPortrait } from './portraits.js';
 import { browserWallets, onWallets, smartWallet, connect, sendTx, waitTx, rejected } from './wallet.js';
+import { PRICING } from './pricing.js';
 import { mountSite, fmt, basescan, opensea, esc, nftInfo } from './site.js';
 import { fetchColony } from './data.js';
 
@@ -29,7 +30,22 @@ let busy = false;
 // "1,234 / 10,000 claimed · 8,766 left" (the contract's totalSupply), when the chain could be read
 const count = () => (info.claimed == null ? '' : `<span class="count"><b>${fmt(info.claimed)}</b> / ${fmt(info.max)} claimed · <b>${fmt(Math.max(0, info.max - info.claimed))}</b> left</span> `);
 
+// earning a Blocky next to what one sells for: real numbers only (no floor yet says so)
+function deal() {
+  const el = $('deal'), m = info.market;
+  el.hidden = !(info.live && info.open);
+  if (el.hidden) return;
+  const usd = (v) => (m?.ethUsd ? `~$${Math.round(v * m.ethUsd)}` : '');
+  el.innerHTML = [
+    `<div class="d"><span class="k">Earn a Blocky</span><b>$${m?.perUsd ?? CONFIG.usdPerBlocky} of ${CONFIG.ticker}</b><small>hold it ${held()}, claim for a few cents of gas. You keep the tokens.</small></div>`,
+    m?.floor ? `<div class="d"><span class="k">Floor on OpenSea</span><b>${eth(m.floor)}</b><small>${usd(m.floor)} for the cheapest Blocky listed</small></div>`
+      : `<div class="d"><span class="k">Floor on OpenSea</span><b>No floor yet</b><small>the first listings set the price</small></div>`,
+    m?.topOffer ? `<div class="d"><span class="k">Sell instantly</span><b>${eth(m.topOffer)}</b><small>${usd(m.topOffer)}, the best offer for any Blocky</small></div>` : '',
+  ].join('');
+}
+
 function status() {
+  deal();
   const s = $('status');
   const sea = info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">BaseCity Blockies on OpenSea ↗</a>` : '';
   if (!info.live) {
@@ -137,21 +153,22 @@ async function show(address) {
 }
 
 const citizenNow = (entry) => entry.citizenAt != null && entry.citizenAt <= Date.now();
+const mineNow = () => Boolean(account && viewing && account.toLowerCase() === viewing.toLowerCase());
 // ETH with as many decimals as it needs (0.0055, 0.033, 1.2), and roughly in USD
 const eth = (v) => `${Number(v.toPrecision(2))} ETH`;
 const usdOf = (v) => (market?.ethUsd ? ` <small>~$${Math.round(v * market.ethUsd)}</small>` : '');
 // the market line under a Blocky: its listing (with a warning when the price is well under what it's
 // worth now), or a suggested price and a link to list it on OpenSea
 function priceLine(entry) {
-  if (!info.contract || entry.suggested == null && entry.listed == null) return '';
+  if (!info.contract || (entry.suggested == null && entry.listed == null)) return '';
   const link = (text) => `<a class="mk-act" href="${opensea(info.contract, entry.n)}" target="_blank" rel="noopener">${text}</a>`;
   if (entry.listed != null) {
     const low = entry.suggested != null && entry.listed < entry.suggested * (market?.lowWarn ?? 0.75);
     return low
-      ? `<div class="mk warn">⚠ Listed ${eth(entry.listed)}, worth ~${eth(entry.suggested)} now ${link('Update ↗')}</div>`
+      ? `<div class="mk warn">⚠ Listed ${eth(entry.listed)}, worth ~${eth(entry.suggested)} now ${mineNow() ? `<button class="mk-act mk-list" type="button" data-n="${entry.n}">Relist</button>` : link('Update ↗')}</div>`
       : `<div class="mk ok">Listed ${eth(entry.listed)}${usdOf(entry.listed)} ${link('View ↗')}</div>`;
   }
-  if (entry.claimed) return `<div class="mk">Suggested ${eth(entry.suggested)}${usdOf(entry.suggested)} ${link('List ↗')}</div>`;
+  if (entry.claimed) return `<div class="mk">Suggested ${eth(entry.suggested)}${usdOf(entry.suggested)} ${mineNow() ? `<button class="mk-act mk-list" type="button" data-n="${entry.n}">List</button>` : link('List ↗')}</div>`;
   return citizenNow(entry) ? `<div class="mk dim">Worth ~${eth(entry.suggested)} once claimed</div>` : '';
 }
 
@@ -181,7 +198,6 @@ function render(j) {
     [`${CONFIG.citizenPlural} in the city`, fmt(list.length)],
     ['Newcomers', newcomers.length ? `${fmt(newcomers.length)} <small class="line">${Number.isFinite(nextCitizen) ? `next citizen ${when(nextCitizen)}` : (j.openedAt ? 'next citizen soon' : 'NFTs when claims open')}</small>` : '0'],
     ['Claimed', fmt(claimed)],
-    ...(market?.floor ? [['Floor on OpenSea', `${eth(market.floor)}${usdOf(market.floor)}`]] : []),
     ['To claim', fmt(claimable)],
     ...(j.waiting ? [['Waiting for a place', fmt(j.waiting)]] : []),
     ...(left.length ? [['Left the city', fmt(left.length)]] : []),
@@ -196,11 +212,17 @@ function render(j) {
   $('gone-title').hidden = !left.length;
   if (j && !list.length) tiles.innerHTML = `<p class="empty-mine">No ${CONFIG.citizenPlural} for this wallet yet. Every $${price} of ${CONFIG.ticker} it buys brings one${CONFIG.buyUrl ? `: <a href="${CONFIG.buyUrl}" target="_blank" rel="noopener">buy ${CONFIG.ticker}</a>` : ''}.</p>`;
 
+  const toList = list.filter((x) => x.claimed && x.listed == null && x.suggested != null);
+  const all = $('list-all');
+  all.hidden = !(mineNow() && toList.length && info.contract);
+  all.textContent = toList.length > 1 ? `List ${fmt(Math.min(toList.length, MAX_LIST))} on OpenSea` : 'List on OpenSea';
+  all.disabled = busy;
+
   const btn = $('claim');
-  const mineNow = account && viewing && account.toLowerCase() === viewing.toLowerCase();
+  const isMine = mineNow();
   const n = Math.min(50, claimable);
   btn.textContent = n ? `Claim ${n} ${n > 1 ? CONFIG.citizenPlural : CONFIG.citizen}` : 'Claim';
-  btn.disabled = busy || !j || !info.open || !mineNow || !n;
+  btn.disabled = busy || !j || !info.open || !isMine || !n;
   if (!j) return;
   if (!info.open) say('Claims open soon: these Blockies stay saved for this wallet while it holds.');
   else if (!n && newcomers.length) say(Number.isFinite(nextCitizen)
@@ -208,7 +230,7 @@ function render(j) {
     : `Your Blockies become NFTs when claims open, in a minute or so. Keep holding ${CONFIG.ticker}: sellers' Blockies leave the city.`);
   else if (!n && lowListed) say(`⚠ ${fmt(lowListed)} of your listings ${lowListed > 1 ? 'are' : 'is'} well under what ${lowListed > 1 ? 'they are' : 'it is'} worth at today's floor. Raise the price on OpenSea before someone buys cheap.`, 'bad');
   else if (!n) say(list.length ? `All claimed ✓ Suggested prices follow the OpenSea floor and each Blocky's rarity. List for ${market?.days ?? 7} days: an old price expires instead of getting sniped. ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>` : ''}` : '', list.length ? 'ok' : '');
-  else if (!mineNow) say('Connect this wallet to claim. Only the wallet that brought a Blocky can claim it.');
+  else if (!isMine) say('Connect this wallet to claim. Only the wallet that brought a Blocky can claim it.');
   else say(claimable > 50 ? `Claims go 50 at a time: ${fmt(claimable)} to claim.` : 'Ready. You pay the gas.');
 }
 
@@ -228,7 +250,7 @@ async function claim() {
     const done = await waitTx(hash, provider);
     busy = false;
     await show(account);
-    if (done.ok) say(`Claimed ${j.ids.length} ${j.ids.length > 1 ? CONFIG.citizenPlural : CONFIG.citizen}! <a href="${opensea(j.contract)}" target="_blank" rel="noopener">See them on OpenSea ↗</a>${j.more ? ` · ${fmt(j.more)} more to claim` : ''}`, 'ok');
+    if (done.ok) say(`Claimed ${j.ids.length} ${j.ids.length > 1 ? CONFIG.citizenPlural : CONFIG.citizen}! ${j.more ? `${fmt(j.more)} more to claim. ` : ''}Hold them, or list them at the suggested prices: <b>List on OpenSea</b>.`, 'ok');
     else if (done.ok === false) say(`The transaction failed. <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">Details ↗</a>`, 'bad');
     else say(`Still confirming. <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">Check Basescan ↗</a>`);
   } catch (e) {
@@ -250,3 +272,53 @@ $('claim').onclick = claim;
   if (q && isAddress(q, { strict: false })) show(getAddress(q));
   else if (q && BASENAME.test(q)) show(q.toLowerCase()); // ?address=name.base.eth
 })();
+
+// ---------- listing on OpenSea, from here ----------
+
+const MAX_LIST = 50; // per signature
+let listing = []; // what the dialog is about to list: [{ n, name, eth }]
+const fixed = (v) => Number(v).toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+
+function openList(entries) {
+  listing = entries.slice(0, MAX_LIST).map((x) => ({ n: x.n, name: makeBlocky(x.n, x.at, viewing, x.seed).name, eth: x.suggested }));
+  $('ld-title').textContent = listing.length > 1 ? `List ${listing.length} Blockies on OpenSea` : `List ${listing[0].name} on OpenSea`;
+  $('ld-rows').innerHTML = listing.map((x, i) => `<label class="ld-row"><span>${esc(x.name)}</span><input type="number" min="0.0001" step="0.0001" value="${fixed(x.eth)}" data-i="${i}" /> ETH</label>`).join('');
+  $('ld-days').value = String(market?.days ?? PRICING.days);
+  $('list-dlg').showModal();
+}
+
+async function doList() {
+  const prices = [...$('ld-rows').querySelectorAll('input')].map((el) => Number(el.value));
+  if (prices.some((p) => !(p > 0))) return say('Every price must be above 0.', 'bad');
+  const floorish = market?.floor || null;
+  if (floorish && prices.some((p) => p < floorish * 0.5) && !confirm('Some prices are under half the floor. List anyway?')) return;
+  const items = listing.map((x, i) => ({ n: x.n, eth: fixed(prices[i]) }));
+  busy = true;
+  render(mine);
+  try {
+    say('Loading OpenSea… then approve the collection if asked (once), and sign the listing.');
+    const { listOnOpenSea } = await import('./listing.js');
+    const r = await listOnOpenSea({ provider, account, contract: info.contract, items, days: Number($('ld-days').value) || 7, onProgress: (d, t) => say(`Listing on OpenSea… ${d}/${t}`) });
+    for (const x of mine?.blockies || []) { const it = items.find((i) => i.n === x.n); if (it && r.listed.includes(x.n)) x.listed = Number(it.eth); }
+    busy = false;
+    render(mine);
+    say(`Listed ${fmt(r.listed.length)} on OpenSea ✓ <a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>${r.failed.length ? ` · ${fmt(r.failed.length)} failed: ${esc(r.failed[0].error)}` : ''}`, r.failed.length ? 'bad' : 'ok');
+  } catch (e) {
+    busy = false;
+    render(mine);
+    say(rejected(e) ? 'Cancelled.' : esc(e.shortMessage || e.message || String(e)), rejected(e) ? '' : 'bad');
+  }
+}
+
+$('list-dlg').addEventListener('close', () => { if ($('list-dlg').returnValue === 'go') doList(); });
+$('list-all').onclick = () => {
+  const list = (mine?.blockies || []).filter((x) => x.claimed && x.listed == null && x.suggested != null);
+  if (list.length) openList(list);
+};
+$('tiles').addEventListener('click', (e) => {
+  const b = e.target.closest('.mk-list');
+  if (!b || busy) return;
+  e.preventDefault();
+  const x = (mine?.blockies || []).find((y) => y.n === Number(b.dataset.n));
+  if (x) openList([x]);
+});

@@ -69,8 +69,8 @@ export async function nftInfo() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const s = await res.json();
     const num = (v, d) => (typeof v === 'number' ? v : d);
-    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, unlockUsd: num(s.unlockUsd, CONFIG.unlockUsd), bought: num(s.bought, null), openedAt: num(s.openedAt, null), citizenDays: num(s.citizenDays, CONFIG.citizenDays), claimed: num(s.claimed, null), max: num(s.max, CONFIG.supply), live: true };
+    return { open: Boolean(s.open), contract: s.contract || CONFIG.nft.contract || null, unlockUsd: num(s.unlockUsd, CONFIG.unlockUsd), bought: num(s.bought, null), openedAt: num(s.openedAt, null), citizenDays: num(s.citizenDays, CONFIG.citizenDays), claimed: num(s.claimed, null), max: num(s.max, CONFIG.supply), market: s.market || null, live: true };
   } catch {
-    return { open: false, contract: CONFIG.nft.contract || null, unlockUsd: CONFIG.unlockUsd, bought: null, openedAt: null, citizenDays: CONFIG.citizenDays, claimed: null, max: CONFIG.supply, live: false };
+    return { open: false, contract: CONFIG.nft.contract || null, unlockUsd: CONFIG.unlockUsd, bought: null, openedAt: null, citizenDays: CONFIG.citizenDays, claimed: null, max: CONFIG.supply, market: null, live: false };
   }
 }

@@ -106,7 +106,7 @@ Environment variables (see `.env.example`):
 | `BASE_RPC_URL` | Base RPC for receipts, balance checks and the NFT contract (default: the public `mainnet.base.org`, rate limited). |
 | `NFT_CONTRACT` | The BaseCity Blockies contract (from `/deploy.html`). Claims open when this and `CLAIM_SIGNER_KEY` are set. |
 | `CLAIM_SIGNER_KEY` | Private key that signs claims; its address is the contract's `signer`. Server only, never commit it. |
-| `OPENSEA_API_KEY` / `OPENSEA_SLUG` | Optional: reads the collection's floor and listings on OpenSea for the claim page's suggested prices and low-listing warnings (`src/pricing.js`; slug default `nft.openseaSlug`). Without a key, suggestions use a fixed $15 of ETH. |
+| `OPENSEA_API_KEY` / `OPENSEA_SLUG` | Optional: reads the collection's floor and listings on OpenSea for the claim page's suggested prices and low-listing warnings (`src/pricing.js`; slug default `nft.openseaSlug`). Without a key, suggestions use a fixed $15 of ETH. The key also lets holders **list on OpenSea from the claim page** (`src/listing.js`, OpenSea's SDK; `api/opensea.js` relays only BaseCity Blocky listings, at `/api/os/*`, so the key never reaches the browser). |
 | `SITE_URL` | Your domain, e.g. `https://basecity.xyz`: NFT metadata links, share links and share images. |
 | `USD_PER_BLOCKY` / `MAX_SUPPLY` / `WHALE_USD` / `UNLOCK_USD` / `CITIZEN_DAYS` | Optional overrides of `usdPerBlocky` (10), `supply` (10000), `whaleUsd` (1000), `unlockUsd` (0: open) and `citizenDays` (0.25: 6 hours) in `src/config.js`; keep them in sync. |
 | `MIN_BUY_USD` | Ignore dust buys (default $1). |

@@ -16,6 +16,10 @@
     {
       "source": "/b/:n",
       "destination": "/blocky.html"
+    },
+    {
+      "source": "/api/os/:path*",
+      "destination": "/api/opensea?p=:path*"
     }
   ]
 }

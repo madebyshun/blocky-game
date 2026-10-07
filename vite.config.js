@@ -9,6 +9,8 @@ export default defineConfig(({ mode }) => {
   const env = process.env;
   const site = (env.SITE_URL || CONFIG.siteUrl || (env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}` : '')).replace(/\/$/, '');
   return {
+    // OpenSea's SDK (claim page, loaded only to list) imports Node's events and buffer: browser builds of both
+    resolve: { alias: { 'node:events': 'events', buffer: 'buffer/' } },
     build: {
       chunkSizeWarningLimit: 800,
       // every page (gallery.html: every building design, linked from the launch thread)

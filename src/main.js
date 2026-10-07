@@ -158,6 +158,11 @@ const traffic = createTraffic(city);
 const metro = createMetro(city);
 const agents = createAgents(city);
 const cats = createCats(city);
+// the NFT market for the news ticker: OpenSea's floor and best offer (api/claim.js), every 5 minutes
+let nftMarket = null;
+const loadMarket = () => fetch('/api/claim', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j?.market) nftMarket = j.market; }).catch(() => {});
+loadMarket();
+setInterval(loadMarket, 5 * 60e3);
 const sky = createSky(city, camera);
 const weather = createWeather(city);
 let market = null;
@@ -687,6 +692,10 @@ function headlines() {
     const quotes = [[CONFIG.ticker, market.priceUsd, market.change24h], ...(market.stocks || []).map((st) => [st.symbol, st.priceUsd, st.change24h])];
     const fmtP = (v) => (v >= 1 ? v.toFixed(2) : v.toPrecision(4));
     out.push(`<b>MARKETS:</b> ${quotes.map(([sym, p, c]) => `${sym} $${fmtP(p)}${typeof c === 'number' ? ` <span class="${c >= 0 ? 'up' : 'down'}">${c >= 0 ? '▲' : '▼'}${Math.abs(c).toFixed(1)}%</span>` : ''}`).join(' · ')}`);
+  }
+  if (nftMarket) {
+    const m = nftMarket, usd = (v) => (m.ethUsd ? ` (~$${Math.round(v * m.ethUsd)})` : '');
+    out.push(`<b>BLOCKIES NFT:</b> ${m.floor ? `floor ${+m.floor.toPrecision(2)} ETH${usd(m.floor)} on OpenSea` : 'no floor yet on OpenSea: the first listings set the price'}${m.topOffer ? `, best offer ${+m.topOffer.toPrecision(2)} ETH${usd(m.topOffer)}` : ''}. Earn one with ${money(price)} of ${CONFIG.ticker} held ${dayText()}`);
   }
   if (cats.count) out.push(`<b>CAT TOWN:</b> ${cats.count} cats from @cattownbase roam the streets of ${CONFIG.cityName}${city.built.some((b) => b.type === 'hq-cattown') ? ' and nap on Cat Town Plaza' : ''}`);
   if (agents.count) out.push(`<b>AGENTS:</b> ${agents.count} AI agent drones are flying deliveries over ${CONFIG.cityName}${agents.deliveries ? `, ${fmt(agents.deliveries)} parcels delivered since you arrived` : ''}`);

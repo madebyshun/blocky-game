@@ -33,7 +33,7 @@ export async function smartWallet(appName, appLogoUrl) {
   return createCoinbaseWalletSDK({ appName, appLogoUrl, appChainIds: [8453], preference: { options: 'all' } }).getProvider();
 }
 
-async function toBase(provider) {
+export async function toBase(provider) {
   const id = await provider.request({ method: 'eth_chainId' });
   if (parseInt(id, 16) === 8453) return;
   try {
