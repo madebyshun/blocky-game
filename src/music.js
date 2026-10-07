@@ -16,7 +16,8 @@ const SONG = [...A, ...A, ...B, ...A];
 const MELODY = [72, 74, 76, 79, 81, 84]; // C major pentatonic, the 5th octave
 const rand = (a) => a[Math.floor(Math.random() * a.length)];
 
-export function createMusic() {
+// keepPlaying: don't go quiet in a hidden tab (the livestream: OBS may report its page as hidden)
+export function createMusic({ keepPlaying = false } = {}) {
   let ctx = null, out = null, keysLp = null, drumBus = null, delay = null, crackle = null, noise = null;
   let on = false, timer = null, step = 0, nextAt = 0;
   const mood = { bright: 1, drums: 1 }; // eased toward the city's daylight and weather
@@ -189,7 +190,7 @@ export function createMusic() {
 
   // a hidden tab goes quiet, and picks up again when it's back
   document.addEventListener('visibilitychange', () => {
-    if (!on || !ctx) return;
+    if (!on || !ctx || keepPlaying) return;
     if (document.hidden) { clearInterval(timer); ctx.suspend(); } else start();
   });
 

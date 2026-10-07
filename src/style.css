@@ -277,3 +277,5 @@ body.stream .toast .label { font-size: 1.6vh; }
 .sh-steps i { color: #ffd23f; font-style: normal; margin: 0 0.25em; }
 .sh-cta b { color: #4d8bff; font-size: 1.15em; }
 #sh-ca { color: #9aa6bd; font-size: 0.75em; margin-left: 0.6em; font-family: ui-monospace, Menlo, monospace; }
+.sh-sound { left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 0.8em 1.4em; font-size: 1.4em; font-weight: 800; border-color: rgba(255, 210, 63, 0.6); animation: cine-blink 1.6s ease-in-out infinite; }
+.sh-sound[hidden] { display: none; }

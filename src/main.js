@@ -178,7 +178,7 @@ $('rotate-btn').onclick = () => setRotate(!rotatePref);
 const STREAM = location.pathname.replace(/\/+$/, '') === '/live' || new URLSearchParams(location.search).has('stream');
 // music (src/music.js): on by default. Browsers only play sound after a tap or key, so it starts on the
 // visitor's first one; whoever turns it off keeps it off on their next visits.
-const music = createMusic();
+const music = createMusic({ keepPlaying: STREAM });
 const syncMusic = () => { $('music-btn').textContent = music.on ? '🔊 Music: on' : '🔇 Music: off'; $('music-btn').classList.toggle('on', music.on); };
 const GESTURES = ['pointerup', 'touchend', 'click', 'keydown']; // pointerdown isn't a gesture on phones
 const firstGesture = (e) => {
@@ -645,6 +645,7 @@ function startStream() {
   $('sh-site').textContent = (CONFIG.siteUrl || location.origin).replace(/^https?:\/\//, '');
   cine.enter(null, { stream: true });
   music.set(true).then(syncMusic); // OBS plays sound right away; a browser waits for a click (the gesture hook)
+  setInterval(() => { $('sh-sound').hidden = music.playing; }, 1000); // until then, say so
   setTimeout(() => location.reload(), 6 * HOUR); // a fresh page every few hours keeps a 24/7 stream smooth
 }
 function renderStream() {
