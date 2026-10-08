@@ -320,6 +320,15 @@ export const LOGOS = {
     g.lineTo(cx, top + s * 0.19); g.lineTo(cx - s * 0.08, top + s * 0.11); g.closePath(); g.fill();
     g.strokeStyle = paper; g.lineWidth = s * 0.012; g.beginPath(); g.moveTo(cx, top + s * 0.06); g.lineTo(cx, top + s * 0.16); g.stroke();
   },
+  // Delivery Guy ($DGUY): a parcel with blue tape on navy, DGUY under it
+  dguy(g, x, y, s) {
+    g.fillStyle = '#121a33'; rr(g, x, y, s, s, s * 0.12);
+    g.fillStyle = '#c8a06a'; g.fillRect(x + s * 0.27, y + s * 0.16, s * 0.46, s * 0.4);
+    g.fillStyle = '#a8814e'; g.fillRect(x + s * 0.27, y + s * 0.16, s * 0.46, s * 0.06);
+    g.fillStyle = '#2f7bff'; g.fillRect(x + s * 0.46, y + s * 0.16, s * 0.08, s * 0.4);
+    g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `900 ${Math.round(s * 0.2)}px Inter, system-ui, sans-serif`; g.fillText('DGUY', x + s / 2, y + s * 0.74);
+  },
   // Homebase: a house drawn in white dots on blue
   homebase(g, x, y, s) {
     g.fillStyle = '#0a14ff'; rr(g, x, y, s, s, s * 0.12);
@@ -376,6 +385,38 @@ function billboard(k, x, y, z, w, h, slot, posts = 0.6) {
   panel.position.set(x, y + posts + h / 2, z + 0.0);
   panel.userData.sponsor = sp;
   k.extras.push(panel);
+}
+
+// ---------- Base Juice ($BASEJUICE, @BasejuiceOnBase): take-away kiosks in the parks ----------
+// A blue counter under an orange awning, bottles on it and a giant bottle on the roof, facing +z.
+const JUICE_SIGN = (() => {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#0a3fe0'; g.fillRect(0, 0, 256, 64);
+  g.fillStyle = '#ffffff'; g.fillRect(14, 18, 28, 28);
+  g.font = '800 40px Inter, system-ui, sans-serif'; g.textBaseline = 'middle'; g.fillText('base', 54, 33);
+  g.fillStyle = '#ff7a1a'; g.fillText('juice', 150, 33);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshLambertMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3 });
+})();
+const JUICE = { blue: 0x1d4fe0, deep: 0x0a3fe0, cap: 0xff7a1a };
+function juiceBottle(k, x, y, z, s = 1) { // the Base Juice bottle: blue juice, a white label, an orange cap
+  k.box(0.5 * s, 0.75 * s, 0.5 * s, JUICE.blue, x, y, z);
+  k.box(0.36 * s, 0.14 * s, 0.36 * s, JUICE.blue, x, y + 0.75 * s, z);
+  k.box(0.38 * s, 0.14 * s, 0.38 * s, JUICE.cap, x, y + 0.89 * s, z);
+  k.box(0.14 * s, 0.14 * s, 0.02, C.white, x - 0.08 * s, y + 0.42 * s, z + 0.26 * s);
+}
+export function juiceKiosk(k, x, z) {
+  k.box(1.2, 0.04, 1.1, 0xe9e3d6, x, Y, z); // a little paved pad
+  k.box(1.0, 0.72, 0.6, JUICE.deep, x, Y, z - 0.1);
+  k.box(1.04, 0.1, 0.66, C.white, x, Y + 0.72, z - 0.1); // the counter top
+  for (const [dx, dz] of [[-0.46, -0.36], [0.46, -0.36], [-0.46, 0.36], [0.46, 0.36]]) k.box(0.06, 0.62, 0.06, C.white, x + dx, Y + 0.82, z + dz);
+  for (let i = 0; i < 4; i++) k.box(0.3, 0.1, 1.0, i % 2 ? C.white : JUICE.cap, x - 0.45 + i * 0.3, Y + 1.44, z); // the awning
+  for (const dx of [-0.3, -0.1, 0.12]) juiceBottle(k, x + dx, Y + 0.82, z + 0.05, 0.22);
+  juiceBottle(k, x + 0.25, Y + 1.54, z - 0.1, 0.75); // the giant bottle on the roof
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.96, 0.24), JUICE_SIGN);
+  sign.position.set(x, Y + 0.38, z + 0.205);
+  k.extras.push(sign);
 }
 
 // ---------- live market boards: the Base Stock Exchange ticker and big board ----------
@@ -542,6 +583,7 @@ const DESIGN = {
     for (const [x, z] of [[-2.2, -2.2], [2.2, -2.2], [-2.2, 2.2], [2.2, 2.2], [-2.6, -1], [1, 2.6]]) tree(k, x, z, p.k * 13 + x * 3 + z);
     k.box(1.2, 0.3, 0.4, C.wood, -1.6, Y, 0.9); k.box(0.4, 0.3, 1.2, C.wood, 0.9, Y, -1.6);
     for (let i = 0; i < 6; i++) k.box(0.25, 0.25, 0.25, C.flower[i % 5], -2.6 + hash(p.k, i) * 1.2, Y, 1.4 + hash(p.k, i, 2));
+    if (hash(p.k, 41) < 0.5) juiceKiosk(k, 1.95, 0.95);
   },
   farm(k, p) {
     k.box(6.4, Y, 6.4, 0x6b4423);
@@ -847,6 +889,7 @@ const DESIGN = {
     for (const x of [0.08, 0.92]) k.box(0.06, 0.25, 3.6, 0x6e4b2a, x, 0.37, -0.4);
     for (const [x, z] of [[-2.7, 2.6], [2.7, -2.7], [2.6, 0.6], [-2.6, -2.6]]) tree(k, x, z, p.k * 7 + x + z);
     k.box(1.2, 0.3, 0.4, C.wood, -1.2, Y, 2.6);
+    if (hash(p.k, 41) < 0.5) juiceKiosk(k, 2.3, 2.25);
     const ducks = new THREE.Group();
     const duck = (c) => kitFor((dk) => { dk.box(0.3, 0.18, 0.2, c, 0, 0, 0); dk.box(0.12, 0.14, 0.12, c, 0.12, 0.15, 0); dk.box(0.08, 0.04, 0.06, 0xf39c12, 0.21, 0.18, 0); });
     const d1 = duck(C.white), d2 = duck(0xd4a76a);
@@ -1656,6 +1699,35 @@ const HQ = {
     k.box(0.45, 0.04, 0.32, C.dark, -1.8, Y + 0.68, 2.75); k.win(0.42, 0.28, 0.03, -1.8, Y + 0.72, 2.6);
     for (const x of [1.6, 2.3]) { k.box(0.06, 0.06, 0.9, main, x, Y + 0.5, 2.7); k.box(0.08, 0.5, 0.08, C.dark, x, Y, 2.3); k.box(0.08, 0.5, 0.08, C.dark, x, Y, 3.1); }
     bush(k, -2.8, 1.4, b.plot); bush(k, 2.8, 1.4, b.plot + 1); tree(k, 2.7, -2.7, b.plot + 2);
+  },
+  // a delivery depot (Delivery Guy): a ribbed warehouse on a loading dock, roll-up doors (one open,
+  // parcels inside), the name over them and two vans parked in the yard, ready to go out
+  depot(k, b) {
+    const main = num(b.color), acc = num(b.accent || '#ffffff'), rib = mix(main, 0xffffff, 0.18), front = 0.4;
+    k.box(6.4, Y, 6.4, 0x5b6170);
+    k.box(5.8, 2.6, 3.4, main, 0, Y, -1.3);
+    for (let x = -2.7; x <= 2.71; x += 0.45) k.box(0.07, 2.6, 0.05, rib, x, Y, front + 0.02);
+    k.box(5.9, 0.28, 3.5, acc, 0, Y + 2.0, -1.3);
+    k.box(6.0, 0.16, 3.6, mix(main, 0x000000, 0.4), 0, Y + 2.6, -1.3);
+    for (const x of [-1.8, 1.2]) k.box(0.8, 0.4, 0.8, 0x9aa3ad, x, Y + 2.76, -1.6); // roof vents
+    k.box(5.8, 0.45, 0.9, 0x8a8f98, 0, Y, front + 0.45); // the loading dock
+    for (const [i, x] of [[0, -1.8], [1, 0], [2, 1.8]]) {
+      if (i === 1) { // the open one: dark inside, parcels stacked
+        k.box(1.2, 1.4, 0.05, 0x1b1f27, x, Y + 0.45, front + 0.03);
+        for (let n = 0; n < 5; n++) k.box(0.32, 0.26, 0.3, 0xc8a06a, x - 0.36 + (n % 3) * 0.36, Y + 0.45 + Math.floor(n / 3) * 0.27, front + 0.25);
+      } else {
+        k.box(1.2, 1.4, 0.05, 0xcfd6e0, x, Y + 0.45, front + 0.03);
+        for (let r = 0; r < 6; r++) k.box(1.2, 0.03, 0.07, 0x9aa3ad, x, Y + 0.6 + r * 0.22, front + 0.05);
+      }
+    }
+    brandPanel(k, b, 'name', 4.4, 0.7, 0, Y + 2.14, front + 0.06);
+    for (let n = 0; n < 4; n++) k.box(0.34, 0.28, 0.32, 0xc8a06a, -2.5 + n * 0.4, Y + 0.45, front + 0.7); // parcels on the dock
+    for (const x of [-1.5, 1.3]) { // two vans in the yard, facing +x
+      const z = 2.45;
+      k.box(1.9, 0.82, 0.8, main, x, Y + 0.18, z); k.box(1.92, 0.14, 0.82, acc, x, Y + 0.32, z);
+      k.box(0.06, 0.32, 0.66, 0x9fd8ff, x + 0.95, Y + 0.6, z);
+      for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) k.box(0.32, 0.32, 0.12, 0x1b1b1b, x + a * 0.6, Y, z + c * 0.38);
+    }
   },
   // a slim tower in three setbacks with accent rings and a lit spire
   spire(k, b, p) {

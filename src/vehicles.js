@@ -47,6 +47,39 @@ function makeCar(seed) {
   return g;
 }
 
+// Delivery Guy's van ($DGUY): navy with a blue stripe, DGUY on both sides, facing +x
+const VAN_SIDE = (() => {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 96;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#121a33'; g.fillRect(0, 0, 256, 96);
+  g.fillStyle = '#2f7bff'; g.font = '900 54px Inter, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('DGUY', 128, 40);
+  g.fillStyle = '#c8d3ea'; g.font = '700 17px Inter, system-ui, sans-serif'; g.fillText('OUT FOR DELIVERY', 128, 78);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshLambertMaterial({ map: tex });
+})();
+function makeVan() {
+  const g = new THREE.Group(), L = 1.9;
+  g.add(mesh([
+    [L, 0.85, 0.82, 0, 0.18, 0, 0x121a33],
+    [L + 0.02, 0.13, 0.84, 0, 0.2, 0, 0x2f7bff],
+    [0.06, 0.32, 0.68, L / 2, 0.6, 0, 0x9fd8ff],
+    [0.4, 0.26, 0.84, L / 2 - 0.3, 0.62, 0, 0x9fd8ff],
+    ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => [0.34, 0.34, 0.12, a * (L / 2 - 0.4), 0, b * 0.42, 0x1b1b1b]),
+  ], BODY));
+  for (const side of [-1, 1]) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.42), VAN_SIDE);
+    p.position.set(-0.3, 0.68, side * 0.415);
+    if (side < 0) p.rotation.y = Math.PI;
+    g.add(p);
+  }
+  g.add(mesh([[0.06, 0.12, 0.16, L / 2, 0.35, -0.26], [0.06, 0.12, 0.16, L / 2, 0.35, 0.26]], GLOW_MAT));
+  g.add(mesh([[0.06, 0.1, 0.14, -L / 2, 0.35, -0.26], [0.06, 0.1, 0.14, -L / 2, 0.35, 0.26]], TAIL));
+  return g;
+}
+// a parcel left at the roadside: drops off the van, sits a while, then it's picked up
+const PARCEL = mesh([[0.34, 0.28, 0.3, 0, 0, 0, 0xc8a06a], [0.08, 0.29, 0.31, 0, 0, 0, 0x2f7bff]], BODY);
+
 function makeBoat(seed) {
   const g = new THREE.Group();
   const sail = hash(seed, 4) < 0.5;
@@ -82,7 +115,7 @@ export function createTraffic(city) {
     if (!keys.length) return false;
     const from = keys[Math.floor(hash(seed, 9) * keys.length)];
     const adj = city.graph.adj.get(from);
-    const car = { mesh: kind ? makeService(kind) : makeCar(seed), kind, from, to: adj[Math.floor(hash(seed, 10) * adj.length)], t: hash(seed, 11), speed: speed ?? 3.5 + hash(seed, 12) * 2 };
+    const car = { mesh: kind === 'dguy' ? makeVan() : kind ? makeService(kind) : makeCar(seed), kind, from, to: adj[Math.floor(hash(seed, 10) * adj.length)], t: hash(seed, 11), speed: speed ?? 3.5 + hash(seed, 12) * 2 };
     group.add(car.mesh);
     cars.push(car);
     return true;
@@ -93,6 +126,22 @@ export function createTraffic(city) {
       let have = cars.filter((c) => c.kind === kind).length;
       while (have < want && spawnCar(have * 13 + kind.length * 101, kind, speed)) have++;
     }
+  }
+
+  // Delivery Guy's vans go out once its depot on Base Avenue is built; they stop now and then to drop a
+  // parcel at the roadside. city.vans: for the film camera's van cam (src/cinematic.js)
+  const vans = [], parcels = [];
+  city.vans = vans;
+  function syncVans() {
+    const want = city.counts['hq-dguy'] ? 3 : 0;
+    while (vans.length < want && spawnCar(vans.length * 31 + 7, 'dguy', 4.2)) vans.push(cars.at(-1));
+  }
+  function dropParcel(car, t) {
+    const m = PARCEL.clone(), r = car.mesh.rotation.y;
+    m.position.copy(car.mesh.position).add(new THREE.Vector3(Math.sin(r), 0, Math.cos(r)).multiplyScalar(0.75)); // the kerb on its side of the road
+    m.rotation.y = r + (Math.random() - 0.5);
+    group.add(m);
+    parcels.push({ m, t0: t });
   }
 
   function syncBoats() {
@@ -117,14 +166,26 @@ export function createTraffic(city) {
     const want = Math.min(24, Math.floor(edges() / 2));
     for (let n = cars.filter((c) => !c.kind).length; n < want && spawnCar(cars.length * 7 + 3); n++);
     syncPatrols();
+    syncVans();
     flash(t);
+    for (let i = parcels.length - 1; i >= 0; i--) { // a parcel falls off the van, then waits for its owner
+      const p = parcels[i], age = t - p.t0;
+      p.m.position.y = 0.05 + Math.max(0, 0.9 - age * 3) * Math.max(0, 0.9 - age * 3);
+      if (age > 8) { group.remove(p.m); parcels.splice(i, 1); }
+    }
     for (const car of cars) {
+      if (car.wait > 0) { car.wait -= dt; continue; } // stopped for a delivery
       const a = city.graph.nodes.get(car.from), b = city.graph.nodes.get(car.to);
       if (!a || !b) { car.mesh.visible = false; continue; }
       car.mesh.visible = true;
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
       car.t += (car.speed * dt) / len;
-      if (car.t >= 1) { car.t = 0; const n = nextNode(car); car.from = car.to; car.to = n ?? car.from; continue; }
+      if (car.t >= 1) {
+        car.t = 0; const n = nextNode(car); car.from = car.to; car.to = n ?? car.from;
+        if (car.kind === 'dguy' && Math.random() < 0.3) car.stopAt = 0.3 + Math.random() * 0.4; // a delivery on this street
+        continue;
+      }
+      if (car.stopAt && car.t >= car.stopAt) { car.stopAt = 0; car.wait = 2.2; dropParcel(car, t); }
       A.set(a[0], 0, a[1]); B.set(b[0], 0, b[1]);
       const dx = (b[0] - a[0]) / len, dz = (b[1] - a[1]) / len;
       car.mesh.position.lerpVectors(A, B, car.t);

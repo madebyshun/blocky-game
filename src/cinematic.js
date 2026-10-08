@@ -100,6 +100,22 @@ function shots(city, sim) {
         o.look.set(s.c.x, 0, s.c.z);
         o.pivot = null; o.fov = 48; o.focus = false;
       } },
+    { id: 'vancam', label: 'DGUY van cam', dur: 16, cam: true, caption: () => ['📹 DGUY van cam', '$DGUY out for delivery in your area'], // on the roof of a Delivery Guy van, touring the city
+      start: (s) => {
+        const vans = (city.vans || []).filter((v) => v.mesh.visible);
+        if (!vans.length) return false;
+        s.van = vans[Math.floor(Math.random() * vans.length)];
+        s.fwd = v3(); s.yaw = s.van.mesh.rotation.y; s.lu = 0;
+        return true;
+      },
+      frame: (s, u, o) => {
+        const m = s.van.mesh, dt = Math.max(0, u - s.lu) * 16; s.lu = u;
+        s.yaw = angleTo(s.yaw, m.rotation.y, 1 - Math.exp(-dt * 2.5)); // the van snaps round corners, the camera turns with it smoothly
+        s.fwd.set(Math.cos(s.yaw), 0, -Math.sin(s.yaw));
+        o.pos.copy(m.position).addScaledVector(s.fwd, -1.4).setY(2.3); // on a mast over the back of the roof
+        o.look.copy(m.position).addScaledVector(s.fwd, 10).setY(0.9);
+        o.pivot = null; o.fov = 58; o.focus = false;
+      } },
     { id: 'carrycam', label: 'Delivery cam', dur: 10, subject: true, cam: true, caption: workerCaption('Delivery cam'), // walking alongside one carrying blocks
       pick: (v) => v.mode === 'toSite',
       start: (s) => { s.side = Math.random() < 0.5 ? -1 : 1; [s.off, s.free] = s.clearAngle(s.side * 2.3, 6, 3.4); return s.free >= 4; },
@@ -297,7 +313,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
 
   const SHOTS = shots(city, sim);
   // Auto (and the livestream): no close-ups, a work cam between two wide shots. ◀ ▶ reach every shot.
-  const AUTO = ['aerial', 'sitecam', 'gpucam', 'rooftops', 'fabcam', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
+  const AUTO = ['aerial', 'sitecam', 'gpucam', 'vancam', 'rooftops', 'fabcam', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'vancam', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
   const STREAM = AUTO;
   const st = {
     active: false, stream: false, format: 1, light: 1, clip: 0, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false, // format 1: 16:9, like the livestream
