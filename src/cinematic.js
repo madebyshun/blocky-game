@@ -58,7 +58,7 @@ function shots(city, sim) {
     s.a0 = Math.random() * Math.PI * 2;
     return true;
   };
-  const siteUp = (s) => Math.min(1, s.site.placed / s.site.p.cost) * shownH(s.site.p.h || 2); // how high it stands
+  const siteUp = (s) => Math.min(1, s.site.placed / (s.site.p.cost || 1)) * shownH(s.site.p.h || 2); // how high it stands
   const siteCaption = (label) => (s) => [`📹 ${label}`, `${s.site.p.name} · ${Math.min(99, Math.floor((s.site.placed / s.site.p.cost) * 100))}% built`];
   const workerCaption = (label) => (s, v) => [v.b.name, `📹 ${label} · ${v.status}`];
   const sway = (u) => Math.sin(u * Math.PI * 2) * 0.06; // a fixed camera's slow pan
@@ -503,11 +503,13 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     paintOverlay();
     label();
     shot.frame(s, 0, o);
+    if (!finite(o)) return false;
     if (o.pivot) arm(o.pivot, o.pos);
     cam.position.copy(o.pos);
     look.copy(o.look);
     return true;
   }
+  const finite = (o) => Number.isFinite(o.pos.x + o.pos.y + o.pos.z + o.look.x + o.look.y + o.look.z);
   function cut(step = 1, prefer) {
     const order = st.stream ? STREAM : st.auto ? AUTO : SHOTS.map((x) => x.id);
     for (let n = 1; n <= order.length; n++) {
@@ -535,12 +537,14 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     }
     o.focusAt = null;
     st.shot.frame(s, u, o);
+    if (!finite(o)) { cut(1); return; } // a shot that lost its subject's numbers: the next one
     if (o.pivot) {
       const want = o.pos.distanceTo(o.pivot);
       arm(o.pivot, o.pos);
       st.blocked = o.pos.distanceTo(o.pivot) < want * 0.6 ? (st.blocked || 0) + dt : 0;
       if (st.blocked > 0.7) { st.blocked = 0; if (st.auto) cut(1); else begin(st.shot, null, 6); return; } // something got in the way
     }
+    if (!Number.isFinite(cam.position.x + cam.position.y + cam.position.z + look.x + look.y + look.z)) { cam.position.copy(o.pos); look.copy(o.look); } // never stuck on a bad frame
     cam.position.lerp(o.pos, st.t < 0.05 ? 1 : 1 - Math.exp(-dt * 6));
     look.lerp(o.look, st.t < 0.05 ? 1 : 1 - Math.exp(-dt * 6));
     cam.lookAt(look);

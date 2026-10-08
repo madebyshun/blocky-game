@@ -114,9 +114,11 @@ camera.zoom = innerWidth < innerHeight ? 1.5 : 1.05;
 const controls = new OrbitControls(camera, canvas);
 Object.assign(controls, {
   enableDamping: true, enablePan: true, screenSpacePanning: false, autoRotate: false, autoRotateSpeed: 0.3,
-  minZoom: 0.6, maxZoom: 6, minPolarAngle: 0.5, maxPolarAngle: 1.2,
+  minZoom: 0.6, maxZoom: 6, minPolarAngle: 0.5, maxPolarAngle: 1.48, zoomToCursor: true,
 });
-// drag: rotate · shift+drag, right-drag or two fingers: move around the city
+// drag: rotate, down to street level · wheel or pinch: zoom in on what's under the pointer, close
+// enough to see a Blocky's face (maxZoom follows the city's size, set in resize) ·
+// shift+drag, right-drag or two fingers: move around the city
 let goHome = true;
 // Auto-rotate is a preference (button or R key) and always stops in photo mode, so screenshots
 // and screen recordings hold still. ?still starts without rotation, ?photo starts in photo mode.
@@ -278,6 +280,7 @@ function resize() {
   const s = Math.max(H * 1.9, (H * 2.9) / aspect, 30) * 1.05;
   const lift = aspect < 0.8 ? s * 0.12 : 0; // phones: the HUD covers the top, so show the city a little lower
   Object.assign(camera, { left: (-s * aspect) / 2, right: (s * aspect) / 2, top: s / 2 + lift, bottom: -s / 2 + lift, near: -400, far: 400 });
+  controls.maxZoom = Math.max(6, s / 6); // closest: about 6 blocks top to bottom, however big the city gets
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
 }
@@ -794,13 +797,15 @@ function updateDistricts() {
       el.innerHTML = `${d.name}<small>${d.buildings ? `${d.buildings} building${d.buildings > 1 ? 's' : ''}` : 'woods'}</small>`;
     }
   }
+  // near street level the names pile up on the horizon: they fade out as the view goes low
+  const show = THREE.MathUtils.clamp((1.38 - controls.getPolarAngle()) / 0.13, 0, 1);
   for (const d of districts) {
     const el = districtEls.get(d.key);
     proj.set(d.x, 9, d.z);
     city.root.localToWorld(proj).project(camera);
     el.style.left = `${((proj.x + 1) / 2) * innerWidth}px`;
     el.style.top = `${((1 - proj.y) / 2) * innerHeight}px`;
-    el.style.opacity = Math.abs(proj.x) > 0.95 || Math.abs(proj.y) > 0.95 ? 0 : 1;
+    el.style.opacity = Math.abs(proj.x) > 0.95 || Math.abs(proj.y) > 0.95 ? 0 : show;
   }
 }
 
