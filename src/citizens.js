@@ -554,6 +554,33 @@ export const LEGEND_LOOKS = {
       for (const a of arms) B(a, 0.135, 0.1, 0.165, 0xe9c3a6, 0, -0.1);
     },
   },
+  // AzFlin, in black and white like the PFP: a grey bob with straight bangs, heavy brows over sleepy
+  // half-closed eyes, a cigarette, safety-pin earrings, a white sailor top with a black-striped V collar
+  // and a cross on a chain
+  azflin: {
+    skin: 0xe9e4df, shirt: 0xf4f4f2, pants: 0x2b2b2b,
+    dress(g, arms) {
+      const hair = 0x6e6e6e, ink = 0x141414, lid = 0xd8d2cc, silver = 0xc0c4c8;
+      B(g, 0.48, 0.14, 0.48, hair, 0, 1.16, -0.02); // top
+      B(g, 0.46, 0.14, 0.05, hair, 0, 1.06, 0.215); // straight bangs
+      for (const s of [-1, 1]) { B(g, 0.08, 0.42, 0.44, hair, s * 0.25, 0.8, -0.02); B(g, 0.1, 0.08, 0.46, hair, s * 0.26, 0.78, -0.02); } // a bob to the jaw
+      B(g, 0.5, 0.44, 0.08, hair, 0, 0.78, -0.24); // back
+      for (const x of [-0.1, 0.1]) {
+        B(g, 0.13, 0.035, 0.02, ink, x, 1.015, 0.216); // heavy brows
+        B(g, 0.09, 0.04, 0.02, ink, x, 0.925, 0.215); // half-closed eyes
+        B(g, 0.1, 0.035, 0.021, lid, x, 0.955, 0.216); // their lids
+      }
+      B(g, 0.04, 0.05, 0.03, lid, 0, 0.87, 0.222); // nose
+      B(g, 0.08, 0.025, 0.02, 0x7a6a66, 0.03, 0.815, 0.216); // a smirk
+      B(g, 0.14, 0.03, 0.03, 0xf4f4f0, 0.11, 0.808, 0.24); B(g, 0.03, 0.032, 0.032, 0x9a9a9a, 0.185, 0.808, 0.24); // the cigarette
+      for (const z of [0.02, 0.08]) B(g, 0.02, 0.08, 0.02, silver, -0.225, 0.83, z); // safety pins
+      // the sailor top: a black-striped V down the front, the collar flap on the back
+      B(g, 0.48, 0.05, 0.3, ink, 0, 0.75);
+      for (let i = 0; i < 4; i++) for (const s of [-1, 1]) { B(g, 0.035, 0.05, 0.02, ink, s * (0.13 - i * 0.03), 0.7 - i * 0.05, 0.145); B(g, 0.035, 0.05, 0.02, ink, s * (0.19 - i * 0.03), 0.7 - i * 0.05, 0.145); }
+      B(g, 0.44, 0.18, 0.03, 0xf4f4f2, 0, 0.58, -0.155); B(g, 0.44, 0.03, 0.035, ink, 0, 0.6, -0.155);
+      B(g, 0.02, 0.07, 0.02, silver, 0, 0.56, 0.147); B(g, 0.05, 0.015, 0.02, silver, 0, 0.6, 0.147); // the cross
+    },
+  },
   // light blue cap with an oval patch, grey-blue hair, big anime eyes, a safety-pin earring, a white
   // tank top with a bead necklace and a smiley
   milady: {

@@ -177,6 +177,7 @@ export const CONFIG = {
     { name: 'Tamara', title: 'Artist, builder of 2 Base apps', office: 'creative', look: 'muse', joined: '2026-10-07T06:00:00Z', bg: '#bdbdbd' },
     { name: 'EtherMage', title: 'Architect of Virtuals', office: 'agents', look: 'milady', joined: '2026-10-07T06:00:00Z', x: 'ethermage', bg: '#7d9bb5' },
     { name: 'T.P', title: 'Core at Virtuals', office: 'risk', look: 'patchpunk', joined: '2026-10-07T06:00:00Z', x: '0xTP91', bg: '#638596' },
+    { name: 'AzFlin', title: 'Founder of DAOs.world, Pump RPG and Throne Wars', office: 'games', look: 'azflin', joined: '2026-10-08T03:00:00Z', x: 'AzFlin', bg: '#8a8a8a' },
   ],
 
   // The chip economy (src/chips.js): the Chip Fab on Base Avenue (src/projects.js, 'fab') makes chips
@@ -222,6 +223,7 @@ export const CONFIG = {
     devrel: { label: 'Builder Ambassador', home: ['devhub', 'hackathon'], duty: 'shows new builders around the Dev Hub' },
     agentrel: { label: 'Agent Relations Ambassador', home: ['agenthub', 'devhub'], duty: 'shows new agents and their builders around the Agent Hub' },
     standards: { label: 'Chef of Standards', home: ['datalab', 'cafe'], duty: 'is cooking up the city\'s next ERC at the Data Lab' },
+    games: { label: 'Minister of Games', home: ['hackathon', 'stadium', 'skatepark'], duty: 'is running game night at Hackathon Hall. Always Be Coding' },
     ventures: { label: 'Head of Ventures', home: ['launchpad', 'exchange'], duty: 'scouts the next project for the Launchpad' },
     markets: { label: 'Market Maker', home: ['brokerage', 'exchange'], duty: 'quotes both sides at the brokerage' },
     tourism: { label: 'Tourism Director', home: ['liberty'], duty: 'gives a tour at the Statue of Blockerty' },
