@@ -320,6 +320,14 @@ export const LOGOS = {
     g.lineTo(cx, top + s * 0.19); g.lineTo(cx - s * 0.08, top + s * 0.11); g.closePath(); g.fill();
     g.strokeStyle = paper; g.lineWidth = s * 0.012; g.beginPath(); g.moveTo(cx, top + s * 0.06); g.lineTo(cx, top + s * 0.16); g.stroke();
   },
+  // Homebase: a house drawn in white dots on blue
+  homebase(g, x, y, s) {
+    g.fillStyle = '#0a14ff'; rr(g, x, y, s, s, s * 0.12);
+    const rows = ['...#...', '..###..', '.#####.', '#######', '.#####.', '.##.##.', '.##.##.'];
+    const step = s * 0.1, r = s * 0.038, x0 = x + s / 2 - step * 3, y0 = y + s * 0.2;
+    g.fillStyle = '#ffffff';
+    rows.forEach((row, j) => [...row].forEach((c, i) => { if (c === '#') { g.beginPath(); g.arc(x0 + i * step, y0 + j * step, r, 0, Math.PI * 2); g.fill(); } }));
+  },
   // three tilted rings: blue, light blue, red
   aero(g, x, y, s) {
     g.fillStyle = '#efefef'; rr(g, x, y, s, s, s * 0.12);
@@ -1620,6 +1628,33 @@ const HQ = {
     brandPanel(k, b, 'logo', 1.08, 1.08, 1.9, Y + 0.9, 2.71);
     brandPanel(k, b, 'logo', 1.08, 1.08, 2.51, Y + 0.9, 2.1, SIDE);
     tree(k, -2.6, 2.3, p.k); bush(k, -1.2, 2.6, p.k + 1); bush(k, 0.3, 2.6, p.k + 2);
+  },
+  // a big lived-in house (Homebase's Based House): three floors of lit rooms under a roof in the brand's
+  // colour with the logo on it, a porch with the name on top, a yard with a long table
+  house(k, b) {
+    const main = num(b.color), acc = num(b.accent || '#ffffff'), wall = 0xf2f4f8, oz = -0.9, d = 3.6, front = oz + d / 2;
+    lawn(k);
+    k.box(5.4, 3, d, wall, 0, Y, oz);
+    windows(k, 5.4, d, Y, 3, true, 0, oz);
+    for (const f of [1, 2]) k.box(5.5, 0.12, d + 0.1, main, 0, Y + f, oz); // a blue band between floors
+    gableRoof(k, 5.4, d, Y + 3, main, 0, oz);
+    k.box(0.6, 1.4, 0.6, mix(main, 0x000000, 0.4), 1.7, Y + 3.3, oz - 0.6); // chimney
+    brandPanel(k, b, 'logo', 0.95, 0.95, 0, Y + 3.52, front + 0.17); // on the roof's front
+    k.box(0.9, 1.25, 0.08, mix(main, 0x000000, 0.45), 0, Y, front + 0.02); // the door, always open
+    // the porch: a deck, posts and a flat roof with the name on its edge
+    k.box(5.4, 0.18, 1.3, 0xc9a77c, 0, Y, front + 0.65);
+    for (const x of [-2.5, -0.9, 0.9, 2.5]) k.box(0.14, 1.3, 0.14, acc, x, Y + 0.18, front + 1.22);
+    k.box(5.6, 0.16, 1.45, main, 0, Y + 1.48, front + 0.65);
+    k.box(3.4, 0.7, 0.1, main, 0, Y + 1.64, front + 1.2); // a sign standing on the porch roof
+    brandPanel(k, b, 'name', 3.2, 0.62, 0, Y + 1.99, front + 1.26);
+    for (const x of [-1.9, 1.9]) k.box(0.9, 0.35, 0.5, acc, x, Y + 0.18, front + 0.75); // porch benches
+    // the yard: a long table for the builders, a laptop on it, two bikes
+    k.box(2.2, 0.08, 0.7, 0x8b5a2b, -1.4, Y + 0.6, 2.75);
+    for (const x of [-2.3, -0.5]) k.box(0.1, 0.6, 0.6, 0x6b4423, x, Y, 2.75);
+    k.box(2.2, 0.08, 0.3, 0x8b5a2b, -1.4, Y + 0.35, 2.3); k.box(2.2, 0.08, 0.3, 0x8b5a2b, -1.4, Y + 0.35, 3.2);
+    k.box(0.45, 0.04, 0.32, C.dark, -1.8, Y + 0.68, 2.75); k.win(0.42, 0.28, 0.03, -1.8, Y + 0.72, 2.6);
+    for (const x of [1.6, 2.3]) { k.box(0.06, 0.06, 0.9, main, x, Y + 0.5, 2.7); k.box(0.08, 0.5, 0.08, C.dark, x, Y, 2.3); k.box(0.08, 0.5, 0.08, C.dark, x, Y, 3.1); }
+    bush(k, -2.8, 1.4, b.plot); bush(k, 2.8, 1.4, b.plot + 1); tree(k, 2.7, -2.7, b.plot + 2);
   },
   // a slim tower in three setbacks with accent rings and a lit spire
   spire(k, b, p) {
