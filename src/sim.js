@@ -204,8 +204,8 @@ export const isIndustrial = ([i, j]) => ring(i, j) >= 4 && j < 0 && i > riverCol
 // Woods the city keeps: some lots from ring 3 out stay forest for good, in clumps (more in the
 // outskirts), so the city grows around green space. Never on a landmark's lot.
 // Base Avenue's plots (src/projects.js): kept for Base projects' headquarters, never built on otherwise
-export const AVENUE = CONFIG.avenue?.plots || [];
-const LANDMARK_LOTS = new Set([...CONFIG.landmarks.map((l) => l.lot), ...AVENUE].map((lot) => lot.join(',')));
+export const AVENUE = [...(CONFIG.avenue?.plots || []), ...(CONFIG.avenue?.woods || [])];
+const LANDMARK_LOTS = new Set([...CONFIG.landmarks.map((l) => l.lot), ...(CONFIG.avenue?.plots || [])].map((lot) => lot.join(',')));
 export function isReserve(i, j) {
   const r = ring(i, j);
   if (r < 3 || isWater(i, j) || LANDMARK_LOTS.has(`${i},${j}`)) return false;

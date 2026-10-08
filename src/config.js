@@ -271,6 +271,9 @@ export const CONFIG = {
       [0, 2], [-1, 2], [1, 2], [-2, 2], [0, 3], [1, 3], [-2, 3], [-3, 3], // 1-8
       [3, 3], [-1, 4], [0, 4], [3, 4], [-2, 4], [4, 2], [4, 3], [-3, 1], // 9-16
     ],
+    // plots cleared from the city's woods, numbered after `plots` (17, ...): the woods stand there until
+    // the HQ breaks ground, so adding one never changes what the city already built
+    woods: [[4, 1]], // 17
   },
 
   // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`

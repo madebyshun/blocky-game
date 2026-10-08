@@ -296,6 +296,30 @@ export const LOGOS = {
     word('ONCHAIN', y + s * 0.4, s * 0.19, s * 0.115);
     word('Summit', y + s * 0.62, s * 0.2, s * 0.12);
   },
+  // Venice: two crossed keys under a book, navy on cream
+  venice(g, x, y, s) {
+    const ink = '#14284b', paper = '#f4efe6';
+    g.fillStyle = paper; rr(g, x, y, s, s, s * 0.12);
+    const key = (dir) => { // a key from its bow (bottom) to its bit (top), leaning one way
+      const bx = x + s * (0.5 - dir * 0.22), by = y + s * 0.72, tx = x + s * (0.5 + dir * 0.2), ty = y + s * 0.26;
+      g.strokeStyle = ink; g.lineWidth = s * 0.055; g.lineCap = 'butt';
+      g.beginPath(); g.moveTo(bx, by); g.lineTo(tx, ty); g.stroke();
+      const a = Math.atan2(ty - by, tx - bx), nx = -Math.sin(a) * dir, ny = Math.cos(a) * dir; // the bit sticks out sideways
+      g.fillStyle = ink; g.beginPath();
+      g.moveTo(tx, ty); g.lineTo(tx + nx * s * 0.12 + Math.cos(a) * s * 0.02, ty + ny * s * 0.12 + Math.sin(a) * s * 0.02);
+      g.lineTo(tx + nx * s * 0.09 - Math.cos(a) * s * 0.05, ty + ny * s * 0.09 - Math.sin(a) * s * 0.05);
+      g.lineTo(tx - Math.cos(a) * s * 0.1, ty - Math.sin(a) * s * 0.1); g.closePath(); g.fill();
+      g.beginPath(); g.arc(bx, by, s * 0.12, 0, Math.PI * 2); g.fill(); // the bow, a quatrefoil cut out of it
+      g.fillStyle = paper;
+      for (let q = 0; q < 4; q++) { g.beginPath(); g.arc(bx + Math.cos(q * Math.PI / 2) * s * 0.035, by + Math.sin(q * Math.PI / 2) * s * 0.035, s * 0.035, 0, Math.PI * 2); g.fill(); }
+    };
+    key(1); key(-1);
+    g.fillStyle = ink; g.beginPath(); // the book on top: two pages meeting in a V
+    const cx = x + s / 2, top = y + s * 0.17;
+    g.moveTo(cx - s * 0.08, top); g.lineTo(cx, top + s * 0.04); g.lineTo(cx + s * 0.08, top); g.lineTo(cx + s * 0.08, top + s * 0.11);
+    g.lineTo(cx, top + s * 0.19); g.lineTo(cx - s * 0.08, top + s * 0.11); g.closePath(); g.fill();
+    g.strokeStyle = paper; g.lineWidth = s * 0.012; g.beginPath(); g.moveTo(cx, top + s * 0.06); g.lineTo(cx, top + s * 0.16); g.stroke();
+  },
   // three tilted rings: blue, light blue, red
   aero(g, x, y, s) {
     g.fillStyle = '#efefef'; rr(g, x, y, s, s, s * 0.12);
