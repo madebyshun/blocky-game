@@ -1020,6 +1020,7 @@ export function offline(group, h = 3) {
   group.traverse((o) => { if (o.isMesh && (o.material === GLOW_MAT || o.material === GREEN_GLOW || o.material === BLUE_GLOW)) o.material = RUIN_SHUT; });
   const sign = new THREE.Sprite(WAIT_SIGN);
   sign.scale.set(3.4, 0.85, 1); sign.position.set(0, h + 1.4, 0); sign.renderOrder = 5;
+  sign.raycast = () => {}; // a sign in the air: clicks and the film camera's spring arm go through it
   group.add(sign);
   return group;
 }

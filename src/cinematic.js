@@ -308,6 +308,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   // A spring arm: if a building or a tree stands between what the camera films (pivot) and where it
   // wants to be, the camera moves in front of it.
   const ray = new THREE.Raycaster(), dir = v3();
+  ray.camera = cam; // sprites (signs over buildings) need the camera to be hit-tested
   let crowd = []; // the other Blockies' hit boxes: nobody walks between the lens and the star
   function blocked(from, to) { // distance to the first solid thing from `from` toward `to`, or Infinity
     dir.subVectors(to, from);
@@ -693,6 +694,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
 
   return {
     enter, exit, frame, poke, feature,
+    skip: () => { st.shot = null; }, // after a frame that threw: the next frame cuts to another shot
     play: (id) => { const shot = SHOTS.find((x) => x.id === id); return !!(st.active && shot && begin(shot, null)); }, // a shot by id (testing, recording)
     resize: () => layout(),
     get active() { return st.active; },

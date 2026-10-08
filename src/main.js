@@ -1000,8 +1000,8 @@ function frame() {
   if (slowAcc > 1) { slowAcc = 0; renderLeaders(); updateChips(); renderCard(); renderHud(); renderStream(); nextUnlockText(); music.setMood(city.env.daylight, city.env.gloom || 0); }
 
   if (cine.active) { // the film camera takes over
-    cine.frame(t, dt);
-    requestAnimationFrame(frame);
+    requestAnimationFrame(frame); // first: a shot that throws must never stop the loop (a black screen)
+    try { cine.frame(t, dt); } catch (e) { console.error('[cinematic]', e); cine.skip?.(); }
     return;
   }
   fadeBlockers(dt);
