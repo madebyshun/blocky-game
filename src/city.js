@@ -1601,7 +1601,7 @@ const HQ = {
   spire(k, b, p) {
     const main = num(b.color), acc = num(b.accent || '#ffffff'), glass = mix(main, 0xffffff, 0.55);
     sidewalk(k);
-    const H = Math.max(12, p.h), parts = [[4.2, Math.ceil(H * 0.42)], [3.3, Math.ceil(H * 0.34)], [2.4, H - Math.ceil(H * 0.42) - Math.ceil(H * 0.34)]];
+    const H = Math.max(9, p.h), parts = [[4.2, Math.ceil(H * 0.42)], [3.3, Math.ceil(H * 0.34)], [2.4, H - Math.ceil(H * 0.42) - Math.ceil(H * 0.34)]];
     let y = Y, mid = 0;
     parts.forEach(([s, h], i) => {
       k.box(s, h, s, main, 0, y, 0);
@@ -1794,9 +1794,17 @@ export function reserveLot(k, i, j) {
   k.box(alongX ? 0.06 : 0.7, 0.36, alongX ? 0.7 : 0.06, 0x2e7d32, alongX ? 2.6 : 1.1, 0.85, alongX ? 1.1 : 2.6);
 }
 
+// How tall a building is drawn. The sim's height (p.h) only prices it (src/sim.js); drawn at full
+// height, skyscrapers and whale towers hid the streets behind them, so anything over SHOWN_LOW
+// floors grows at SHOWN_RATE per floor instead. The ranking stays: taller in the sim, taller here.
+const SHOWN_LOW = 6, SHOWN_RATE = 0.4;
+export const shownH = (h) => (h > SHOWN_LOW ? Math.round(SHOWN_LOW + (h - SHOWN_LOW) * SHOWN_RATE) : h);
+const asShown = (p) => (p.h > SHOWN_LOW ? { ...p, h: shownH(p.h) } : p);
+
 // A finished building or landmark as a standalone group (also used by gallery.html).
 const ROOF_BOARD = { office: 0.35, apartment: 0.3, devhub: 0.25, shop: 0.25 }; // roof height above the body
-export const buildingGroup = (p) => kitFor((k) => {
+export const buildingGroup = (p0) => kitFor((k) => {
+  const p = asShown(p0);
   if (p.kind === 'landmark') return p.brand ? brandHq(k, p) : LANDMARK[p.type](k);
   if (p.kind === 'wonder') return p.build === 'tower' || p.build === 'skyscraper' ? whaleTower(k, p) : wonder(k, p);
   DESIGN[p.type](k, p);
@@ -1817,7 +1825,8 @@ const DOORS = {
   apartment: (p) => [[0, p.d / 2]], office: (p) => [[0, p.d / 2]], devhub: (p) => [[0, p.d / 2]],
   aistartup: () => [[0, 1.4]], brokerage: () => [[0, 0.3]], tower: (p) => [[0, p.d / 2]], skyscraper: (p) => [[0, p.w / 2]],
 };
-export function ruinGroup(p) {
+export function ruinGroup(p0) {
+  const p = asShown(p0);
   const g = kitFor((k) => DESIGN[p.type](k, p)); // no rooftop ad: nobody rents a board on a ruin
   g.traverse((o) => {
     delete o.userData.animate;
@@ -2134,7 +2143,7 @@ export function createCity(scene) {
     }));
     const s = { k: p.k, p, group: g, jib: null, hook: null, cable: null, ch: 0, floors: -1, floorsMesh: null, topY: 1 };
     if (p.h >= 4) {
-      s.ch = Math.max(7, p.h + 4);
+      s.ch = Math.max(7, shownH(p.h) + 4);
       g.add(kitFor((ck) => {
         for (let y = 0; y < s.ch; y++) {
           for (const [x, z] of [[-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]]) ck.box(0.1, 1, 0.1, C.gold, x - 3.6, Y + y, z - 3.6);
@@ -2168,7 +2177,7 @@ export function createCity(scene) {
     }
     const frac = Math.min(1, placed / p.cost);
     const fw = Math.min(6, p.w), fd = Math.min(6, p.d), area = fw * fd;
-    const levels = Math.max(1, p.h);
+    const levels = Math.max(1, shownH(p.h));
     const exact = frac * levels;
     const floors = Math.min(levels - 1, Math.floor(exact));
     const partialN = Math.min(area, Math.floor((exact - floors) * area));
@@ -2211,7 +2220,7 @@ export function createCity(scene) {
       const cur = lots.get(key);
       if (cur?.kind === kind && cur.k === p.k && cur.sig === sig) continue;
       sites.delete(p.k);
-      const group = kind === 'ruin' ? ruinGroup(p) : dark ? darken(buildingGroup({ ...p, dark })) : off ? offline(buildingGroup(p), p.h) : buildingGroup(p);
+      const group = kind === 'ruin' ? ruinGroup(p) : dark ? darken(buildingGroup({ ...p, dark })) : off ? offline(buildingGroup(p), shownH(p.h)) : buildingGroup(p);
       setLot(key, p.lot, kind, p.k, group, animate && kind === 'built' && cur?.k !== p.k, sig);
     }
     for (const key of busy) dev.add(key);
@@ -2221,7 +2230,7 @@ export function createCity(scene) {
     for (const [key, p] of sim.standing) {
       if (busy.has(key) || p.ruinedAt) continue;
       counts[p.type] = (counts[p.type] || 0) + 1;
-      built.push({ x: p.lot[0] * PITCH, z: p.lot[1] * PITCH, h: p.h ?? 2, type: p.type });
+      built.push({ x: p.lot[0] * PITCH, z: p.lot[1] * PITCH, h: shownH(p.h ?? 2), type: p.type });
     }
     // sites whose project is gone without a building (an expansion took over...): back to wild land
     const live = new Set(now.map((x) => x.p.k));

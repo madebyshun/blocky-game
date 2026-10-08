@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG, holdText } from './config.js';
-import { createCity, updateBoards, GRID, setGpuTier } from './city.js';
+import { createCity, updateBoards, GRID, setGpuTier, shownH } from './city.js';
 import { createAgents } from './agents.js';
 import { createCats } from './cats.js';
 import { createGpuDistrict } from './gpu.js';
@@ -206,9 +206,10 @@ const BEACON_MAT = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: t
 const beacon = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), BEACON_MAT);
 beacon.visible = false;
 let beaconT = 0;
-function flyTo({ lot, h = 2 }) {
+function flyTo({ lot, h: h0 = 2 }) {
+  const h = shownH(h0);
   const x = lot[0] * PITCH, z = lot[1] * PITCH, y = Math.min(6, h * 0.3);
-  const zoom = wideZoom() * (h > 12 ? 2.1 : h > 6 ? 2.5 : 3);
+  const zoom = wideZoom() * (h > 10 ? 2.1 : h > 6 ? 2.5 : 3);
   following = false; goHome = false;
   focus = { x, y, z, zoom, t: 0 };
   if (controls.autoRotate) { tour.goal = { at: [x, z], y, zoom, phi: 0.95 }; tour.t = 20; } // Rotate stays on it a while

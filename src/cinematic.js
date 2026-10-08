@@ -10,6 +10,7 @@ import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CONFIG } from './config.js';
+import { shownH } from './city.js';
 import { PITCH, isWater, TRAIT_LABEL } from './sim.js';
 
 const FORMATS = [
@@ -57,7 +58,7 @@ function shots(city, sim) {
     s.a0 = Math.random() * Math.PI * 2;
     return true;
   };
-  const siteUp = (s) => Math.min(1, s.site.placed / s.site.p.cost) * (s.site.p.h || 2); // how high it stands
+  const siteUp = (s) => Math.min(1, s.site.placed / s.site.p.cost) * shownH(s.site.p.h || 2); // how high it stands
   const siteCaption = (label) => (s) => [`📹 ${label}`, `${s.site.p.name} · ${Math.min(99, Math.floor((s.site.placed / s.site.p.cost) * 100))}% built`];
   const workerCaption = (label) => (s, v) => [v.b.name, `📹 ${label} · ${v.status}`];
   const sway = (u) => Math.sin(u * Math.PI * 2) * 0.06; // a fixed camera's slow pan
@@ -231,7 +232,7 @@ function shots(city, sim) {
         return true;
       },
       frame: (s, u, o) => {
-        const a = s.a0 + u * 0.55, r = 11 - u * 2.5, S = sim(), up = S ? Math.min(1, S.placed / S.next.cost) * (S.next.h || 2) : 2;
+        const a = s.a0 + u * 0.55, r = 11 - u * 2.5, S = sim(), up = S ? Math.min(1, S.placed / S.next.cost) * shownH(S.next.h || 2) : 2;
         o.pos.set(s.c.x + Math.cos(a) * r, 8.5 + u * 1.5, s.c.z + Math.sin(a) * r);
         o.look.set(s.c.x, 0.5 + up * 0.5, s.c.z);
         s.edge.set(s.c.x + Math.cos(a) * 3.6, o.pos.y * 0.6, s.c.z + Math.sin(a) * 3.6);
