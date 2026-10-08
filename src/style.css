@@ -80,6 +80,7 @@ html, body {
 .stats { position: fixed; top: 16px; right: 16px; padding: 12px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; width: 290px; }
 .stats > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
 .stats b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.stats b small { font-size: 12px; font-weight: 700; opacity: 0.65; } /* " / 10,000", " · 26 made" */
 .stats .cta { gap: 8px; margin-top: 4px; }
 .stats .live .label { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .stats .live b { white-space: nowrap; }
@@ -204,20 +205,25 @@ body.photo .photo-exit { display: block; }
   .progress { top: 64px; padding: 10px 14px; }
   .chips { display: none; }
   .view-controls { bottom: auto; top: 12px; right: 12px; }
-  .view-controls .small-pill { padding: 5px 8px; font-size: 11px; }
+  .view-controls { gap: 6px; }
+  .view-controls .small-pill { width: 38px; height: 38px; padding: 0; border-radius: 50%; font-size: 17px; display: grid; place-items: center; } /* icons alone: they fit next to the title */
+  .view-controls .small-pill span { display: none; }
   .ticker-badge { padding: 0 8px; font-size: 10px; }
   .district { font-size: 12px; }
-  .stats { top: 196px; left: 16px; right: 16px; width: auto; grid-template-columns: repeat(4, 1fr); padding: 10px 12px; }
+  .stats { top: 196px; left: 12px; right: 12px; width: auto; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; padding: 9px 12px; }
   .stats > div { flex-direction: column; align-items: flex-start; gap: 2px; }
   .stats .cta, .stats .ca, .stats .site-links { grid-column: 1 / -1; flex-direction: row; }
   .stats .live { grid-column: 1 / -1; flex-direction: row; align-items: baseline; justify-content: space-between; }
   #next-unlock { display: none; }
-  .stats b { font-size: 15px; }
+  .stats b { font-size: 15px; white-space: nowrap; }
+  .stats b small { font-size: 10px; }
+  .stats .label { font-size: 10px; }
   .card { top: auto; bottom: 96px; left: 16px; right: 16px; width: auto; padding: 12px 14px; }
   .card dl { grid-template-columns: auto minmax(min-content, 1fr) auto minmax(min-content, 1fr); gap: 5px 8px; font-size: 12px; }
   .checks li:not(:first-child) { display: none; }
   .caption { font-size: 13px; margin: 0 16px; text-align: center; }
 }
+@media (max-width: 400px) { .brand h1 { font-size: 30px; } }
 
 /* cinematic mode (src/cinematic.js): the frame on black, a slim control bar, the result sheet */
 body.cine { background: #000; }

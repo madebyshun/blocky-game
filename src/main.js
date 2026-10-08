@@ -128,7 +128,7 @@ let photo = false;
 let idleTimer;
 const syncRotate = () => {
   controls.autoRotate = rotatePref && !photo;
-  $('rotate-btn').textContent = rotatePref ? '⟳ Rotating' : '⟳ Rotate: off';
+  $('rotate-btn').innerHTML = `⟳<span> ${rotatePref ? 'Rotating' : 'Rotate: off'}</span>`; // phones show the icon alone
   $('rotate-btn').classList.toggle('on', rotatePref);
 };
 function setRotate(on) {
@@ -183,7 +183,7 @@ const STREAM = location.pathname.replace(/\/+$/, '') === '/live' || new URLSearc
 // music (src/music.js): on by default. Browsers only play sound after a tap or key, so it starts on the
 // visitor's first one; whoever turns it off keeps it off on their next visits.
 const music = createMusic({ keepPlaying: STREAM });
-const syncMusic = () => { $('music-btn').textContent = music.on ? '🔊 Music: on' : '🔇 Music: off'; $('music-btn').classList.toggle('on', music.on); };
+const syncMusic = () => { $('music-btn').innerHTML = music.on ? '🔊<span> Music: on</span>' : '🔇<span> Music: off</span>'; $('music-btn').classList.toggle('on', music.on); };
 const GESTURES = ['pointerup', 'touchend', 'click', 'keydown']; // pointerdown isn't a gesture on phones
 const firstGesture = (e) => {
   if (e.target?.closest?.('#music-btn') || e.key === 'm' || e.key === 'M') return; // those toggle it themselves
@@ -558,7 +558,7 @@ const eventLine = (e) => (e.kind === 'unnamed'
 
 function renderHud() {
   if (!sim) return;
-  $('pop').textContent = `${fmt(minted)} / ${fmt(supply)}`;
+  $('pop').innerHTML = `${fmt(minted)}<small> / ${fmt(supply)}</small>`;
   $('fees').textContent = usd(bought);
   $('buildings').textContent = fmt(sim.buildingCount);
   $('blocks').textContent = fmt(sim.work ?? 0);
@@ -827,7 +827,7 @@ function updateChips() {
   chipLevel = level; chipWaiting = chips.waiting.length;
   const row = $('chips-row');
   row.hidden = t < CHIPS_FROM;
-  $('chips').textContent = !Number.isFinite(chips.fabAt) || chips.fabAt > t ? 'Fab coming' : `${fmt(chips.stock)} · ${fmt(chips.made)} made`;
+  $('chips').innerHTML = !Number.isFinite(chips.fabAt) || chips.fabAt > t ? 'Fab coming' : `${fmt(chips.stock)}<small> · ${fmt(chips.made)} made</small>`;
 }
 const chipLimit = (c) => ({ full: 'full speed', power: `power-limited: ${c.plants} windmill${c.plants === 1 ? '' : 's'} and solar farm${c.plants === 1 ? '' : 's'} feed it, build more`, silicon: 'out of silicon: every Blocky bought brings a crate', nofab: 'not built yet' })[c.limit];
 function chipNews() {
