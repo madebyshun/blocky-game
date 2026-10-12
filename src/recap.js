@@ -7,7 +7,7 @@ import { portraitUrl } from './portraits.js';
 import { mountSite, fmt, esc } from './site.js';
 import { addNames, who } from './names.js';
 import { toBlob } from 'html-to-image';
-import { recapOf, recapPost, dayCount, defaultDay, usd, plus, starLabel } from './recap-data.js';
+import { recapOf, recapPost, dayCount, defaultDay, usd, plus, starLabel, buildingNote } from './recap-data.js';
 
 mountSite('recap');
 const $ = (id) => document.getElementById(id);
@@ -26,7 +26,7 @@ function render(s, days) {
         ${stat(fmt(s.inCity), 'Blockies in the city', `${plus(s.net)} today`)}
         ${stat(fmt(s.arrived.length), 'Arrived', s.legendary || s.rare ? `${s.legendary ? `${s.legendary} Legendary` : ''}${s.legendary && s.rare ? ' · ' : ''}${s.rare ? `${s.rare} Rare` : ''}` : '')}
         ${stat(fmt(s.left.length), 'Left the city', 'sold before they stayed')}
-        ${stat(fmt(s.buildings), 'Buildings', `${plus(s.built)} today`)}
+        ${stat(fmt(s.buildings), 'Buildings', buildingNote(s))}
         ${stat(fmt(s.blocks), 'Blocks placed today', `${fmt(s.totalBlocks)} in all`)}
         ${stat(usd(s.bought), 'Bought so far', `since launch · $${CONFIG.usdPerBlocky} = 1 Blocky`)}
       </div>

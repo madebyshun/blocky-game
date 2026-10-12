@@ -10,7 +10,7 @@ import { Resvg } from '@resvg/resvg-js';
 import { CONFIG } from '../src/config.js';
 import { blockySvg } from '../src/voxel-svg.js';
 import { addNames, who } from '../src/names.js';
-import { recapOf, dayCount, defaultDay, usd, plus, starLabel } from '../src/recap-data.js';
+import { recapOf, dayCount, defaultDay, usd, plus, starLabel, buildingNote } from '../src/recap-data.js';
 import { SITE } from './_store.js';
 
 // fonts (api/_fonts, see vercel.json) and the background, loaded on the first request: a missing file
@@ -53,7 +53,7 @@ function card(s, bg) {
         stat(fmt(s.inCity), 'Blockies in the city', `${plus(s.net)} today`),
         stat(fmt(s.arrived.length), 'Arrived', [s.legendary && `${s.legendary} Legendary`, s.rare && `${s.rare} Rare`].filter(Boolean).join(' · ')),
         stat(fmt(s.left.length), 'Left the city', 'sold before they stayed'),
-        stat(fmt(s.buildings), 'Buildings', `${plus(s.built)} today`),
+        stat(fmt(s.buildings), 'Buildings', buildingNote(s)),
         stat(fmt(s.blocks), 'Blocks placed today', `${fmt(s.totalBlocks)} in all`),
         stat(usd(s.bought), 'Bought so far', `since launch · $${CONFIG.usdPerBlocky} = 1 Blocky`)),
       h('div', { marginTop: 22, gap: 30 },
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
     }
     // the share page: X reads the card, people go on to the recap
     const title = `${CONFIG.cityName}: Day ${n} recap${s.live ? ' (so far)' : ''}`;
-    const desc = `${fmt(s.inCity)} Blockies in the city (${plus(s.net)}), ${fmt(s.buildings)} buildings (${plus(s.built)}), ${fmt(s.blocks)} blocks placed, ${fmt(s.left.length)} walked out.`;
+    const desc = `${fmt(s.inCity)} Blockies in the city (${plus(s.net)}), ${fmt(s.buildings)} buildings${s.built ? ` (${plus(s.built)})` : ''}${s.rebuilt ? `, ${fmt(s.rebuilt)} rebuilt bigger` : ''}, ${fmt(s.blocks)} blocks placed, ${fmt(s.left.length)} walked out.`;
     const image = `${origin}/api/recap?day=${n}&format=png&v=${Math.floor(s.t1 / 600e3)}`;
     const page = `${origin}/recap.html?day=${n}`;
     res.setHeader('content-type', 'text/html; charset=utf-8');
