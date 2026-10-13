@@ -320,6 +320,39 @@ export const LOGOS = {
     g.lineTo(cx, top + s * 0.19); g.lineTo(cx - s * 0.08, top + s * 0.11); g.closePath(); g.fill();
     g.strokeStyle = paper; g.lineWidth = s * 0.012; g.beginPath(); g.moveTo(cx, top + s * 0.06); g.lineTo(cx, top + s * 0.16); g.stroke();
   },
+  // All Your Base ($AYB): AYB in white with a dark outline, on orange
+  ayb(g, x, y, s) {
+    g.fillStyle = '#ff9f1c'; rr(g, x, y, s, s, s * 0.12);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    g.font = `900 ${Math.round(s * 0.38)}px Inter, system-ui, sans-serif`;
+    g.lineWidth = s * 0.07; g.strokeStyle = '#0f1b2d'; g.strokeText('AYB', x + s / 2, y + s * 0.47);
+    g.fillStyle = '#ffffff'; g.fillText('AYB', x + s / 2, y + s * 0.47);
+    g.fillStyle = '#0f1b2d'; g.font = `800 ${Math.round(s * 0.09)}px Inter, system-ui, sans-serif`; g.fillText('BLOCK ZERO', x + s / 2, y + s * 0.78);
+  },
+  // Based Nouns: the noggles ⌐◨-◨ on a blue disc
+  basednouns(g, x, y, s) {
+    g.fillStyle = '#000000'; rr(g, x, y, s, s, s * 0.12);
+    const gr = g.createRadialGradient(x + s * 0.35, y + s * 0.3, s * 0.05, x + s / 2, y + s / 2, s * 0.45);
+    gr.addColorStop(0, '#9cc4ff'); gr.addColorStop(1, '#1d4fd8');
+    g.fillStyle = gr; g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.42, 0, Math.PI * 2); g.fill();
+    const f = '#5fa8ff', u = s / 21, X = x + s * 0.14, Y = y + s * 0.4;
+    g.fillStyle = f;
+    g.fillRect(X + 4 * u, Y, 5 * u, 5 * u); g.fillRect(X + 10 * u, Y, 5 * u, 5 * u); // the frames
+    g.fillRect(X + 9 * u, Y + 1.5 * u, 1 * u, 1 * u); g.fillRect(X, Y + 1.5 * u, 4 * u, 1 * u); g.fillRect(X, Y + 1.5 * u, 1 * u, 2.5 * u); // bridge and arm
+    for (const ex of [4, 10]) { g.fillStyle = '#ffffff'; g.fillRect(X + (ex + 1) * u, Y + u, 1.5 * u, 3 * u); g.fillStyle = '#000000'; g.fillRect(X + (ex + 2.5) * u, Y + u, 1.5 * u, 3 * u); }
+  },
+  // Toshi: the blue cat's face on light blue
+  toshi(g, x, y, s) {
+    g.fillStyle = '#9fd6ff'; rr(g, x, y, s, s, s * 0.12);
+    const cx = x + s / 2, cy = y + s * 0.56;
+    g.fillStyle = '#1f6fff';
+    for (const d of [-1, 1]) { g.beginPath(); g.moveTo(cx + d * s * 0.36, cy - s * 0.06); g.lineTo(cx + d * s * 0.3, cy - s * 0.44); g.lineTo(cx + d * s * 0.06, cy - s * 0.2); g.fill(); }
+    g.beginPath(); g.ellipse(cx, cy, s * 0.34, s * 0.26, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#e8f1ff'; g.beginPath(); g.ellipse(cx, cy + s * 0.13, s * 0.15, s * 0.09, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffffff'; for (const d of [-1, 1]) { g.beginPath(); g.ellipse(cx + d * s * 0.13, cy - s * 0.04, s * 0.075, s * 0.045, 0, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = '#111827'; for (const d of [-1, 1]) g.fillRect(cx + d * s * 0.13 - s * 0.03, cy - s * 0.05, s * 0.06, s * 0.035); // sleepy eyes
+    g.fillStyle = '#ff8a1f'; g.fillRect(cx - s * 0.24, cy + s * 0.25, s * 0.48, s * 0.12); // the orange hoodie
+  },
   // Base APAC: Asia-Pacific in light-blue dots on a blue square, on white
   apac(g, x, y, s) {
     g.fillStyle = '#ffffff'; rr(g, x, y, s, s, s * 0.12);

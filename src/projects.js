@@ -15,7 +15,7 @@
 // - style: tower, campus, spire, dome, cats (Cat Town Plaza: a cat statue, src/cats.js) or gpu (the GPU
 //   District Power Plant: a giant GPU whose fans spin with NVDAc) or fab (the Chip Fab, src/chips.js) or house (a big lived-in house: Homebase's Based House) or depot (a delivery depot: Delivery Guy's). color / accent: the building's colours (#rrggbb).
 // - logo: one drawn in code (cbwallet, o1, virtuals, bankr, aero, uniswap, morpho, usdc, basenames,
-//   limitless, x402, basepaint, onchainsf, nvidia, venice, homebase, dguy, apac), or a square image in public/logos/ ('/logos/name.png'), or nothing:
+//   limitless, x402, basepaint, onchainsf, nvidia, venice, homebase, dguy, apac, ayb, basednouns, toshi), or a square image in public/logos/ ('/logos/name.png'), or nothing:
 //   the project's initial on its colour.
 // - optional: label (the building's name, default "<name> HQ"), text (the initial's colour).
 // Tributes to teams building on Base unless you say otherwise: no logo here implies a partnership.
@@ -40,5 +40,8 @@ export const PROJECTS = [
   { id: 'homebase', name: 'Homebase', label: 'Based House', tagline: 'Decentralizing contribution to Base', url: 'https://homebase.love', color: '#0a14ff', accent: '#ffffff', logo: 'homebase', style: 'house', plot: 19, at: 0, added: '2026-10-08T06:30Z' }, // Based House: Homebase's house for builders
   { id: 'dguy', name: 'Delivery Guy', label: 'DGUY Depot', tagline: '$DGUY out for delivery in your area', url: 'https://x.com/StonksDGUY', color: '#121a33', accent: '#2f7bff', logo: 'dguy', style: 'depot', plot: 20, at: 0, added: '2026-10-08T17:30Z' }, // its vans drive the city once it's built (src/vehicles.js)
   { id: 'apac', name: 'Base APAC', label: 'Base APAC HQ', tagline: 'Base in Asia-Pacific', url: 'https://x.com/baseapac', color: '#1a2cff', accent: '#ffffff', logo: 'apac', style: 'spire', plot: 21, at: 0, added: '2026-10-13T05:00Z' }, // first of the Base World Quarter, on the 21x21 ring granted early (CONFIG.landGrants)
+  { id: 'ayb', name: 'All Your Base', label: 'All Your Base HQ', tagline: '$AYB, the block zero meme on Base', url: 'https://x.com/AllYourBase_AYB', color: '#ff9f1c', accent: '#0f1b2d', logo: 'ayb', style: 'tower', plot: 22, at: 0, added: '2026-10-13T08:00Z' },
+  { id: 'basednouns', name: 'Based Nouns', label: 'Based Nouns House', tagline: 'Proliferating ⌐◨-◨ on Base', url: 'https://x.com/basednouns', color: '#2a5bd7', accent: '#ffffff', logo: 'basednouns', style: 'dome', plot: 23, at: 0, added: '2026-10-13T08:00Z' },
+  { id: 'toshi', name: 'Toshi', label: 'Toshi Cat Tower', tagline: '$TOSHI, the face of Base', url: 'https://x.com/Toshi', color: '#1f6fff', accent: '#ff8a1f', logo: 'toshi', style: 'cats', plot: 24, at: 0, added: '2026-10-13T08:00Z' },
   { id: 'fab', name: 'Blocky Semiconductor', label: 'BaseCity Chip Fab', tagline: 'Silicon in, chips out', url: 'https://basecity.space', color: '#f2f4f7', accent: '#7dd3fc', text: '#111827', logo: 'fab', style: 'fab', plot: 15, at: 0, added: '2026-10-07T19:30Z' }, // the chip economy (src/chips.js): its `added` is CONFIG.chips.from
 ];
