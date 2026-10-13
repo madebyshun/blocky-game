@@ -6,6 +6,7 @@ import { createAgents } from './agents.js';
 import { createCats } from './cats.js';
 import { createGpuDistrict } from './gpu.js';
 import { createDirectory } from './directory.js';
+import { createBuilderList } from './builderlist.js';
 import { chipEconomy, teamWallets, FAB } from './chips.js';
 import { createFabDecor } from './fab.js';
 import { createMusic } from './music.js';
@@ -227,7 +228,13 @@ const directory = createDirectory({
   onPick: flyTo,
   note: (p) => (chips?.waiting.some((w) => w.k === p.k) ? `⏳ waiting for ${fmt(CONFIG.chips.cost[p.type])} chips` : ''),
 });
-$('dir-btn').onclick = () => directory.toggle();
+const builderList = createBuilderList({
+  crew: () => crew,
+  here: (id) => views.has(id),
+  onPick: (b) => { const v = views.get(b.id); if (v) { builderList.close(); select(v, true); } }, // the card opens and the camera follows them
+});
+$('dir-btn').onclick = () => { builderList.close(); directory.toggle(); };
+$('bld-btn').onclick = () => { directory.close(); builderList.toggle(); };
 // the directory opens right under the brand block (title, tagline, chips, its button), however tall it is
 const brandEl = document.querySelector('.brand');
 const placeDir = () => document.documentElement.style.setProperty('--brand-bottom', `${Math.ceil(brandEl.getBoundingClientRect().bottom)}px`);

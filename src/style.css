@@ -109,7 +109,7 @@ html, body {
 .btn.small { flex: none; padding: 6px 10px; font-size: 12px; margin-top: 10px; width: 100%; }
 
 /* citizen card */
-.card { position: fixed; left: 20px; top: 120px; width: 290px; max-width: calc(100vw - 40px); padding: 16px; }
+.card { position: fixed; left: 20px; top: calc(var(--brand-bottom, 150px) + 8px); /* under the title and its buttons */ width: 290px; max-width: calc(100vw - 40px); padding: 16px; }
 .card .eyebrow { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.1em; }
 .card h2 { margin: 4px 0 2px; font-family: 'Lilita One', Inter, sans-serif; font-weight: 400; font-size: 26px; }
 .card .role { color: var(--accent); font-weight: 800; font-size: 13px; }
@@ -287,7 +287,9 @@ body.stream .toast .label { font-size: 1.6vh; }
 .sh-sound[hidden] { display: none; }
 
 /* the city directory (src/directory.js): a drawer on the left; a sheet from the bottom on phones */
-.dir-btn { display: block; margin-top: 8px; pointer-events: auto; } /* under the chips, in the brand block */
+.dir-btns { display: flex; gap: 6px; margin-top: 8px; } /* under the chips, in the brand block */
+.dir-btn { display: block; pointer-events: auto; }
+.dir-list .away { opacity: 0.6; } /* a builder off screen right now */
 .directory { position: fixed; left: 16px; top: calc(var(--brand-bottom, 150px) + 8px); bottom: 112px; width: 300px; z-index: 5; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 8px; }
 .directory[hidden] { display: none; }
 .dir-head { display: flex; align-items: center; justify-content: space-between; }
@@ -316,4 +318,5 @@ body.photo .directory, body.cine .directory, body.photo .dir-btn, body.cine .dir
   .directory { left: 8px; right: 8px; top: auto; bottom: 40px; width: auto; max-height: 58vh; }
   .dir-btn { position: fixed; margin: 0; top: auto; left: 12px; bottom: 120px; width: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 20px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); }
   .dir-btn span { display: none; }
+  .bld-btn { bottom: 172px; }
 }
