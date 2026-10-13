@@ -1785,6 +1785,50 @@ const HQ = {
       for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) k.box(0.32, 0.32, 0.12, 0x1b1b1b, x + a * 0.6, Y, z + c * 0.38);
     }
   },
+  // a noggles factory (Based Nouns): a blue machine cabinet with shelves of boxed chips, a gantry crane
+  // lifting a giant ⌐◨-◨ chip, little noggle bots and chips on legs at work, a conveyor at the back
+  noggles(k, b) {
+    const main = num(b.color), dark = mix(main, 0x000000, 0.45), lite = mix(main, 0xffffff, 0.3);
+    k.box(6.4, Y, 6.4, 0x5b6170);
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) if ((i + j) % 2) k.box(1.6, 0.01, 1.6, 0x6b7280, -2.4 + i * 1.6, Y, -2.4 + j * 1.6);
+    // a pair of noggles on the +z face of a box at (x, y, z), s wide
+    const nog = (x, y, z, s, frame = C.white) => {
+      for (const d of [-1, 1]) {
+        k.box(s * 0.42, s * 0.42, 0.03, frame, x + d * s * 0.27, y, z);
+        k.box(s * 0.12, s * 0.26, 0.04, C.white, x + d * s * 0.27 - s * 0.06, y + s * 0.08, z + 0.01);
+        k.box(s * 0.12, s * 0.26, 0.04, 0x111111, x + d * s * 0.27 + s * 0.06, y + s * 0.08, z + 0.01);
+      }
+      k.box(s * 0.12, s * 0.06, 0.03, frame, x, y + s * 0.2, z);
+    };
+    // the cabinet: a frame, three shelves of blue chip boxes, a control panel on its side
+    const cx = -0.7, cz = -0.9, cw = 2.6, cd = 1.8, ch = 3.4, front = cz + cd / 2;
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) k.box(0.22, ch, 0.22, lite, cx + x * (cw / 2 - 0.11), Y, cz + z * (cd / 2 - 0.11));
+    k.box(cw, 0.24, cd, lite, cx, Y + ch, cz);
+    k.box(cw - 0.2, ch, 0.1, dark, cx, Y, cz - cd / 2 + 0.06); // the back
+    k.box(cw, 0.7, cd, main, cx, Y, cz); // the base, where the name goes
+    for (const sy of [1.3, 2.1, 2.9]) {
+      k.box(cw - 0.3, 0.06, cd - 0.3, 0x9aa3ad, cx, Y + sy - 0.06, cz);
+      for (const bx of [-0.7, 0.05, 0.75]) { k.box(0.6, 0.5, 0.6, main, cx + bx, Y + sy, cz + 0.2); nog(cx + bx, Y + sy + 0.12, cz + 0.51, 0.5); }
+    }
+    k.box(0.5, 2.2, 1.2, dark, cx + cw / 2 + 0.25, Y + 0.7, cz); // the control panel
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) k.win(0.04, 0.16, 0.16, cx + cw / 2 + 0.52, Y + 1.6 + i * 0.25, cz - 0.25 + j * 0.25);
+    brandPanel(k, b, 'name', cw - 0.3, 0.55, cx, Y + 0.36, front + 0.03);
+    brandPanel(k, b, 'logo', 0.9, 0.9, cx + cw / 2 + 0.52, Y + 3.0, cz, SIDE);
+    // the gantry crane, a giant chip with noggles on its hook
+    k.box(0.5, 0.3, 0.5, dark, 2.4, Y, -2.2); k.box(0.3, 3.8, 0.3, main, 2.4, Y + 0.3, -2.2);
+    k.box(0.28, 0.28, 2.6, main, 2.4, Y + 3.8, -1.0);
+    k.box(0.04, 1.2, 0.04, C.dark, 2.4, Y + 2.6, 0.2);
+    k.box(1.3, 0.9, 0.2, 0x111111, 2.4, Y + 1.7, 0.2); nog(2.4, Y + 2.0, 0.31, 1.15);
+    for (let i = 0; i < 4; i++) k.box(0.08, 0.3, 0.08, 0xb0b6bf, 2.4 - 0.45 + i * 0.3, Y + 1.4, 0.2);
+    // chips on legs and little noggle bots, out on the floor
+    const chip = (x, z) => { k.box(0.8, 0.35, 0.6, 0x111111, x, Y + 0.25, z); nog(x, Y + 0.32, z + 0.31, 0.62); for (let i = 0; i < 3; i++) for (const s of [-1, 1]) k.box(0.06, 0.28, 0.06, 0xb0b6bf, x - 0.25 + i * 0.25, Y, z + s * 0.27); };
+    const bot = (x, z) => { k.box(0.62, 0.5, 0.5, main, x, Y + 0.24, z); nog(x, Y + 0.36, z + 0.26, 0.55); for (let i = 0; i < 3; i++) k.box(0.12, 0.24, 0.12, main, x - 0.18 + i * 0.18, Y, z); k.box(0.08, 0.08, 0.1, main, x - 0.35, Y + 0.5, z); };
+    chip(-2.2, 1.9); chip(0.9, 2.4); bot(-0.6, 2.2); bot(2.3, 1.6); bot(-2.6, 0.6);
+    // a conveyor at the back with chips riding it, a pile of boxes
+    k.box(6.0, 0.45, 0.7, 0x2b2f36, 0, Y, -2.85); k.box(6.0, 0.05, 0.6, 0x4b5563, 0, Y + 0.45, -2.85);
+    for (const x of [-2.4, -0.6, 1.0]) { k.box(0.6, 0.12, 0.45, 0x111111, x, Y + 0.5, -2.85); k.box(0.36, 0.02, 0.1, C.white, x, Y + 0.62, -2.85); }
+    for (let n = 0; n < 5; n++) k.box(0.45, 0.4, 0.45, n % 2 ? 0xc8a06a : main, -2.75 + (n % 3) * 0.48, Y + Math.floor(n / 3) * 0.4, -1.6);
+  },
   // a slim tower in three setbacks with accent rings and a lit spire
   spire(k, b, p) {
     const main = num(b.color), acc = num(b.accent || '#ffffff'), glass = mix(main, 0xffffff, 0.55);
@@ -1804,7 +1848,8 @@ const HQ = {
     brandPanel(k, b, 'logo', 1.8, 1.8, 3.3 / 2 + 0.1, mid, 0, SIDE);
     k.box(0.3, 3.4, 0.3, acc, 0, y, 0);
     k.blue(0.5, 0.5, 0.5, 0, y + 3.4, 0);
-    brandPanel(k, b, 'name', 3.4, 0.85, 0, Y + 1.5, 2.16);
+    k.box(3.6, 1.0, 0.08, mix(num(b.color), 0x000000, 0.45), 0, Y + 1.0, 2.2); // a backing board, clear of the window strips
+    brandPanel(k, b, 'name', 3.4, 0.85, 0, Y + 1.5, 2.25);
   },
   // a round hall under a glass dome, the logo on a pylon out front
   dome(k, b, p) {
