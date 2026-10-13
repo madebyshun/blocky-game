@@ -315,6 +315,8 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   // Auto (and the livestream): no close-ups, a work cam between two wide shots. ◀ ▶ reach every shot.
   const AUTO = ['aerial', 'sitecam', 'gpucam', 'vancam', 'rooftops', 'fabcam', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'vancam', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
   const STREAM = AUTO;
+  // a cast (?film=jesse,brian): their work cams and close shots, with a wide shot now and then for the city around them
+  const CAST = ['crewcam', 'medium', 'carrycam', 'aerial', 'follow', 'hero', 'crewcam', 'streetcam', 'rooftops', 'medium', 'carrycam', 'skyline'];
   const st = {
     active: false, stream: false, format: 1, light: 1, clip: 0, auto: true, i: 0, shot: null, s: null, t: 0, rec: null, busy: false, // format 1: 16:9, like the livestream
     caption: ['', ''], size: [1, 1], pr: 1, captureEdge: 0,
@@ -467,6 +469,11 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   function pickSubject(prefer, random, fits) { // the Blocky asked for (or picked on the card), else a star; fits: what the shot needs
     const all = [...views().values()].filter((v) => !fits || fits(v));
     if (!all.length) return null;
+    if (st.cast) { // only the cast, whoever of them the shot can film right now
+      const cast = st.cast.map((id) => views().get(id)).filter((v) => v && (!fits || fits(v)));
+      const v = cast.find((c) => c.b.id === prefer) || cast[Math.floor(Math.random() * cast.length)];
+      return v || null;
+    }
     const want = random ? null : prefer ?? selected();
     if (want != null && views().has(want) && (!fits || fits(views().get(want)))) return views().get(want);
     // someone with a little room around them (not in the queue at the block pile), a star if possible
@@ -528,7 +535,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   }
   const finite = (o) => Number.isFinite(o.pos.x + o.pos.y + o.pos.z + o.look.x + o.look.y + o.look.z);
   function cut(step = 1, prefer) {
-    const order = st.stream ? STREAM : st.auto ? AUTO : SHOTS.map((x) => x.id);
+    const order = st.stream ? STREAM : st.cast ? CAST : st.auto ? AUTO : SHOTS.map((x) => x.id);
     for (let n = 1; n <= order.length; n++) {
       st.i = (st.i + step + order.length) % order.length;
       if (begin(SHOTS.find((x) => x.id === order[st.i]), prefer)) return;
@@ -660,7 +667,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   // ---------- in and out ----------
   // stream: the livestream (/live): 16:9 in the city's own light, no controls or watermark (the page's
   // stream HUD shows the captions), and the shots never stop
-  function enter(subjectId = null, { stream = false } = {}) {
+  function enter(subjectId = null, { stream = false, cast = null } = {}) {
     if (st.active) return;
     passes();
     st.active = true;
@@ -673,6 +680,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     light();
     layout();
     st.auto = subjectId == null;
+    st.cast = cast?.length ? cast : null;
     st.i = -1;
     if (subjectId != null) { // a Blocky picked to film: from up the street first, then ◀ ▶ through every shot
       st.i = SHOTS.findIndex((x) => x.id === 'medium');
@@ -682,6 +690,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
   }
   function exit() {
     if (!st.active) return;
+    st.cast = null;
     if (st.rec?.recorder.state === 'recording') st.rec.recorder.stop();
     if (st.snap) { st.snap = null; st.captureEdge = 0; st.busy = false; } // a photo that never got its frame
     st.active = false;

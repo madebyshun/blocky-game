@@ -686,6 +686,15 @@ function featureArrival(id) { // a new Blocky: the camera cuts to it (at most ev
   if (!cine.active || performance.now() - featuredAt < 12000) return;
   if (cine.feature(id)) featuredAt = performance.now();
 }
+// ?film=jesse,brian: the film camera on these builders only (Base Builders or Blockies, by name or
+// number), at work among the crew. For making a clip of them: press Record.
+function filmCast(list) {
+  const want = list.toLowerCase().split(',').map((x) => x.trim()).filter(Boolean);
+  const ids = crew.filter((b) => want.includes(String(b.name).toLowerCase()) || want.includes(String(b.id))).map((b) => b.id);
+  if (!ids.length) return;
+  const go = () => (ids.some((id) => views.has(id)) ? cine.enter(null, { cast: ids }) : setTimeout(go, 500)); // once they're out in the city
+  go();
+}
 function startStream() {
   document.body.classList.add('stream');
   $('stream-hud').hidden = false;
@@ -1056,6 +1065,7 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   welcomeBack();
   requestAnimationFrame(frame);
   if (STREAM) startStream();
+  else if (qs.get('film')) filmCast(qs.get('film'));
   setInterval(async () => applyState(await fetchColony(known, knownGone), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
   if (s.source !== 'demo') watchLive(({ now: watching, total }) => {
     $('live').textContent = fmt(watching);
