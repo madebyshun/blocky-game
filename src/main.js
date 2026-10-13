@@ -15,7 +15,7 @@ import { createTraffic } from './vehicles.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
-import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash, needFor, LANDMARKS, whaleTier } from './sim.js';
+import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash, needFor, LANDMARKS, whaleTier, builtCount } from './sim.js';
 import { fetchColony } from './data.js';
 import { createAirship } from './airship.js';
 import { createMetro } from './metro.js';
@@ -565,7 +565,7 @@ function renderHud() {
   $('pop').innerHTML = `${fmt(minted)}<small> / ${fmt(supply)}</small>`;
   $('fees').textContent = usd(bought);
   // standing now, and every build so far: once the land is full the crew rebuilds the old city bigger
-  const ever = sim.done.reduce((n, p) => n + (p.kind === 'building' || p.kind === 'landmark' || p.kind === 'wonder'), 0);
+  const ever = builtCount(sim);
   $('buildings').textContent = fmt(ever);
   $('buildings').title = `${fmt(sim.buildingCount)} standing · ${fmt(ever)} built since day 1, rebuilds included`;
   $('blocks').textContent = fmt(sim.work ?? 0);
@@ -705,7 +705,7 @@ function renderStream() {
   ch.textContent = pct == null ? '' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% 24h`;
   ch.className = pct < 0 ? 'down' : 'up';
   $('sh-blockies').textContent = fmt(minted);
-  $('sh-buildings').textContent = fmt(sim.buildingCount);
+  $('sh-buildings').textContent = fmt(builtCount(sim));
   $('sh-day').textContent = `Day ${day} · ${w.icon} ${w.label}`;
   $('sh-floor').textContent = nftMarket?.floor ? `${+nftMarket.floor.toPrecision(2)} ETH` : '–';
   $('sh-site-name').textContent = sim.blocked ? 'Land full: waiting for buyers' : `Building ${sim.next.name}`;
@@ -713,7 +713,7 @@ function renderStream() {
 
 $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
-  const text = `${CONFIG.cityName}: ${sim.buildingCount} buildings on ${size(sim.land)} land, built 24/7 by ${fmt(minted)} of ${fmt(supply)} ${plural} and ${CONFIG.legends?.length || 0} Base builders. Every ${money(price)} of ${CONFIG.ticker} you buy brings a ${CONFIG.citizen}, an NFT you claim.`
+  const text = `${CONFIG.cityName}: ${fmt(builtCount(sim))} buildings built on ${size(sim.land)} land, built 24/7 by ${fmt(minted)} of ${fmt(supply)} ${plural} and ${CONFIG.legends?.length || 0} Base builders. Every ${money(price)} of ${CONFIG.ticker} you buy brings a ${CONFIG.citizen}, an NFT you claim.`
     + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '')
     + `\n\n🏙 ${url}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`; // not X's "via": it shows in the reader's language
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank', 'noopener');

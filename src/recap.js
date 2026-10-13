@@ -26,7 +26,7 @@ function render(s, days) {
         ${stat(fmt(s.inCity), 'Blockies in the city', `${plus(s.net)} today`)}
         ${stat(fmt(s.arrived.length), 'Arrived', s.legendary || s.rare ? `${s.legendary ? `${s.legendary} Legendary` : ''}${s.legendary && s.rare ? ' · ' : ''}${s.rare ? `${s.rare} Rare` : ''}` : '')}
         ${stat(fmt(s.left.length), 'Left the city', 'sold before they stayed')}
-        ${stat(fmt(s.buildings), 'Buildings', buildingNote(s))}
+        ${stat(fmt(s.everBuilt), 'Buildings built', buildingNote(s))}
         ${stat(fmt(s.blocks), 'Blocks placed today', `${fmt(s.totalBlocks)} in all`)}
         ${stat(usd(s.bought), 'Bought so far', `since launch · $${CONFIG.usdPerBlocky} = 1 Blocky`)}
       </div>

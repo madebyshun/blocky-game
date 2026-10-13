@@ -1,7 +1,7 @@
 // One day of the city (24 h from its start), replayed from the colony state: shared by the recap page
 // (src/recap.js) and its share image (api/recap.js), so both show the same numbers.
 import { CONFIG } from './config.js';
-import { TRAIT_LABEL } from './sim.js';
+import { TRAIT_LABEL, builtCount } from './sim.js';
 import { replay } from './replay.js';
 import { who } from './names.js';
 
@@ -37,7 +37,8 @@ export function recapOf(state, n, now = Date.now()) {
     inCity: after, net: after - before, arrived, left,
     buildings: sim.buildingCount, built: sim.buildingCount - standing0, // the day's growth (rebuilds replace, ruins go dark)
     rebuilt: done.filter((p) => p.rebuilds).length,
-    everBuilt: sim.done.filter((p) => p.at < t1 && (p.kind === 'building' || p.kind === 'landmark' || p.kind === 'wonder')).length, // every build since day 1, rebuilds included // old homes, shops and offices torn down and built again bigger
+    everBuilt: builtCount(sim, t1), // every build since day 1, rebuilds included
+    builtToday: builtCount(sim, t1) - builtCount(sim, t0), // old homes, shops and offices torn down and built again bigger
     blocks: sim.workAt(t1) - sim.workAt(t0), totalBlocks: sim.workAt(t1),
     landmarks: done.filter((p) => p.kind === 'landmark' || p.kind === 'metro'),
     whales: done.filter((p) => p.kind === 'wonder'),
@@ -58,7 +59,8 @@ export function recapOf(state, n, now = Date.now()) {
 }
 
 // what the city's buildings did today, for the stat under Buildings: grew, and/or rebuilt bigger
-export const buildingNote = (s) => [s.built ? `${plus(s.built)} today` : '', s.rebuilt ? `${fmt(s.rebuilt)} rebuilt bigger` : '', s.everBuilt ? `${fmt(s.everBuilt)} built in all` : ''].filter(Boolean).join(' · ') || '±0 today';
+const rebuiltNote = (s) => (!s.rebuilt ? '' : s.rebuilt >= s.builtToday ? 'all rebuilt bigger' : `${fmt(s.rebuilt)} of them rebuilt bigger`);
+export const buildingNote = (s) => [`${plus(s.builtToday)} today`, rebuiltNote(s)].filter(Boolean).join(' · ');
 
 export const starLabel = (b) => (b.trait ? TRAIT_LABEL[b.trait] : b.rarity.label); // its colour says the rarity
 
@@ -66,8 +68,7 @@ export const starLabel = (b) => (b.trait ? TRAIT_LABEL[b.trait] : b.rarity.label
 export function recapPost(s, link) {
   return `${CONFIG.cityName}: Day ${s.n} recap${s.live ? ' (so far)' : ''} 🏙\n\n`
     + `🧱 ${fmt(s.inCity)} Blockies in the city (${plus(s.net)})\n`
-    + `🏢 ${fmt(s.buildings)} buildings standing${s.built ? ` (${plus(s.built)})` : ''}${s.rebuilt ? ` · ${fmt(s.rebuilt)} rebuilt bigger` : ''}\n`
-    + (s.everBuilt ? `🏗 ${fmt(s.everBuilt)} built since day 1\n` : '')
+    + `🏢 ${fmt(s.everBuilt)} buildings built (${plus(s.builtToday)} today${s.rebuilt ? `, ${rebuiltNote(s)}` : ''})\n`
     + `🧱 ${fmt(s.blocks)} blocks placed today\n`
     + (s.landmarks.length ? `🏛️ ${s.landmarks.map((p) => p.name).join(', ')}\n` : '')
     + (s.whales.length ? `🐋 ${s.whales.length} whale build${s.whales.length > 1 ? 's' : ''}\n` : '')

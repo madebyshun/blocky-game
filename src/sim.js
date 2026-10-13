@@ -117,6 +117,8 @@ export function isWater(i, j) {
   return i >= Math.min(a, b) && i <= Math.max(a, b);
 }
 
+// every build finished before t: homes, shops, offices, landmarks, whale builds, rebuilds included
+export const builtCount = (sim, t = Infinity) => sim.done.reduce((n, p) => n + ((p.kind === 'building' || p.kind === 'landmark' || p.kind === 'wonder') && p.at < t), 0);
 export const needFor = (L) => {
   const n = CONFIG.expandNeeds;
   return L < n.length ? n[L] : Math.ceil(n[n.length - 1] * 1.5 ** (L - n.length + 1));
