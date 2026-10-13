@@ -81,6 +81,9 @@ export const CONFIG = {
   // ring, but only once enough Blockies have arrived (Base Builders don't count).
   startLand: 2,
   expandNeeds: [0, 0, 0, 10, 30, 75, 150, 300, 600, 1000, 1600, 2500, 4000, 6000, 8000, 10000], // Blockies needed for land level L
+  // Land granted early: from `from`, land level `level` needs only `need` Blockies (the city before then
+  // replays the same). 21x21 for the Base World Quarter, Base APAC first.
+  landGrants: [{ level: 10, need: 1000, from: '2026-10-13T05:00:00Z' }],
   expandCost: 120, // blocks per land level for an expansion
   // How long things take: each project's blocks are multiplied by its tier, so a cottage goes up in
   // under an hour while a skyscraper takes a day or more. Buildings by their catalog cost (upTo: the
@@ -269,7 +272,7 @@ export const CONFIG = {
     ],
     // plots cleared from the city's woods, numbered after `plots` (17, ...): the woods stand there until
     // the HQ breaks ground, so adding one never changes what the city already built
-    woods: [[4, 1], [4, 0], [3, -1], [0, -3]], // 17-20
+    woods: [[4, 1], [4, 0], [3, -1], [0, -3], [0, 10]], // 17-20, and 21 on the 21x21 ring (Base APAC)
   },
 
   // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`

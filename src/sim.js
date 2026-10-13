@@ -119,9 +119,11 @@ export function isWater(i, j) {
 
 // every build finished before t: homes, shops, offices, landmarks, whale builds, rebuilds included
 export const builtCount = (sim, t = Infinity) => sim.done.reduce((n, p) => n + ((p.kind === 'building' || p.kind === 'landmark' || p.kind === 'wonder') && p.at < t), 0);
-export const needFor = (L) => {
+export const needFor = (L, t = Date.now()) => {
   const n = CONFIG.expandNeeds;
-  return L < n.length ? n[L] : Math.ceil(n[n.length - 1] * 1.5 ** (L - n.length + 1));
+  const need = L < n.length ? n[L] : Math.ceil(n[n.length - 1] * 1.5 ** (L - n.length + 1));
+  const grant = (CONFIG.landGrants || []).find((g) => g.level === L && t >= Date.parse(g.from));
+  return grant ? Math.min(need, grant.need) : need;
 };
 
 // ---------- building catalog ----------
@@ -521,7 +523,7 @@ export class CitySim {
     if (this.queue.length) return buildingProject(k, this.queue.shift(), pro);
     // the land is full: reclaim more once enough Blockies are here, rebuild the old city until then
     // (and while another site reclaims it)
-    const L = this.land + 1, need = needFor(L);
+    const L = this.land + 1, need = needFor(L, t);
     if (pop < need || this.planLand > this.land) { const r = this.redevelop(k, pro); if (r || this.planLand > this.land) return r; }
     this.planLand = L;
     return { k, kind: 'expand', level: L, cost: CONFIG.expandCost * this.land * CONFIG.buildTime.expand, need, name: `Land expansion to ${2 * L + 1}×${2 * L + 1}` };

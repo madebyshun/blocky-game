@@ -320,6 +320,16 @@ export const LOGOS = {
     g.lineTo(cx, top + s * 0.19); g.lineTo(cx - s * 0.08, top + s * 0.11); g.closePath(); g.fill();
     g.strokeStyle = paper; g.lineWidth = s * 0.012; g.beginPath(); g.moveTo(cx, top + s * 0.06); g.lineTo(cx, top + s * 0.16); g.stroke();
   },
+  // Base APAC: Asia-Pacific in light-blue dots on a blue square, on white
+  apac(g, x, y, s) {
+    g.fillStyle = '#ffffff'; rr(g, x, y, s, s, s * 0.12);
+    g.fillStyle = '#1a2cff'; g.fillRect(x + s * 0.12, y + s * 0.12, s * 0.76, s * 0.76);
+    const map = ['....############', '..##############', '.###############', '..############..', '...#########....', '....######.##...', '.....####...#...',
+      '......##.#.##...', '.......#..###...', '........#.#.##..', '..........######', '.........#######', '..........######', '...........####.'];
+    const step = (s * 0.68) / 16, r = step * 0.34;
+    g.fillStyle = '#8fa2ff';
+    map.forEach((row, j) => [...row].forEach((c, i) => { if (c === '#') { g.beginPath(); g.arc(x + s * 0.16 + (i + 0.5) * step, y + s * 0.16 + (j + 0.5) * step, r, 0, Math.PI * 2); g.fill(); } }));
+  },
   // Delivery Guy ($DGUY): a parcel with blue tape on navy, DGUY under it
   dguy(g, x, y, s) {
     g.fillStyle = '#121a33'; rr(g, x, y, s, s, s * 0.12);
