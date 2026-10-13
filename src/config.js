@@ -127,13 +127,9 @@ export const CONFIG = {
   //   { name, tagline, color, textColor?, logo?, url, sponsored? }
   // logo: a logo drawn in code (LOGOS in src/city.js). sponsored: true for paid placements; the news
   // ticker then says SPONSORED instead of BUILT ON BASE.
-  sponsors: [
-    { name: 'Coinbase Wallet', tagline: 'Self-custody, built for Base', color: '#121a2b', logo: 'cbwallet', url: 'https://www.coinbase.com/wallet' },
-    { name: 'o1.exchange', tagline: 'Trade onchain', color: '#1b1b1b', logo: 'o1', url: 'https://o1.exchange' },
-    { name: 'Virtuals', tagline: 'AI agents on Base', color: '#d6f5e6', textColor: '#1f6f6c', logo: 'virtuals', url: 'https://app.virtuals.io' },
-    { name: 'bankrbot', tagline: 'Your AI banker on Base', color: '#7b2ff2', logo: 'bankr', url: 'https://bankr.bot' },
-    { name: 'Aero', tagline: 'Liquidity hub of Base', color: '#efefef', textColor: '#1f2a44', logo: 'aero', url: 'https://aerodrome.finance' },
-  ],
+  // Empty for now: every Base project the city features has its own HQ on Base Avenue, so the
+  // billboards stay blank ad space ("YOUR PROJECT HERE", DM the city's X) until someone books one.
+  sponsors: [],
   adContact: '', // shown on empty billboards, e.g. 'DM @blockyfun'; defaults to xHandle
   siteUrl: 'https://basecity.space', // BaseCity's domain, e.g. 'https://basecity.xyz': share text, the cinematic watermark, NFT links (SITE_URL on the API wins). Empty: the address the site is opened on
 

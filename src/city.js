@@ -1940,7 +1940,7 @@ export const buildingGroup = (p0) => kitFor((k) => {
   if (p.kind === 'landmark') return p.brand ? brandHq(k, p) : LANDMARK[p.type](k);
   if (p.kind === 'wonder') return p.build === 'tower' || p.build === 'skyscraper' ? whaleTower(k, p) : wonder(k, p);
   DESIGN[p.type](k, p);
-  if (ROOF_BOARD[p.type] !== undefined && hash(p.k, 77) < 0.5) {
+  if (ROOF_BOARD[p.type] !== undefined && hash(p.k, 77) < 0.12) { // a few rooftops only: the ad space is for sale
     billboard(k, 0, Y + p.h + ROOF_BOARD[p.type], -p.d / 2 + 0.35, Math.min(p.w - 0.4, 3.4), Math.min(p.w - 0.4, 3.4) * 0.4, 1 + p.k, 0.45);
   }
 });
