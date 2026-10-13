@@ -341,18 +341,6 @@ export const LOGOS = {
     g.fillRect(X + 9 * u, Y + 1.5 * u, 1 * u, 1 * u); g.fillRect(X, Y + 1.5 * u, 4 * u, 1 * u); g.fillRect(X, Y + 1.5 * u, 1 * u, 2.5 * u); // bridge and arm
     for (const ex of [4, 10]) { g.fillStyle = '#ffffff'; g.fillRect(X + (ex + 1) * u, Y + u, 1.5 * u, 3 * u); g.fillStyle = '#000000'; g.fillRect(X + (ex + 2.5) * u, Y + u, 1.5 * u, 3 * u); }
   },
-  // Toshi: the blue cat's face on light blue
-  toshi(g, x, y, s) {
-    g.fillStyle = '#9fd6ff'; rr(g, x, y, s, s, s * 0.12);
-    const cx = x + s / 2, cy = y + s * 0.56;
-    g.fillStyle = '#1f6fff';
-    for (const d of [-1, 1]) { g.beginPath(); g.moveTo(cx + d * s * 0.36, cy - s * 0.06); g.lineTo(cx + d * s * 0.3, cy - s * 0.44); g.lineTo(cx + d * s * 0.06, cy - s * 0.2); g.fill(); }
-    g.beginPath(); g.ellipse(cx, cy, s * 0.34, s * 0.26, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#e8f1ff'; g.beginPath(); g.ellipse(cx, cy + s * 0.13, s * 0.15, s * 0.09, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#ffffff'; for (const d of [-1, 1]) { g.beginPath(); g.ellipse(cx + d * s * 0.13, cy - s * 0.04, s * 0.075, s * 0.045, 0, 0, Math.PI * 2); g.fill(); }
-    g.fillStyle = '#111827'; for (const d of [-1, 1]) g.fillRect(cx + d * s * 0.13 - s * 0.03, cy - s * 0.05, s * 0.06, s * 0.035); // sleepy eyes
-    g.fillStyle = '#ff8a1f'; g.fillRect(cx - s * 0.24, cy + s * 0.25, s * 0.48, s * 0.12); // the orange hoodie
-  },
   // Base APAC: Asia-Pacific in light-blue dots on a blue square, on white
   apac(g, x, y, s) {
     g.fillStyle = '#ffffff'; rr(g, x, y, s, s, s * 0.12);
@@ -1674,6 +1662,26 @@ function brandPanel(k, b, kind, w, h, x, y, z, ry = 0) {
 }
 const SIDE = Math.PI / 2; // a panel on the +x face
 
+// $TOSHI's flag (its own logo, public/logos/toshi.png) on a pole from (x, y, z), waving
+const TOSHI_FLAG = (() => {
+  const tex = new THREE.TextureLoader().load('/logos/toshi.png'); tex.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide });
+})();
+function toshiFlag(k, x, y, z) {
+  k.box(0.08, 2.4, 0.08, 0xdfe3ea, x, y, z);
+  k.box(0.16, 0.12, 0.16, C.gold, x, y + 2.4, z);
+  const geo = new THREE.PlaneGeometry(1.3, 1.3, 12, 4), base = geo.attributes.position.array.slice();
+  const flag = new THREE.Mesh(geo, TOSHI_FLAG);
+  flag.position.set(x + 0.69, y + 1.7, z);
+  flag.castShadow = true;
+  flag.userData.animate = (t) => {
+    const p = geo.attributes.position.array;
+    for (let i = 0; i < p.length; i += 3) { const u = base[i] + 0.65; p[i + 2] = Math.sin(u * 3.2 - t * 5) * 0.09 * u; }
+    geo.attributes.position.needsUpdate = true;
+  };
+  k.extras.push(flag);
+}
+
 const HQ = {
   // a glass tower on a podium: accent fins, the logo on its crown, a beacon on top
   tower(k, b, p) {
@@ -1884,6 +1892,7 @@ const HQ = {
     k.box(0.9, 2.3, 0.9, mix(main, 0x000000, 0.35), 2.4, Y, -2.4);
     brandPanel(k, b, 'logo', 0.82, 0.82, 2.4, Y + 1.75, -1.94);
     brandPanel(k, b, 'logo', 0.82, 0.82, 2.86, Y + 1.75, -2.4, SIDE);
+    if (b.id === 'cattown') toshiFlag(k, 2.4, Y + 2.3, -2.4); // $TOSHI, Base's cat, flies over Cat Town
     tree(k, -2.5, -2.5, p.k); bush(k, -2.6, 0.2, p.k + 2); bush(k, 2.6, 0.6, p.k + 3); bush(k, 2.6, 1.6, p.k + 4);
   },
 };
