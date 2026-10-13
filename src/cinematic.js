@@ -322,7 +322,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     caption: ['', ''], size: [1, 1], pr: 1, captureEdge: 0,
   };
   const o = { pos: v3(), look: v3(), fov: 35, focus: false, pivot: null, focusAt: null };
-  const look = v3();
+  const look = v3(), armTo = v3();
   // A spring arm: if a building or a tree stands between what the camera films (pivot) and where it
   // wants to be, the camera moves in front of it.
   const ray = new THREE.Raycaster(), dir = v3();
@@ -521,7 +521,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
       };
     }
     if (!shot.start(s)) return false;
-    st.shot = shot; st.s = s; st.t = 0;
+    st.shot = shot; st.s = s; st.t = 0; st.armR = null;
     st.caption = caption(shot, s.subject, s);
     onCaption(st.caption, s.subject?.b.id ?? null);
     paintOverlay();
@@ -556,21 +556,27 @@ export function createCinematic({ renderer, scene, city, controls, views, select
       if (Math.floor(st.t * 2) !== Math.floor((st.t - dt) * 2)) crowd = [...views().values()].filter((v) => v !== s.subject).map((v) => v.hit);
       const g = s.subject.group;
       s.sp.lerp(g.position, 1 - Math.exp(-dt * 4));
-      s.face = angleTo(s.face, g.rotation.y, 1 - Math.exp(-dt * 1.5));
+      s.face = angleTo(s.face, g.rotation.y, 1 - Math.exp(-dt * 0.4)); // slow: a worker turns round all the time, the camera shouldn't
       s.head.copy(s.sp).setY(0.9);
     }
     o.focusAt = null;
     st.shot.frame(s, u, o);
     if (!finite(o)) { cut(1); return; } // a shot that lost its subject's numbers: the next one
     if (o.pivot) {
-      const want = o.pos.distanceTo(o.pivot);
+      const want = o.pos.distanceTo(o.pivot) || 1, wanted = armTo.copy(o.pos);
+      const keep = crowd; crowd = []; // Blockies walking past don't push the camera in and out
       arm(o.pivot, o.pos);
-      st.blocked = o.pos.distanceTo(o.pivot) < want * 0.6 ? (st.blocked || 0) + dt : 0;
+      crowd = keep;
+      const r = o.pos.distanceTo(o.pivot) / want; // how far out the arm can go now: in fast, back out slowly
+      st.armR = st.armR == null ? r : st.armR + (r - st.armR) * (1 - Math.exp(-dt * (r < st.armR ? 8 : 1.2)));
+      o.pos.lerpVectors(o.pivot, wanted, st.armR);
+      st.blocked = st.armR < 0.6 ? (st.blocked || 0) + dt : 0;
       if (st.blocked > 0.7) { st.blocked = 0; if (st.auto) cut(1); else begin(st.shot, null, 6); return; } // something got in the way
     }
     if (!Number.isFinite(cam.position.x + cam.position.y + cam.position.z + look.x + look.y + look.z)) { cam.position.copy(o.pos); look.copy(o.look); } // never stuck on a bad frame
-    cam.position.lerp(o.pos, st.t < 0.05 ? 1 : 1 - Math.exp(-dt * 6));
-    look.lerp(o.look, st.t < 0.05 ? 1 : 1 - Math.exp(-dt * 6));
+    const ease = st.t < 0.05 ? 1 : 1 - Math.exp(-dt * (st.cast ? 2.5 : 4)); // smooth, never a jolt
+    cam.position.lerp(o.pos, ease);
+    look.lerp(o.look, ease);
     cam.lookAt(look);
     if (Math.abs(cam.fov - o.fov) > 0.01) { cam.fov = o.fov; cam.updateProjectionMatrix(); }
     // sky, bloom (stronger at night, the windows glow) and depth of field on the subject
