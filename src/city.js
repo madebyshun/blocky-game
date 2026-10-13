@@ -1662,16 +1662,20 @@ function brandPanel(k, b, kind, w, h, x, y, z, ry = 0) {
 }
 const SIDE = Math.PI / 2; // a panel on the +x face
 
-// $TOSHI's flag (its own logo, public/logos/toshi.png) on a pole from (x, y, z), waving
-const TOSHI_FLAG = (() => {
-  const tex = new THREE.TextureLoader().load('/logos/toshi.png'); tex.colorSpace = THREE.SRGBColorSpace;
-  return new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide });
-})();
-function toshiFlag(k, x, y, z) {
+// A project's flag (b.flag: its own picture in public/logos/) on a pole from (x, y, z), waving
+const FLAG_MATS = new Map();
+const flagMat = (url) => {
+  if (!FLAG_MATS.has(url)) {
+    const tex = new THREE.TextureLoader().load(url); tex.colorSpace = THREE.SRGBColorSpace;
+    FLAG_MATS.set(url, new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+  }
+  return FLAG_MATS.get(url);
+};
+function brandFlag(k, url, x, y, z) {
   k.box(0.08, 2.4, 0.08, 0xdfe3ea, x, y, z);
   k.box(0.16, 0.12, 0.16, C.gold, x, y + 2.4, z);
   const geo = new THREE.PlaneGeometry(1.3, 1.3, 12, 4), base = geo.attributes.position.array.slice();
-  const flag = new THREE.Mesh(geo, TOSHI_FLAG);
+  const flag = new THREE.Mesh(geo, flagMat(url));
   flag.position.set(x + 0.69, y + 1.7, z);
   flag.castShadow = true;
   flag.userData.animate = (t) => {
@@ -1703,6 +1707,7 @@ const HQ = {
     brandPanel(k, b, 'logo', 1.9, 1.9, s / 2 + 0.12, top + 1.1, 0, SIDE);
     k.box(0.16, 2.6, 0.16, C.dark, 0, top + 2.2, 0);
     k.blue(0.45, 0.45, 0.45, 0, top + 4.8, 0);
+    if (b.flag) brandFlag(k, b.flag, -s / 2 + 0.3, top + 2.2, -s / 2 + 0.3); // its own flag on the roof
     brandPanel(k, b, 'name', 3.6, 0.9, 0, Y + 2.15, 2.93);
   },
   // a low campus around a forecourt: glass ribbons, a raised wing, a logo cube by the entrance
@@ -1892,7 +1897,6 @@ const HQ = {
     k.box(0.9, 2.3, 0.9, mix(main, 0x000000, 0.35), 2.4, Y, -2.4);
     brandPanel(k, b, 'logo', 0.82, 0.82, 2.4, Y + 1.75, -1.94);
     brandPanel(k, b, 'logo', 0.82, 0.82, 2.86, Y + 1.75, -2.4, SIDE);
-    if (b.id === 'cattown') toshiFlag(k, 2.4, Y + 2.3, -2.4); // $TOSHI, Base's cat, flies over Cat Town
     tree(k, -2.5, -2.5, p.k); bush(k, -2.6, 0.2, p.k + 2); bush(k, 2.6, 0.6, p.k + 3); bush(k, 2.6, 1.6, p.k + 4);
   },
 };
