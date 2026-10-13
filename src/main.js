@@ -566,7 +566,7 @@ function renderHud() {
   $('fees').textContent = usd(bought);
   // standing now, and every build so far: once the land is full the crew rebuilds the old city bigger
   const ever = sim.done.reduce((n, p) => n + (p.kind === 'building' || p.kind === 'landmark' || p.kind === 'wonder'), 0);
-  $('buildings').innerHTML = `${fmt(sim.buildingCount)}<small> · ${fmt(ever)} built</small>`;
+  $('buildings').textContent = fmt(ever);
   $('buildings').title = `${fmt(sim.buildingCount)} standing · ${fmt(ever)} built since day 1, rebuilds included`;
   $('blocks').textContent = fmt(sim.work ?? 0);
   const a = sim.next;
