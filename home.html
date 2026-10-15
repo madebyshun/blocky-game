@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>BaseCity · a city on Base, built 24/7 by Blockies</title>
+    <meta name="description" content="Every $%PRICE% of $BLOCKY brings a Blocky that builds BaseCity 24/7. Hold and it becomes a citizen NFT. Base projects get an HQ on Base Avenue." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BaseCity" />
+    <meta property="og:url" content="%SITE%/home.html" />
+    <meta property="og:title" content="BaseCity: a city on Base, built 24/7 by Blockies" />
+    <meta property="og:description" content="Every $%PRICE% of $BLOCKY brings a Blocky. It builds the city day and night, and holders keep it as an NFT." />
+    <meta property="og:image" content="/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@%X%" />
+    <meta name="twitter:title" content="BaseCity: a city on Base, built 24/7 by Blockies" />
+    <meta name="twitter:description" content="Every $%PRICE% of $BLOCKY brings a Blocky. It builds the city day and night, and holders keep it as an NFT." />
+    <meta name="twitter:image" content="/og.png" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/site.css" />
+    <link rel="stylesheet" href="/src/home.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <img class="hero-bg" src="/landing/city.jpg" alt="" />
+      <div class="hero-in">
+        <p class="kicker"><span class="dot"></span> Live on Base · building right now</p>
+        <h1>A city on Base,<br />built 24/7 by <span class="hl">Blockies</span>.</h1>
+        <p class="lede">Every <b>$%PRICE%</b> of <span class="tk">$BLOCKY</span> brings a Blocky to the city. It places blocks day and night, and if you hold, it stays forever as a citizen NFT.</p>
+        <div class="ctas">
+          <a class="btn primary big" href="/">Enter the city →</a>
+          <a class="btn big" id="buy" target="_blank" rel="noopener">Buy <span class="tk">$BLOCKY</span></a>
+        </div>
+        <div class="stats" id="stats">
+          <div><b id="s-blockies">–</b><span>Blockies in the city</span></div>
+          <div><b id="s-issued">–</b><span>Blockies ever arrived</span></div>
+          <div><b id="s-bought">–</b><span>bought onchain</span></div>
+          <div><b id="s-projects">–</b><span>Base projects on Base Avenue</span></div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="band">
+        <h2>How it works</h2>
+        <div class="steps">
+          <div class="step"><i>1</i><h3>Buy $BLOCKY</h3><p>Every <b>$%PRICE%</b> you buy brings one Blocky, numbered in the order it arrived. Read straight from the pool onchain. No forms, no mint button.</p></div>
+          <div class="step"><i>2</i><h3>Your Blocky builds</h3><p>It walks out to a construction site and places blocks. Homes, towers, parks, landmarks. The city never stops, even when nobody is watching.</p></div>
+          <div class="step"><i>3</i><h3>Hold and it's yours</h3><p>Held <b>%HELD%</b>, it becomes a citizen for good and you can claim it as an NFT. Sell early and it packs up and leaves.</p></div>
+        </div>
+      </section>
+
+      <section class="split">
+        <img src="/landing/exchange.jpg" alt="The BaseCity skyline around the Stock Exchange" loading="lazy" />
+        <div>
+          <h2>Diamond hands build skylines.<br />Paper hands leave ruins.</h2>
+          <p>BaseCity is honest about its holders. When a wallet sells, its Blockies walk off the job and the building they were on is left unfinished. Big buys get their name on the skyline: <b>$1k+</b> builds a Whale Fountain, <b>$2.5k+</b> a Whale Tower, <b>$5k+</b> a Whale Skyscraper. Sell and the lights go out, FOR SALE to the next whale.</p>
+          <p class="note">Every number on this page comes from the chain. Nothing is faked.</p>
+        </div>
+      </section>
+
+      <section class="split rev">
+        <img src="/landing/avenue.jpg" alt="Base Avenue, where Base projects have their headquarters" loading="lazy" />
+        <div>
+          <h2>Base Avenue: every Base project gets an HQ</h2>
+          <p>The city's main street is lined with headquarters for projects building on Base, each one built block by block by the Blockies.</p>
+          <div class="chips" id="projects"></div>
+          <a class="btn" id="dm-hq" target="_blank" rel="noopener">Get your project an HQ →</a>
+        </div>
+      </section>
+
+      <section class="band">
+        <h2>More than a map</h2>
+        <div class="cards">
+          <a class="card" href="/"><span>🎬</span><h3>BaseCity Cinema</h3><p>Walk into a cinema, react with the crowd and leave with a ticket to post.</p></a>
+          <a class="card" href="/builders.html"><span>👷</span><h3>Base Builders</h3><p>Real builders from the Base ecosystem work alongside the Blockies. Find them in the city.</p></a>
+          <a class="card" href="/collection.html"><span>🧱</span><h3>Blockies collection</h3><p>Every Blocky is a voxel character with rarity traits, claimable as an NFT on Base.</p></a>
+          <a class="card" href="/recap.html"><span>📈</span><h3>Daily recap</h3><p>What got built, who arrived and who left, ready to share.</p></a>
+          <a class="card" href="/vote.html"><span>🗳</span><h3>Citizens vote</h3><p>NFT holders decide what the city builds next.</p></a>
+          <a class="card" href="/"><span>🎥</span><h3>Cinematic mode</h3><p>One click turns the city into a film. Record clips and share them.</p></a>
+        </div>
+      </section>
+
+      <section class="split">
+        <img src="/landing/depot.jpg" alt="A delivery depot in BaseCity" loading="lazy" />
+        <div>
+          <h2>Building on Base? Build here too.</h2>
+          <ul class="ticks">
+            <li><b>An HQ on Base Avenue</b>, in your colors, with your logo and a link.</li>
+            <li><b>Billboards</b> across the city, clickable to your site.</li>
+            <li><b>A premiere at BaseCity Cinema</b> for your clip, with live reactions.</li>
+          </ul>
+          <a class="btn primary" id="dm-partner" target="_blank" rel="noopener">DM @%X% →</a>
+        </div>
+      </section>
+
+      <section class="final">
+        <h2>The city is building right now.</h2>
+        <p>Pick a Blocky up for $%PRICE% and watch it go to work.</p>
+        <div class="ctas">
+          <a class="btn primary big" href="/">Enter the city →</a>
+          <a class="btn big" id="buy2" target="_blank" rel="noopener">Buy <span class="tk">$BLOCKY</span></a>
+        </div>
+        <button type="button" class="ca-big" id="ca"></button>
+      </section>
+    </main>
+    <script type="module" src="/src/home.js"></script>
+  </body>
+</html>
