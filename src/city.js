@@ -1029,11 +1029,13 @@ const DESIGN = {
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(5.3, 2.98), CINEMA.mat);
     screen.position.set(0, Y + 0.86 + 1.49, -2.54);
     screen.userData.animate = CINEMA.tick;
+    screen.userData.sponsor = { cinema: true }; // clickable: main.js opens the cinema room
     k.extras.push(screen);
     for (const x of [-2.85, 2.85]) { k.box(0.3, 4.2, 0.5, 0xb03030, x, Y, -2.7); k.box(0.7, 1.0, 0.6, C.dark, x * 0.9, Y, -2.1); } // curtains, speakers
     k.box(6.2, 0.7, 0.6, 0xb03030, 0, Y + 4.2, -2.75); // the marquee
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 0.55), CINEMA.signMat);
     sign.position.set(0, Y + 4.55, -2.44);
+    sign.userData.sponsor = { cinema: true };
     k.extras.push(sign);
     for (let i = 0; i < 8; i++) k.win(0.18, 0.18, 0.18, -2.8 + i * 0.8, Y + 4.95, -2.6);
     for (let r = 0; r < 4; r++) { // stepped seating, rows of seats

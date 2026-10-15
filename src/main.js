@@ -6,6 +6,7 @@ import { createAgents } from './agents.js';
 import { createCats } from './cats.js';
 import { createGpuDistrict } from './gpu.js';
 import { createDirectory } from './directory.js';
+import { createCinemaRoom } from './cinemaroom.js';
 import { createBuilderList } from './builderlist.js';
 import { chipEconomy, teamWallets, FAB } from './chips.js';
 import { createFabDecor } from './fab.js';
@@ -204,6 +205,7 @@ try { musicPref = localStorage.getItem('basecity:music'); } catch { /* ignore */
 if (musicPref !== '0' || STREAM) GESTURES.forEach((g) => addEventListener(g, firstGesture, true));
 // ---------- the city directory: pick a building, the camera flies there (src/directory.js) ----------
 
+const cinemaRoom = createCinemaRoom(); // inside the BaseCity Cinema
 let focus = null; // where the camera is flying: { x, y, z, zoom, t }
 const BEACON_MAT = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0, depthWrite: false });
 const beacon = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), BEACON_MAT);
@@ -225,7 +227,7 @@ const directory = createDirectory({
   districts: () => districts,
   minted: () => minted,
   who: (a) => (a ? whoHtml(a, 28) : ''),
-  onPick: flyTo,
+  onPick: (p) => { flyTo(p); if (p.type === 'stage' && !p.sub) setTimeout(() => cinemaRoom.show(), 1600); }, // a cinema: fly there, then go in
   note: (p) => (chips?.waiting.some((w) => w.k === p.k) ? `⏳ waiting for ${fmt(CONFIG.chips.cost[p.type])} chips` : ''),
 });
 const builderList = createBuilderList({
@@ -748,6 +750,7 @@ canvas.addEventListener('pointerup', (e) => {
   const hits = ray.intersectObjects([...views.values()].map((v) => v.hit), false);
   if (hits[0]) return select(hits[0].object.userData.builder);
   const board = ray.intersectObjects(city.billboards, false)[0]?.object.userData.sponsor;
+  if (board?.cinema) { select(null); cinemaRoom.show(); return; }
   if (board?.url) { open(board.url, '_blank', 'noopener'); return; }
   select(null);
 });

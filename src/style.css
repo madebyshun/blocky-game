@@ -320,3 +320,31 @@ body.photo .directory, body.cine .directory, body.photo .dir-btn, body.cine .dir
   .dir-btn span { display: none; }
   .bld-btn { bottom: 172px; }
 }
+
+/* ---------- inside the BaseCity Cinema (src/cinemaroom.js) ---------- */
+.cinema-room { position: fixed; inset: 0; z-index: 2000; background: radial-gradient(ellipse at 50% 35%, #2a1414 0%, #0b0606 60%, #000 100%); display: flex; flex-direction: column; align-items: center; overflow: hidden; animation: cr-in .5s ease; }
+.cinema-room[hidden] { display: none; }
+@keyframes cr-in { from { opacity: 0; transform: scale(1.04); } }
+.cr-marquee { margin-top: 18px; padding: 8px 28px 6px; background: #14100a; border: 4px solid #b03030; border-radius: 10px; text-align: center; box-shadow: 0 0 0 4px #14100a, 0 0 30px rgba(255, 210, 63, .25); background-image: radial-gradient(circle, #ffd23f 2px, transparent 3px); background-size: 18px 18px; background-position: 0 -6px; background-repeat: repeat-x; }
+.cr-marquee span { display: block; font: 400 34px/1.1 "Lilita One", Inter, sans-serif; color: #ffd23f; letter-spacing: 2px; text-shadow: 0 0 12px rgba(255, 210, 63, .6); }
+.cr-marquee small { display: block; font: 700 12px Inter, sans-serif; color: #fff; letter-spacing: 2px; opacity: .85; min-height: 14px; }
+.cr-close { position: absolute; top: 16px; right: 16px; width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .12); color: #fff; font-size: 20px; cursor: pointer; }
+.cr-close:hover { background: rgba(255, 255, 255, .25); }
+.cr-stage { position: relative; flex: 1; width: min(1100px, 94vw); display: flex; align-items: center; justify-content: center; min-height: 0; padding: 16px 0; }
+.cr-screen { position: relative; width: min(100%, calc((100vh - 300px) * 16 / 9)); aspect-ratio: 16 / 9; background: #000; border: 6px solid #1d2127; border-radius: 4px; box-shadow: 0 0 80px rgba(120, 170, 255, .35), 0 0 0 2px #333; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.cr-screen img, .cr-screen video { width: 100%; height: 100%; object-fit: contain; }
+.cr-screen img { animation: cr-zoom 16s ease-in-out infinite alternate; }
+@keyframes cr-zoom { to { transform: scale(1.05); } }
+.cr-cap { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px; background: rgba(0, 0, 0, .6); color: #fff; font: 700 18px Inter, sans-serif; text-align: center; pointer-events: none; }
+.cr-empty { text-align: center; color: #ffc83d; font-family: "Lilita One", Inter, sans-serif; }
+.cr-empty b { display: block; font-size: 44px; font-weight: 400; } .cr-empty span { color: #fff; font: 600 18px Inter, sans-serif; }
+.cr-curtain { position: absolute; top: 0; bottom: 0; width: 7vw; background: repeating-linear-gradient(90deg, #7a1515 0 14px, #b03030 14px 28px); box-shadow: inset 0 -30px 40px rgba(0, 0, 0, .5); }
+.cr-curtain.l { left: -7vw; border-radius: 0 0 40% 0; } .cr-curtain.r { right: -7vw; border-radius: 0 0 0 40%; }
+.cr-list { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 0 16px 8px; }
+.cr-list button { border: 1px solid rgba(255, 255, 255, .2); background: rgba(255, 255, 255, .08); color: #fff; border-radius: 999px; padding: 6px 12px; font: 600 13px Inter, sans-serif; cursor: pointer; }
+.cr-list button.on { background: #ffd23f; color: #14100a; border-color: #ffd23f; }
+.cr-seats { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; padding-bottom: 6px; }
+.cr-row { display: flex; gap: calc(6px + var(--r) * 2px); }
+.cr-row i { width: calc(18px + var(--r) * 5px); height: calc(20px + var(--r) * 6px); background: var(--c); filter: brightness(.35); border-radius: 3px 3px 0 0; box-shadow: inset 0 -6px 0 rgba(0, 0, 0, .35); animation: cr-bob 2.4s ease-in-out var(--d) infinite; }
+@keyframes cr-bob { 50% { transform: translateY(-2px); } }
+@media (max-width: 700px) { .cr-marquee span { font-size: 24px; } .cr-screen { width: 100%; } .cr-curtain { display: none; } .cr-row i { width: calc(12px + var(--r) * 3px); height: calc(14px + var(--r) * 4px); } }

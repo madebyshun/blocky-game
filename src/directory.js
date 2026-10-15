@@ -40,7 +40,7 @@ export function createDirectory({ sim, districts, minted, who, onPick, note = ()
       const n = note(p);
       if (p.kind === 'landmark') out.push({ group: p.brand ? 'avenue' : 'landmark', name: p.name, sub: n || (p.brand ? `Plot ${p.brand.plot} · ${p.brand.tagline || ''}` : names.get(regionOf(p.lot)) || ''), lot: p.lot, h: p.h });
       else if (p.kind === 'wonder') out.push({ group: 'whale', name: p.name, sub: p.whale?.lostAt < Infinity ? 'gone dark: for sale to the next whale' : `named after ${who(p.whale?.from) || 'a whale'}`, html: true, lot: p.lot, h: p.h });
-      else out.push({ group: `d:${regionOf(p.lot)}`, district: names.get(regionOf(p.lot)) || 'The outskirts', name: p.name, sub: ruin ? '🏚 abandoned' : n, lot: p.lot, h: p.h });
+      else out.push({ type: p.type, group: `d:${regionOf(p.lot)}`, district: names.get(regionOf(p.lot)) || 'The outskirts', name: p.name, sub: ruin ? '🏚 abandoned' : n, lot: p.lot, h: p.h });
     }
     // Base Avenue plots still waiting for their HQ
     for (const l of LANDMARKS) {
