@@ -161,7 +161,7 @@ export const CATALOG = {
   skatepark: { label: 'Skate Park', min: 6, w: [0.4, 0.7, 0.4, 0.1], cost: 45, size: [[6, 6], [6, 6], [1, 1]] },
   pool: { label: 'Public Pool', min: 7, w: [0.4, 0.8, 0.6, 0.1], cost: 70, size: [[6, 6], [6, 6], [1, 1]] },
   carousel: { label: 'Carousel', min: 8, w: [0.4, 0.6, 0.3, 0.1], cost: 90, size: [[5, 5], [5, 5], [3, 3]] },
-  stage: { label: 'Concert Stage', min: 9, w: [0.6, 0.6, 0.3, 0.1], cost: 80, size: [[6, 6], [5, 5], [3, 3]] },
+  stage: { label: 'BaseCity Cinema', min: 9, w: [0.6, 0.6, 0.3, 0.1], cost: 80, size: [[6, 6], [5, 5], [3, 3]] },
   ferris: { label: 'Ferris Wheel', min: 12, w: [0.1, 0.25, 0.15, 0.05], cost: 320, size: [[6, 6], [6, 6], [8, 8]], pro: true },
   coaster: { label: 'Roller Coaster', min: 16, w: [0.1, 0.25, 0.2, 0.1], cost: 380, size: [[6, 6], [6, 6], [5, 5]], pro: true },
   // city services: each arrives once early (FEATURED), then more as the city grows; most send out vehicles

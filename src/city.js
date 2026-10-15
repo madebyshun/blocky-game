@@ -408,6 +408,47 @@ function boardMaterial(slot) {
   return { mat, sp };
 }
 // a billboard on posts, facing +z; the panel is clickable (userData.sponsor)
+// ---------- BaseCity Cinema: one shared screen for every cinema, playing CONFIG.cinema.reel ----------
+// Each reel item is { img } or { video } (files in public/), shown `secs` seconds, with an optional caption.
+const CINEMA = (() => {
+  const cv = document.createElement('canvas'); cv.width = 640; cv.height = 360;
+  const g = cv.getContext('2d'), tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+  const reel = (CONFIG.cinema?.reel || []).map((it) => {
+    let src = null;
+    if (it.video) { src = document.createElement('video'); Object.assign(src, { src: it.video, muted: true, loop: true, playsInline: true, crossOrigin: 'anonymous' }); }
+    else if (it.img) { src = new Image(); src.src = it.img; }
+    return { ...it, src };
+  });
+  const ready = (s) => s && (s.tagName === 'VIDEO' ? s.readyState >= 2 : s.complete && s.naturalWidth);
+  function draw(it, t) {
+    g.fillStyle = '#05070b'; g.fillRect(0, 0, 640, 360);
+    if (!it) { g.fillStyle = '#ffc83d'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '800 44px "Lilita One", Inter, sans-serif'; g.fillText('YOUR FILM HERE', 320, 160); g.font = '600 24px Inter, sans-serif'; g.fillStyle = '#fff'; g.fillText('DM @blockyonbase', 320, 215); return; }
+    const s = it.src;
+    if (ready(s)) {
+      const w = s.videoWidth || s.naturalWidth, h = s.videoHeight || s.naturalHeight, f = Math.min(640 / w, 360 / h) * (it.video ? 1 : 1 + 0.04 * Math.sin(t * 0.3));
+      g.drawImage(s, 320 - (w * f) / 2, 180 - (h * f) / 2, w * f, h * f);
+    }
+    if (it.caption) { g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(0, 312, 640, 48); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '700 26px Inter, sans-serif'; g.fillText(it.caption, 320, 337); }
+  }
+  let last = -1, cur = null;
+  const tick = (t) => {
+    if (t - last < 1 / 15) return; last = t; // one shared texture, 15 fps is plenty
+    const total = reel.reduce((a, it) => a + (it.secs || 8), 0);
+    let u = total ? t % total : 0, it = null;
+    for (const r of reel) { if (u < (r.secs || 8)) { it = r; break; } u -= r.secs || 8; }
+    if (it !== cur) { if (cur?.src?.pause) cur.src.pause(); cur = it; if (it?.src?.play) it.src.play().catch(() => {}); }
+    draw(it, t); tex.needsUpdate = true;
+  };
+  const sc = document.createElement('canvas'); sc.width = 1024; sc.height = 100;
+  const sg = sc.getContext('2d');
+  sg.fillStyle = '#14100a'; sg.fillRect(0, 0, 1024, 100);
+  sg.fillStyle = '#ffd23f'; sg.textAlign = 'center'; sg.textBaseline = 'middle'; sg.font = '800 64px "Lilita One", Inter, sans-serif';
+  sg.fillText(CONFIG.cinema?.title || 'BASECITY CINEMA', 512, 54);
+  const st = new THREE.CanvasTexture(sc); st.colorSpace = THREE.SRGBColorSpace;
+  return { mat, tick, signMat: new THREE.MeshBasicMaterial({ map: st, toneMapped: false }) };
+})();
+
 function billboard(k, x, y, z, w, h, slot, posts = 0.6) {
   for (const px of [-w / 2 + 0.2, w / 2 - 0.2]) k.box(0.12, posts, 0.12, C.dark, x + px, y, z);
   k.box(w + 0.16, h + 0.16, 0.12, C.dark, x, y + posts - 0.08, z - 0.08);
@@ -980,15 +1021,28 @@ const DESIGN = {
     for (let i = 0; i < 3; i++) k.box(5, 0.3, 0.4, i % 2 ? C.base : C.white, 0, Y + i * 0.3, 2.3 + i * 0.35);
     k.box(0.25, 0.25, 0.25, C.white, 0.6, Y, -0.3);
   },
+  // BaseCity Cinema (was the Concert Stage): a 16:9 screen playing CONFIG.cinema.reel, a marquee, seats
   stage(k, p) {
     k.box(6.4, Y, 6.4, 0x9aa3ad);
-    k.box(5, 0.7, 2.4, C.dark, 0, Y, -1.6);
-    k.box(5, 2.6, 0.2, 0x1d2127, 0, Y + 0.7, -2.7);
-    k.blue(2.4, 0.6, 0.06, 0, Y + 2.1, -2.58);
-    for (const x of [-2.4, 2.4]) { k.box(0.15, 3.6, 0.15, 0x95a5a6, x, Y, -0.5); k.box(0.7, 1.2, 0.6, C.dark, x * 0.85, Y + 0.7, -0.8); }
-    k.box(5, 0.15, 0.15, 0x95a5a6, 0, Y + 3.6, -0.5);
-    for (let i = 0; i < 5; i++) k.win(0.25, 0.25, 0.25, -1.6 + i * 0.8, Y + 3.35, -0.5);
-    for (let i = 0; i < 12; i++) k.box(0.2, 0.35, 0.2, C.flower[i % 5], -2.4 + hash(p.k, i, 3) * 4.8, Y, 0.6 + hash(p.k, i, 4) * 2.2);
+    k.box(6, 4.2, 0.4, 0x1d2127, 0, Y, -2.8); // the screen wall
+    k.box(5.5, 3.2, 0.06, 0x05070b, 0, Y + 0.75, -2.58);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(5.3, 2.98), CINEMA.mat);
+    screen.position.set(0, Y + 0.86 + 1.49, -2.54);
+    screen.userData.animate = CINEMA.tick;
+    k.extras.push(screen);
+    for (const x of [-2.85, 2.85]) { k.box(0.3, 4.2, 0.5, 0xb03030, x, Y, -2.7); k.box(0.7, 1.0, 0.6, C.dark, x * 0.9, Y, -2.1); } // curtains, speakers
+    k.box(6.2, 0.7, 0.6, 0xb03030, 0, Y + 4.2, -2.75); // the marquee
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 0.55), CINEMA.signMat);
+    sign.position.set(0, Y + 4.55, -2.44);
+    k.extras.push(sign);
+    for (let i = 0; i < 8; i++) k.win(0.18, 0.18, 0.18, -2.8 + i * 0.8, Y + 4.95, -2.6);
+    for (let r = 0; r < 4; r++) { // stepped seating, rows of seats
+      const z = -0.6 + r * 0.85, h = 0.12 + r * 0.18;
+      k.box(5.6, h, 0.85, 0x3a3f47, 0, Y, z);
+      for (let i = 0; i < 9; i++) if (hash(p.k, r * 9 + i, 5) < 0.55) k.box(0.3, 0.35, 0.3, C.flower[(r + i) % 5], -2.4 + i * 0.6, Y + h, z + 0.1);
+      else k.box(0.4, 0.25, 0.3, 0x8e1b1b, -2.4 + i * 0.6, Y + h, z + 0.1);
+    }
+    k.box(0.5, 0.9, 0.5, 0xf5c518, 2.9, Y, 3.0); k.box(0.6, 0.12, 0.6, C.white, 2.9, Y + 0.9, 3.0); // popcorn stand
   },
   icecream(k, p) {
     lawn(k);

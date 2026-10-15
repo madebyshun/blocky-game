@@ -133,6 +133,13 @@ export const CONFIG = {
   // Empty for now: every Base project the city features has its own HQ on Base Avenue, so the
   // billboards stay blank ad space ("YOUR PROJECT HERE", DM the city's X) until someone books one.
   sponsors: [],
+  // BaseCity Cinema: what plays on the big screen, in a loop. { img | video (public/), secs, caption }
+  cinema: {
+    title: 'BASECITY CINEMA',
+    reel: [
+      { img: '/logos/toshi.png', secs: 8, caption: 'NOW SHOWING · TOSHI' },
+    ],
+  },
   adContact: '', // shown on empty billboards, e.g. 'DM @blockyfun'; defaults to xHandle
   siteUrl: 'https://basecity.space', // BaseCity's domain, e.g. 'https://basecity.xyz': share text, the cinematic watermark, NFT links (SITE_URL on the API wins). Empty: the address the site is opened on
 
@@ -215,7 +222,7 @@ export const CONFIG = {
     parks: { label: 'Parks Commissioner', home: ['park', 'lakepark', 'flowergarden'], duty: 'plants a new tree in the park' },
     farms: { label: 'Farms Commissioner', home: ['farm'], duty: 'checks on the harvest out in the fields' },
     lifeguard: { label: 'Head Lifeguard', home: ['pool', 'lakepark'], duty: 'is on duty at the public pool' },
-    culture: { label: 'Culture Minister', home: ['stage', 'studio'], duty: 'books the next show at the Concert Stage' },
+    culture: { label: 'Culture Minister', home: ['stage', 'studio'], duty: 'books the next film at the BaseCity Cinema' },
     arts: { label: 'Arts Director', home: ['studio', 'flowergarden'], duty: 'paints a new mural downtown' },
     creative: { label: 'Creative Director', home: ['studio', 'flowergarden'], duty: 'curates the city\'s look, from the shop windows to the skyline' },
     events: { label: 'Events Director', home: ['hackathon', 'stadium'], duty: 'is setting up the next hackathon' },
