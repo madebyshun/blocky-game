@@ -137,6 +137,7 @@ export const CONFIG = {
   cinema: {
     title: 'BASECITY CINEMA',
     reel: [
+      { video: '/clips/toshi.mp4', secs: 23, caption: 'TOSHI · via @Toshi' },
       { img: '/logos/toshi.png', secs: 8, caption: 'NOW SHOWING · TOSHI' },
     ],
   },
