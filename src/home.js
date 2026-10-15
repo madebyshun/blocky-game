@@ -5,6 +5,7 @@ import { fetchColony } from './data.js';
 import { mountSite, fmt, esc } from './site.js';
 
 mountSite('home');
+try { localStorage.setItem('basecity:seen', '1'); } catch {} // the bare domain now opens the city for this visitor
 const $ = (id) => document.getElementById(id);
 
 for (const id of ['buy', 'buy2']) $(id).href = CONFIG.buyUrl;

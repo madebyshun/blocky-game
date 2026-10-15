@@ -1,6 +1,11 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // first visit to the bare domain: show the landing page first (home.html marks it seen);
+      // deep links (?film=, #…) and returning visitors go straight to the city
+      try { if (!location.search && !location.hash && !localStorage.getItem('basecity:seen')) location.replace('/home.html'); } catch {}
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>BaseCity · a city built 24/7 by Blockies, the builders of Base</title>
@@ -68,7 +73,7 @@
       </div>
       <button id="ca" class="ca" hidden title="Copy contract address"></button>
       <nav class="site-links" aria-label="BaseCity pages">
-        <a href="/claim.html" class="hot">Claim</a><a href="/collection.html">Blockies</a><a href="/builders.html">Builders</a><a href="/about.html">About</a>
+        <a href="/home.html">Home</a><a href="/claim.html" class="hot">Claim</a><a href="/collection.html">Blockies</a><a href="/builders.html">Builders</a><a href="/about.html">About</a>
       </nav>
     </section>
 

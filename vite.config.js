@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
             .replace(/%HELD%/g, holdText(Number(env.CITIZEN_DAYS) || CONFIG.citizenDays))
             .replace(/%SITE%/g, site)
             .replace(/%X%/g, CONFIG.xHandle);
-          return site ? out.replace(/content="\/(og(?:-[a-z]+)?\.png)"/g, `content="${site}/$1"`) : out;
+          return site ? out.replace(/content="\/(og(?:-[a-z]+)?\.(?:png|jpg))"/g, `content="${site}/$1"`) : out;
         },
       },
       {
