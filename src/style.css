@@ -348,3 +348,19 @@ body.photo .directory, body.cine .directory, body.photo .dir-btn, body.cine .dir
 .cr-row i { width: calc(18px + var(--r) * 5px); height: calc(20px + var(--r) * 6px); background: var(--c); filter: brightness(.35); border-radius: 3px 3px 0 0; box-shadow: inset 0 -6px 0 rgba(0, 0, 0, .35); animation: cr-bob 2.4s ease-in-out var(--d) infinite; }
 @keyframes cr-bob { 50% { transform: translateY(-2px); } }
 @media (max-width: 700px) { .cr-marquee span { font-size: 24px; } .cr-screen { width: 100%; } .cr-curtain { display: none; } .cr-row i { width: calc(12px + var(--r) * 3px); height: calc(14px + var(--r) * 4px); } }
+.cr-react { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; padding: 0 16px 10px; }
+.cr-react [data-e] { border: 1px solid rgba(255, 255, 255, .15); background: rgba(255, 255, 255, .08); border-radius: 999px; padding: 5px 12px 5px 10px; font-size: 22px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: transform .1s; }
+.cr-react [data-e]:active { transform: scale(1.25); }
+.cr-react small { font: 700 13px Inter, sans-serif; color: #fff; min-width: 14px; }
+.cr-ticket-btn { border: 0; background: #ffd23f; color: #14100a; border-radius: 999px; padding: 9px 16px; font: 800 14px Inter, sans-serif; cursor: pointer; margin-left: 6px; }
+.cr-ticket-btn.pulse { animation: cr-pulse 1.2s ease-in-out 4; }
+@keyframes cr-pulse { 50% { transform: scale(1.1); box-shadow: 0 0 24px #ffd23f; } }
+.cr-float { position: absolute; bottom: 8%; font-size: 34px; pointer-events: none; animation: cr-up 2.6s ease-out forwards; z-index: 2; }
+@keyframes cr-up { to { transform: translate(var(--dx), -320px) scale(1.3); opacity: 0; } }
+.cr-ticket { position: absolute; inset: 0; z-index: 5; background: rgba(0, 0, 0, .8); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.cr-ticket[hidden] { display: none; }
+.cr-tbox { width: min(760px, 100%); text-align: center; }
+.cr-tbox canvas { width: 100%; height: auto; border-radius: 12px; box-shadow: 0 10px 50px rgba(255, 210, 63, .25); }
+.cr-tbtns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+.cr-tbtns button { border: 1px solid rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .1); color: #fff; border-radius: 999px; padding: 9px 16px; font: 700 14px Inter, sans-serif; cursor: pointer; }
+.cr-tbtns .primary { background: #0052ff; border-color: #0052ff; }

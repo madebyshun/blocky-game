@@ -134,11 +134,11 @@ export const CONFIG = {
   // billboards stay blank ad space ("YOUR PROJECT HERE", DM the city's X) until someone books one.
   sponsors: [],
   // BaseCity Cinema: what plays on the big screen, in a loop. { img | video (public/), secs, caption }
-  cinema: {
+  cinema: { // reel items: { id, title, img | video, secs, caption } (id keys the popcorn reactions)
     title: 'BASECITY CINEMA',
     reel: [
-      { video: '/clips/toshi.mp4', secs: 23, caption: 'TOSHI · via @Toshi' },
-      { img: '/logos/toshi.png', secs: 8, caption: 'NOW SHOWING · TOSHI' },
+      { id: 'toshi-clip', title: 'Toshi', video: '/clips/toshi.mp4', secs: 23, caption: 'TOSHI · via @Toshi' },
+      { id: 'toshi', title: 'Toshi', img: '/logos/toshi.png', secs: 8, caption: 'NOW SHOWING · TOSHI' },
     ],
   },
   adContact: '', // shown on empty billboards, e.g. 'DM @blockyfun'; defaults to xHandle
