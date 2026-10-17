@@ -35,7 +35,8 @@ function ramp(s) { // -> { x, y, phi } (phi: the surface's heading; 0 along +x, 
   const e = ramp(L3), t = s - L3;
   return { x: e.x + Math.cos(e.phi) * t, y: e.y + Math.sin(e.phi) * t, phi: e.phi };
 }
-const RUNWAY = 26; // runway length before the ramp's foot
+const RUNWAY = 26; // apron length before the ramp's foot
+const SPOT = new THREE.Vector3(-RUNWAY / 2 - 2, 0, 3); // where they land, burn out, park and start the next run
 const CYCLE = 30, CARS = 3;
 const T_ROLL = 4, T_RAMP = 1.7, T_FLY = 16.5, T_BURN = 3.2; // then parked until the next run
 
@@ -77,10 +78,24 @@ function makeJetcar() {
 // ---------- the site: runway, ramp, steel frame on one side, floodlights ----------
 function makeSite() {
   const site = new THREE.Group();
-  box(site, RUNWAY + 8, 0.04, 5, 0x23262d, -RUNWAY / 2 + 2, 0.02, 0); // runway
-  box(site, RUNWAY + 8, 0.05, 0.1, RED, -RUNWAY / 2 + 2, 0.05, -2.4, 0xcc0000); // red light line down one side
-  for (let x = -RUNWAY; x < 0; x += 3) box(site, 1.2, 0.05, 0.12, 0xffffff, x, 0.05, 0);
-  for (let x = -RUNWAY - 4; x < 2; x += 1.6) box(site, 0.14, 0.08, 0.14, 0xffffff, x, 0.06, 2.5, 0xfff4cc); // small runway lights
+  // the apron: a wide dark lot with long thin white lines crossing it, a pale concrete pad at the ramp's foot
+  const AW = RUNWAY + 14, AD = 30, ax = -RUNWAY / 2 - 2;
+  box(site, AW, 0.04, AD, 0x1f2227, ax, 0.02, 0);
+  box(site, 6, 0.05, WIDTH + 1.6, 0xcfccc6, -2.2, 0.03, 0); // approach pad
+  box(site, AW, 0.05, 0.1, 0xe8e8e8, ax, 0.05, 0); // centre line into the ramp
+  for (const a of [0.42, -0.42]) { const l = box(site, AW * 1.05, 0.05, 0.08, 0xe8e8e8, ax - 4, 0.05, 0); l.rotation.y = a; } // the crossing lines
+  // the barrier down the far side: a low wall with a red light strip, white dots, red glow on the ground,
+  // and banks of white floodlights along it
+  const bz = -AD / 2 + 1.5;
+  box(site, AW, 0.5, 0.25, 0x2b2f36, ax, 0.25, bz);
+  box(site, AW, 0.08, 0.27, RED, ax, 0.52, bz, 0xff1a1a);
+  box(site, AW, 0.02, 2.4, 0x5a1414, ax, 0.045, bz + 1.4, 0x3a0606); // the glow it throws on the ground
+  for (let x = ax - AW / 2 + 1; x < ax + AW / 2; x += 1.2) box(site, 0.1, 0.1, 0.1, 0xffffff, x, 0.62, bz, 0xffffff);
+  for (const x of [ax - AW / 3, ax, ax + AW / 3]) {
+    box(site, 0.2, 1.6, 0.2, 0x2b2f36, x, 0.8, bz - 0.5);
+    box(site, 2.4, 0.5, 0.3, 0xffffff, x, 1.7, bz - 0.4, 0xffffff);
+  }
+  for (const z of [-3.2, 3.2]) box(site, 0.6, 0.35, 0.3, 0xffffff, -1, 0.3, z, 0xfff4cc); // lights at the ramp's foot
   // the ramp surface, slab by slab along the profile; red light on both edges, two white lane lines
   const N = 64, len = LTOTAL / N;
   for (let i = 0; i < N; i++) {
@@ -100,11 +115,6 @@ function makeSite() {
   const gx0 = ramp(LTOTAL).x - 0.5;
   for (const z of [-1.4, 1.4]) box(site, tx + 1.4 - gx0, 0.24, 0.24, STEEL, (tx + 1.4 + gx0) / 2, top, z);
   for (let x = gx0; x < tx + 1.4; x += 1) box(site, 0.12, 0.12, 2.8, STEEL, x, top, 0);
-  // floodlights low along the runway, pointed at the ramp
-  for (const x of [-RUNWAY + 2, -RUNWAY / 2, -4]) for (const z of [-4.2, 4.2]) {
-    box(site, 0.1, 1.2, 0.1, 0x2b2f36, x, 0.6, z);
-    box(site, 0.6, 0.35, 0.3, 0xffffff, x, 1.3, z * 0.96, 0xfff4cc);
-  }
   return site;
 }
 
@@ -151,8 +161,8 @@ export function createJetcars(city) {
       new THREE.Vector3(H * 0.7, alt + 2, 0),
       new THREE.Vector3(-H * 0.4, alt, -H * 0.75),
       s.clone().add(new THREE.Vector3(-RUNWAY - 8, 7, -10)),
-      s.clone().add(new THREE.Vector3(-RUNWAY - 3, 1.2, 0)),
-      s.clone().add(new THREE.Vector3(-RUNWAY + 1, 0, 0)),
+      s.clone().add(new THREE.Vector3(-RUNWAY / 2 - 6, 1.2, 6)),
+      s.clone().add(SPOT),
     ], false, 'centripetal', 0.5);
   }
 
@@ -162,7 +172,7 @@ export function createJetcars(city) {
   function at(c) {
     if (c < t1) { // down the runway, speeding up
       const u = c / t1;
-      P.set(-RUNWAY + RUNWAY * u * u, 0, 0).add(site.position); UP.set(0, 1, 0);
+      P.copy(SPOT).lerp(tmp.set(0, 0, 0), u * u).add(site.position); UP.set(0, 1, 0);
       return { stage: 'roll', thrust: 0.2 * u };
     }
     if (c < t2) { // up the ramp, over the top, along the lip
@@ -177,7 +187,8 @@ export function createJetcars(city) {
       UP.set(-Math.sin(lip) * (1 - roll), Math.cos(lip) * (1 - roll) + roll, 0.3 * Math.sin(roll * Math.PI)).normalize();
       return { stage: 'fly', thrust: u > 0.93 ? 0.6 : 1 };
     }
-    P.copy(site.position).add(new THREE.Vector3(-RUNWAY + 1, 0, 0)); UP.set(0, 1, 0);
+    UP.set(0, 1, 0);
+    P.copy(SPOT).add(site.position); // where it landed, until its next run
     if (c < t4) { // burnout: two smoky turns where it landed
       const u = (c - t3) / T_BURN;
       return { stage: 'burn', thrust: 0, yaw: Math.PI * 4 * (1 - (1 - u) ** 2) };
