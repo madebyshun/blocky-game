@@ -106,7 +106,7 @@ export function createJetcars(city) {
   const cars = Array.from({ length: CARS }, (_, i) => {
     const { g, plumes } = makeJetcar();
     group.add(g);
-    return { mesh: g, plumes, off: (i * CYCLE) / CARS, pos: new THREE.Vector3(), dir: new THREE.Vector3(1, 0, 0), flying: false };
+    return { mesh: g, plumes, off: (i * CYCLE) / CARS, pos: new THREE.Vector3(), dir: new THREE.Vector3(1, 0, 0), flying: false, stage: 'park', c: 0 };
   });
   city.jetcars = cars;
 
@@ -186,7 +186,7 @@ export function createJetcars(city) {
       if (NEXT.distanceToSquared(CUR) < 1e-8) NEXT.copy(CUR).add(car.dir);
       car.dir.subVectors(NEXT, CUR).normalize();
       car.pos.copy(CUR);
-      car.flying = now.stage === 'fly';
+      car.flying = now.stage === 'fly'; car.stage = now.stage; car.c = c;
       // the model's nose is -x: a frame with +z along the travel and "up" kept, then turn -x onto +z
       LOOK.copy(CUR).sub(car.dir);
       M.lookAt(CUR, LOOK, up);

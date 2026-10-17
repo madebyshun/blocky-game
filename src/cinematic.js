@@ -116,20 +116,24 @@ function shots(city, sim) {
         o.look.copy(m.position).addScaledVector(s.fwd, 10).setY(0.9);
         o.pivot = null; o.fov = 58; o.focus = false;
       } },
-    { id: 'jetcam', label: 'Jet cam', dur: 14, cam: true, caption: () => ['🚀 Jet cam', 'from the Launch Pad, over BaseCity'], // chasing a jet car off the ramp and over the city
+    { id: 'jetcam', label: 'Jet cam', dur: 16, cam: true, caption: () => ['🚀 Jet cam', 'from the Launch Pad, over BaseCity'], // a jet car up the ramp, off its lip and over the city
       start: (s) => {
         const cars = city.jetcars || [];
         if (!cars.length) return false;
-        s.car = cars.reduce((a, b) => (b.flying && !a.flying ? b : a), cars[0]);
-        s.back = v3().copy(s.car.dir);
+        const wait = (c) => ((3 - c.c) % 30 + 30) % 30; // the one about to hit the ramp
+        s.car = cars.reduce((a, b) => (wait(b) < wait(a) ? b : a));
+        s.back = v3().copy(s.car.dir); s.side = v3(); s.blend = 0;
         return true;
       },
       frame: (s, u, o) => {
-        const c = s.car;
-        s.back.lerp(c.dir, 0.08).normalize(); // the camera swings round smoothly behind it
-        o.pos.copy(c.pos).addScaledVector(s.back, -6.5); o.pos.y = Math.max(1, o.pos.y + 2.2);
-        o.look.copy(c.pos).addScaledVector(s.back, 3);
-        o.pivot = null; o.fov = 55; o.focus = false;
+        const c = s.car, ramp = c.stage === 'ramp' || (c.stage === 'fly' && c.c < 7);
+        s.blend += ((ramp ? 1 : 0) - s.blend) * 0.06; // on the ramp the camera stands off to the side, like a stunt shot
+        s.back.lerp(c.dir, 0.08).normalize();
+        const chase = v3().copy(c.pos).addScaledVector(s.back, -6.5); chase.y = Math.max(1, chase.y + 2.2);
+        s.side.set(c.pos.x + 2, 4.5, c.pos.z + 16);
+        o.pos.copy(chase).lerp(s.side, s.blend);
+        o.look.copy(c.pos).addScaledVector(s.back, 3 * (1 - s.blend));
+        o.pivot = null; o.fov = 55 + s.blend * 5; o.focus = false;
       } },
     { id: 'carrycam', label: 'Delivery cam', dur: 10, subject: true, cam: true, caption: workerCaption('Delivery cam'), // walking alongside one carrying blocks
       pick: (v) => v.mode === 'toSite',
