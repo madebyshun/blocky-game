@@ -25,7 +25,7 @@ const WHITE = 0xf2f3f5, BASE = 0x0052ff, DARK = 0x16181d, GLASS = 0x1b2230, STEE
 
 // ---------- the ramp's profile, in the x-y plane, by distance s along its surface ----------
 // a quarter circle up from the runway, a tall vertical wall, a curve back over the top, a straight lip
-const R1 = 6, WALL = 9, R2 = 4.5, BACK = (55 * Math.PI) / 180, LIP = 2.5, WIDTH = 3.6;
+const R1 = 6, WALL = 6, R2 = 5.5, BACK = (75 * Math.PI) / 180, LIP = 6, WIDTH = 3.6; // a tall C, ~165 degrees round, and a long lip tilted slightly up
 const L1 = (R1 * Math.PI) / 2, L2 = L1 + WALL, L3 = L2 + R2 * BACK, LTOTAL = L3 + LIP;
 const C3 = new THREE.Vector2(R1 - R2, R1 + WALL); // centre of the top curve
 function ramp(s) { // -> { x, y, phi } (phi: the surface's heading; 0 along +x, pi/2 straight up)
