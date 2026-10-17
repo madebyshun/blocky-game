@@ -698,7 +698,21 @@ function applyTrait(g, arms, b, skin) {
 // Merge a part's boxes into as few meshes as possible (one vertex-coloured mesh for the plain
 // colours, one per special material), so a Blocky costs a handful of draw calls instead of dozens.
 const BODY = new THREE.MeshLambertMaterial({ vertexColors: true });
-function mergeParts(parent) {
+// Base Builders: the same colors with a voxel grain on every face (8x8 pixels a shade lighter or
+// darker), like a hand-painted voxel figure. Only a texture: no extra parts, nothing that can drift.
+const GRAIN = (() => {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 8;
+  const g = cv.getContext('2d');
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const v = Math.round(255 * (0.8 + 0.2 * hash(x, y, 91) * (0.6 + 0.4 * hash(x >> 1, y >> 1, 92))));
+    g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 1, 1);
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  return t;
+})();
+const BODY_GRAIN = new THREE.MeshLambertMaterial({ vertexColors: true, map: GRAIN });
+function mergeParts(parent, body = BODY) {
   const plain = [], special = new Map();
   for (const o of parent.children) {
     if (!o.isMesh || o.children.length) continue;
@@ -723,10 +737,10 @@ function mergeParts(parent) {
     for (const o of list) parent.remove(o);
     parent.add(mesh);
   };
-  if (plain.length > 1) bake(plain, BODY, true);
+  if (plain.length > 1) bake(plain, body, true);
   for (const [m, list] of special) if (list.length > 1) bake(list, m, false);
 }
-function finish(g, legs, arms) { mergeParts(g); for (const p of [...legs, ...arms]) mergeParts(p); }
+function finish(g, legs, arms, body = BODY) { mergeParts(g, body); for (const p of [...legs, ...arms]) mergeParts(p, body); }
 
 // One Blocky: a little builder in a safety vest, dressed for its role.
 // Returns the group plus the parts that animate (legs, arms) and the block it carries.
@@ -768,7 +782,7 @@ export function buildBlocky(b, { merge = true } = {}) {
   if (look || uniform) {
     if (look) look.dress(g, arms); else tierUniform(g, tier === 'whale' ? 'whale' : 'base', hair, !!b.legend);
     if (b.trait) applyTrait(g, arms, b, skin);
-    if (merge) finish(g, legs, arms);
+    if (merge) finish(g, legs, arms, b.legend ? BODY_GRAIN : BODY);
     const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
     carry.visible = false;
     return { group: g, legs, arms, carry };
