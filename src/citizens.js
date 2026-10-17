@@ -699,12 +699,12 @@ function applyTrait(g, arms, b, skin) {
 // colours, one per special material), so a Blocky costs a handful of draw calls instead of dozens.
 const BODY = new THREE.MeshLambertMaterial({ vertexColors: true });
 // Base Builders: the same colors with a voxel grain on every face (8x8 pixels a shade lighter or
-// darker), like a hand-painted voxel figure. Only a texture: no extra parts, nothing that can drift.
+// darker, 4x4), like a hand-painted voxel figure. Only a texture: no extra parts, nothing that can drift.
 const GRAIN = (() => {
-  const cv = document.createElement('canvas'); cv.width = cv.height = 8;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 4;
   const g = cv.getContext('2d');
-  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-    const v = Math.round(255 * (0.72 + 0.28 * hash(x, y, 91) * (0.55 + 0.45 * hash(x >> 1, y >> 1, 92))));
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const v = Math.round(255 * (0.92 + 0.08 * hash(x, y, 91)));
     g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 1, 1);
   }
   const t = new THREE.CanvasTexture(cv);
@@ -731,8 +731,8 @@ function mergeParts(parent, body = BODY) {
           let k = 1;
           if (painted) { // hand-painted shading: lit tops, darker undersides and sides, each face darkening toward its foot
             const ny = nor.getY(v), nx = Math.abs(nor.getX(v));
-            k = ny > 0.5 ? 1.16 : ny < -0.5 ? 0.7 : nx > 0.5 ? 0.94 : 1.06;
-            if (Math.abs(ny) < 0.5) k *= 0.84 + 0.32 * (pos.getY(v) + 0.5);
+            k = ny > 0.5 ? 1.18 : ny < -0.5 ? 0.88 : nx > 0.5 ? 1.02 : 1.08;
+            if (Math.abs(ny) < 0.5) k *= 0.95 + 0.1 * (pos.getY(v) + 0.5);
           }
           arr[i] = c.r * k; arr[i + 1] = c.g * k; arr[i + 2] = c.b * k;
         }
