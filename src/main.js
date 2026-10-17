@@ -14,6 +14,7 @@ import { createMusic } from './music.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
+import { createJetcars } from './jetcars.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
@@ -260,6 +261,7 @@ if (qs.has('photo')) setPhoto(true);
 
 const city = createCity(scene);
 const traffic = createTraffic(city);
+const jetcars = createJetcars(city); // the Launch Pad and its flying cars
 const metro = createMetro(city);
 const agents = createAgents(city);
 const cats = createCats(city);
@@ -1006,6 +1008,7 @@ function frame() {
 
   city.update(t, dt);
   traffic.update(t, dt);
+  jetcars.update(t, dt);
   metro.update(t, dt);
   agents.update(t, dt);
   cats.update(t, dt);
@@ -1076,6 +1079,12 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   requestAnimationFrame(frame);
   if (STREAM) startStream();
   else if (qs.get('film')) filmCast(qs.get('film'));
+  else if (qs.get('shot')) { // ?shot=jetcam: straight into the film camera on that shot (for recording)
+    const id = qs.get('shot');
+    cine.enter();
+    const go = (n = 0) => { if (!cine.play(id) && n < 20) setTimeout(() => go(n + 1), 500); };
+    setTimeout(go, 800);
+  }
   setInterval(async () => applyState(await fetchColony(known, knownGone), false), s.source === 'demo' ? 2000 : CONFIG.pollMs);
   if (s.source !== 'demo') watchLive(({ now: watching, total }) => {
     $('live').textContent = fmt(watching);

@@ -116,6 +116,21 @@ function shots(city, sim) {
         o.look.copy(m.position).addScaledVector(s.fwd, 10).setY(0.9);
         o.pivot = null; o.fov = 58; o.focus = false;
       } },
+    { id: 'jetcam', label: 'Jet cam', dur: 14, cam: true, caption: () => ['🚀 Jet cam', 'from the Launch Pad, over BaseCity'], // chasing a jet car off the ramp and over the city
+      start: (s) => {
+        const cars = city.jetcars || [];
+        if (!cars.length) return false;
+        s.car = cars.reduce((a, b) => (b.flying && !a.flying ? b : a), cars[0]);
+        s.back = v3().copy(s.car.dir);
+        return true;
+      },
+      frame: (s, u, o) => {
+        const c = s.car;
+        s.back.lerp(c.dir, 0.08).normalize(); // the camera swings round smoothly behind it
+        o.pos.copy(c.pos).addScaledVector(s.back, -6.5); o.pos.y = Math.max(1, o.pos.y + 2.2);
+        o.look.copy(c.pos).addScaledVector(s.back, 3);
+        o.pivot = null; o.fov = 55; o.focus = false;
+      } },
     { id: 'carrycam', label: 'Delivery cam', dur: 10, subject: true, cam: true, caption: workerCaption('Delivery cam'), // walking alongside one carrying blocks
       pick: (v) => v.mode === 'toSite',
       start: (s) => { s.side = Math.random() < 0.5 ? -1 : 1; [s.off, s.free] = s.clearAngle(s.side * 2.3, 6, 3.4); return s.free >= 4; },
@@ -313,7 +328,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
 
   const SHOTS = shots(city, sim);
   // Auto (and the livestream): no close-ups, a work cam between two wide shots. ◀ ▶ reach every shot.
-  const AUTO = ['aerial', 'sitecam', 'gpucam', 'vancam', 'rooftops', 'fabcam', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'vancam', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
+  const AUTO = ['aerial', 'sitecam', 'gpucam', 'vancam', 'jetcam', 'rooftops', 'fabcam', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'vancam', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
   const STREAM = AUTO;
   // a cast (?film=jesse,brian): their work cams and close shots, with a wide shot now and then for the city around them
   const CAST = ['crewcam', 'medium', 'carrycam', 'aerial', 'follow', 'hero', 'crewcam', 'streetcam', 'rooftops', 'medium', 'carrycam', 'skyline'];
