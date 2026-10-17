@@ -250,3 +250,6 @@ export function createJetcars(city) {
   }
   return { update };
 }
+
+// the parts, for scripted scenes (clips)
+export { makeJetcar, makeSite, ramp, LTOTAL, RUNWAY, SPOT, WIDTH };
