@@ -45,19 +45,57 @@ const PLUME = new THREE.MeshBasicMaterial({ color: 0xdfe8ff, transparent: true, 
 const FLAME = new THREE.MeshBasicMaterial({ color: 0x8fc4ff, transparent: true, opacity: 0.9, depthWrite: false });
 const PLUME_GEO = new THREE.ConeGeometry(0.22, 1, 10, 1, true).translate(0, -0.5, 0); // narrow at the nozzle, opening along -y
 const NOZZLE = new THREE.CylinderGeometry(0.075, 0.075, 0.06, 12).rotateZ(Math.PI / 2);
+const TIRE = new THREE.CylinderGeometry(0.21, 0.21, 0.15, 16).rotateX(Math.PI / 2);
+const RIM = new THREE.CylinderGeometry(0.13, 0.13, 0.02, 12).rotateX(Math.PI / 2);
+const SEE = new THREE.MeshLambertMaterial({ color: 0x24324a, transparent: true, opacity: 0.55 }); // tinted glass: you can see who's in
 function makeJetcar() {
   const g = new THREE.Group(), body = new THREE.Group();
   g.add(body);
-  box(body, 2.3, 0.28, 1.05, WHITE, 0, 0.32, 0); // floor pan
-  box(body, 1.7, 0.2, 1.0, WHITE, 0.15, 0.52, 0); // body
-  box(body, 0.6, 0.14, 0.98, WHITE, -0.95, 0.42, 0); // the wedge nose
-  box(body, 0.95, 0.22, 0.86, GLASS, 0.05, 0.72, 0); // cabin glass
-  box(body, 0.5, 0.12, 0.84, WHITE, 0.62, 0.68, 0); // rear deck
-  box(body, 2.32, 0.05, 1.07, BASE, 0, 0.42, 0); // stripe
-  box(body, 0.06, 0.24, 1.02, DARK, 1.15, 0.33, 0); // dark rear diffuser
-  box(body, 0.05, 0.05, 1.04, RED, 1.17, 0.56, 0, 0xcc0000); // full-width tail light bar
-  box(body, 0.04, 0.04, 0.8, 0xffffff, -1.26, 0.42, 0, 0x777777); // headlight strip
-  for (const [x, z] of [[-0.75, 0.53], [-0.75, -0.53], [0.8, 0.53], [0.8, -0.53]]) box(body, 0.42, 0.42, 0.12, DARK, x, 0.24, z); // wheels
+  const tilt = (m, a) => { m.rotation.z = a; return m; };
+  // chassis and body: a long low wedge, nose down at -x, a fastback cabin, a short tail
+  box(body, 2.2, 0.16, 0.96, DARK, 0, 0.2, 0); // floor pan
+  box(body, 2.16, 0.22, 1.04, WHITE, 0.02, 0.38, 0); // lower body
+  tilt(box(body, 0.72, 0.1, 1.0, WHITE, -0.84, 0.47, 0), 0.16); // nose, sloping down to the front
+  box(body, 0.5, 0.1, 1.02, WHITE, -0.38, 0.53, 0); // hood
+  box(body, 0.58, 0.16, 1.03, WHITE, 0.82, 0.55, 0); // rear deck / shoulders
+  box(body, 2.18, 0.04, 1.06, BASE, 0.02, 0.43, 0); // stripe
+  box(body, 1.5, 0.06, 1.07, DARK, 0.05, 0.27, 0); // side skirts
+  // cabin: raked windshield, glass roof, fastback glass; the sides are the doors
+  tilt(box(body, 0.5, 0.035, 0.84, 0, -0.06, 0.68, 0), 0.52).material = SEE;
+  box(body, 0.5, 0.035, 0.84, 0, 0.36, 0.81, 0).material = SEE;
+  tilt(box(body, 0.42, 0.035, 0.84, 0, 0.73, 0.71, 0), -0.6).material = SEE;
+  box(body, 0.04, 0.33, 0.04, WHITE, 0.12, 0.66, 0.42); box(body, 0.04, 0.33, 0.04, WHITE, 0.12, 0.66, -0.42); // B pillars
+  // inside: two bucket seats, a wheel, a glowing screen
+  for (const z of [0.22, -0.22]) { box(body, 0.28, 0.08, 0.3, 0x2a2f3a, 0.2, 0.52, z); box(body, 0.07, 0.34, 0.3, 0x2a2f3a, 0.36, 0.66, z); }
+  box(body, 0.04, 0.12, 0.14, DARK, -0.08, 0.66, 0.22);
+  box(body, 0.03, 0.1, 0.18, 0x4f8bff, -0.16, 0.63, 0, 0x2a5fd0);
+  // front: twin light strips, a dark intake
+  for (const z of [0.34, -0.34]) box(body, 0.04, 0.035, 0.3, 0xffffff, -1.2, 0.47, z, 0xdddddd);
+  box(body, 0.05, 0.08, 0.6, DARK, -1.18, 0.33, 0);
+  // rear: diffuser, light bar, a wing on two struts
+  box(body, 0.06, 0.24, 1.02, DARK, 1.12, 0.33, 0);
+  box(body, 0.05, 0.05, 1.04, RED, 1.13, 0.56, 0, 0xcc0000);
+  box(body, 0.22, 0.035, 1.08, DARK, 1.05, 0.74, 0);
+  for (const z of [0.32, -0.32]) box(body, 0.05, 0.12, 0.04, DARK, 1.03, 0.66, z);
+  // sides: intakes behind the doors, mirrors
+  for (const s of [1, -1]) { box(body, 0.26, 0.1, 0.02, DARK, 0.55, 0.46, 0.52 * s); box(body, 0.1, 0.06, 0.08, WHITE, -0.22, 0.62, 0.56 * s); }
+  // wheels: tyres, silver rims with a blue cap, arches
+  for (const [x, z] of [[-0.72, 0.5], [-0.72, -0.5], [0.72, 0.5], [0.72, -0.5]]) {
+    const t = new THREE.Mesh(TIRE, mat(0x111216)); t.position.set(x, 0.21, z); body.add(t);
+    const r = new THREE.Mesh(RIM, mat(0xb9c0c9)); r.position.set(x, 0.21, z + Math.sign(z) * 0.07); body.add(r);
+    box(body, 0.06, 0.06, 0.02, BASE, x, 0.21, z + Math.sign(z) * 0.085, 0x0033aa);
+    box(body, 0.5, 0.04, 0.06, DARK, x, 0.43, z * 1.02);
+  }
+  // gull-wing doors, hinged along the roof: a window over a white panel. doors[i].hinge.rotation.x to open
+  const doors = [1, -1].map((side) => {
+    const hinge = new THREE.Group(); hinge.position.set(-0.06, 0.82, 0.42 * side); body.add(hinge);
+    const p = (w, h, d, color, x, y, z) => box(hinge, w, h, d, color, x, y, z * side);
+    p(0.56, 0.2, 0.03, 0, 0.02, -0.12, 0.02).material = SEE;
+    p(0.7, 0.16, 0.05, WHITE, 0.0, -0.3, 0.08);
+    p(0.7, 0.025, 0.055, BASE, 0.0, -0.38, 0.085);
+    p(0.1, 0.02, 0.02, 0x9aa3ad, 0.18, -0.26, 0.11); // handle
+    return { hinge, side };
+  });
   const plumes = [], rear = [];
   for (const [x, z] of [[-0.6, 0.3], [-0.6, -0.3], [0.6, 0.3], [0.6, -0.3]]) { // lift thrusters under the floor
     box(body, 0.22, 0.06, 0.22, 0x3a4150, x, 0.16, z, 0x1b3a7a);
@@ -67,12 +105,12 @@ function makeJetcar() {
     plumes.push({ plume, flame });
   }
   for (const z of [-0.36, -0.12, 0.12, 0.36]) { // four round outlets in the diffuser, the main thrust
-    const n = new THREE.Mesh(NOZZLE, mat(0x2a2f3a, 0x10306a)); n.position.set(1.19, 0.3, z); body.add(n);
-    const flame = new THREE.Mesh(PLUME_GEO, FLAME); flame.rotation.z = Math.PI / 2; flame.position.set(1.2, 0.3, z); flame.scale.set(0.4, 0.5, 0.4);
+    const n = new THREE.Mesh(NOZZLE, mat(0x2a2f3a, 0x10306a)); n.position.set(1.16, 0.3, z); body.add(n);
+    const flame = new THREE.Mesh(PLUME_GEO, FLAME); flame.rotation.z = Math.PI / 2; flame.position.set(1.17, 0.3, z); flame.scale.set(0.4, 0.5, 0.4);
     body.add(flame);
     rear.push(flame);
   }
-  return { g, plumes, rear };
+  return { g, plumes, rear, doors };
 }
 
 // ---------- the site: runway, ramp, steel frame on one side, floodlights ----------
