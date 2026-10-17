@@ -154,11 +154,15 @@ export function createJetcars(city) {
     q.grow = big ? 3.4 : 1.4; q.rise = big ? 0.35 : -0.6; q.fade = big ? 0.32 : 0.45;
   };
 
-  // where the site sits: west of the city, past its edge; moved out as the land grows
+  // where the site sits: north-west of the city, past its edge; moved out as the land grows. The countryside
+  // under it stays bare grass (no barns or trees through the apron)
+  const SITE_Z = -26;
+  const area = (L) => { const x = -(Math.max(2, L) * PITCH + 44); return { x0: x - RUNWAY - 11, x1: x + R1 + 4, z0: SITE_Z - 17, z1: SITE_Z + 17 }; };
+  city.setKeepClear?.(area);
   let placedFor = -1, flight = null;
   function place() {
     const H = Math.max(2, city.land) * PITCH;
-    site.position.set(-(H + 44), 0, 0); // the apron clear of the roads round the city
+    site.position.set(-(H + 44), 0, SITE_Z); // north-west of the city, clear of the highway
     placedFor = city.land;
     const s = site.position, lip = ramp(LTOTAL), alt = 16 + H * 0.12;
     const out = new THREE.Vector3(Math.cos(lip.phi), Math.sin(lip.phi), 0);
