@@ -31,7 +31,7 @@ const CYCLE = 30, CARS = 3;
 // four thruster nozzles underneath (their plumes animate)
 const PLUME = new THREE.MeshBasicMaterial({ color: 0xdfe8ff, transparent: true, opacity: 0.55, depthWrite: false });
 const FLAME = new THREE.MeshBasicMaterial({ color: 0x8fc4ff, transparent: true, opacity: 0.9, depthWrite: false });
-const PLUME_GEO = new THREE.ConeGeometry(0.22, 1, 10, 1, true).translate(0, -0.5, 0).rotateX(Math.PI); // tip up, opens downward
+const PLUME_GEO = new THREE.ConeGeometry(0.22, 1, 10, 1, true).translate(0, -0.5, 0); // narrow at the nozzle, opening downward
 function makeJetcar() {
   const g = new THREE.Group(), body = new THREE.Group();
   g.add(body);
@@ -206,7 +206,7 @@ export function createJetcars(city) {
       if (!q.life) continue;
       q.life = Math.max(0, q.life - dt * 0.45);
       q.m.position.y -= dt * 0.6;
-      q.m.scale.setScalar(0.5 + (1 - q.life) * 2.2);
+      q.m.scale.setScalar(0.4 + (1 - q.life) * 1.4);
       q.m.material.opacity = q.life * 0.45;
       q.m.visible = q.life > 0;
     }
