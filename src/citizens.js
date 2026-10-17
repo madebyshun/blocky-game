@@ -704,7 +704,7 @@ const GRAIN = (() => {
   const cv = document.createElement('canvas'); cv.width = cv.height = 8;
   const g = cv.getContext('2d');
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
-    const v = Math.round(255 * (0.8 + 0.2 * hash(x, y, 91) * (0.6 + 0.4 * hash(x >> 1, y >> 1, 92))));
+    const v = Math.round(255 * (0.72 + 0.28 * hash(x, y, 91) * (0.55 + 0.45 * hash(x >> 1, y >> 1, 92))));
     g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 1, 1);
   }
   const t = new THREE.CanvasTexture(cv);
@@ -726,7 +726,16 @@ function mergeParts(parent, body = BODY) {
       const g = o.geometry.clone().applyMatrix4(o.matrix);
       if (colored) {
         const c = o.material.color, n = g.attributes.position.count, arr = new Float32Array(n * 3);
-        for (let i = 0; i < n * 3; i += 3) { arr[i] = c.r; arr[i + 1] = c.g; arr[i + 2] = c.b; }
+        const pos = o.geometry.attributes.position, nor = o.geometry.attributes.normal, painted = material === BODY_GRAIN;
+        for (let i = 0, v = 0; i < n * 3; i += 3, v++) {
+          let k = 1;
+          if (painted) { // hand-painted shading: lit tops, darker undersides and sides, each face darkening toward its foot
+            const ny = nor.getY(v), nx = Math.abs(nor.getX(v));
+            k = ny > 0.5 ? 1.16 : ny < -0.5 ? 0.7 : nx > 0.5 ? 0.94 : 1.06;
+            if (Math.abs(ny) < 0.5) k *= 0.84 + 0.32 * (pos.getY(v) + 0.5);
+          }
+          arr[i] = c.r * k; arr[i + 1] = c.g * k; arr[i + 2] = c.b * k;
+        }
         g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
       }
       return g;
