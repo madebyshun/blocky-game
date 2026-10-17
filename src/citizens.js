@@ -728,6 +728,33 @@ function mergeParts(parent) {
 }
 function finish(g, legs, arms) { mergeParts(g); for (const p of [...legs, ...arms]) mergeParts(p); }
 
+// Base Builders get finer tailoring over whatever they wear: a darker hem and collar, sleeve cuffs,
+// ears, a belt, two-tone shoes with white soles and knuckle lines. No new accessories.
+const shade = (c, k) => { const ch = (v) => Math.min(255, Math.round(v * k + (k > 1 ? 14 : 0))); return (ch((c >> 16) & 255) << 16) | (ch((c >> 8) & 255) << 8) | ch(c & 255); };
+function builderDetail(g, legs, arms, { shirt, skin, pants, id }) {
+  const hem = shade(shirt, 0.78), cuff = shade(shirt, 0.85);
+  B(g, 0.465, 0.05, 0.285, hem, 0, 0.17); // hem
+  B(g, 0.3, 0.05, 0.22, hem, 0, 0.79, 0.01); // collar
+  B(g, 0.06, 0.08, 0.02, hem, -0.06, 0.72, 0.142); B(g, 0.06, 0.08, 0.02, hem, 0.06, 0.72, 0.142); // collar points
+  for (const x of [-0.215, 0.215]) B(g, 0.03, 0.1, 0.08, shade(skin, 0.9), x, 0.88, 0.02); // ears
+  B(g, 0.465, 0.04, 0.285, shade(pants, 0.7), 0, 0.17 - 0.04); // belt
+  // fabric: a few pixels a shade lighter or darker on the front and back of the shirt, the same per builder
+  for (let i = 0; i < 14; i++) {
+    const r = (k) => hash(id, i, k), side = r(1) < 0.6 ? 1 : -1;
+    B(g, 0.06, 0.06, 0.012, shade(shirt, r(2) < 0.5 ? 0.86 : 1.14), -0.19 + r(3) * 0.38, 0.22 + r(4) * 0.5, side * 0.142);
+  }
+  for (const x of [-0.2, 0.2]) B(g, 0.07, 0.025, 0.285, shade(shirt, 0.85), x, 0.77); // shoulder seams
+  for (const a of arms) {
+    B(a, 0.15, 0.06, 0.18, cuff, 0, -0.2); // sleeve cuff
+    B(a, 0.135, 0.015, 0.165, shade(skin, 0.82), 0, -0.42); // knuckles
+  }
+  for (const l of legs) {
+    B(l, 0.2, 0.03, 0.27, 0xf2f2ee, 0, -0.39, 0.02); // white sole
+    B(l, 0.12, 0.02, 0.02, 0xf2f2ee, 0, -0.33, 0.15); // laces
+    B(l, 0.185, 0.04, 0.215, shade(pants, 0.82), 0, -0.1); // knee seam
+  }
+}
+
 // One Blocky: a little builder in a safety vest, dressed for its role.
 // Returns the group plus the parts that animate (legs, arms) and the block it carries.
 // merge: false keeps every box separate (the SVG renderer reads them one by one).
@@ -767,6 +794,7 @@ export function buildBlocky(b, { merge = true } = {}) {
   B(g, 0.42, 0.42, 0.42, skin, 0, 0.8);
   if (look || uniform) {
     if (look) look.dress(g, arms); else tierUniform(g, tier === 'whale' ? 'whale' : 'base', hair, !!b.legend);
+    if (b.legend) builderDetail(g, legs, arms, { shirt, skin, pants, id: b.id });
     if (b.trait) applyTrait(g, arms, b, skin);
     if (merge) finish(g, legs, arms);
     const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
