@@ -36,7 +36,7 @@ function ramp(s) { // -> { x, y, phi } (phi: the surface's heading; 0 along +x, 
   return { x: e.x + Math.cos(e.phi) * t, y: e.y + Math.sin(e.phi) * t, phi: e.phi };
 }
 const RUNWAY = 26; // apron length before the ramp's foot
-const SPOT = new THREE.Vector3(-RUNWAY / 2 - 2, 0, 3); // where they land, burn out, park and start the next run
+const SPOT = new THREE.Vector3(-RUNWAY, 0, 0); // the runway's start, on its centre line: they land, burn out and start the next run here
 const CYCLE = 30, CARS = 3;
 const T_ROLL = 4, T_RAMP = 1.7, T_FLY = 16.5, T_BURN = 3.2; // then parked until the next run
 
@@ -84,6 +84,16 @@ function makeSite() {
   box(site, 6, 0.05, WIDTH + 1.6, 0xcfccc6, -2.2, 0.03, 0); // approach pad
   box(site, AW, 0.05, 0.1, 0xe8e8e8, ax, 0.05, 0); // centre line into the ramp
   for (const a of [0.42, -0.42]) { const l = box(site, AW * 1.05, 0.05, 0.08, 0xe8e8e8, ax - 4, 0.05, 0); l.rotation.y = a; } // the crossing lines
+  // the runway down the middle of the apron, straight into the ramp: lighter tarmac, white edges, dashes
+  box(site, RUNWAY + 4, 0.045, 4.4, 0x2c3038, -RUNWAY / 2 - 1, 0.03, 0);
+  for (const z of [-2.15, 2.15]) box(site, RUNWAY + 4, 0.055, 0.1, 0xf2f2f2, -RUNWAY / 2 - 1, 0.05, z);
+  // a parking lot along the barrier: white bays and a row of parked cars
+  for (let i = 0; i < 9; i++) {
+    const x = ax - AW / 2 + 4 + i * 2.2;
+    box(site, 0.08, 0.05, 3.2, 0xf2f2f2, x - 1.1, 0.05, -AD / 2 + 4.6);
+    if (i % 4 !== 3) { const { g: c, plumes, rear } = makeJetcar(); for (const f of [...plumes.flatMap((x) => [x.plume, x.flame]), ...rear]) f.visible = false; // parked: thrusters off
+      c.position.set(x, 0, -AD / 2 + 4.6); c.rotation.y = Math.PI / 2; site.add(c); }
+  }
   // the barrier down the far side: a low wall with a red light strip, white dots, red glow on the ground,
   // and banks of white floodlights along it
   const bz = -AD / 2 + 1.5;
@@ -148,7 +158,7 @@ export function createJetcars(city) {
   let placedFor = -1, flight = null;
   function place() {
     const H = Math.max(2, city.land) * PITCH;
-    site.position.set(-(H + R1 + 16), 0, 0);
+    site.position.set(-(H + 44), 0, 0); // the apron clear of the roads round the city
     placedFor = city.land;
     const s = site.position, lip = ramp(LTOTAL), alt = 16 + H * 0.12;
     const out = new THREE.Vector3(Math.cos(lip.phi), Math.sin(lip.phi), 0);
@@ -161,7 +171,7 @@ export function createJetcars(city) {
       new THREE.Vector3(H * 0.7, alt + 2, 0),
       new THREE.Vector3(-H * 0.4, alt, -H * 0.75),
       s.clone().add(new THREE.Vector3(-RUNWAY - 8, 7, -10)),
-      s.clone().add(new THREE.Vector3(-RUNWAY / 2 - 6, 1.2, 6)),
+      s.clone().add(new THREE.Vector3(-RUNWAY - 7, 1.4, 0)),
       s.clone().add(SPOT),
     ], false, 'centripetal', 0.5);
   }
