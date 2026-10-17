@@ -15,7 +15,6 @@ import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
 import { createJetcars } from './jetcars.js';
-import { createFestival } from './festival.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
@@ -263,7 +262,6 @@ if (qs.has('photo')) setPhoto(true);
 const city = createCity(scene);
 const traffic = createTraffic(city);
 const jetcars = createJetcars(city); // the Launch Pad and its flying cars
-const festival = new URLSearchParams(location.search).has('festival') ? createFestival(city) : null; // Balloon Festival demo (?festival)
 const metro = createMetro(city);
 const agents = createAgents(city);
 const cats = createCats(city);
@@ -1011,7 +1009,6 @@ function frame() {
   city.update(t, dt);
   traffic.update(t, dt);
   jetcars.update(t, dt);
-  festival?.update(t, dt);
   metro.update(t, dt);
   agents.update(t, dt);
   cats.update(t, dt);
