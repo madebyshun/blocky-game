@@ -700,15 +700,14 @@ function applyTrait(g, arms, b, skin) {
 const BODY = new THREE.MeshLambertMaterial({ vertexColors: true });
 // Base Builders: the same colors with a voxel grain on every face (8x8 pixels a shade lighter or
 // darker, 4x4), like a hand-painted voxel figure. Only a texture: no extra parts, nothing that can drift.
-const GRAIN = (() => {
-  const cv = document.createElement('canvas'); cv.width = cv.height = 4;
-  const g = cv.getContext('2d');
+const GRAIN = (() => { // a DataTexture, not a canvas: this module also runs on the server (src/voxel-svg.js)
+  const px = new Uint8Array(4 * 4 * 4);
   for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
-    const v = Math.round(255 * (0.92 + 0.08 * hash(x, y, 91)));
-    g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 1, 1);
+    const v = Math.round(255 * (0.92 + 0.08 * hash(x, y, 91))), i = (y * 4 + x) * 4;
+    px[i] = px[i + 1] = px[i + 2] = v; px[i + 3] = 255;
   }
-  const t = new THREE.CanvasTexture(cv);
-  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  const t = new THREE.DataTexture(px, 4, 4);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
   return t;
 })();
 const BODY_GRAIN = new THREE.MeshLambertMaterial({ vertexColors: true, map: GRAIN });
