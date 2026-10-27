@@ -161,10 +161,12 @@ export function createTraffic(city) {
   }
 
   const A = new THREE.Vector3(), B = new THREE.Vector3();
+  let busy = 1; // how busy the streets are: 1 as before, up to 1.7 (Base Live sets it from Base's TPS)
   function update(t, dt) {
     syncBoats();
-    const want = Math.min(24, Math.floor(edges() / 2));
+    const want = Math.min(Math.round(24 * busy), Math.floor((edges() / 2) * busy)); // busier when Base is (src/baselive.js)
     for (let n = cars.filter((c) => !c.kind).length; n < want && spawnCar(cars.length * 7 + 3); n++);
+    let plain = 0;
     syncPatrols();
     syncVans();
     flash(t);
@@ -174,12 +176,13 @@ export function createTraffic(city) {
       if (age > 8) { group.remove(p.m); parcels.splice(i, 1); }
     }
     for (const car of cars) {
+      if (!car.kind && ++plain > want) { car.mesh.visible = false; continue; } // parked while Base is quiet
       if (car.wait > 0) { car.wait -= dt; continue; } // stopped for a delivery
       const a = city.graph.nodes.get(car.from), b = city.graph.nodes.get(car.to);
       if (!a || !b) { car.mesh.visible = false; continue; }
       car.mesh.visible = true;
       const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      car.t += (car.speed * dt) / len;
+      car.t += (car.speed * (car.kind ? 1 : 0.75 + 0.25 * busy) * dt) / len;
       if (car.t >= 1) {
         car.t = 0; const n = nextNode(car); car.from = car.to; car.to = n ?? car.from;
         if (car.kind === 'dguy' && Math.random() < 0.3) car.stopAt = 0.3 + Math.random() * 0.4; // a delivery on this street
@@ -201,5 +204,5 @@ export function createTraffic(city) {
     }
   }
 
-  return { update };
+  return { update, setBusy(k) { busy = k; } };
 }

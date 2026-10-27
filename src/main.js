@@ -15,6 +15,8 @@ import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
 import { createJetcars } from './jetcars.js';
+import { createBaseLive } from './baselive.js';
+import { createBaseLivePanel } from './baselivepanel.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
@@ -141,8 +143,10 @@ function setRotate(on) {
   try { localStorage.setItem('basecity:spin', on ? '1' : '0'); } catch { /* ignore */ }
   syncRotate();
 }
+let baseLive = null; // Base Live (src/baselive.js): Base's own blocks, in a district west of town
 function setPhoto(on) {
   photo = on;
+  if (!on) baseLive?.setDash(false); // leaving the Dashboard view too
   document.body.classList.toggle('photo', on);
   syncRotate();
 }
@@ -262,6 +266,17 @@ if (qs.has('photo')) setPhoto(true);
 const city = createCity(scene);
 const traffic = createTraffic(city);
 const jetcars = createJetcars(city); // the Launch Pad and its flying cars
+baseLive = createBaseLive(city, { camera, renderer, scene, controls, log: (html) => log(html), blockiesOf: (a) => crew.filter((b) => b.from === a).length });
+// 🟦 Base Live: fly to the district (the Dashboard view: panels hidden, every LIVE card shown)
+const goToBaseLive = (close = false) => {
+  const c = baseLive.center;
+  following = false; goHome = false; controls.autoRotate = false;
+  const tall = innerWidth < innerHeight; // phones: a little wider, centred
+  focus = { x: c.x, y: close ? 2 : tall ? 4 : 7, z: c.z + (close ? 6 : tall ? 0 : -3), zoom: wideZoom() * (close ? 3.6 : tall ? 1.5 : 2.15), t: 0 };
+};
+const baseLivePanel = createBaseLivePanel({ baseLive, goTo: goToBaseLive, dashboard: () => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); } });
+$('baselive-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.toggle(); };
+if (qs.has('baselive')) setTimeout(() => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); }, 2500); // ?baselive: straight into the Dashboard view
 const metro = createMetro(city);
 const agents = createAgents(city);
 const cats = createCats(city);
@@ -1009,6 +1024,7 @@ function frame() {
   city.update(t, dt);
   traffic.update(t, dt);
   jetcars.update(t, dt);
+  baseLive.update(t, dt);
   metro.update(t, dt);
   agents.update(t, dt);
   cats.update(t, dt);
@@ -1022,7 +1038,7 @@ function frame() {
   simAcc += dt;
   if (simAcc > 0.5) { simAcc = 0; stepCity(true); }
   slowAcc += dt;
-  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); updateChips(); renderCard(); renderHud(); renderStream(); nextUnlockText(); music.setMood(city.env.daylight, city.env.gloom || 0); }
+  if (slowAcc > 1) { slowAcc = 0; renderLeaders(); updateChips(); renderCard(); renderHud(); renderStream(); nextUnlockText(); traffic.setBusy(baseLive.busy); music.setMood(city.env.daylight, city.env.gloom || 0); }
 
   if (cine.active) { // the film camera takes over
     requestAnimationFrame(frame); // first: a shot that throws must never stop the loop (a black screen)
@@ -1048,9 +1064,9 @@ function frame() {
   } else if (goHome) {
     controls.target.lerp(home, Math.min(1, dt * 2));
   }
-  const lim = city.land * PITCH + 4; // panning stays over the city
-  const tg = controls.target, before = tg.clone();
-  tg.set(THREE.MathUtils.clamp(tg.x, -lim, lim), THREE.MathUtils.clamp(tg.y, 0, 12), THREE.MathUtils.clamp(tg.z, -lim, lim));
+  const lim = city.land * PITCH + 4; // panning stays over the city (and Base Live, west of it)
+  const bl = baseLive.center, tg = controls.target, before = tg.clone();
+  tg.set(THREE.MathUtils.clamp(tg.x, Math.min(-lim, bl.x - 26), lim), THREE.MathUtils.clamp(tg.y, 0, 12), THREE.MathUtils.clamp(tg.z, -lim, Math.max(lim, bl.z + 22)));
   camera.position.add(tg.clone().sub(before));
   controls.update();
   renderer.render(scene, camera);
@@ -1094,4 +1110,4 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   });
 })();
 
-window.blocky = { city, crew, views, agents, cats, gpu, cine, music, get chips() { return chips; }, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };
+window.blocky = { city, crew, baseLive, views, agents, cats, gpu, cine, music, get chips() { return chips; }, camera, controls, renderer, get sim() { return sim; }, get minted() { return minted; } };

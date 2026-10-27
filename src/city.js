@@ -2175,7 +2175,7 @@ export function createCity(scene) {
   root.add(groundGroup, roadGroup, lotsGroup);
 
   let land = 0;
-  let keepClear = null; // (L) => { x0, x1, z0, z1 }: countryside kept bare there (the Launch Pad, src/jetcars.js)
+  const keepClear = []; // (L) => { x0, x1, z0, z1 }: countryside kept bare there (the Launch Pad, src/jetcars.js; Base Live)
   const lots = new Map(); // key -> { kind, k, group }
   const sites = new Map(); // project k -> its construction site (one per crew, see CONFIG.sites)
   let siteVersion = 0;
@@ -2292,8 +2292,8 @@ export function createCity(scene) {
     const onRoad = (i, j) => (i < -L && (j === 0 || j === 1)) || (j > L && (i === -2 || i === -1));
     for (let i = -RC; i <= RC; i++) for (let j = -RC; j <= RC; j++) {
       if (Math.abs(i) <= L && Math.abs(j) <= L) continue;
-      const kept = keepClear?.(L), x = i * PITCH, z = j * PITCH;
-      const under = kept && x > kept.x0 - PITCH / 2 && x < kept.x1 + PITCH / 2 && z > kept.z0 - PITCH / 2 && z < kept.z1 + PITCH / 2;
+      const x = i * PITCH, z = j * PITCH;
+      const under = keepClear.some((fn) => { const kept = fn(L); return x > kept.x0 - PITCH / 2 && x < kept.x1 + PITCH / 2 && z > kept.z0 - PITCH / 2 && z < kept.z1 + PITCH / 2; });
       if (isWater(i, j)) riverCell(k, i, j); else countryCell(k, i, j, onRoad(i, j) || under); // under the Launch Pad: bare grass
     }
     const far = RC * PITCH + 4, len = far - H;
@@ -2658,7 +2658,7 @@ export function createCity(scene) {
   }
 
   return {
-    setKeepClear(fn) { keepClear = fn; },
+    setKeepClear(fn) { keepClear.push(fn); },
     root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, officeSpot, riverPath, billboards,
     setWaiting(set) { waiting = set; }, // src/chips.js: the next sync shows them dark
     solids: lotsGroup, // buildings, sites, trees: what a film camera must not go through
