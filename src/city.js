@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
-import { hash, PITCH, isWater, isReserve, LANDMARKS, AVENUE, CATALOG } from './sim.js';
+import { hash, PITCH, isWater, isReserve, LANDMARKS, AVENUE, CATALOG, BASELIVE_LOTS } from './sim.js';
 import { now } from './time.js';
 import { makeService, makeDrone } from './fleet.js';
 import { catStatue } from './cats.js';
@@ -2515,6 +2515,8 @@ export function createCity(scene) {
       const group = kind === 'ruin' ? ruinGroup(p) : dark ? darken(buildingGroup({ ...p, dark })) : off ? offline(buildingGroup(p), shownH(p.h)) : buildingGroup(p);
       setLot(key, p.lot, kind, p.k, group, animate && kind === 'built' && cur?.k !== p.k, sig);
     }
+    // Base Live's block (src/baselive.js draws it as one): its lots stay clear of woods and buildings
+    if (sim.blOpen) for (const key of BASELIVE_LOTS) if (lots.get(key)?.kind !== 'baselive') setLot(key, key.split(',').map(Number), 'baselive', -1, new THREE.Group());
     for (const key of busy) dev.add(key);
     developed = dev;
     counts = {};

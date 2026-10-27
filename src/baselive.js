@@ -1,4 +1,5 @@
-// Base Live: a district west of the city where Base itself runs, block by block, as a 3D dashboard.
+// Base Live: a block of the city (CONFIG.baseLive, west side) where Base itself runs, block by block,
+// as a 3D dashboard. It's drawn at 0.6 scale, turned so its front (the chain) faces town.
 // - The Base Tower and "the chain": every Base block (2 s) drops in as a bar, its height the block's
 //   transactions, its colour how full it was. LIVE cards over each building (block, TPS, gas, ...).
 // - USDC moved on Base runs as trucks from the USDC Bank; $100k+ transfers are big trucks, $1M+ a whale
@@ -66,28 +67,21 @@ const SPOTS = {
 const BARS = 30, BAR_X0 = -14.5, BAR_Z = 16.6; // the chain, along the front: the last 30 blocks, newest at the east end
 export const DISTRICT = { w: 46, d: 36 };
 
-export function createBaseLive(city, { camera, renderer, scene, controls, log, blockiesOf, feed = '/api' } = {}) {
+export function createBaseLive(city, { camera, renderer, scene, controls, open = () => true, log, blockiesOf, feed = '/api' } = {}) {
   const group = new THREE.Group();
   city.root.add(group);
   const ground = new THREE.Group(); group.add(ground);
 
-  // where it sits: west of the city, south of the west highway, moved out as the land grows
-  const Z0 = 28;
-  const X0 = (L) => -(Math.max(2, L) * PITCH + 4 + 30);
-  const area = (L) => ({ x0: X0(L) - 24, x1: X0(L) + 24, z0: Z0 - 18, z1: Z0 + 21 });
-  city.setKeepClear?.(area);
-  let placedFor = -1;
-  const center = new THREE.Vector3();
-  function place() {
-    group.position.set(X0(city.land), 0, Z0);
-    center.set(X0(city.land), 2, Z0);
-    placedFor = city.land;
-  }
+  // where it sits: the middle of its lots (CONFIG.baseLive), turned a quarter so the front faces east
+  const lots = CONFIG.baseLive?.lots || [[0, 0]], SCALE = 0.6;
+  const mid = (k) => ((Math.min(...lots.map((l) => l[k])) + Math.max(...lots.map((l) => l[k]))) / 2) * PITCH;
+  group.scale.setScalar(SCALE); group.rotation.y = Math.PI / 2;
+  group.position.set(mid(0) - 2.5 * SCALE, 0, mid(1)); // the plaza's centre is 2.5 m in front of the origin
+  group.updateMatrix();
+  const center = new THREE.Vector3(mid(0), 2, mid(1));
 
   // ---------- the ground: a pale plaza, footpaths, a road in from the highway ----------
   box(ground, DISTRICT.w, 0.1, DISTRICT.d, PAVE, 0, 0.02, 2.5);
-  box(ground, 2.4, 0.1, 18, 0x3a3f48, 0, 0.03, -16 - 8); // a road north to the west highway
-  for (let z = -33; z < -16; z += 2) box(ground, 0.12, 0.11, 1, 0xffffff, 0, 0.04, z);
   for (const [x, z, w, d] of [[0, -2.6, 40, 1.4], [-12, 7.6, 1.4, 2.4], [12, 7.6, 1.4, 2.4], [0, 14.4, 34, 1]]) box(ground, w, 0.11, d, 0xc4c9d2, x, 0.03, z);
   for (const [x, z] of [[-21.5, 19], [-21, -14], [21.5, 19], [21, -2], [-6, -14], [6, -14], [-21, 4], [21, 10]]) { // trees round the edge
     box(ground, 0.3, 1.2, 0.3, 0x7a5a3a, x, 0.6, z);
@@ -189,7 +183,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, log, b
     bankTower: route([[-8, -1.4], [-4.5, -2.6], [-1.6, -3.6], [0, -5]]),
     bankDex: route([[-8, -1.6], [-2, -2], [3, -2], [8, -1.6], [12, -0.4]]),
     dexTower: route([[9, -1.2], [5, -2.4], [2, -3.6], [0.8, -5]]),
-    inbound: route([[0, -32], [0, -18], [-3, -14], [-8, -13], [-14, -11], [-14.4, -6]]), // from the highway
+    inbound: route([[-1, 22], [-1, 14.6], [-17.6, 14.6], [-17.6, 4], [-14.4, -6]]), // in from the street in front
   };
   const DOT = new THREE.BoxGeometry(0.34, 0.06, 0.34);
   for (const [name, c] of Object.entries(ROUTES)) {
@@ -228,7 +222,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, log, b
       curve.getPointAt(f, P); curve.getPointAt(Math.min(1, f + 0.01), Q);
       m.mesh.position.copy(P);
       if (Q.distanceToSquared(P) > 1e-6) m.mesh.rotation.y = Math.atan2(-(Q.z - P.z), Q.x - P.x);
-      if (m.label) m.label.at.copy(m.mesh.position).add(group.position).setY(m.mesh.position.y + 2.2);
+      if (m.label) m.label.at.copy(m.mesh.position).setY(m.mesh.position.y + 3.5).applyMatrix4(group.matrix);
       if (u >= 1) {
         if (m.keep > 0) { m.keep -= dt; continue; }
         group.remove(m.mesh); movers.splice(i, 1);
@@ -380,7 +374,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, log, b
     for (const name of b.names) {
       S.names.unshift({ name, t: b.t }); S.names.length = Math.min(S.names.length, 6);
       firework(new THREE.Vector3(SPOTS.registry[0], 9 + Math.random() * 3, SPOTS.registry[1]), [0x5c9bff, 0xffc83d, 0xff6a3d, 0x7cf2c0][Math.floor(Math.random() * 4)]);
-      popLabel(`🎆 <b>${esc(name)}</b>`, new THREE.Vector3(SPOTS.registry[0] + 4, 17, SPOTS.registry[1] + 2).add(group.position), { secs: 5, rise: 4, cls: 'bl-name' });
+      popLabel(`🎆 <b>${esc(name)}</b>`, new THREE.Vector3(SPOTS.registry[0] + 4, 17, SPOTS.registry[1] + 2).applyMatrix4(group.matrix), { secs: 5, rise: 4, cls: 'bl-name' });
       log?.(`🎆 <b>${esc(name)}</b> just registered on Base`);
     }
     renderCards();
@@ -558,7 +552,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, log, b
   function placeCards(show) {
     const list = [];
     for (const c of cards) {
-      const p = show && (dash || c.id === 'tower' || c.id === 'mine') && toScreen(V.copy(c.at).add(group.position).applyMatrix4(city.root.matrixWorld)); // outside the Dashboard view: just the chain and your plot
+      const p = show && (dash || c.id === 'tower' || c.id === 'mine') && toScreen(V.copy(c.at).applyMatrix4(group.matrix).applyMatrix4(city.root.matrixWorld)); // outside the Dashboard view: just the chain and your plot
       if (!p) { c.el.style.display = 'none'; continue; }
       c.el.style.display = '';
       if (!c.size || Math.random() < 0.05) c.size = [c.el.offsetWidth, c.el.offsetHeight + 14];
@@ -576,7 +570,9 @@ export function createBaseLive(city, { camera, renderer, scene, controls, log, b
     for (const { c, x, y } of list) c.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
   }
   function update(t, dt) {
-    if (city.land !== placedFor) place();
+    group.visible = open(); // in a replay, not before its day
+    if (!group.visible) { layer.style.display = 'none'; return; }
+    layer.style.display = '';
     // play the queued blocks one every ~2 s; catch up if the queue grows
     S.playAt -= dt;
     if (S.queue.length && S.playAt <= 0) { play(S.queue.shift()); S.playAt = S.queue.length > 4 ? 0.4 : 1.9; }
@@ -608,7 +604,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, log, b
 
   start();
   return {
-    update, area, findTx, myBase, shareImage, tps,
+    update, findTx, myBase, shareImage, tps,
     get center() { return center; }, // in city.root's coordinates
     get busy() { return S.last ? Math.max(0.4, Math.min(1.7, tps() / 150)) : 1; }, // the city's traffic follows Base
     get live() { return S.ok; },

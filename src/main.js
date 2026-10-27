@@ -14,7 +14,6 @@ import { createMusic } from './music.js';
 import { renderPfp, downloadPfp } from './pfp.js';
 import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
-import { createJetcars } from './jetcars.js';
 import { createBaseLive } from './baselive.js';
 import { createBaseLivePanel } from './baselivepanel.js';
 import { createSky } from './sky.js';
@@ -265,14 +264,13 @@ if (qs.has('photo')) setPhoto(true);
 
 const city = createCity(scene);
 const traffic = createTraffic(city);
-const jetcars = createJetcars(city); // the Launch Pad and its flying cars
-baseLive = createBaseLive(city, { camera, renderer, scene, controls, log: (html) => log(html), blockiesOf: (a) => crew.filter((b) => b.from === a).length });
+baseLive = createBaseLive(city, { camera, renderer, scene, controls, open: () => !!sim?.blOpen && city.land >= 9, log: (html) => log(html), blockiesOf: (a) => crew.filter((b) => b.from === a).length });
 // 🟦 Base Live: fly to the district (the Dashboard view: panels hidden, every LIVE card shown)
 const goToBaseLive = (close = false) => {
   const c = baseLive.center;
   following = false; goHome = false; controls.autoRotate = false;
   const tall = innerWidth < innerHeight; // phones: a little wider, centred
-  focus = { x: c.x, y: close ? 2 : tall ? 4 : 7, z: c.z + (close ? 6 : tall ? 0 : -3), zoom: wideZoom() * (close ? 3.6 : tall ? 1.5 : 2.15), t: 0 };
+  focus = { x: c.x + (close ? 4 : 0), y: close ? 2 : tall ? 3 : 5, z: c.z, zoom: wideZoom() * (close ? 4.6 : tall ? 2 : 2.9), t: 0 };
 };
 const baseLivePanel = createBaseLivePanel({ baseLive, goTo: goToBaseLive, dashboard: () => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); } });
 $('baselive-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.toggle(); };
@@ -580,7 +578,9 @@ const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.le
   : p.rebuilds ? `🏗️ ${p.name} completed, replacing ${p.rebuilds}`
   : `🏗️ ${p.name} completed`);
 // what departures did to the city (CitySim.depart)
-const eventLine = (e) => (e.kind === 'unnamed'
+const eventLine = (e) => (e.kind === 'baselive'
+  ? `🟦 Base Live opened on the west side: Base, block by block${e.gone.length ? `, where ${e.gone.map((p) => p.name).join(' and ')} stood` : ''}`
+  : e.kind === 'unnamed'
   ? `🌑 ${e.p.name} went dark: ${whoHtml(e.p.whale.from)} sold. FOR SALE to the next whale`
   : e.kind === 'ruin'
   ? `🏚️ ${e.p.name} abandoned: ${fmt(e.n)} ${plural} left at once`
@@ -1023,7 +1023,6 @@ function frame() {
 
   city.update(t, dt);
   traffic.update(t, dt);
-  jetcars.update(t, dt);
   baseLive.update(t, dt);
   metro.update(t, dt);
   agents.update(t, dt);
@@ -1064,9 +1063,9 @@ function frame() {
   } else if (goHome) {
     controls.target.lerp(home, Math.min(1, dt * 2));
   }
-  const lim = city.land * PITCH + 4; // panning stays over the city (and Base Live, west of it)
-  const bl = baseLive.center, tg = controls.target, before = tg.clone();
-  tg.set(THREE.MathUtils.clamp(tg.x, Math.min(-lim, bl.x - 26), lim), THREE.MathUtils.clamp(tg.y, 0, 12), THREE.MathUtils.clamp(tg.z, -lim, Math.max(lim, bl.z + 22)));
+  const lim = city.land * PITCH + 4; // panning stays over the city
+  const tg = controls.target, before = tg.clone();
+  tg.set(THREE.MathUtils.clamp(tg.x, -lim, lim), THREE.MathUtils.clamp(tg.y, 0, 12), THREE.MathUtils.clamp(tg.z, -lim, lim));
   camera.position.add(tg.clone().sub(before));
   controls.update();
   renderer.render(scene, camera);

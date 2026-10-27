@@ -190,3 +190,25 @@ assert.ok(ms < 4000, `a year took ${Math.round(ms)}ms`);
 assert.ok(sim.next.startedAt === undefined && sim.advance(t0 + 365 * DAY).length === 0, 'one call did not catch up');
 console.log(`city: a year of 1,000 Blockies replays in ${Math.round(ms)}ms (${sim.done.length} projects)`);
 console.log('city: all checks pass');
+
+// Base Live (CONFIG.baseLive): from its day its block holds nothing else; before it, nothing changes
+{
+  const { BASELIVE_LOTS } = await import('../src/sim.js');
+  const { CONFIG } = await import('../src/config.js');
+  const from = Date.parse(CONFIG.baseLive.from);
+  const s = city(1200);
+  s.advance(from - HOUR);
+  const before = s.done.length, onBlock = [...s.standing.keys()].filter((k) => BASELIVE_LOTS.has(k)).length;
+  assert.equal(s.blOpen, false);
+  s.advance(from + 10 * DAY);
+  assert.equal(s.blOpen, true);
+  assert.ok(s.done.length > before, 'the city keeps building');
+  assert.deepEqual([...s.standing.keys()].filter((k) => BASELIVE_LOTS.has(k)), [], 'something stands on Base Live');
+  assert.ok(!s.done.some((p) => p.at > from && p.lot && BASELIVE_LOTS.has(p.lot.join(','))), 'built on Base Live after its day');
+  const ev = s.events.find((e) => e.kind === 'baselive');
+  assert.equal(ev?.at, from);
+  assert.equal(ev.gone.length, onBlock);
+  const again = city(1200); again.advance(from - HOUR);
+  assert.deepEqual(again.done.map((p) => p.name), s.done.slice(0, before).map((p) => p.name), 'history before Base Live changed');
+  console.log(`city: Base Live takes its block on its day (${onBlock} buildings came down), history before it unchanged`);
+}

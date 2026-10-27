@@ -1,4 +1,4 @@
-import { hash, PITCH, isReserve } from './sim.js';
+import { hash, PITCH, isReserve, BASELIVE_LOTS } from './sim.js';
 
 // Neighbourhoods of 3x3 lots get a name from what was built there most: tech, fun, homes, green or shops,
 // or woods where the city kept its forest (sim.js isReserve).
@@ -30,7 +30,7 @@ const given = new Map(); // region key -> name (kept once assigned)
 export function computeDistricts(done, land = 0) {
   const regions = new Map();
   const woods = [];
-  for (let i = -land; i <= land; i++) for (let j = -land; j <= land; j++) if (isReserve(i, j)) woods.push({ lot: [i, j], type: 'reserve' });
+  for (let i = -land; i <= land; i++) for (let j = -land; j <= land; j++) if (isReserve(i, j) && !BASELIVE_LOTS.has(`${i},${j}`)) woods.push({ lot: [i, j], type: 'reserve' });
   for (const p of [...done, ...woods]) {
     if (!p.lot) continue;
     const a = Math.round(p.lot[0] / 3), b = Math.round(p.lot[1] / 3), key = `${a},${b}`;

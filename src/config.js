@@ -273,6 +273,11 @@ export const CONFIG = {
   // Base Avenue: plots reserved for Base projects' headquarters, numbered 1, 2, ... on their signs.
   // Projects take them in src/projects.js; a plot nobody has taken advertises itself. [x, z] like
   // landmark lots; add more at the end if you need them (renumbering moves the HQs).
+  // Base Live (src/baselive.js): Base's own blocks, on a block of 3x4 lots on the west side (mostly the
+  // city's woods there). From `from` nothing else is built on them; the two buildings that stood there
+  // came down that day (CitySim.openBaseLive), so everything the city built before is unchanged.
+  baseLive: { lots: [[-9, 2], [-8, 2], [-7, 2], [-9, 3], [-8, 3], [-7, 3], [-9, 4], [-8, 4], [-7, 4], [-9, 5], [-8, 5], [-7, 5]], from: '2026-10-27T00:00:00Z' },
+
   avenue: {
     plots: [
       [0, 2], [-1, 2], [1, 2], [-2, 2], [0, 3], [1, 3], [-2, 3], [-3, 3], // 1-8

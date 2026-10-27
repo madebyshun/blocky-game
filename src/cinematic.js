@@ -332,7 +332,7 @@ export function createCinematic({ renderer, scene, city, controls, views, select
 
   const SHOTS = shots(city, sim);
   // Auto (and the livestream): no close-ups, a work cam between two wide shots. ◀ ▶ reach every shot.
-  const AUTO = ['aerial', 'sitecam', 'gpucam', 'vancam', 'jetcam', 'rooftops', 'fabcam', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'vancam', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
+  const AUTO = ['aerial', 'sitecam', 'gpucam', 'vancam', 'rooftops', 'fabcam', 'carrycam', 'skyline', 'cranecam', 'site', 'crewcam', 'flyover', 'vancam', 'pilecam', 'rooftops', 'streetcam', 'crane', 'medium', 'aerial', 'river'];
   const STREAM = AUTO;
   // a cast (?film=jesse,brian): their work cams and close shots, with a wide shot now and then for the city around them
   const CAST = ['crewcam', 'medium', 'carrycam', 'aerial', 'follow', 'hero', 'crewcam', 'streetcam', 'rooftops', 'medium', 'carrycam', 'skyline'];

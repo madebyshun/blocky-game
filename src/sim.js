@@ -205,6 +205,10 @@ export const zoneOf = (r) => (r <= 1 ? 0 : r <= 3 ? 1 : r <= 6 ? 2 : 3);
 const INDUSTRY = new Set(['windmill', 'watertower', 'gpufarm', 'recycling', 'solarfarm']);
 export const isIndustrial = ([i, j]) => ring(i, j) >= 4 && j < 0 && i > riverCol(j) + 1;
 
+// Base Live's block (CONFIG.baseLive): kept for it from `from` on
+export const BASELIVE_LOTS = new Set((CONFIG.baseLive?.lots || []).map((lot) => lot.join(',')));
+const BASELIVE_FROM = CONFIG.baseLive ? Date.parse(CONFIG.baseLive.from) : Infinity;
+
 // Woods the city keeps: some lots from ring 3 out stay forest for good, in clumps (more in the
 // outskirts), so the city grows around green space. Never on a landmark's lot.
 // Base Avenue's plots (src/projects.js): kept for Base projects' headquarters, never built on otherwise
@@ -417,6 +421,7 @@ export class CitySim {
     this.wonders = new Set(); // whale buys (index in whaleList) whose wonder is planned
     this.metroPlanned = false;
     this.metroBuilt = false;
+    this.blOpen = false; // Base Live's block taken (CONFIG.baseLive)
     this.reserved = new Set([...LANDMARKS.map((l) => l.lot), ...AVENUE].map((lot) => lot.join(',')));
     this.queue = [];
     for (let r = 0; r <= this.land; r++) this.queue.push(...this.ringLots(r));
@@ -601,6 +606,7 @@ export class CitySim {
         if (f.start <= now && f.at < done) { done = f.at; lane = l; }
       }
       const opens = this.siteOpens[this.lanes.length] ?? Infinity, leaves = this.di < D.length ? D[this.di].t : Infinity;
+      if (!this.blOpen && BASELIVE_FROM <= Math.min(done, opens, leaves, now)) { this.openBaseLive(BASELIVE_FROM); continue; }
       if (Math.min(done, opens, leaves) > now) break;
       if (leaves < done && leaves <= opens) { this.depart(D[this.di++]); continue; }
       if (opens <= done) { this.openSite(opens); continue; }
@@ -677,6 +683,24 @@ export class CitySim {
       this.events.push({ kind: 'ruin', at: e.t, n: e.n, p: b });
       r++;
     }
+  }
+
+  // Base Live takes its block: whatever stands there comes down, a site working there starts something
+  // else, and nothing is planned there again
+  openBaseLive(t) {
+    this.blOpen = true;
+    const gone = [];
+    for (const key of BASELIVE_LOTS) {
+      this.reserved.add(key);
+      const p = this.standing.get(key);
+      if (p) { this.standing.delete(key); gone.push(p); }
+    }
+    this.queue = this.queue.filter((lot) => !BASELIVE_LOTS.has(lot.join(',')));
+    for (const l of this.lanes) {
+      const key = l.p?.lot?.join(',');
+      if (key && BASELIVE_LOTS.has(key)) { this.busy.delete(key); this.assign(l, t); }
+    }
+    this.events.push({ kind: 'baselive', at: t, gone });
   }
 
   // abandoned buildings standing now (the one being rebuilt included)
