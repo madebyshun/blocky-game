@@ -98,10 +98,12 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   box(tower, 5, 0.4, 5, WHITE, 0, 15.6, 0);
   const halo = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.12, 8, 48), new THREE.MeshBasicMaterial({ color: 0x5c9bff, transparent: true, opacity: 0.7 }));
   halo.rotation.x = Math.PI / 2; halo.position.y = 17.2; tower.add(halo);
-  const logo = new THREE.Group(); logo.position.y = 19; tower.add(logo); // the Base mark: a blue disc with a bar cut out
-  const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.3, 40), new THREE.MeshLambertMaterial({ color: BLUE, emissive: 0x0b2a80 }));
-  disc.rotation.x = Math.PI / 2; logo.add(disc);
-  box(logo, 1.9, 0.42, 0.34, WHITE, -0.25, 0, 0, 0x666666);
+  const logo = new THREE.Group(); logo.position.y = 19; tower.add(logo); // the Base mark: a blue square, rounded corners
+  const mark = new THREE.Shape(), R = 0.32, S2 = 1.5;
+  mark.moveTo(-S2 + R, -S2); mark.lineTo(S2 - R, -S2); mark.quadraticCurveTo(S2, -S2, S2, -S2 + R); mark.lineTo(S2, S2 - R); mark.quadraticCurveTo(S2, S2, S2 - R, S2);
+  mark.lineTo(-S2 + R, S2); mark.quadraticCurveTo(-S2, S2, -S2, S2 - R); mark.lineTo(-S2, -S2 + R); mark.quadraticCurveTo(-S2, -S2, -S2 + R, -S2);
+  const markGeo = new THREE.ExtrudeGeometry(mark, { depth: 0.3, bevelEnabled: false, curveSegments: 6 }).translate(0, 0, -0.15);
+  logo.add(new THREE.Mesh(markGeo, new THREE.MeshLambertMaterial({ color: 0x0000ff, emissive: 0x0000a0 })));
   const towerSign = sign('BASE', { w: 3.6, h: 1 }); towerSign.position.set(0, 1.6, 2.32); tower.add(towerSign);
 
   // ---------- the chain: one bar per block ----------
@@ -411,8 +413,8 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     drawSpark(C.bank.spark, S.blocks.map((x) => x.usdc.usd), '#2775ca');
     const st = S.stats;
     C.port.rows.innerHTML = rowsHtml([
-      ['Deposits, last hour', st ? int(st.bridge.n) : dash],
-      ['ETH bridged in, 1h', st ? eth(st.bridge.eth) : dash],
+      ['Deposits, last hour', st?.bridge ? int(st.bridge.n) : dash],
+      ['ETH bridged in, 1h', st?.bridge ? eth(st.bridge.eth) : dash],
       ['Latest', S.deposits[0] ? (S.deposits[0].eth ? `+${eth(S.deposits[0].eth)} ETH` : 'a token') : 'waiting…'],
     ]);
     const sw = S.swaps.length ? S.swaps.reduce((s, x) => s + x, 0) / S.swaps.length : null;
@@ -422,11 +424,11 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     ]);
     drawSpark(C.dex.spark, S.swaps, '#0f9d58');
     C.reg.rows.innerHTML = rowsHtml([
-      ['New names, last hour', st ? int(st.names.n) : dash],
-      ['Latest', S.names[0] ? esc(S.names[0].name) : st?.names.last[0] ? esc(st.names.last[0]) : dash],
+      ['New names, last hour', st?.names ? int(st.names.n) : dash],
+      ['Latest', S.names[0] ? esc(S.names[0].name) : st?.names?.last[0] ? esc(st.names.last[0]) : dash],
     ]);
     C.plaza.rows.innerHTML = rowsHtml([
-      ['Tx pace / day', st ? compact(st.txPerDay, 2) : dash],
+      ['Tx pace / day', st?.txPerDay ? compact(st.txPerDay, 2) : dash],
       ['TVL (DefiLlama)', st?.tvl ? usd(st.tvl) : dash],
       ['Traffic', b ? `follows ${tps().toFixed(0)} TPS` : dash],
     ]);
@@ -448,9 +450,9 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
       g.fillStyle = '#ffffff'; g.font = 'bold 92px Inter, sans-serif'; g.fillText(big, 24, 166);
       g.fillStyle = '#9fb3d9'; g.font = '26px Inter, sans-serif'; g.fillText(sub, 24, 226);
     });
-    draw(screens[0], 'BASE TX / DAY', st ? compact(st.txPerDay, 1) : '—', 'pace of the last hour', '#0052ff');
+    draw(screens[0], 'BASE TX / DAY', st?.txPerDay ? compact(st.txPerDay, 1) : '—', 'pace of the last hour', '#0052ff');
     draw(screens[1], 'TVL ON BASE', st?.tvl ? usd(st.tvl) : '—', 'source: DefiLlama', '#7c4dff');
-    draw(screens[2], 'BASENAMES / HOUR', st ? int(st.names.n) : '—', st?.names.last[0] || 'new names', '#ff6a3d');
+    draw(screens[2], 'BASENAMES / HOUR', st?.names ? int(st.names.n) : '—', st?.names?.last[0] || 'new names', '#ff6a3d');
   }
   drawScreens(); renderCards();
 
@@ -484,7 +486,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     box(mine, 1.5, hE, 1.5, 0x627eea, -2, hE / 2 + 0.14, -0.5); // ETH
     box(mine, 1.5, hU, 1.5, USDC_BLUE, 0, hU / 2 + 0.14, -0.5); // USDC
     box(mine, 1.5, hB, 1.5, BLUE, 2, hB / 2 + 0.14, -0.5); // $BLOCKY
-    const stack = Math.min(24, Math.ceil(Math.log2(w.txs + 1) * 2)); // transactions: a stack of little blocks
+    const stack = w.txs === null ? 0 : Math.min(24, Math.ceil(Math.log2(w.txs + 1) * 2)); // transactions: a stack of little blocks
     for (let i = 0; i < stack; i++) box(mine, 0.5, 0.5, 0.5, i % 2 ? 0xffffff : 0xdde6ff, -2.6 + (i % 6) * 0.55, 0.4 + Math.floor(i / 6) * 0.52, 1.5);
     for (let i = 0; i < Math.min(8, w.blockies); i++) { // their Blockies, standing in front
       box(mine, 0.32, 0.4, 0.22, 0x0052ff, 0.8 + (i % 4) * 0.5, 0.35, 1.2 + Math.floor(i / 4) * 0.5);
@@ -495,7 +497,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     mineCard.el.querySelector('.bl-head b').textContent = label;
     mineCard.rows.innerHTML = rowsHtml([
       ['ETH', eth(w.eth)], ['USDC', usd(w.usdc)], [CONFIG.ticker || '$BLOCKY', compact(w.blocky)],
-      ['Transactions', int(w.txs)], ...(w.blockies ? [['Blockies', int(w.blockies)]] : []),
+      w.smart ? ['Wallet', 'Smart wallet'] : ['Transactions', int(w.txs)], ...(w.blockies ? [['Blockies', int(w.blockies)]] : []),
     ]);
     mineCard.el.classList.add('pin');
   }
@@ -552,7 +554,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   function placeCards(show) {
     const list = [];
     for (const c of cards) {
-      const p = show && (dash || c.id === 'tower' || c.id === 'mine') && toScreen(V.copy(c.at).applyMatrix4(group.matrix).applyMatrix4(city.root.matrixWorld)); // outside the Dashboard view: just the chain and your plot
+      const p = show && (dash || c.id === 'tower') && toScreen(V.copy(c.at).applyMatrix4(group.matrix).applyMatrix4(city.root.matrixWorld)); // outside the Dashboard view: just the chain
       if (!p) { c.el.style.display = 'none'; continue; }
       c.el.style.display = '';
       if (!c.size || Math.random() < 0.05) c.size = [c.el.offsetWidth, c.el.offsetHeight + 14];
@@ -596,7 +598,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
       p.t += dt;
       if (p.t > p.secs) { dropLabel(p); continue; }
       const at = V.copy(p.at); if (p.rise) at.y += (p.t / p.secs) * p.rise;
-      project(at.applyMatrix4(city.root.matrixWorld), p.el, vis || p.el.classList.contains('bl-mine'));
+      project(at.applyMatrix4(city.root.matrixWorld), p.el, dash || (vis && p.el.classList.contains('bl-mine')));
       if (Number.isFinite(p.secs)) p.el.style.opacity = String(Math.min(1, (p.secs - p.t) * 1.5));
     }
   }

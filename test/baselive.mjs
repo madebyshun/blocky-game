@@ -38,7 +38,7 @@ assert.deepEqual(s.bridge, []); // that deposit was in another block
 assert.equal(s.t, 1793108753000);
 
 // a stand-in RPC: answers the batches readBlocks / readHour / readTx / readWallet send
-const calls = [];
+const calls = [], ranges = [];
 const answer = ({ method, params }) => {
   calls.push(method);
   if (method === 'eth_blockNumber') return `0x${HEAD.toString(16)}`;
@@ -48,13 +48,15 @@ const answer = ({ method, params }) => {
     if (f.address === USDC) return [usdc(HEAD, A, B, 1500000), usdc(HEAD - 1, A, B, 20)];
     if (f.topics?.[0]?.includes?.(T.swapV3)) return Array.from({ length: 42 }, () => ({ blockNumber: `0x${HEAD.toString(16)}` }));
     if (Array.isArray(f.address)) return [{ ...NAME_LOG, blockNumber: `0x${(HEAD - 1).toString(16)}` }, { ...ETH_LOG, blockNumber: `0x${HEAD.toString(16)}` }];
-    if (f.address === NAMES) return [NAME_LOG, NAME_LOG];
-    if (f.address === BRIDGE) return [ETH_LOG];
+    const inRange = (l) => parseInt(l.blockNumber, 16) >= parseInt(f.fromBlock, 16) && parseInt(l.blockNumber, 16) <= parseInt(f.toBlock, 16);
+    if (f.address === NAMES) { ranges.push([f.fromBlock, f.toBlock]); return [NAME_LOG, NAME_LOG].filter(inRange); }
+    if (f.address === BRIDGE) return [ETH_LOG].filter(inRange);
   }
   if (method === 'eth_getTransactionByHash') return { hash: params[0], from: A, to: B, value: '0xde0b6b3a7640000' };
   if (method === 'eth_getTransactionReceipt') return { blockNumber: `0x${HEAD.toString(16)}`, status: '0x1', gasUsed: '0x5208', effectiveGasPrice: '0x4c83fe', l1Fee: '0x0', logs: [usdc(HEAD, A, B, 42)] };
   if (method === 'eth_getBalance') return '0x1bc16d674ec80000';
   if (method === 'eth_getTransactionCount') return '0x2a';
+  if (method === 'eth_getCode') return params[0] === B ? '0x363d3d373d3d' : params[0] === A ? '0x' : '0xef0100aa';
   if (method === 'eth_call') return params[0].to === USDC ? amt(1234560000) : amt(10n ** 21n);
   throw new Error(`unexpected ${method}`);
 };
@@ -84,12 +86,18 @@ assert.equal(hour.bridge.n, 1);
 assert.equal(hour.bridge.eth, 0.412);
 assert.ok(hour.txPerBlock >= 300 && hour.txPerBlock <= 306);
 assert.equal(hour.txPerDay, hour.txPerBlock * 43200);
+// the hour's logs are read in ranges of at most 450 blocks (RPC plans cap eth_getLogs)
+assert.ok(ranges.length === 4 && ranges.every(([a, b]) => parseInt(b, 16) - parseInt(a, 16) < 450), JSON.stringify(ranges));
+assert.equal(parseInt(ranges[0][0], 16), HEAD - 1799);
+assert.equal(parseInt(ranges.at(-1)[1], 16), HEAD);
 
 const tx = await readTx(`0x${'ab'.repeat(32)}`, url);
 assert.deepEqual([tx.from, tx.to, tx.eth, tx.ok, tx.block, tx.gasUsed, tx.usdc[0].usd], [A, B, 1, true, HEAD, 21000, 42]);
 assert.ok(Math.abs(tx.feeEth - 21000 * 5014526e-18) < 1e-15);
 
 const w = await readWallet(A, '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885', url);
-assert.deepEqual(w, { eth: 2, txs: 42, usdc: 1234.56, blocky: 1000 });
+assert.deepEqual(w, { eth: 2, txs: 42, smart: false, usdc: 1234.56, blocky: 1000 });
+assert.deepEqual(await readWallet(B, '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885', url).then((x) => [x.smart, x.txs]), [true, null]); // a smart wallet: no tx count
+assert.deepEqual(await readWallet('0x3333333333333333333333333333333333333333', '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885', url).then((x) => [x.smart, x.txs]), [false, 42]); // EIP-7702: still an account
 server.close();
 console.log('baselive: ok');

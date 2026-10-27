@@ -110,25 +110,35 @@ export async function readBlocks(since, max = 4, url = RPC) {
 
 // the last hour: Basenames registered, deposits bridged in, the pace of transactions (sampled blocks)
 export const HOUR_BLOCKS = 1800; // 2 s blocks
+export const LOG_RANGE = 450; // blocks per eth_getLogs: many RPC plans cap the range (often at 500)
+// logs over [from, to] in ranges of LOG_RANGE blocks, a few ranges per batch
+async function logsOver(from, to, filter, url) {
+  const ranges = [];
+  for (let a = from; a <= to; a += LOG_RANGE) ranges.push([a, Math.min(to, a + LOG_RANGE - 1)]);
+  const out = [];
+  for (let i = 0; i < ranges.length; i += 4) out.push(...(await rpc(ranges.slice(i, i + 4).map(([a, b]) => getLogs(a, b, filter)), url)).flat());
+  return out;
+}
+// each part on its own, so one that fails (a limit, a timeout) leaves the others: null where it failed
+const part = (p) => p.catch((e) => { console.warn('[basestats]', e.message); return null; });
 export async function readHour(url = RPC) {
   const [headHex] = await rpc([['eth_blockNumber', []]], url);
   const head = num(headHex), from = head - HOUR_BLOCKS + 1;
   const samples = Array.from({ length: 12 }, (_, i) => head - i * 150);
-  const res = await rpc([
-    getLogs(from, head, { address: NAMES, topics: [T.name] }),
-    getLogs(from, head, { address: BRIDGE, topics: [[T.ethIn, T.tokenIn]] }),
-    ...samples.map(getBlock),
-  ], url);
-  const [names, bridge, ...blocks] = res;
-  const deposits = bridge.map(bridgeOf).filter(Boolean);
-  const txs = blocks.filter(Boolean).map((b) => b.transactions.length);
-  const perBlock = txs.length ? txs.reduce((s, x) => s + x, 0) / txs.length : 0;
+  const [names, bridge, blocks] = await Promise.all([
+    part(logsOver(from, head, { address: NAMES, topics: [T.name] }, url)),
+    part(logsOver(from, head, { address: BRIDGE, topics: [[T.ethIn, T.tokenIn]] }, url)),
+    part(Promise.all([0, 4, 8].map((i) => rpc(samples.slice(i, i + 4).map(getBlock), url))).then((x) => x.flat())),
+  ]);
+  const deposits = bridge ? bridge.map(bridgeOf).filter(Boolean) : null;
+  const txs = (blocks || []).filter(Boolean).map((b) => b.transactions.length);
+  const perBlock = txs.length ? txs.reduce((s, x) => s + x, 0) / txs.length : null;
   return {
     head,
-    names: { n: names.length, last: names.slice(-6).map(nameOf).filter(Boolean).reverse() },
-    bridge: { n: deposits.length, eth: +deposits.reduce((s, d) => s + d.eth, 0).toFixed(3) },
-    txPerBlock: Math.round(perBlock), // sampled every 5 minutes over the hour
-    txPerDay: Math.round(perBlock * 43200), // that pace for a day
+    names: names ? { n: names.length, last: names.slice(-6).map(nameOf).filter(Boolean).reverse() } : null,
+    bridge: deposits ? { n: deposits.length, eth: +deposits.reduce((s, d) => s + d.eth, 0).toFixed(3) } : null,
+    txPerBlock: perBlock === null ? null : Math.round(perBlock), // sampled every 5 minutes over the hour
+    txPerDay: perBlock === null ? null : Math.round(perBlock * 43200), // that pace for a day
   };
 }
 
@@ -167,6 +177,9 @@ export async function readTx(hash, url = RPC) {
 // a wallet for "My Base": ETH, USDC, $BLOCKY, how many transactions it has sent
 export async function readWallet(address, token, url = RPC) {
   const call = (to) => ['eth_call', [{ to, data: `0x70a08231${address.slice(2).toLowerCase().padStart(64, '0')}` }, 'latest']]; // balanceOf
-  const [eth, nonce, usdc, blocky] = await rpc([['eth_getBalance', [address, 'latest']], ['eth_getTransactionCount', [address, 'latest']], call(USDC), call(token)], url);
-  return { eth: units(big(eth), 18), txs: num(nonce), usdc: units(big(usdc), 6), blocky: units(big(blocky), 18) };
+  const [eth, nonce, usdc, blocky, code] = await rpc([['eth_getBalance', [address, 'latest']], ['eth_getTransactionCount', [address, 'latest']], call(USDC), call(token), ['eth_getCode', [address, 'latest']]], url);
+  // a smart wallet (contract code; an EIP-7702 delegation 0xef0100… is still a plain account) sends
+  // through a bundler, so its nonce isn't its transaction count: none is shown for it
+  const smart = Boolean(code && code !== '0x' && !String(code).startsWith('0xef0100'));
+  return { eth: units(big(eth), 18), txs: smart ? null : num(nonce), smart, usdc: units(big(usdc), 6), blocky: units(big(blocky), 18) };
 }

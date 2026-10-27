@@ -69,9 +69,9 @@ export function createBaseLivePanel({ baseLive, goTo, dashboard }) {
     say(`<p><b>${esc(label)}</b> has a plot in Base Live now (MY BASE, south of the plaza).</p><p class="muted">Making your card…</p>`);
     await new Promise((r) => setTimeout(r, 1800));
     const fmt = (v) => (v >= 1000 ? Math.round(v).toLocaleString('en-US') : v >= 1 ? v.toFixed(2) : v.toFixed(4));
-    const lines = [`${fmt(w.eth)} ETH`, `${fmt(w.usdc)} USDC`, `${fmt(w.blocky)} ${CONFIG.ticker || '$BLOCKY'}`, `${w.txs.toLocaleString('en-US')} transactions`, ...(w.blockies ? [`${w.blockies} Blockies in BaseCity`] : [])];
+    const lines = [`${fmt(w.eth)} ETH`, `${fmt(w.usdc)} USDC`, `${fmt(w.blocky)} ${CONFIG.ticker || '$BLOCKY'}`, w.smart ? 'a smart wallet' : `${w.txs.toLocaleString('en-US')} transactions`, ...(w.blockies ? [`${w.blockies} Blockies in BaseCity`] : [])];
     const img = await baseLive.shareImage({ kicker: 'MY BASE IN BASECITY', title: `${label} on Base`, lines });
-    say(`<p><b>${esc(label)}</b> · ${lines.map(esc).join(' · ')}</p>${shareRow(img, `${label} on Base, as a little plot in BaseCity 🟦 ${w.txs.toLocaleString('en-US')} transactions and counting\n\nFind yours in Base Live by @${X}\n${SITE}`)}`);
+    say(`<p><b>${esc(label)}</b> · ${lines.map(esc).join(' · ')}</p>${shareRow(img, `${label} on Base, as a little plot in BaseCity 🟦${w.smart ? '' : ` ${w.txs.toLocaleString('en-US')} transactions and counting`}\n\nFind yours in Base Live by @${X}\n${SITE}`)}`);
   }
 
   return {
