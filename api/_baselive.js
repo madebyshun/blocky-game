@@ -21,6 +21,18 @@ export const T = {
   tokenIn: '0xd59c65b35445225835c83f50b6ede06a7be047d22e357073e250d9af537518cd', // ERC20BridgeFinalized(...)
 };
 export const SWAPS = [T.swapV3, T.swapV2, T.swapAero, T.swapV4];
+// Four of the biggest apps on Base, each with a number we can read live (and its TVL on Base from
+// DefiLlama): Aerodrome's pools' swaps (its v2 pools' own Swap event), Uniswap v4's swaps (its
+// PoolManager), and every action on Morpho and on Aave (their core contracts' events).
+export const MORPHO = '0xbbbbbbbbbb9cc5e90e3b3af64bdaf62c37eeffcb'; // Morpho Blue
+export const AAVE = '0xa238dd80c259a72e81d7e4664a9801593f98d1c5'; // Aave v3 Pool on Base
+export const UNIV4 = '0x498581ff718922c3f8e6a244956af099b2652b2b'; // Uniswap v4 PoolManager on Base
+export const APPS = [
+  { id: 'aerodrome', name: 'Aerodrome', parent: 'parent#aerodrome' },
+  { id: 'uniswap', name: 'Uniswap', parent: 'parent#uniswap' },
+  { id: 'morpho', name: 'Morpho', parent: 'parent#morpho' },
+  { id: 'aave', name: 'Aave', parent: 'parent#aave' },
+];
 export const BIG_USDC = 100000; // a big transfer: a boat on the river
 export const WHALE_USDC = 1000000; // a whale: the ship, and a line in the city log
 
@@ -67,7 +79,7 @@ export function bridgeOf(l) {
 }
 
 // one block's summary for the city, from its header and its logs
-export function summarize(block, { usdc = [], swaps = null, names = [], bridge = [] } = {}) {
+export function summarize(block, { usdc = [], swaps = null, names = [], bridge = [], apps = [] } = {}) {
   const n = num(block.number);
   const mine = (l) => num(l.blockNumber) === n;
   const transfers = usdc.filter(mine).map(usdcOf);
@@ -81,6 +93,13 @@ export function summarize(block, { usdc = [], swaps = null, names = [], bridge =
     gwei: num(block.baseFeePerGas) / 1e9,
     usdc: { n: transfers.length, usd: Math.round(vol), big: sorted.map((x) => ({ usd: Math.round(x.usd), from: x.from, to: x.to, tx: x.tx })) },
     swaps: swaps === null ? null : swaps.filter(mine).length,
+    // per app: Aerodrome and Uniswap swaps (newest block only, like swaps), Morpho and Aave events
+    apps: {
+      aerodrome: swaps === null ? null : swaps.filter((l) => mine(l) && l.topics?.[0] === T.swapAero).length,
+      uniswap: swaps === null ? null : swaps.filter((l) => mine(l) && l.topics?.[0] === T.swapV4 && l.address?.toLowerCase() === UNIV4).length,
+      morpho: apps.filter((l) => mine(l) && l.address.toLowerCase() === MORPHO).length,
+      aave: apps.filter((l) => mine(l) && l.address.toLowerCase() === AAVE).length,
+    },
     names: names.filter(mine).map(nameOf).filter(Boolean),
     bridge: bridge.filter(mine).map(bridgeOf).filter(Boolean),
   };
@@ -98,13 +117,14 @@ export async function readBlocks(since, max = 4, url = RPC) {
     getLogs(from, head, { address: USDC, topics: [T.transfer] }),
     getLogs(head, head, { topics: [SWAPS] }),
     getLogs(from, head, { address: [NAMES, BRIDGE], topics: [[T.name, T.ethIn, T.tokenIn]] }),
+    getLogs(from, head, { address: [MORPHO, AAVE] }),
   ], url);
-  const blocks = res.slice(0, ns.length), [usdc, swaps, misc] = res.slice(ns.length);
+  const blocks = res.slice(0, ns.length), [usdc, swaps, misc, apps] = res.slice(ns.length);
   const names = misc.filter((l) => l.topics[0] === T.name && l.address.toLowerCase() === NAMES);
   const bridge = misc.filter((l) => l.address.toLowerCase() === BRIDGE);
   return {
     head,
-    blocks: blocks.filter(Boolean).map((b) => summarize(b, { usdc, swaps: num(b.number) === head ? swaps : null, names, bridge })),
+    blocks: blocks.filter(Boolean).map((b) => summarize(b, { usdc, swaps: num(b.number) === head ? swaps : null, names, bridge, apps })),
   };
 }
 
@@ -112,23 +132,31 @@ export async function readBlocks(since, max = 4, url = RPC) {
 export const HOUR_BLOCKS = 1800; // 2 s blocks
 export const LOG_RANGE = 450; // blocks per eth_getLogs: many RPC plans cap the range (often at 500)
 // logs over [from, to] in ranges of LOG_RANGE blocks, a few ranges per batch
-async function logsOver(from, to, filter, url) {
+// (if the RPC still refuses, smaller ranges: 100 blocks)
+async function logsOver(from, to, filter, url, size = LOG_RANGE) {
   const ranges = [];
-  for (let a = from; a <= to; a += LOG_RANGE) ranges.push([a, Math.min(to, a + LOG_RANGE - 1)]);
+  for (let a = from; a <= to; a += size) ranges.push([a, Math.min(to, a + size - 1)]);
   const out = [];
-  for (let i = 0; i < ranges.length; i += 4) out.push(...(await rpc(ranges.slice(i, i + 4).map(([a, b]) => getLogs(a, b, filter)), url)).flat());
+  try {
+    for (let i = 0; i < ranges.length; i += 4) out.push(...(await rpc(ranges.slice(i, i + 4).map(([a, b]) => getLogs(a, b, filter)), url)).flat());
+  } catch (e) {
+    if (size > 100) return logsOver(from, to, filter, url, 100);
+    throw e;
+  }
   return out;
 }
-// each part on its own, so one that fails (a limit, a timeout) leaves the others: null where it failed
-const part = (p) => p.catch((e) => { console.warn('[basestats]', e.message); return null; });
 export async function readHour(url = RPC) {
+  // each part on its own, so one that fails (a limit, a timeout) leaves the others: null where it
+  // failed, and why in `errors` (open /api/basestats to see it)
+  const errors = {};
+  const part = (name, p) => p.catch((e) => { errors[name] = String(e.message || e).slice(0, 200); console.warn('[basestats]', name, e.message); return null; });
   const [headHex] = await rpc([['eth_blockNumber', []]], url);
   const head = num(headHex), from = head - HOUR_BLOCKS + 1;
   const samples = Array.from({ length: 12 }, (_, i) => head - i * 150);
   const [names, bridge, blocks] = await Promise.all([
-    part(logsOver(from, head, { address: NAMES, topics: [T.name] }, url)),
-    part(logsOver(from, head, { address: BRIDGE, topics: [[T.ethIn, T.tokenIn]] }, url)),
-    part(Promise.all([0, 4, 8].map((i) => rpc(samples.slice(i, i + 4).map(getBlock), url))).then((x) => x.flat())),
+    part('names', logsOver(from, head, { address: NAMES, topics: [T.name] }, url)),
+    part('bridge', logsOver(from, head, { address: BRIDGE, topics: [[T.ethIn, T.tokenIn]] }, url)),
+    part('blocks', Promise.all([0, 4, 8].map((i) => rpc(samples.slice(i, i + 4).map(getBlock), url))).then((x) => x.flat())),
   ]);
   const deposits = bridge ? bridge.map(bridgeOf).filter(Boolean) : null;
   const txs = (blocks || []).filter(Boolean).map((b) => b.transactions.length);
@@ -139,7 +167,22 @@ export async function readHour(url = RPC) {
     bridge: deposits ? { n: deposits.length, eth: +deposits.reduce((s, d) => s + d.eth, 0).toFixed(3) } : null,
     txPerBlock: perBlock === null ? null : Math.round(perBlock), // sampled every 5 minutes over the hour
     txPerDay: perBlock === null ? null : Math.round(perBlock * 43200), // that pace for a day
+    errors,
   };
+}
+
+// each app's TVL on Base (DefiLlama: the sum over its protocols, e.g. Aerodrome Slipstream + v1), or {}
+export async function readAppTvl() {
+  try {
+    const r = await fetch('https://api.llama.fi/protocols', { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) return {};
+    const list = await r.json(), out = {};
+    for (const a of APPS) {
+      const tvl = list.filter((p) => p.parentProtocol === a.parent || p.slug === a.id).reduce((s, p) => s + (Number(p.chainTvls?.Base) || 0), 0);
+      if (tvl > 0) out[a.id] = Math.round(tvl);
+    }
+    return out;
+  } catch { return {}; }
 }
 
 // Base's TVL (DefiLlama), or null

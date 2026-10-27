@@ -127,8 +127,11 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   box(bank, 8, 0.5, 6, 0xe6e9ef, 0, 0.25, 0);
   box(bank, 7, 4, 4.6, WHITE, 0, 2.5, -0.4);
   for (let x = -3; x <= 3; x += 1.5) box(bank, 0.45, 3.4, 0.45, 0xffffff, x, 2.2, 2.2);
-  const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 4.6, 1.4, 4, 1), mat(USDC_BLUE)); roof.rotation.y = Math.PI / 4; roof.scale.set(1.1, 1, 0.75); roof.position.set(0, 5.2, 0.1); bank.add(roof);
-  const usdcSign = sign('USDC', { w: 3, h: 0.9, bg: '#2775ca' }); usdcSign.position.set(0, 4.1, 2.45); bank.add(usdcSign);
+  box(bank, 7.6, 0.5, 5.4, 0xf8f9fb, 0, 4.15, 0); // the entablature over the columns
+  const gable = new THREE.Shape(); gable.moveTo(-3.9, 0); gable.lineTo(3.9, 0); gable.lineTo(0, 1.5); gable.lineTo(-3.9, 0);
+  const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(gable, { depth: 5.6, bevelEnabled: false }).translate(0, 0, -2.8), mat(USDC_BLUE)); // a pediment, roof ridge front to back
+  roof.position.y = 4.4; roof.castShadow = true; bank.add(roof);
+  const usdcSign = sign('USDC', { w: 2.2, h: 0.62, bg: '#ffffff', fg: '#2775ca' }); usdcSign.position.set(0, 4.88, 2.84); bank.add(usdcSign);
 
   // ---------- the Bridge Port: a basin, a quay, a lighthouse ----------
   const port = new THREE.Group(); port.position.set(...xz(SPOTS.port)); group.add(port);
@@ -164,15 +167,43 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     return scr;
   });
 
-  // ---------- app slots, and the plot for "My Base" ----------
-  const slots = SPOTS.apps.map(([x, z], i) => {
+  // ---------- four of Base's biggest apps (api/_baselive.js APPS), and the plot for "My Base" ----------
+  // each a small HQ in its colour; its height follows its TVL on Base once that's in
+  const APP_LOOK = { aerodrome: ['Aerodrome', 0x1f4bff], uniswap: ['Uniswap', 0xff007a], morpho: ['Morpho', 0x2470ff], aave: ['Aave', 0x9391f7] };
+  const apps = Object.entries(APP_LOOK).map(([id, [name, color]], i) => {
+    const [x, z] = SPOTS.apps[i];
     const g = new THREE.Group(); g.position.set(x, 0, z); group.add(g);
-    box(g, 6, 0.14, 4.6, 0xcfd6e2, 0, 0.07, 0);
-    for (const [sx, sz] of [[-2.9, -2.2], [2.9, -2.2], [-2.9, 2.2], [2.9, 2.2]]) box(g, 0.2, 0.5, 0.2, ORANGE, sx, 0.25, sz);
-    box(g, 0.2, 2, 0.2, 0x5a6270, 0, 1, -1.4);
-    const s = sign('YOUR APP HERE', { w: 4, h: 1.1, bg: '#ffffff', fg: '#0052ff' }); s.position.set(0, 2.3, -1.28); g.add(s);
-    return { g, i };
+    box(g, 6, 0.14, 4.6, 0xdfe4ec, 0, 0.07, 0);
+    const tower = new THREE.Group(); g.add(tower);
+    box(tower, 4.2, 1, 3, color, 0, 0.5, -0.4);
+    for (const y of [0.25, 0.55, 0.85]) box(tower, 4.26, 0.12, 3.06, GLASS, 0, y, -0.4, 0x0a1a40);
+    tower.scale.y = 3;
+    // a billboard on the roof with its live numbers (drawn by drawApps)
+    const board = screen(4.6, 1.9); board.position.set(0, 4, 1.1); board.rotation.x = -0.25; g.add(board);
+    box(g, 0.15, 1, 0.15, 0x3a404c, -1.8, 3.4, 1); box(g, 0.15, 1, 0.15, 0x3a404c, 1.8, 3.4, 1);
+    return { id, name, color, g, tower, board, posts: g.children.slice(-2) };
   });
+  function sizeApps() { // height: 2.5 m, plus 1.6 m per tenfold of TVL over $10M, up to 9 m
+    for (const a of apps) {
+      const tvl = S.stats?.apps?.[a.id];
+      a.tower.scale.y = tvl ? Math.max(2.5, Math.min(9, 2.5 + Math.log10(tvl / 1e7) * 1.6)) : 3;
+      const h = a.tower.scale.y;
+      a.board.position.y = h + 1.5; a.posts.forEach((p) => { p.position.y = h + 0.4; });
+    }
+  }
+  function drawApps(lines) { // lines: { id: [big number, what it is, TVL text] }
+    for (const a of apps) {
+      const [big, what, tvl] = lines[a.id] || ['—', '', ''];
+      a.board.userData.draw((g, w, h) => {
+        g.fillStyle = '#0b1220'; g.fillRect(0, 0, w, h);
+        g.fillStyle = `#${a.color.toString(16).padStart(6, '0')}`; g.fillRect(0, 0, w, 44);
+        g.fillStyle = '#ffffff'; g.font = 'bold 32px Inter, sans-serif'; g.textBaseline = 'middle'; g.fillText(a.name.toUpperCase(), 18, 23);
+        g.font = 'bold 22px Inter, sans-serif'; g.textAlign = 'right'; g.fillText('● LIVE', w - 16, 23); g.textAlign = 'left';
+        g.font = 'bold 78px Inter, sans-serif'; g.fillText(big, 18, 108);
+        g.fillStyle = '#9fb3d9'; g.font = '24px Inter, sans-serif'; g.fillText(what, 18, 160); g.fillText(tvl, 18, 192);
+      });
+    }
+  }
   const minePlot = new THREE.Group(); minePlot.position.set(...xz(SPOTS.mine)); group.add(minePlot);
   box(minePlot, 6, 0.14, 4.6, 0xdde6ff, 0, 0.07, 0);
   const mineSign = sign('MY BASE', { w: 3, h: 0.8 }); mineSign.position.set(0, 0.5, 2.31); minePlot.add(mineSign);
@@ -278,9 +309,9 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   // ---------- LIVE cards (DOM, pinned over the buildings) and pop-up labels ----------
   const layer = document.createElement('div'); layer.className = 'bl-layer'; document.body.appendChild(layer);
   const cards = [];
-  function card(id, at, icon, title, accent = '#0052ff') {
+  function card(id, at, icon, title, accent = '#0052ff', mini = false) {
     const el = document.createElement('div');
-    el.className = 'bl-card'; el.dataset.id = id;
+    el.className = `bl-card${mini ? ' mini' : ''}`; el.dataset.id = id;
     el.innerHTML = `<div class="bl-head"><span class="bl-ico" style="background:${accent}22;color:${accent}">${icon}</span><div><b>${esc(title)}</b><i class="bl-live"><span></span>LIVE</i></div></div><div class="bl-rows"></div><canvas class="bl-spark" width="240" height="56"></canvas>`;
     el.onclick = () => { el.classList.toggle('open'); };
     layer.appendChild(el);
@@ -323,13 +354,14 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     dex: card('dex', W(12, 8, 3), '⇄', 'DEX Market', '#0f9d58'),
     reg: card('reg', W(17, 7, -9), '✦', 'Basenames', '#0052ff'),
     plaza: card('plaza', W(0, 6.8, 2), '▦', 'Base today', '#7c4dff'),
-    apps: card('apps', W(15, 3.4, 11), '＋', 'Your app, live', '#ff6a3d'),
   };
 
   // ---------- the feed ----------
   const S = {
     head: 0, blocks: [], queue: [], last: null, ok: false, fails: 0, stats: null, playAt: 0,
     swaps: [], usdcWin: [], names: [], deposits: [], seen: new Set(),
+    live: { from: 0, names: 0, deposits: 0, eth: 0 }, // counted from the blocks played here, for when the hour's numbers aren't in
+    tvl: null, // straight from DefiLlama when /api/basestats has none
   };
   async function poll() {
     if (document.visibilityState !== 'visible') return;
@@ -343,7 +375,15 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     } catch { if (++S.fails >= 3) S.ok = false; }
   }
   async function pollStats() {
-    try { const r = await fetch(`${feed}/basestats`); if (r.ok) { S.stats = await r.json(); drawScreens(); } } catch { /* the plaza says so */ }
+    try {
+      const r = await fetch(`${feed}/basestats`);
+      if (r.ok) S.stats = await r.json();
+      if (S.stats?.errors && Object.keys(S.stats.errors).length) console.warn('[base live] /api/basestats:', S.stats.errors);
+    } catch { /* the plaza falls back on what it sees */ }
+    if (!S.stats?.tvl) { // DefiLlama answers browsers too
+      try { const row = (await (await fetch('https://api.llama.fi/v2/chains')).json()).find((c) => c.name === 'Base'); if (Number.isFinite(row?.tvl)) S.tvl = row.tvl; } catch { /* none */ }
+    }
+    sizeApps(); drawScreens(); renderCards();
   }
   let pollTimer = null, statsTimer = null;
   function start() {
@@ -357,6 +397,8 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   function play(b) {
     S.blocks.push(b); if (S.blocks.length > BARS) S.blocks.shift();
     S.last = b;
+    if (!S.live.from) S.live.from = Date.now();
+    if (!S.stats?.txPerDay || !S.stats?.names) drawScreens(); // the plaza runs on what it sees here
     pushBar(b);
     if (b.swaps !== null) { S.swaps.push(b.swaps); if (S.swaps.length > 15) S.swaps.shift(); }
     S.usdcWin.push({ t: b.t, usd: b.usdc.usd, n: b.usdc.n }); while (S.usdcWin.length && b.t - S.usdcWin[0].t > 60000) S.usdcWin.shift();
@@ -370,10 +412,12 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     }
     for (const d of b.bridge) {
       if (S.seen.has(d.tx)) continue; S.seen.add(d.tx);
+      S.live.deposits++; S.live.eth += d.eth;
       S.deposits.unshift({ ...d, t: b.t }); S.deposits.length = Math.min(S.deposits.length, 5);
       send(boat(0x2b6cff), [basinIn()], 7, { label: maybeLabel(d.eth ? `<b>+${eth(d.eth)} ETH</b> bridged in` : 'a token bridged in'), keep: 6 });
     }
     for (const name of b.names) {
+      S.live.names++;
       S.names.unshift({ name, t: b.t }); S.names.length = Math.min(S.names.length, 6);
       firework(new THREE.Vector3(SPOTS.registry[0], 9 + Math.random() * 3, SPOTS.registry[1]), [0x5c9bff, 0xffc83d, 0xff6a3d, 0x7cf2c0][Math.floor(Math.random() * 4)]);
       popLabel(`🎆 <b>${esc(name)}</b>`, new THREE.Vector3(SPOTS.registry[0] + 4, 17, SPOTS.registry[1] + 2).applyMatrix4(group.matrix), { secs: 5, rise: 4, cls: 'bl-name' });
@@ -413,8 +457,8 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     drawSpark(C.bank.spark, S.blocks.map((x) => x.usdc.usd), '#2775ca');
     const st = S.stats;
     C.port.rows.innerHTML = rowsHtml([
-      ['Deposits, last hour', st?.bridge ? int(st.bridge.n) : dash],
-      ['ETH bridged in, 1h', st?.bridge ? eth(st.bridge.eth) : dash],
+      st?.bridge ? ['Deposits, last hour', int(st.bridge.n)] : [`Deposits, last ${liveMin()}`, b ? int(S.live.deposits) : dash],
+      st?.bridge ? ['ETH bridged in, 1h', eth(st.bridge.eth)] : [`ETH bridged in, ${liveMin()}`, b ? eth(S.live.eth) : dash],
       ['Latest', S.deposits[0] ? (S.deposits[0].eth ? `+${eth(S.deposits[0].eth)} ETH` : 'a token') : 'waiting…'],
     ]);
     const sw = S.swaps.length ? S.swaps.reduce((s, x) => s + x, 0) / S.swaps.length : null;
@@ -424,16 +468,29 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     ]);
     drawSpark(C.dex.spark, S.swaps, '#0f9d58');
     C.reg.rows.innerHTML = rowsHtml([
-      ['New names, last hour', st?.names ? int(st.names.n) : dash],
+      st?.names ? ['New names, last hour', int(st.names.n)] : [`New names, last ${liveMin()}`, b ? int(S.live.names) : dash],
       ['Latest', S.names[0] ? esc(S.names[0].name) : st?.names?.last[0] ? esc(st.names.last[0]) : dash],
     ]);
     C.plaza.rows.innerHTML = rowsHtml([
-      ['Tx pace / day', st?.txPerDay ? compact(st.txPerDay, 2) : dash],
-      ['TVL (DefiLlama)', st?.tvl ? usd(st.tvl) : dash],
+      ['Tx pace / day', pace() ? compact(pace(), 2) : dash],
+      ['TVL (DefiLlama)', tvl() ? usd(tvl()) : dash],
       ['Traffic', b ? `follows ${tps().toFixed(0)} TPS` : dash],
     ]);
-    C.apps.rows.innerHTML = `<div class="bl-row bl-cta">Put your Base app's live numbers in the city. <a href="https://x.com/${CONFIG.xHandle || 'blockyonbase'}" target="_blank" rel="noopener">DM @${CONFIG.xHandle || 'blockyonbase'}</a></div>`;
-    for (const c of cards) c.el.classList.toggle('off', off && c.id !== 'apps');
+    // the four apps: their live number (per block for swaps, per minute for lending actions) and TVL
+    const seen = S.blocks.slice(-15), span2 = seen.length > 1 ? (seen.at(-1).t - seen[0].t) / 1000 + 2 : 2;
+    const perBlock = (id) => { const v = seen.map((x) => x.apps?.[id]).filter((x) => x !== null && x !== undefined); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+    const perMin = (id) => (seen.length ? (seen.reduce((s, x) => s + (x.apps?.[id] || 0), 0) / span2) * 60 : null);
+    const tvlOf = (id) => (st?.apps?.[id] ? usd(st.apps[id]) : dash);
+    const rate = (v, d = 1) => (v === null ? dash : v.toFixed(d));
+    const tvlLine = (id) => (st?.apps?.[id] ? `TVL on Base ${usd(st.apps[id])}` : '');
+    const pm = (id) => (perMin(id) === null ? dash : int(perMin(id)));
+    drawApps({
+      aerodrome: [rate(perBlock('aerodrome')), 'pool swaps per block', tvlLine('aerodrome')],
+      uniswap: [rate(perBlock('uniswap')), 'v4 swaps per block', tvlLine('uniswap')],
+      morpho: [pm('morpho'), 'lending actions per minute', tvlLine('morpho')],
+      aave: [pm('aave'), 'lending actions per minute', tvlLine('aave')],
+    });
+    for (const c of cards) c.el.classList.toggle('off', off);
     // the DEX board
     dexBoard.userData.draw((g, w, h) => {
       g.fillStyle = '#0b1220'; g.fillRect(0, 0, w, h);
@@ -441,6 +498,11 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
       g.fillText(S.swaps.length ? `SWAPS ${S.swaps.at(-1)} / BLOCK` : 'SWAPS —', 18, h / 2);
     });
   }
+  // what the plaza shows when /api/basestats has nothing: the pace of the blocks played here, how long
+  // they've been watched, TVL fetched here
+  const pace = () => S.stats?.txPerDay || (S.blocks.length >= 3 ? Math.round((S.blocks.reduce((s, x) => s + x.tx, 0) / S.blocks.length) * 43200) : null);
+  const tvl = () => S.stats?.tvl || S.tvl;
+  const liveMin = () => { const m = S.live.from ? Math.max(1, Math.round((Date.now() - S.live.from) / 60000)) : 0; return m >= 60 ? 'hour' : `${m || 1} min`; };
   function drawScreens() {
     const st = S.stats;
     const draw = (scr, title, big, sub, color) => scr.userData.draw((g, w, h) => {
@@ -450,9 +512,9 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
       g.fillStyle = '#ffffff'; g.font = 'bold 92px Inter, sans-serif'; g.fillText(big, 24, 166);
       g.fillStyle = '#9fb3d9'; g.font = '26px Inter, sans-serif'; g.fillText(sub, 24, 226);
     });
-    draw(screens[0], 'BASE TX / DAY', st?.txPerDay ? compact(st.txPerDay, 1) : '—', 'pace of the last hour', '#0052ff');
-    draw(screens[1], 'TVL ON BASE', st?.tvl ? usd(st.tvl) : '—', 'source: DefiLlama', '#7c4dff');
-    draw(screens[2], 'BASENAMES / HOUR', st?.names ? int(st.names.n) : '—', st?.names?.last[0] || 'new names', '#ff6a3d');
+    draw(screens[0], 'BASE TX / DAY', pace() ? compact(pace(), 1) : '—', st?.txPerDay ? 'pace of the last hour' : 'pace of the last minute', '#0052ff');
+    draw(screens[1], 'TVL ON BASE', tvl() ? usd(tvl()) : '—', 'source: DefiLlama', '#7c4dff');
+    draw(screens[2], st?.names ? 'BASENAMES / HOUR' : `BASENAMES · ${liveMin().toUpperCase()}`, st?.names ? int(st.names.n) : S.last ? int(S.live.names) : '—', S.names[0]?.name || st?.names?.last[0] || 'new names', '#ff6a3d');
   }
   drawScreens(); renderCards();
 

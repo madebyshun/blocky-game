@@ -18,7 +18,8 @@ export function createBaseLivePanel({ baseLive, goTo, dashboard }) {
     <label>My Base</label>
     <form class="bl-form" data-k="me"><input placeholder="0x… or name.base.eth" spellcheck="false" autocomplete="off"><button class="btn">Show</button></form>
     <button class="btn bl-wallet">Connect wallet</button>
-    <div class="bl-out" hidden></div>`;
+    <div class="bl-out" hidden></div>
+    <p class="bl-sub bl-cta">Want your Base app's live numbers in the city? <a href="https://x.com/${X}" target="_blank" rel="noopener">DM @${X}</a></p>`;
   document.body.appendChild(el);
   const out = el.querySelector('.bl-out');
   const say = (html) => { out.hidden = false; out.innerHTML = html; };

@@ -270,7 +270,7 @@ const goToBaseLive = (close = false) => {
   const c = baseLive.center;
   following = false; goHome = false; controls.autoRotate = false;
   const tall = innerWidth < innerHeight; // phones: a little wider, centred
-  focus = { x: c.x + (close ? 4 : 0), y: close ? 2 : tall ? 3 : 5, z: c.z, zoom: wideZoom() * (close ? 4.6 : tall ? 2 : 2.9), t: 0 };
+  focus = { x: c.x + (close ? 4 : 0), y: close ? 2 : tall ? 3 : 5, z: c.z, zoom: wideZoom() * (close ? 4.6 : tall ? 2.2 : 3.5), t: 0 };
 };
 const baseLivePanel = createBaseLivePanel({ baseLive, goTo: goToBaseLive, dashboard: () => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); } });
 $('baselive-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.toggle(); };

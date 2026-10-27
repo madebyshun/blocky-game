@@ -2,7 +2,7 @@
 // (block 53,159,703's neighbourhood), against a stand-in RPC. Run: npm test
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, T } from '../api/_baselive.js';
+import { summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
 
 const pad = (a) => `0x${a.slice(2).toLowerCase().padStart(64, '0')}`;
 const amt = (n) => `0x${BigInt(n).toString(16).padStart(64, '0')}`;
@@ -46,7 +46,8 @@ const answer = ({ method, params }) => {
   if (method === 'eth_getLogs') {
     const f = params[0];
     if (f.address === USDC) return [usdc(HEAD, A, B, 1500000), usdc(HEAD - 1, A, B, 20)];
-    if (f.topics?.[0]?.includes?.(T.swapV3)) return Array.from({ length: 42 }, () => ({ blockNumber: `0x${HEAD.toString(16)}` }));
+    if (f.topics?.[0]?.includes?.(T.swapV3)) return Array.from({ length: 42 }, (_, i) => ({ blockNumber: `0x${HEAD.toString(16)}`, address: i < 5 ? UNIV4 : '0x9', topics: [i < 5 ? T.swapV4 : i < 12 ? T.swapAero : T.swapV3] }));
+    if (Array.isArray(f.address) && f.address.includes(MORPHO)) return [MORPHO, MORPHO, AAVE].map((address) => ({ address, blockNumber: `0x${HEAD.toString(16)}`, topics: ['0x1'] }));
     if (Array.isArray(f.address)) return [{ ...NAME_LOG, blockNumber: `0x${(HEAD - 1).toString(16)}` }, { ...ETH_LOG, blockNumber: `0x${HEAD.toString(16)}` }];
     const inRange = (l) => parseInt(l.blockNumber, 16) >= parseInt(f.fromBlock, 16) && parseInt(l.blockNumber, 16) <= parseInt(f.toBlock, 16);
     if (f.address === NAMES) { ranges.push([f.fromBlock, f.toBlock]); return [NAME_LOG, NAME_LOG].filter(inRange); }
@@ -73,6 +74,8 @@ const live = await readBlocks(HEAD - 2, 4, url);
 assert.equal(live.head, HEAD);
 assert.deepEqual(live.blocks.map((b) => b.n), [HEAD - 1, HEAD]);
 assert.deepEqual(live.blocks.map((b) => b.swaps), [null, 42]); // swaps: newest block only
+assert.deepEqual(live.blocks[1].apps, { aerodrome: 7, uniswap: 5, morpho: 2, aave: 1 });
+assert.deepEqual(live.blocks[0].apps, { aerodrome: null, uniswap: null, morpho: 0, aave: 0 });
 assert.deepEqual(live.blocks.map((b) => b.usdc.usd), [20, 1500000]);
 assert.deepEqual(live.blocks[1].usdc.big.map((x) => x.usd), [1500000]);
 assert.deepEqual(live.blocks[0].names, ['jessesp.base.eth']);

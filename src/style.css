@@ -383,6 +383,9 @@ body.photo .directory, body.cine .directory, body.photo .dir-btn, body.cine .dir
 .bl-spark { display: none; width: 100%; height: 40px; margin-top: 6px; }
 .bl-card.open .bl-spark { display: block; }
 .bl-card.pin { outline: 2px solid #0052ff; }
+.bl-card.mini { min-width: 0; padding: 6px 9px; border-radius: 11px; }
+.bl-card.mini .bl-head { margin-bottom: 2px; gap: 6px; } .bl-card.mini .bl-ico { width: 22px; height: 22px; font-size: 12px; }
+.bl-card.mini .bl-live { display: none; } .bl-card.mini:not(.open) .bl-row:not(:first-child) { display: none; }
 .bl-pop { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; background: #0b1220; color: #fff; border-radius: 999px; padding: 4px 10px; font: 12px/1.3 Inter, system-ui, sans-serif; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25); }
 .bl-pop small { opacity: 0.75; }
 .bl-pop.bl-name { background: #0052ff; font-size: 14px; }
