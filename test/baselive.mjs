@@ -2,7 +2,7 @@
 // (block 53,159,703's neighbourhood), against a stand-in RPC. Run: npm test
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
+import { readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
 
 const pad = (a) => `0x${a.slice(2).toLowerCase().padStart(64, '0')}`;
 const amt = (n) => `0x${BigInt(n).toString(16).padStart(64, '0')}`;
@@ -58,6 +58,10 @@ const answer = ({ method, params }) => {
   if (method === 'eth_getBalance') return '0x1bc16d674ec80000';
   if (method === 'eth_getTransactionCount') return '0x2a';
   if (method === 'eth_getCode') return params[0] === B ? '0x363d3d373d3d' : params[0] === A ? '0x' : '0xef0100aa';
+  // real answers from Base (block 0x32b317e's neighbourhood): Chainlink ETH/USD, the L1 fee bound, the tip
+  if (method === 'eth_call' && params[0].to === ETH_USD_FEED) return '0x000000000000000000000000000000000000000000000003000000000000288200000000000000000000000000000000000000000000000000000036e681f78e000000000000000000000000000000000000000000000000000000006ae17233000000000000000000000000000000000000000000000000000000006ae172410000000000000000000000000000000000000000000000030000000000002882';
+  if (method === 'eth_call' && params[0].to === GAS_ORACLE) return '0x0000000000000000000000000000000000000000000000000000000025a1caf4';
+  if (method === 'eth_maxPriorityFeePerGas') return '0xf4240';
   if (method === 'eth_call') return params[0].to === USDC ? amt(1234560000) : amt(10n ** 21n);
   throw new Error(`unexpected ${method}`);
 };
@@ -102,5 +106,7 @@ const w = await readWallet(A, '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885', url)
 assert.deepEqual(w, { eth: 2, txs: 42, smart: false, usdc: 1234.56, blocky: 1000 });
 assert.deepEqual(await readWallet(B, '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885', url).then((x) => [x.smart, x.txs]), [true, null]); // a smart wallet: no tx count
 assert.deepEqual(await readWallet('0x3333333333333333333333333333333333333333', '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885', url).then((x) => [x.smart, x.txs]), [false, 42]); // EIP-7702: still an account
+const fees = await readFees(url);
+assert.deepEqual(fees, { ethUsd: 2357.96, ethUsdAt: 0x6ae17241 * 1000, l1FeeWei: 631360244, prioWei: 1000000, gas: 62000 });
 server.close();
 console.log('baselive: ok');

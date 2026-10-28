@@ -52,6 +52,19 @@ function screen(w, h) {
   return m;
 }
 
+// ---------- US bank hours (Mon-Fri 9:00-17:00 New York time, not on federal holidays) ----------
+// "The Always-On Dollar" (Coinbase x The Block, 2026): most stablecoin volume moves when banks are closed
+const HOLIDAYS = new Set(['2026-01-01', '2026-01-19', '2026-02-16', '2026-05-25', '2026-06-19', '2026-07-03', '2026-09-07', '2026-10-12', '2026-11-11', '2026-11-26', '2026-12-25',
+  '2027-01-01', '2027-01-18', '2027-02-15', '2027-05-31', '2027-06-18', '2027-07-05', '2027-09-06', '2027-10-11', '2027-11-11', '2027-11-25', '2027-12-24']);
+const NY = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+export function bankHours(at = Date.now()) {
+  const p = Object.fromEntries(NY.formatToParts(new Date(at)).map((x) => [x.type, x.value]));
+  const day = `${p.year}-${p.month}-${p.day}`, h = Number(p.hour) + Number(p.minute) / 60;
+  const why = p.weekday === 'Sat' || p.weekday === 'Sun' ? 'weekend' : HOLIDAYS.has(day) ? 'holiday' : h < 9 || h >= 17 ? 'after hours' : null;
+  return { open: !why, why, time: `${p.hour}:${p.minute} ET` };
+}
+const WIRE_USD = 32; // a $200 SWIFT bank wire: ~16% in fees (the same research)
+
 // ---------- numbers ----------
 const compact = (v, d = 1) => (v >= 1e9 ? `${(v / 1e9).toFixed(d)}B` : v >= 1e6 ? `${(v / 1e6).toFixed(d)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(d)}k` : `${Math.round(v)}`);
 const usd = (v) => `$${compact(v)}`;
@@ -132,6 +145,23 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   const roof = new THREE.Mesh(new THREE.ExtrudeGeometry(gable, { depth: 5.6, bevelEnabled: false }).translate(0, 0, -2.8), mat(USDC_BLUE)); // a pediment, roof ridge front to back
   roof.position.y = 4.4; roof.castShadow = true; bank.add(roof);
   const usdcSign = sign('USDC', { w: 2.2, h: 0.62, bg: '#ffffff', fg: '#2775ca' }); usdcSign.position.set(0, 4.88, 2.84); bank.add(usdcSign);
+  // on the lawn in front: are US banks open? (Base always is)
+  const hoursBoard = screen(4.4, 1.5); hoursBoard.position.set(0, 1.35, 3.6); hoursBoard.rotation.x = -0.12; bank.add(hoursBoard);
+  box(bank, 0.12, 0.7, 0.12, 0x3a404c, -1.6, 0.35, 3.5); box(bank, 0.12, 0.7, 0.12, 0x3a404c, 1.6, 0.35, 3.5);
+  function drawHours() {
+    const h = bankHours();
+    hoursBoard.userData.draw((g, w, ht) => {
+      g.fillStyle = '#0b1220'; g.fillRect(0, 0, w, ht);
+      g.textBaseline = 'middle'; g.font = 'bold 30px Inter, sans-serif';
+      g.fillStyle = '#9fb3d9'; g.fillText(`US BANKS · ${h.time}`, 18, 30);
+      g.fillStyle = h.open ? '#18c37e' : '#ff5a5a'; g.font = 'bold 54px Inter, sans-serif'; g.fillText(h.open ? 'OPEN' : `CLOSED`, 18, 88);
+      g.fillStyle = '#9fb3d9'; g.font = '24px Inter, sans-serif'; g.fillText(h.open ? 'until 5pm' : h.why, 18, 138);
+      g.textAlign = 'right'; g.fillStyle = '#5c9bff'; g.font = 'bold 30px Inter, sans-serif'; g.fillText('BASE', w - 18, 30);
+      g.fillStyle = '#18c37e'; g.font = 'bold 54px Inter, sans-serif'; g.fillText('OPEN', w - 18, 88);
+      g.fillStyle = '#9fb3d9'; g.font = '24px Inter, sans-serif'; g.fillText('24/7/365', w - 18, 138); g.textAlign = 'left';
+    });
+  }
+  drawHours(); setInterval(drawHours, 30000);
 
   // ---------- the Bridge Port: a basin, a quay, a lighthouse ----------
   const port = new THREE.Group(); port.position.set(...xz(SPOTS.port)); group.add(port);
@@ -159,8 +189,8 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
 
   // ---------- the Data Plaza: three screens on posts, in an arc ----------
   const plaza = new THREE.Group(); plaza.position.set(...xz(SPOTS.plaza)); group.add(plaza);
-  const screens = [-1, 0, 1].map((k) => {
-    const s = new THREE.Group(); s.position.set(k * 5.4, 0, -Math.abs(k) * 1.2); s.rotation.y = -k * 0.35; plaza.add(s);
+  const screens = [-1.5, -0.5, 0.5, 1.5].map((k) => {
+    const s = new THREE.Group(); s.position.set(k * 5, 0, -Math.abs(k) * 0.9 + 0.5); s.rotation.y = -k * 0.25; plaza.add(s);
     box(s, 0.3, 2.2, 0.3, 0x3a404c, -1.8, 1.1, 0); box(s, 0.3, 2.2, 0.3, 0x3a404c, 1.8, 1.1, 0);
     box(s, 4.8, 2.9, 0.3, DARK, 0, 3.4, 0);
     const scr = screen(4.5, 2.6); scr.position.set(0, 3.4, 0.16); s.add(scr);
@@ -360,7 +390,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   const S = {
     head: 0, blocks: [], queue: [], last: null, ok: false, fails: 0, stats: null, playAt: 0,
     swaps: [], usdcWin: [], names: [], deposits: [], seen: new Set(),
-    live: { from: 0, names: 0, deposits: 0, eth: 0 }, // counted from the blocks played here, for when the hour's numbers aren't in
+    live: { from: 0, names: 0, deposits: 0, eth: 0, closedUsd: 0 }, // counted from the blocks played here, for when the hour's numbers aren't in
     tvl: null, // straight from DefiLlama when /api/basestats has none
   };
   async function poll() {
@@ -398,9 +428,10 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     S.blocks.push(b); if (S.blocks.length > BARS) S.blocks.shift();
     S.last = b;
     if (!S.live.from) S.live.from = Date.now();
-    if (!S.stats?.txPerDay || !S.stats?.names) drawScreens(); // the plaza runs on what it sees here
+    if (b.n % 3 === 0 || !S.stats?.txPerDay || !S.stats?.names) drawScreens(); // the fee follows each block's base fee; the plaza runs on what it sees here
     pushBar(b);
     if (b.swaps !== null) { S.swaps.push(b.swaps); if (S.swaps.length > 15) S.swaps.shift(); }
+    if (!bankHours(b.t).open) S.live.closedUsd += b.usdc.usd; // USDC that moved while US banks were shut
     S.usdcWin.push({ t: b.t, usd: b.usdc.usd, n: b.usdc.n }); while (S.usdcWin.length && b.t - S.usdcWin[0].t > 60000) S.usdcWin.shift();
     // USDC: a few trucks for the block's transfers, a big one per $100k+, a whale ship per $1M+
     const small = Math.min(3, Math.ceil(b.usdc.n / 120));
@@ -431,10 +462,24 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     log?.(`🐋 Whale on Base: <b>${usd(x.usd)} USDC</b> just moved <a href="https://basescan.org/tx/${x.tx}" target="_blank" rel="noopener">↗</a>`);
   }
 
+  // seconds between blocks, measured (2 s today; 0.2 s once Base ships 200 ms blocks)
+  const bt = () => {
+    const bs = S.blocks.slice(-20);
+    if (bs.length < 6) return 2;
+    const s = (bs.at(-1).t - bs[0].t) / 1000 / (bs.length - 1);
+    return s > 0 ? s : 2;
+  };
+  // a $200 USDC transfer's fee on Base now, in USD (the block's base fee + the usual tip, plus L1 data)
+  const transferFee = () => {
+    const f = S.stats?.fees, b = S.last;
+    if (!f?.ethUsd || !b) return null;
+    return ((f.gas * (b.gwei * 1e9 + f.prioWei) + f.l1FeeWei) / 1e18) * f.ethUsd;
+  };
+  const cents = (v) => (v === null ? '—' : v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`);
   const tps = () => {
     const bs = S.blocks.slice(-15);
     if (bs.length < 2) return S.last ? S.last.tx / 2 : 0;
-    const span = (bs.at(-1).t - bs[0].t) / 1000 + 2;
+    const span = (bs.at(-1).t - bs[0].t) / 1000 + bt();
     return bs.reduce((s, b) => s + b.tx, 0) / span;
   };
   function renderCards() {
@@ -445,14 +490,18 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
       ['TPS', b ? tps().toFixed(0) : dash],
       ['Gas used', b ? `${Math.round(b.gas * 100)}%` : dash],
       ['Base fee', b ? `${gwei(b.gwei)} gwei` : dash],
+      ['Block time', b ? `${bt() < 1 ? `${Math.round(bt() * 1000)} ms` : `${bt().toFixed(1)} s`}` : dash],
     ]);
     drawSpark(C.tower.spark, S.blocks.map((x) => x.tx));
     const vol = S.usdcWin.reduce((s, x) => s + x.usd, 0), n = S.usdcWin.reduce((s, x) => s + x.n, 0);
-    const span = S.usdcWin.length > 1 ? (S.usdcWin.at(-1).t - S.usdcWin[0].t) / 1000 + 2 : 2;
+    const span = S.usdcWin.length > 1 ? (S.usdcWin.at(-1).t - S.usdcWin[0].t) / 1000 + bt() : bt();
+    const hours = bankHours();
     C.bank.rows.innerHTML = rowsHtml([
+      ['US banks', hours.open ? 'open' : `closed (${hours.why})`, hours.open ? '' : 'bl-red'],
       ['USDC moved / min', b ? usd((vol / span) * 60) : dash],
       ['Transfers / min', b ? int((n / span) * 60) : dash],
       ['Biggest this block', b?.usdc.big[0] ? usd(b.usdc.big[0].usd) : b ? `< $100k` : dash],
+      ...(S.live.closedUsd ? [[`While banks closed (${liveMin()})`, usd(S.live.closedUsd)]] : []),
     ]);
     drawSpark(C.bank.spark, S.blocks.map((x) => x.usdc.usd), '#2775ca');
     const st = S.stats;
@@ -464,7 +513,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     const sw = S.swaps.length ? S.swaps.reduce((s, x) => s + x, 0) / S.swaps.length : null;
     C.dex.rows.innerHTML = rowsHtml([
       ['Swaps, last block', S.swaps.length ? int(S.swaps.at(-1)) : dash],
-      ['Swaps / min', sw !== null ? int(sw * 30) : dash],
+      ['Swaps / min', sw !== null ? int((sw * 60) / bt()) : dash],
     ]);
     drawSpark(C.dex.spark, S.swaps, '#0f9d58');
     C.reg.rows.innerHTML = rowsHtml([
@@ -474,6 +523,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     C.plaza.rows.innerHTML = rowsHtml([
       ['Tx pace / day', pace() ? compact(pace(), 2) : dash],
       ['TVL (DefiLlama)', tvl() ? usd(tvl()) : dash],
+      ['Send $200 USDC', cents(transferFee())],
       ['Traffic', b ? `follows ${tps().toFixed(0)} TPS` : dash],
     ]);
     // the four apps: their live number (per block for swaps, per minute for lending actions) and TVL
@@ -514,6 +564,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     });
     draw(screens[0], 'BASE TX / DAY', pace() ? compact(pace(), 1) : '—', st?.txPerDay ? 'pace of the last hour' : 'pace of the last minute', '#0052ff');
     draw(screens[1], 'TVL ON BASE', tvl() ? usd(tvl()) : '—', 'source: DefiLlama', '#7c4dff');
+    draw(screens[3], 'SEND $200 USDC', cents(transferFee()), transferFee() !== null ? `on Base now · bank wire ~$${WIRE_USD}` : 'on Base now', '#18c37e');
     draw(screens[2], st?.names ? 'BASENAMES / HOUR' : `BASENAMES · ${liveMin().toUpperCase()}`, st?.names ? int(st.names.n) : S.last ? int(S.live.names) : '—', S.names[0]?.name || st?.names?.last[0] || 'new names', '#ff6a3d');
   }
   drawScreens(); renderCards();
@@ -639,7 +690,11 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     layer.style.display = '';
     // play the queued blocks one every ~2 s; catch up if the queue grows
     S.playAt -= dt;
-    if (S.queue.length && S.playAt <= 0) { play(S.queue.shift()); S.playAt = S.queue.length > 4 ? 0.4 : 1.9; }
+    if (S.queue.length && S.playAt <= 0) { // at Base's own pace (2 s blocks, or 200 ms), faster when behind
+      play(S.queue.shift());
+      const pace = Math.max(0.18, Math.min(2, bt()) * 0.95);
+      S.playAt = S.queue.length > 6 * (2 / pace) ? pace / 4 : pace;
+    }
     for (const b of bars) { // slide along the rail, the newest drops in from above
       const x = BAR_X0 + b.slot;
       b.x += (x - b.x) * Math.min(1, dt * 6);

@@ -377,6 +377,7 @@ body.photo .directory, body.cine .directory, body.photo .dir-btn, body.cine .dir
 .bl-live span { width: 6px; height: 6px; border-radius: 50%; background: #18c37e; box-shadow: 0 0 0 0 rgba(24, 195, 126, 0.6); animation: bl-pulse 1.6s infinite; }
 @keyframes bl-pulse { 70% { box-shadow: 0 0 0 6px rgba(24, 195, 126, 0); } 100% { box-shadow: 0 0 0 0 rgba(24, 195, 126, 0); } }
 .bl-row { display: flex; justify-content: space-between; gap: 12px; color: #4a5568; padding: 1px 0; }
+.bl-row b.bl-red { color: #d93025; }
 .bl-row b { color: #0b1220; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bl-cta { display: block; color: #2b3445; }
 .bl-cta a { color: #ff6a3d; font-weight: 800; }

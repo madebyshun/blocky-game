@@ -107,7 +107,9 @@ export function summarize(block, { usdc = [], swaps = null, names = [], bridge =
 
 // the blocks after `since` (at most `max`, newest last), summarized. Swaps are counted on the newest
 // block only (there are hundreds per block); USDC, names and bridge deposits on all of them.
-export async function readBlocks(since, max = 4, url = RPC) {
+// (`max`: on a first call the last 4; after that up to 24, so when Base moves to 200 ms blocks the city
+// still gets every one)
+export async function readBlocks(since, max = Number(since) ? 24 : 4, url = RPC) {
   const [headHex] = await rpc([['eth_blockNumber', []]], url);
   const head = num(headHex), from = Math.max(head - max + 1, (Number(since) || 0) + 1);
   if (from > head) return { head, blocks: [] };
@@ -183,6 +185,22 @@ export async function readAppTvl() {
     }
     return out;
   } catch { return {}; }
+}
+
+// What a USDC transfer costs on Base right now, the parts that change slowly: ETH in USD (Chainlink's
+// ETH/USD feed on Base), the L1 data fee for a transfer-sized transaction (the GasPriceOracle's upper
+// bound for 150 bytes) and the usual priority fee. The base fee comes with every block.
+export const ETH_USD_FEED = '0x71041dddad3595f9ced3dccfbe3d1f4b0a16bb70';
+export const GAS_ORACLE = '0x420000000000000000000000000000000000000f';
+export const USDC_TRANSFER_GAS = 62000; // a USDC transfer uses ~40k-62k gas: the high end
+export async function readFees(url = RPC) {
+  const [round, l1, prio] = await rpc([
+    ['eth_call', [{ to: ETH_USD_FEED, data: '0xfeaf968c' }, 'latest']], // latestRoundData()
+    ['eth_call', [{ to: GAS_ORACLE, data: `0xf1c7a58b${(150).toString(16).padStart(64, '0')}` }, 'latest']], // getL1FeeUpperBound(150)
+    ['eth_maxPriorityFeePerGas', []],
+  ], url);
+  const answer = Number(big(word(round, 1))) / 1e8, updated = num(word(round, 3)) * 1000;
+  return { ethUsd: answer > 0 ? +answer.toFixed(2) : null, ethUsdAt: updated, l1FeeWei: Number(big(l1)), prioWei: Number(big(prio)), gas: USDC_TRANSFER_GAS };
 }
 
 // Base's TVL (DefiLlama), or null
