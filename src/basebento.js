@@ -83,11 +83,38 @@ loadStats(); poll();
 setInterval(poll, 4000);
 setInterval(loadStats, 60000);
 
+// The saved image must use the page's own fonts: html-to-image can't read Google Fonts' cross-origin
+// stylesheet, so it fell back to another font (wider: lines wrapped, '2.0 s' broke). Fetch the CSS and
+// its latin font files once and hand them over inlined.
+let fontCss = null;
+async function embedFonts() {
+  if (fontCss !== null) return fontCss;
+  fontCss = '';
+  try {
+    const href = document.querySelector('link[href*="fonts.googleapis.com/css2"]')?.href;
+    if (!href) return fontCss;
+    const css = await (await fetch(href)).text();
+    const latin = css.split('/*').filter((b) => /^\s*latin \*\//.test(b)).map((b) => `/*${b}`); // the latin subsets only
+    const blocks = await Promise.all(latin.map(async (b) => {
+      const url = b.match(/url\((https:[^)]+)\)/)?.[1];
+      if (!url) return '';
+      const buf = await (await fetch(url)).arrayBuffer();
+      let bin = ''; const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      return b.replace(url, `data:font/woff2;base64,${btoa(bin)}`);
+    }));
+    fontCss = blocks.join('\n');
+  } catch (e) { console.warn('[bento] fonts not embedded', e); }
+  return fontCss;
+}
+
 $('bb-save').onclick = async () => {
   const btn = $('bb-save'); btn.textContent = 'Saving…';
   try {
+    await document.fonts.ready;
+    const fontEmbedCSS = await embedFonts();
     const prev = board.style.transform; board.style.transform = 'none';
-    const url = await toPng(board, { width: 1600, height: 900, pixelRatio: 2, cacheBust: true });
+    const url = await toPng(board, { width: 1600, height: 900, pixelRatio: 2, cacheBust: true, ...(fontEmbedCSS ? { fontEmbedCSS } : {}) });
     board.style.transform = prev;
     const a = document.createElement('a'); a.href = url; a.download = `base-live-${new Date().toISOString().slice(0, 10)}.png`; a.click();
   } catch (e) { console.error(e); }
