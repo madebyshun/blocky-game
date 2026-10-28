@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Base, live · BaseCity</title>
+    <meta name="description" content="The always-on chain: USDC moved on Base, how much of it while US banks were closed, what a transfer costs right now. Read from Base mainnet, block by block." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="BaseCity" />
+    <meta property="og:url" content="%SITE%/base.html" />
+    <meta property="og:title" content="Base, live: the always-on chain, in numbers" />
+    <meta property="og:description" content="USDC on Base, block by block: how much moves, how much while banks are closed, what it costs. Live from mainnet." />
+    <meta property="og:image" content="/og-home.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@%X%" />
+    <meta name="twitter:image" content="/og-home.jpg" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/site.css" />
+    <link rel="stylesheet" href="/src/basebento.css" />
+  </head>
+  <body>
+    <main class="bb-page">
+      <div class="bb-bar">
+        <p class="bb-kicker"><span class="dot"></span> Live from Base mainnet · updates every block</p>
+        <div class="bb-actions">
+          <a class="btn" href="/?baselive">Open in the city →</a>
+          <button class="btn" id="bb-save">Save image</button>
+          <a class="btn primary" id="bb-share" target="_blank" rel="noopener">Share on X</a>
+        </div>
+      </div>
+      <div class="bb-fit"><section class="bb" id="bb">
+        <div class="cell blue c-title">
+          <p class="t-small">The Always-On Chain:</p>
+          <h1>Base,<br />live, right now</h1>
+          <p class="t-note">Every number here is read from Base mainnet, block by block.</p>
+        </div>
+        <div class="cell pale c-usd">
+          <b class="huge" id="v-usd">—</b>
+          <p>USDC moved on Base in the last 24 hours <sup>1</sup></p>
+          <p class="t-note" id="v-usd-n"></p>
+        </div>
+        <div class="cell grey c-pct">
+          <div class="clock" aria-hidden="true"><i></i></div>
+          <b class="huge blue-t" id="v-pct">—</b>
+          <p>of USDC on Base moved while <b>US banks were closed</b> <sup>1, 2</sup></p>
+          <p class="t-note" id="v-pct-n">last 7 days</p>
+        </div>
+        <div class="cell white c-fee">
+          <div class="bars" id="v-bars"></div>
+          <div class="fee-txt">
+            <p>Sending <b>$200</b> in USDC on Base costs <b class="blue-t" id="v-fee">—</b> right now <sup>3</sup></p>
+            <p class="t-note">Other ways to send it: fees from Coinbase × The Block's "The Always-On Dollar" <sup>4</sup></p>
+          </div>
+        </div>
+        <div class="cell white c-chain">
+          <b class="big blue-t" id="v-tps">—</b>
+          <p>transactions per second on Base</p>
+          <ul class="facts">
+            <li><span>A block every</span><b id="v-bt">—</b></li>
+            <li><span>Blocks full</span><b id="v-gas">—</b></li>
+            <li><span>Base fee</span><b id="v-gwei">—</b></li>
+          </ul>
+          <p class="t-note">200 ms blocks: coming to mainnet</p>
+        </div>
+        <div class="cell pale c-read">
+          <p class="read">In the five seconds it took to read this, <b id="v-read">—</b> in USDC moved on Base <sup>5</sup></p>
+        </div>
+        <div class="cell white c-apps">
+          <p class="t-small dark">TVL on Base <sup>6</sup></p>
+          <ul class="apps" id="v-apps"></ul>
+        </div>
+        <div class="cell blue c-foot">
+          <p class="foot-big">Base never closes.</p>
+          <p class="foot-site"><span class="mark"></span> basecity.space</p>
+        </div>
+        <p class="bb-src" id="bb-src">1. USDC transfer volume on Base (all transfers), estimated per hour from 4 sampled blocks. 2. US bank hours: Mon-Fri 9:00-17:00 New York time, federal holidays closed. 3. A 62k-gas USDC transfer at the current block's base fee + usual tip + L1 data fee, ETH/USD from Chainlink on Base. 4. "The Always-On Dollar: Money for an Economy that Doesn't Close", The Block Pro Research for Coinbase. 5. Live USDC pace over the last blocks. 6. DefiLlama.</p>
+      </section></div>
+    </main>
+    <script type="module" src="/src/basebento.js"></script>
+  </body>
+</html>

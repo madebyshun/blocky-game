@@ -30,6 +30,10 @@
       "destination": "/recap.html"
     },
     {
+      "source": "/base",
+      "destination": "/base.html"
+    },
+    {
       "source": "/about",
       "destination": "/about.html"
     },

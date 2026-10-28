@@ -13,6 +13,7 @@ export function createBaseLivePanel({ baseLive, goTo, dashboard }) {
     <div class="bl-ph"><b>🟦 Base Live</b><i class="bl-live"><span></span>LIVE</i><button class="bl-x" title="Close">✕</button></div>
     <p class="bl-sub">Base, block by block, running through BaseCity: every block, USDC on the move, new Basenames, deposits from Ethereum.</p>
     <button class="btn bl-dash">📊 Dashboard view</button>
+    <a class="btn bl-dash" href="/base.html" style="display:block;text-align:center;text-decoration:none;margin-top:6px">▦ Base in numbers (bento)</a>
     <label>Find my tx</label>
     <form class="bl-form" data-k="tx"><input placeholder="0x… transaction hash" spellcheck="false" autocomplete="off"><button class="btn">Find</button></form>
     <label>My Base</label>

@@ -5,6 +5,7 @@
 
 import { RPC } from './_store.js';
 import { cleanName } from './_names.js';
+import { bankHours } from '../src/bankhours.js';
 
 // contracts and event topics, checked against Base mainnet
 export const USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // native USDC (6 decimals)
@@ -201,6 +202,43 @@ export async function readFees(url = RPC) {
   ], url);
   const answer = Number(big(word(round, 1))) / 1e8, updated = num(word(round, 3)) * 1000;
   return { ethUsd: answer > 0 ? +answer.toFixed(2) : null, ethUsdAt: updated, l1FeeWei: Number(big(l1)), prioWei: Number(big(prio)), gas: USDC_TRANSFER_GAS };
+}
+
+// USDC moved on Base, hour by hour, for the last week: each hour estimated from SAMPLES blocks spread
+// over it (their USDC transfers, times the hour's 1,800 blocks), computed once and kept (`store`), a
+// few missing hours per call so a cold start fills in over a few calls. From it: the last 24 hours, the
+// last hour's pace, and the share that moved while US banks were closed (src/bankhours.js).
+export const HOUR_MS = 3600000, SAMPLES = 4, WEEK = 168;
+export async function readFlow(store, { url = RPC, now = Date.now(), maxNew = 6, blockMs = 2000 } = {}) {
+  const [top] = await rpc([getBlock('latest')], url);
+  const head = num(top.number), headT = num(top.timestamp) * 1000;
+  const blockAt = (t) => head - Math.round((headT - t) / blockMs);
+  const perHour = HOUR_MS / blockMs, cur = Math.floor(now / HOUR_MS);
+  const hours = Array.from({ length: WEEK }, (_, i) => cur - 1 - i); // finished hours, newest first
+  const have = await store.get(hours);
+  const missing = hours.filter((h) => !have[h] && blockAt((h + 1) * HOUR_MS) <= head).slice(0, maxNew);
+  await Promise.all(missing.map(async (h) => {
+    const b0 = blockAt(h * HOUR_MS), picks = Array.from({ length: SAMPLES }, (_, i) => b0 + Math.round(((i + 0.5) * perHour) / SAMPLES));
+    try {
+      const res = await rpc(picks.map((b) => getLogs(b, b, { address: USDC, topics: [T.transfer] })), url);
+      const usd = res.map((logs) => logs.reduce((s, l) => s + usdcOf(l).usd, 0)), n = res.map((logs) => logs.length);
+      const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+      have[h] = { usd: Math.round(mean(usd) * perHour), n: Math.round(mean(n) * perHour) };
+      await store.set(h, have[h]);
+    } catch { /* this hour waits for the next call */ }
+  }));
+  const day = hours.slice(0, 24).filter((h) => have[h]), week = hours.filter((h) => have[h]);
+  const sum = (hs) => hs.reduce((s, h) => s + have[h].usd, 0);
+  const closed = week.filter((h) => !bankHours(h * HOUR_MS + HOUR_MS / 2).open);
+  return {
+    usd24h: day.length === 24 ? sum(day) : null, // only once the whole day is in
+    n24h: day.length === 24 ? day.reduce((s, h) => s + have[h].n, 0) : null,
+    lastHourUsd: have[hours[0]]?.usd ?? null,
+    closedShare: week.length >= 24 ? +(sum(closed) / (sum(week) || 1)).toFixed(4) : null,
+    closedHours: closed.length,
+    hours: week.length, // hours behind closedShare (up to 168)
+    samples: SAMPLES,
+  };
 }
 
 // Base's TVL (DefiLlama), or null

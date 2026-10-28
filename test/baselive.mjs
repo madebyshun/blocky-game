@@ -2,7 +2,7 @@
 // (block 53,159,703's neighbourhood), against a stand-in RPC. Run: npm test
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
+import { readFlow, HOUR_MS, readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
 
 const pad = (a) => `0x${a.slice(2).toLowerCase().padStart(64, '0')}`;
 const amt = (n) => `0x${BigInt(n).toString(16).padStart(64, '0')}`;
@@ -108,5 +108,40 @@ assert.deepEqual(await readWallet(B, '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885
 assert.deepEqual(await readWallet('0x3333333333333333333333333333333333333333', '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885', url).then((x) => [x.smart, x.txs]), [false, 42]); // EIP-7702: still an account
 const fees = await readFees(url);
 assert.deepEqual(fees, { ethUsd: 2357.96, ethUsdAt: 0x6ae17241 * 1000, l1FeeWei: 631360244, prioWei: 1000000, gas: 62000 });
+// the week's USDC flow: sampled hours, kept, filled in a few per call; the share moved while banks were shut
+{
+  const { bankHours } = await import('../src/bankhours.js');
+  const NOW = Date.UTC(2026, 9, 28, 15, 20); // a Wednesday, 11:20 in New York
+  const headT = Math.floor(NOW / 1000), HEADN = 53200000;
+  let sampled = 0;
+  const flowSrv = http.createServer(async (req, res) => {
+    let body = ''; for await (const c of req) body += c;
+    const q = JSON.parse(body);
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(q.map((x) => {
+      if (x.method === 'eth_getBlockByNumber') return { jsonrpc: '2.0', id: x.id, result: header(HEADN, 1) && { ...header(HEADN, 1), timestamp: `0x${headT.toString(16)}` } };
+      const b = parseInt(x.params[0].fromBlock, 16), t = (headT - (HEADN - b) * 2) * 1000;
+      sampled++;
+      const k = bankHours(t).open ? 1 : 3; // three times the USDC while banks are shut
+      return { jsonrpc: '2.0', id: x.id, result: Array.from({ length: k }, () => usdc(b, A, B, 1000)) };
+    })));
+  });
+  await new Promise((r) => flowSrv.listen(0, r));
+  const furl = `http://127.0.0.1:${flowSrv.address().port}`;
+  const kept = new Map(), store = { get: async (hs) => Object.fromEntries(hs.filter((h) => kept.has(h)).map((h) => [h, kept.get(h)])), set: async (h, v) => { kept.set(h, v); } };
+  let f = await readFlow(store, { url: furl, now: NOW });
+  assert.equal(f.hours, 6); assert.equal(f.usd24h, null); assert.equal(f.closedShare, null); // a cold start: 6 hours so far
+  for (let i = 0; i < 30; i++) f = await readFlow(store, { url: furl, now: NOW });
+  assert.equal(f.hours, 168);
+  assert.equal(sampled, 168 * 4, 'each hour sampled once, 4 blocks');
+  const shut = [...kept.keys()].filter((h) => !bankHours(h * HOUR_MS + HOUR_MS / 2).open).length;
+  assert.equal(f.closedHours, shut);
+  assert.ok(shut > 120 && shut < 135, `${shut} closed hours in a week`); // 168 - 5 days x 8 h = 128
+  const expect = (3 * shut) / (3 * shut + (168 - shut));
+  assert.ok(Math.abs(f.closedShare - expect) < 0.0001, `${f.closedShare} vs ${expect}`);
+  const open24 = [...Array(24)].map((_, i) => Math.floor(NOW / HOUR_MS) - 1 - i).filter((h) => bankHours(h * HOUR_MS + HOUR_MS / 2).open).length;
+  assert.equal(f.usd24h, (open24 * 1 + (24 - open24) * 3) * 1000 * 1800);
+  flowSrv.close();
+}
 server.close();
 console.log('baselive: ok');
