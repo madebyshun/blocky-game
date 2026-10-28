@@ -51,7 +51,8 @@
 .c-chain p { font-size: 18px; margin-top: 6px; }
 .facts { list-style: none; padding: 0; margin: 12px 0 0; font-size: 16px; }
 .facts li { display: flex; justify-content: space-between; border-top: 1px solid #e6e8ec; padding: 5px 0; }
-.facts b { font-variant-numeric: tabular-nums; }
+.facts b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.facts span { white-space: nowrap; }
 .c-read { grid-area: read; }
 .read { font-size: 26px; line-height: 1.25; color: #0b2a8a; }
 .read b { color: var(--blue); }

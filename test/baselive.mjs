@@ -133,7 +133,7 @@ assert.deepEqual(fees, { ethUsd: 2357.96, ethUsdAt: 0x6ae17241 * 1000, l1FeeWei:
   assert.equal(f.hours, 6); assert.equal(f.usd24h, null); assert.equal(f.closedShare, null); // a cold start: 6 hours so far
   for (let i = 0; i < 30; i++) f = await readFlow(store, { url: furl, now: NOW });
   assert.equal(f.hours, 168);
-  assert.equal(sampled, 168 * 4, 'each hour sampled once, 4 blocks');
+  assert.equal(sampled, 168 * 12, 'each hour sampled once, 12 blocks');
   const shut = [...kept.keys()].filter((h) => !bankHours(h * HOUR_MS + HOUR_MS / 2).open).length;
   assert.equal(f.closedHours, shut);
   assert.ok(shut > 120 && shut < 135, `${shut} closed hours in a week`); // 168 - 5 days x 8 h = 128

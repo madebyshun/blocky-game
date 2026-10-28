@@ -174,17 +174,21 @@ export async function readHour(url = RPC) {
   };
 }
 
-// each app's TVL on Base (DefiLlama: the sum over its protocols, e.g. Aerodrome Slipstream + v1), or {}
+// each app's TVL on Base (DefiLlama: the sum over its protocols, e.g. Aerodrome Slipstream + v1), or {};
+// readAppTvl.detail: which DefiLlama entries went into each sum (for checking, in /api/basestats)
 export async function readAppTvl() {
   try {
     const r = await fetch('https://api.llama.fi/protocols', { signal: AbortSignal.timeout(10000) });
     if (!r.ok) return {};
     const list = await r.json(), out = {};
+    readAppTvl.detail = {};
     for (const a of APPS) {
       // its parent (whatever DefiLlama calls it: parent#aerodrome-finance, ...) or any of its versions' slugs
       const mine = (p) => p.parentProtocol === a.parent || String(p.parentProtocol || '').startsWith(`${a.parent}-`) || p.slug === a.id || String(p.slug || '').startsWith(`${a.id}-`);
-      const tvl = list.filter(mine).reduce((s, p) => s + (Number(p.chainTvls?.Base) || 0), 0);
+      const parts = list.filter(mine).filter((p) => Number(p.chainTvls?.Base) > 0);
+      const tvl = parts.reduce((s, p) => s + Number(p.chainTvls.Base), 0);
       if (tvl > 0) out[a.id] = Math.round(tvl);
+      readAppTvl.detail[a.id] = parts.map((p) => ({ slug: p.slug, name: p.name, category: p.category, parent: p.parentProtocol, base: Math.round(p.chainTvls.Base) }));
     }
     return out;
   } catch { return {}; }
@@ -210,7 +214,7 @@ export async function readFees(url = RPC) {
 // over it (their USDC transfers, times the hour's 1,800 blocks), computed once and kept (`store`), a
 // few missing hours per call so a cold start fills in over a few calls. From it: the last 24 hours, the
 // last hour's pace, and the share that moved while US banks were closed (src/bankhours.js).
-export const HOUR_MS = 3600000, SAMPLES = 4, WEEK = 168;
+export const HOUR_MS = 3600000, SAMPLES = 12, WEEK = 168; // 12 blocks an hour: USDC volume is heavy-tailed (a few huge transfers), so few samples swing the estimate
 export async function readFlow(store, { url = RPC, now = Date.now(), maxNew = 6, blockMs = 2000 } = {}) {
   const [top] = await rpc([getBlock('latest')], url);
   const head = num(top.number), headT = num(top.timestamp) * 1000;
@@ -242,6 +246,8 @@ export async function readFlow(store, { url = RPC, now = Date.now(), maxNew = 6,
     samples: SAMPLES,
   };
 }
+
+readAppTvl.detail = {};
 
 // Base's TVL (DefiLlama), or null
 export async function readTvl() {

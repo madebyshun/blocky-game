@@ -5,7 +5,7 @@ import { readHour, readTvl, readAppTvl, readFees, readFlow } from './_baselive.j
 import { useKv, kv, KEY_BASE } from './_store.js';
 
 // the hourly USDC flow (readFlow) is kept in KV (else this instance's memory): one hash field per hour
-const FLOW_KEY = `${KEY_BASE}:baselive:usdcflow`;
+const FLOW_KEY = `${KEY_BASE}:baselive:usdcflow:v2`; // v2: 12 samples an hour (v1 had 4)
 const flowMemory = new Map();
 const flowStore = {
   async get(hours) {
@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   try {
     if (!last || Date.now() - last.at > (partial() ? 25000 : 240000)) {
       const [hour, tvl, apps, fees, flow] = await Promise.all([readHour().catch((e) => ({ errors: { head: String(e.message || e).slice(0, 200) } })), readTvl(), readAppTvl(), readFees().catch((e) => ({ error: String(e.message || e).slice(0, 200) })), readFlow(flowStore).catch((e) => ({ error: String(e.message || e).slice(0, 200) }))]);
-      last = { names: null, bridge: null, txPerBlock: null, txPerDay: null, ...hour, tvl, apps, fees: fees.error ? null : fees, flow: flow.error ? null : flow, at: Date.now() };
+      last = { names: null, bridge: null, txPerBlock: null, txPerDay: null, ...hour, tvl, apps, appsDetail: readAppTvl.detail, fees: fees.error ? null : fees, flow: flow.error ? null : flow, at: Date.now() };
       if (flow.error) last.errors = { ...last.errors, flow: flow.error };
       if (fees.error) last.errors = { ...last.errors, fees: fees.error };
       if (tvl === null) last.errors = { ...last.errors, tvl: 'DefiLlama did not answer' };
