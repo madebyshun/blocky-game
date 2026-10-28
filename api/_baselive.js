@@ -181,7 +181,9 @@ export async function readAppTvl() {
     if (!r.ok) return {};
     const list = await r.json(), out = {};
     for (const a of APPS) {
-      const tvl = list.filter((p) => p.parentProtocol === a.parent || p.slug === a.id).reduce((s, p) => s + (Number(p.chainTvls?.Base) || 0), 0);
+      // its parent (whatever DefiLlama calls it: parent#aerodrome-finance, ...) or any of its versions' slugs
+      const mine = (p) => p.parentProtocol === a.parent || String(p.parentProtocol || '').startsWith(`${a.parent}-`) || p.slug === a.id || String(p.slug || '').startsWith(`${a.id}-`);
+      const tvl = list.filter(mine).reduce((s, p) => s + (Number(p.chainTvls?.Base) || 0), 0);
       if (tvl > 0) out[a.id] = Math.round(tvl);
     }
     return out;

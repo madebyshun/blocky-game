@@ -2,7 +2,7 @@
 // (block 53,159,703's neighbourhood), against a stand-in RPC. Run: npm test
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { readFlow, HOUR_MS, readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
+import { readAppTvl, readFlow, HOUR_MS, readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
 
 const pad = (a) => `0x${a.slice(2).toLowerCase().padStart(64, '0')}`;
 const amt = (n) => `0x${BigInt(n).toString(16).padStart(64, '0')}`;
@@ -142,6 +142,20 @@ assert.deepEqual(fees, { ethUsd: 2357.96, ethUsdAt: 0x6ae17241 * 1000, l1FeeWei:
   const open24 = [...Array(24)].map((_, i) => Math.floor(NOW / HOUR_MS) - 1 - i).filter((h) => bankHours(h * HOUR_MS + HOUR_MS / 2).open).length;
   assert.equal(f.usd24h, (open24 * 1 + (24 - open24) * 3) * 1000 * 1800);
   flowSrv.close();
+}
+// each app's TVL on Base: its parent's protocols however DefiLlama names the parent, or its slugs
+{
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => [
+    { slug: 'aerodrome-v1', parentProtocol: 'parent#aerodrome-finance', chainTvls: { Base: 300e6 } },
+    { slug: 'aerodrome-slipstream', parentProtocol: 'parent#aerodrome-finance', chainTvls: { Base: 250e6 } },
+    { slug: 'uniswap-v3', parentProtocol: 'parent#uniswap', chainTvls: { Base: 400e6, Ethereum: 3e9 } },
+    { slug: 'morpho-blue', parentProtocol: 'parent#morpho', chainTvls: { Base: 4.5e9 } },
+    { slug: 'aave-v3', parentProtocol: 'parent#aave', chainTvls: { Base: 562e6 } },
+    { slug: 'aavegotchi', chainTvls: { Base: 1e6 } },
+  ] });
+  assert.deepEqual(await readAppTvl(), { aerodrome: 550e6, uniswap: 400e6, morpho: 4.5e9, aave: 562e6 });
+  globalThis.fetch = real;
 }
 server.close();
 console.log('baselive: ok');

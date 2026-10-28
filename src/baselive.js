@@ -136,8 +136,9 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   roof.position.y = 4.4; roof.castShadow = true; bank.add(roof);
   const usdcSign = sign('USDC', { w: 2.2, h: 0.62, bg: '#ffffff', fg: '#2775ca' }); usdcSign.position.set(0, 4.88, 2.84); bank.add(usdcSign);
   // on the lawn in front: are US banks open? (Base always is)
-  const hoursBoard = screen(4.4, 1.5); hoursBoard.position.set(0, 1.35, 3.6); hoursBoard.rotation.x = -0.12; bank.add(hoursBoard);
-  box(bank, 0.12, 0.7, 0.12, 0x3a404c, -1.6, 0.35, 3.5); box(bank, 0.12, 0.7, 0.12, 0x3a404c, 1.6, 0.35, 3.5);
+  // on the bank's west wall (it faces the camera; the apps' HQs stand in front of the bank's door)
+  const hoursBoard = screen(4.2, 1.45); hoursBoard.position.set(-3.56, 2.6, -0.4); hoursBoard.rotation.y = -Math.PI / 2; bank.add(hoursBoard);
+  box(bank, 0.06, 1.65, 4.4, 0x1d2430, -3.53, 2.6, -0.4);
   function drawHours() {
     const h = bankHours();
     hoursBoard.userData.draw((g, w, ht) => {
@@ -179,8 +180,8 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
 
   // ---------- the Data Plaza: three screens on posts, in an arc ----------
   const plaza = new THREE.Group(); plaza.position.set(...xz(SPOTS.plaza)); group.add(plaza);
-  const screens = [-1.5, -0.5, 0.5, 1.5].map((k) => {
-    const s = new THREE.Group(); s.position.set(k * 5, 0, -Math.abs(k) * 0.9 + 0.5); s.rotation.y = -k * 0.25; plaza.add(s);
+  const screens = [-1.5, -0.5, 0.5, 1.5].map((k) => { // four, scaled to fit between the bank and the DEX
+    const s = new THREE.Group(); s.position.set(k * 3.8, 0, -Math.abs(k) * 0.6 + 0.4); s.rotation.y = -k * 0.22; s.scale.setScalar(0.74); plaza.add(s);
     box(s, 0.3, 2.2, 0.3, 0x3a404c, -1.8, 1.1, 0); box(s, 0.3, 2.2, 0.3, 0x3a404c, 1.8, 1.1, 0);
     box(s, 4.8, 2.9, 0.3, DARK, 0, 3.4, 0);
     const scr = screen(4.5, 2.6); scr.position.set(0, 3.4, 0.16); s.add(scr);
@@ -203,10 +204,10 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     box(g, 0.15, 1, 0.15, 0x3a404c, -1.8, 3.4, 1); box(g, 0.15, 1, 0.15, 0x3a404c, 1.8, 3.4, 1);
     return { id, name, color, g, tower, board, posts: g.children.slice(-2) };
   });
-  function sizeApps() { // height: 2.5 m, plus 1.6 m per tenfold of TVL over $10M, up to 9 m
+  function sizeApps() { // height: 2.5 m, plus 1.1 m per tenfold of TVL over $10M, up to 5.5 m (taller hides the plaza)
     for (const a of apps) {
       const tvl = S.stats?.apps?.[a.id];
-      a.tower.scale.y = tvl ? Math.max(2.5, Math.min(9, 2.5 + Math.log10(tvl / 1e7) * 1.6)) : 3;
+      a.tower.scale.y = tvl ? Math.max(2.5, Math.min(5.5, 2.5 + Math.log10(tvl / 1e7) * 1.1)) : 3;
       const h = a.tower.scale.y;
       a.board.position.y = h + 1.5; a.posts.forEach((p) => { p.position.y = h + 0.4; });
     }
