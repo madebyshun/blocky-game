@@ -62,6 +62,7 @@
             <li><span>A block every</span><b id="v-bt">—</b></li>
             <li><span>Blocks full</span><b id="v-gas">—</b></li>
             <li><span>Base fee</span><b id="v-gwei">—</b></li>
+            <li><span>Avg fee per tx</span><b id="v-txfee">—</b></li>
           </ul>
           <p class="t-note">200 ms blocks: coming to mainnet</p>
         </div>
@@ -74,19 +75,10 @@
         </div>
         <div class="cell blue c-foot">
           <p class="foot-big">Base never closes.</p>
+          <p class="foot-names" id="v-names"></p>
           <p class="foot-site"><span class="mark"></span> basecity.space</p>
         </div>
-        <p class="bb-src" id="bb-src">1. USDC transfer volume on Base: transfers under $10M (flash loans and rebalancing left out), estimated per hour from 12 sampled blocks. 2. US bank hours: Mon-Fri 9:00-17:00 New York time, federal holidays closed. 3. A 62k-gas USDC transfer at the current block's base fee + usual tip + L1 data fee, ETH/USD from Chainlink on Base. 4. "The Always-On Dollar: Money for an Economy that Doesn't Close", The Block Pro Research for Coinbase. 5. Live, from the last blocks: USDC under $10M; swaps and Morpho/Aave events read from their contracts. 6. TVL: DefiLlama.</p>
-      </section></div>
-      <div class="bb-bar bb-bar2"><p class="bb-kicker">Base, beyond USDC</p><div class="bb-actions"><button class="btn" id="bb-save2">Save image</button></div></div>
-      <div class="bb-fit"><section class="bb bb2" id="bb2">
-        <div class="cell blue c2-title"><p class="t-small">The Always-On Chain:</p><h1>Beyond<br />USDC</h1><p class="t-note">Read from Base mainnet, block by block.</p></div>
-        <div class="cell white c2-stables"><p class="t-small dark">Stablecoins moved per minute <sup>1</sup></p><ul class="apps" id="v2-stables"></ul></div>
-        <div class="cell pale c2-fee"><b class="big blue-t" id="v2-fee">—</b><p>average fee per transaction on Base right now <sup>2</sup></p><p class="t-note" id="v2-fee-n"></p></div>
-        <div class="cell grey c2-names"><b class="big blue-t" id="v2-names">—</b><p>new Basenames in the last hour <sup>3</sup></p><p class="t-note" id="v2-names-n"></p></div>
-        <div class="cell white c2-stocks"><p class="t-small dark">Tokenized stocks on Base <sup>4</sup></p><ul class="apps" id="v2-stocks"></ul></div>
-        <div class="cell blue c2-foot"><p class="foot-big">Every dollar,<br />every hour.</p><p class="foot-site"><span class="mark"></span> basecity.space</p></div>
-        <p class="bb-src">1. Transfers under $10M from the last blocks: USDC, USDT, EURC (in euros), USDS; contracts checked on Base mainnet. 2. The block's gas used per transaction at its base fee + usual tip, ETH/USD from Chainlink on Base (L1 data fee not included). 3. NameRegistered events of the Basenames registrar. 4. Transfers per minute of tokenized stock contracts on Base.</p>
+        <p class="bb-src" id="bb-src">1. USDC transfer volume on Base: transfers under $10M (flash loans and rebalancing left out), estimated per hour from 12 sampled blocks. 2. US bank hours: Mon-Fri 9:00-17:00 New York time, federal holidays closed. 3. A 62k-gas USDC transfer at the current block's base fee + usual tip + L1 data fee, ETH/USD from Chainlink on Base. 4. "The Always-On Dollar: Money for an Economy that Doesn't Close", The Block Pro Research for Coinbase. 5. Live, from the last blocks: USDC under $10M; swaps and Morpho/Aave events read from their contracts. 6. TVL: DefiLlama. USDT/EURC: transfers under $10M; avg fee per tx: gas used per tx at the base fee + tip (no L1 fee).</p>
       </section></div>
     </main>
     <script type="module" src="/src/basebento.js"></script>

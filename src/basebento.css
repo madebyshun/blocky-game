@@ -73,3 +73,6 @@
 .foot-site .mark { width: 22px; height: 22px; background: #fff; border-radius: 5px; }
 .bb-src { grid-area: src; margin: 0; color: #9aa0aa; font: 10px/1.35 ui-monospace, Menlo, monospace; padding: 3px 6px 0; overflow: hidden; }
 .apps li small { font-weight: 500; color: #6b7280; font-size: 14px; }
+.foot-names { font-size: 17px; opacity: 0.9; }
+.facts { margin-top: 8px !important; } .facts li { padding: 3px 0; }
+.c-apps .apps { font-size: 16px; } .c-apps .apps li { padding: 3px 0; } .c-apps .t-small.dark { font-size: 18px; margin-bottom: 4px !important; } .c-apps { padding-top: 16px; padding-bottom: 16px; }

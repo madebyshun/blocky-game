@@ -258,7 +258,8 @@ export async function readFlow(store, { url = RPC, now = Date.now(), maxNew = 6,
     usd24h: day.length === 24 ? sum(day) : null, // only once the whole day is in
     n24h: day.length === 24 ? day.reduce((s, h) => s + have[h].n, 0) : null,
     lastHourUsd: have[hours[0]]?.usd ?? null,
-    closedShare: week.length >= 24 ? +(sum(closed) / (sum(week) || 1)).toFixed(4) : null,
+    usdSoFar: sum(day), hoursSoFar: day.length, // while the day fills in
+    closedShare: week.length >= 6 ? +(sum(closed) / (sum(week) || 1)).toFixed(4) : null,
     closedHours: closed.length,
     hours: week.length, // hours behind closedShare (up to 168)
     samples: SAMPLES,

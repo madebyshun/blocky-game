@@ -37,8 +37,8 @@ function feeNow() {
 }
 function render() {
   const st = S.stats, flow = st?.flow, b = S.blocks.at(-1);
-  if (flow?.usd24h) { $('v-usd').textContent = money(flow.usd24h); $('v-usd-n').textContent = `${int(flow.n24h)} transfers · estimated from sampled blocks`; }
-  else if (flow) { $('v-usd').textContent = '…'; $('v-usd-n').textContent = `measuring: ${flow.hours} of 24 hours in`; }
+  if (flow?.usd24h) { $('v-usd').nextElementSibling.firstChild.textContent = 'USDC moved on Base in the last 24 hours '; $('v-usd').textContent = money(flow.usd24h); $('v-usd-n').textContent = `${int(flow.n24h)} transfers · estimated from sampled blocks`; }
+  else if (flow?.hoursSoFar) { $('v-usd').textContent = money(flow.usdSoFar); $('v-usd-n').textContent = `the day is filling in · estimated from sampled blocks`; $('v-usd').nextElementSibling.firstChild.textContent = `USDC moved on Base in the last ${flow.hoursSoFar} hours `; }
   if (flow?.closedShare !== null && flow?.closedShare !== undefined) {
     $('v-pct').textContent = `${Math.round(flow.closedShare * 100)}%`;
     $('v-pct-n').textContent = `last ${flow.hours >= 168 ? '7 days' : `${flow.hours} hours`} · banks closed ${int(flow.closedHours)} of ${int(flow.hours)} hours`;
@@ -62,23 +62,15 @@ function render() {
   $('v-apps').innerHTML = [['Aerodrome', 'aerodrome', '#1f4bff', 'pool swaps', true], ['Uniswap', 'uniswap', '#ff007a', 'v4 swaps', true], ['Morpho', 'morpho', '#2470ff', 'actions', false], ['Aave', 'aave', '#9391f7', 'actions', false]]
     .map(([name, id, color, what, sw]) => { const v = perMin(id, sw); return `<li><span><i style="background:${color}"></i>${name} <small>${what}</small></span><b>${v == null ? '—' : int(v)}</b></li>`; }).join('')
     + (st?.tvl ? `<li><span><i style="background:#0a0b0d"></i>Base TVL <sup>6</sup></span><b>${money(st.tvl)}</b></li>` : '');
-  // board 2: beyond USDC
+  // stablecoins beyond USDC, fee per tx, new Basenames: folded into this one board
   if (b) {
     const w = S.blocks.slice(-30), secs = (w.at(-1).t - w[0].t) / 1000 + bt(), pm = (f) => (w.reduce((s, x) => s + (f(x) || 0), 0) / secs) * 60;
-    const rows = [['USDC', '$', pm((x) => x.usdc.small ?? x.usdc.usd), '#2775ca'], ['USDT', '$', pm((x) => x.stables?.usdt?.amt), '#26a17b'], ['EURC', '€', pm((x) => x.stables?.eurc?.amt), '#0052ff'], ['USDS', '$', pm((x) => x.stables?.usds?.amt), '#f5ac37']];
-    const m = (v, sym) => money(v).replace('$', sym);
-    $('v2-stables').innerHTML = rows.map(([k, sym, v, c]) => `<li><span><i style="background:${c}"></i>${k}</span><b>${b.stables || k === 'USDC' ? m(v, sym) : '—'}</b></li>`).join('');
     const f = S.stats?.fees;
-    if (f?.ethUsd) {
-      const perTx = w.reduce((s, x) => s + (x.gasUsed || 0), 0) / Math.max(1, w.reduce((s, x) => s + x.tx, 0));
-      const fee = (perTx * (b.gwei * 1e9 + f.prioWei) / 1e18) * f.ethUsd;
-      $('v2-fee').textContent = fee < 0.01 ? `$${fee.toFixed(5)}` : `$${fee.toFixed(3)}`;
-      $('v2-fee-n').textContent = `${int(perTx)} gas on average, last ${w.length} blocks`;
-    }
-    const stocks = Object.keys(b.stocks || {});
-    $('v2-stocks').innerHTML = stocks.length ? stocks.map((k) => `<li><span>${k}</span><b>${int(pm((x) => x.stocks?.[k]))} transfers / min</b></li>`).join('') : '<li><span>Tracking starts once their contracts are checked</span><b></b></li>';
+    if (f?.ethUsd) { const perTx = w.reduce((s, x) => s + (x.gasUsed || 0), 0) / Math.max(1, w.reduce((s, x) => s + x.tx, 0)); const fee = (perTx * (b.gwei * 1e9 + f.prioWei) / 1e18) * f.ethUsd; $('v-txfee').textContent = fee < 0.01 ? `$${fee.toFixed(4)}` : `$${fee.toFixed(3)}`; }
+    if (b.stables) $('v-apps').insertAdjacentHTML('beforeend', [['USDT', '#26a17b', '$', pm((x) => x.stables?.usdt?.amt)], ['EURC', '#0052ff', '€', pm((x) => x.stables?.eurc?.amt)]].map(([k, c, sym, v]) => `<li><span><i style="background:${c}"></i>${k} <small>moved</small></span><b>${money(v).replace('$', sym)}</b></li>`).join(''));
+    S.namesLive = (S.namesLive || 0);
   }
-  if (st?.names) { $('v2-names').textContent = int(st.names.n); $('v2-names-n').textContent = st.names.last?.length ? `latest: ${st.names.last.slice(0, 3).join(' · ')}` : ''; }
+  { const n = S.stats?.names?.n; const live = S.blocks.reduce((s, x) => s + (x.names?.length || 0), 0); $('v-names').textContent = n != null ? `${int(n)} new Basenames in the last hour` : live ? `${live} new Basenames while you watched` : ''; }
   // the share text follows the numbers
   const parts = [flow?.usd24h && `${money(flow.usd24h)} in USDC moved on Base in 24h`, flow?.closedShare != null && `${Math.round(flow.closedShare * 100)}% of it while US banks were closed`, fee !== null && `sending $200 costs ${fee < 0.01 ? `$${fee.toFixed(4)}` : `$${fee.toFixed(2)}`}`].filter(Boolean);
   $('bb-share').href = `https://x.com/intent/post?text=${encodeURIComponent(`Base, live:\n${parts.map((p) => `→ ${p}`).join('\n')}\n\nthe always-on chain, read block by block by @${X}\n${SITE}/base.html`)}`;
@@ -140,4 +132,3 @@ const save = (btnId, el, name) => async () => {
   btn.textContent = 'Save image';
 };
 $('bb-save').onclick = save('bb-save', board, 'base-live');
-$('bb-save2').onclick = save('bb-save2', $('bb2'), 'base-beyond-usdc');
