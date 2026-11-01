@@ -5,7 +5,7 @@ import { readHour, readTvl, readAppTvl, readFees, readFlow } from './_baselive.j
 import { useKv, kv, KEY_BASE } from './_store.js';
 
 // the hourly USDC flow (readFlow) is kept in KV (else this instance's memory): one hash field per hour
-const FLOW_KEY = `${KEY_BASE}:baselive:usdcflow:v2`; // v2: 12 samples an hour (v1 had 4)
+const FLOW_KEY = `${KEY_BASE}:baselive:usdcflow:v3`; // v3: transfers of $10M+ left out (v2 counted them; v1 had 4 samples)
 const flowMemory = new Map();
 const flowStore = {
   async get(hours) {

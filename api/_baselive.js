@@ -214,6 +214,7 @@ export async function readFees(url = RPC) {
 // over it (their USDC transfers, times the hour's 1,800 blocks), computed once and kept (`store`), a
 // few missing hours per call so a cold start fills in over a few calls. From it: the last 24 hours, the
 // last hour's pace, and the share that moved while US banks were closed (src/bankhours.js).
+export const FLOW_CAP = 10e6; // USDC per transfer: bigger ones are left out of the hourly estimate
 export const HOUR_MS = 3600000, SAMPLES = 12, WEEK = 168; // 12 blocks an hour: USDC volume is heavy-tailed (a few huge transfers), so few samples swing the estimate
 export async function readFlow(store, { url = RPC, now = Date.now(), maxNew = 6, blockMs = 2000 } = {}) {
   const [top] = await rpc([getBlock('latest')], url);
@@ -227,7 +228,9 @@ export async function readFlow(store, { url = RPC, now = Date.now(), maxNew = 6,
     const b0 = blockAt(h * HOUR_MS), picks = Array.from({ length: SAMPLES }, (_, i) => b0 + Math.round(((i + 0.5) * perHour) / SAMPLES));
     try {
       const res = await rpc(picks.map((b) => getLogs(b, b, { address: USDC, topics: [T.transfer] })), url);
-      const usd = res.map((logs) => logs.reduce((s, l) => s + usdcOf(l).usd, 0)), n = res.map((logs) => logs.length);
+      // transfers of $10M+ are left out: they're flash loans and protocol rebalancing, and one in a sampled
+      // block (which stands for 150) blew an hour up to tens of billions
+      const usd = res.map((logs) => logs.reduce((s, l) => { const v = usdcOf(l).usd; return v < FLOW_CAP ? s + v : s; }, 0)), n = res.map((logs) => logs.length);
       const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
       have[h] = { usd: Math.round(mean(usd) * perHour), n: Math.round(mean(n) * perHour) };
       await store.set(h, have[h]);
