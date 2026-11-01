@@ -133,7 +133,7 @@ assert.deepEqual(fees, { ethUsd: 2357.96, ethUsdAt: 0x6ae17241 * 1000, l1FeeWei:
   const furl = `http://127.0.0.1:${flowSrv.address().port}`;
   const kept = new Map(), store = { get: async (hs) => Object.fromEntries(hs.filter((h) => kept.has(h)).map((h) => [h, kept.get(h)])), set: async (h, v) => { kept.set(h, v); } };
   let f = await readFlow(store, { url: furl, now: NOW });
-  assert.equal(f.hours, 6); assert.equal(f.usd24h, null); assert.equal(f.closedShare, null); // a cold start: 6 hours so far
+  assert.equal(f.hours, 6); assert.equal(f.usd24h, null); assert.equal(f.hoursSoFar, 6); assert.ok(f.usdSoFar > 0 && f.closedShare !== null); // a cold start: 6 hours so far, shown as such
   for (let i = 0; i < 30; i++) f = await readFlow(store, { url: furl, now: NOW });
   assert.equal(f.hours, 168);
   assert.equal(sampled, 168 * 12, 'each hour sampled once, 12 blocks');
