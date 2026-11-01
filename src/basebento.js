@@ -53,14 +53,16 @@ function render() {
     $('v-bt').textContent = bt() < 1 ? `${Math.round(bt() * 1000)} ms` : `${bt().toFixed(1)} s`;
     $('v-gas').textContent = `${Math.round(b.gas * 100)}%`;
     $('v-gwei').textContent = `${b.gwei < 0.01 ? b.gwei.toFixed(4) : b.gwei.toFixed(3)} gwei`;
-    const usdPerSec = win.reduce((s, x) => s + x.usdc.usd, 0) / span;
+    const usdPerSec = win.reduce((s, x) => s + (x.usdc.small ?? x.usdc.usd), 0) / span; // under $10M, like the 24h figure
     $('v-read').textContent = money(usdPerSec * 5);
   } else if (flow?.lastHourUsd) $('v-read').textContent = money((flow.lastHourUsd / 3600) * 5);
-  const apps = st?.apps || {};
-  $('v-apps').innerHTML = [['Morpho', 'morpho', '#2470ff'], ['Aave', 'aave', '#9391f7'], ['Aerodrome', 'aerodrome', '#1f4bff'], ['Uniswap', 'uniswap', '#ff007a']]
-    .sort((a, c) => (apps[c[1]] || 0) - (apps[a[1]] || 0))
-    .map(([name, id, color]) => `<li><span><i style="background:${color}"></i>${name}</span><b>${apps[id] ? money(apps[id]) : '—'}</b></li>`).join('')
-    + (st?.tvl ? `<li><span><i style="background:#0a0b0d"></i>All of Base</span><b>${money(st.tvl)}</b></li>` : '');
+  // the apps: what we count ourselves from their contracts' events, per minute (DefiLlama's per-app
+  // TVL couldn't be checked: Morpho's came out at three quarters of all of Base)
+  const win2 = S.blocks.slice(-30), mins = win2.length > 1 ? ((win2.at(-1).t - win2[0].t) / 1000 + bt()) / 60 : 0;
+  const perMin = (id, swaps) => { const v = win2.map((x) => x.apps?.[id]).filter((x) => x != null); if (!v.length || !mins) return null; return swaps ? (v.reduce((s, x) => s + x, 0) / v.length) * (60 / bt()) : v.reduce((s, x) => s + x, 0) / mins; };
+  $('v-apps').innerHTML = [['Aerodrome', 'aerodrome', '#1f4bff', 'pool swaps', true], ['Uniswap', 'uniswap', '#ff007a', 'v4 swaps', true], ['Morpho', 'morpho', '#2470ff', 'actions', false], ['Aave', 'aave', '#9391f7', 'actions', false]]
+    .map(([name, id, color, what, sw]) => { const v = perMin(id, sw); return `<li><span><i style="background:${color}"></i>${name} <small>${what}</small></span><b>${v == null ? '—' : int(v)}</b></li>`; }).join('')
+    + (st?.tvl ? `<li><span><i style="background:#0a0b0d"></i>Base TVL <sup>6</sup></span><b>${money(st.tvl)}</b></li>` : '');
   // the share text follows the numbers
   const parts = [flow?.usd24h && `${money(flow.usd24h)} in USDC moved on Base in 24h`, flow?.closedShare != null && `${Math.round(flow.closedShare * 100)}% of it while US banks were closed`, fee !== null && `sending $200 costs ${fee < 0.01 ? `$${fee.toFixed(4)}` : `$${fee.toFixed(2)}`}`].filter(Boolean);
   $('bb-share').href = `https://x.com/intent/post?text=${encodeURIComponent(`Base, live:\n${parts.map((p) => `→ ${p}`).join('\n')}\n\nthe always-on chain, read block by block by @${X}\n${SITE}/base.html`)}`;

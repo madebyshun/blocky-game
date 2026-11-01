@@ -92,7 +92,8 @@ export function summarize(block, { usdc = [], swaps = null, names = [], bridge =
     tx: block.transactions?.length ?? 0,
     gas: num(block.gasLimit) ? num(block.gasUsed) / num(block.gasLimit) : 0,
     gwei: num(block.baseFeePerGas) / 1e9,
-    usdc: { n: transfers.length, usd: Math.round(vol), big: sorted.map((x) => ({ usd: Math.round(x.usd), from: x.from, to: x.to, tx: x.tx })) },
+    // small: transfers under $10M only, the same measure as the hourly flow (readFlow)
+    usdc: { n: transfers.length, usd: Math.round(vol), small: Math.round(transfers.reduce((s, x) => (x.usd < 10e6 ? s + x.usd : s), 0)), big: sorted.map((x) => ({ usd: Math.round(x.usd), from: x.from, to: x.to, tx: x.tx })) },
     swaps: swaps === null ? null : swaps.filter(mine).length,
     // per app: Aerodrome and Uniswap swaps (newest block only, like swaps), Morpho and Aave events
     apps: {

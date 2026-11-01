@@ -67,3 +67,4 @@
 .foot-site { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 22px; }
 .foot-site .mark { width: 22px; height: 22px; background: #fff; border-radius: 5px; }
 .bb-src { grid-area: src; margin: 0; color: #9aa0aa; font: 10px/1.35 ui-monospace, Menlo, monospace; padding: 3px 6px 0; overflow: hidden; }
+.apps li small { font-weight: 500; color: #6b7280; font-size: 14px; }
