@@ -2,7 +2,7 @@
 // (block 53,159,703's neighbourhood), against a stand-in RPC. Run: npm test
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { readAppTvl, readFlow, HOUR_MS, readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
+import { STABLES, readAppTvl, readFlow, HOUR_MS, readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
 
 const pad = (a) => `0x${a.slice(2).toLowerCase().padStart(64, '0')}`;
 const amt = (n) => `0x${BigInt(n).toString(16).padStart(64, '0')}`;
@@ -47,6 +47,7 @@ const answer = ({ method, params }) => {
     const f = params[0];
     if (f.address === USDC) return [usdc(HEAD, A, B, 1500000), usdc(HEAD - 1, A, B, 20)];
     if (f.topics?.[0]?.includes?.(T.swapV3)) return Array.from({ length: 42 }, (_, i) => ({ blockNumber: `0x${HEAD.toString(16)}`, address: i < 5 ? UNIV4 : '0x9', topics: [i < 5 ? T.swapV4 : i < 12 ? T.swapAero : T.swapV3] }));
+    if (Array.isArray(f.address) && f.address.includes(STABLES[0].address)) return [[STABLES[0], 25], [STABLES[1], 3], [STABLES[2], 2e7]].map(([t, v]) => ({ address: t.address, blockNumber: `0x${HEAD.toString(16)}`, topics: [T.transfer, pad(A), pad(B)], data: amt(BigInt(Math.round(v * 1e6)) * 10n ** BigInt(t.decimals - 6)) }));
     if (Array.isArray(f.address) && f.address.includes(MORPHO)) return [MORPHO, MORPHO, AAVE].map((address) => ({ address, blockNumber: `0x${HEAD.toString(16)}`, topics: ['0x1'] }));
     if (Array.isArray(f.address)) return [{ ...NAME_LOG, blockNumber: `0x${(HEAD - 1).toString(16)}` }, { ...ETH_LOG, blockNumber: `0x${HEAD.toString(16)}` }];
     const inRange = (l) => parseInt(l.blockNumber, 16) >= parseInt(f.fromBlock, 16) && parseInt(l.blockNumber, 16) <= parseInt(f.toBlock, 16);
@@ -79,6 +80,8 @@ assert.equal(live.head, HEAD);
 assert.deepEqual(live.blocks.map((b) => b.n), [HEAD - 1, HEAD]);
 assert.deepEqual(live.blocks.map((b) => b.swaps), [null, 42]); // swaps: newest block only
 assert.deepEqual(live.blocks[1].apps, { aerodrome: 7, uniswap: 5, morpho: 2, aave: 1 });
+assert.deepEqual(live.blocks[1].stables, { usdt: { n: 1, amt: 25 }, eurc: { n: 1, amt: 3 }, usds: { n: 0, amt: 0 } }); // USDS 20M left out (over $10M)
+assert.equal(live.blocks[1].gasUsed, 0x3aa5625);
 assert.deepEqual(live.blocks[0].apps, { aerodrome: null, uniswap: null, morpho: 0, aave: 0 });
 assert.deepEqual(live.blocks.map((b) => b.usdc.usd), [20, 1500000]);
 assert.deepEqual(live.blocks[1].usdc.big.map((x) => x.usd), [1500000]);

@@ -11,8 +11,7 @@ const X = CONFIG.xHandle || 'blockyonbase';
 const SITE = (CONFIG.siteUrl || 'https://basecity.space').replace(/\/$/, '');
 
 // the board is drawn at 1600x900 and scaled to the page
-const fit = () => board.style.setProperty('--s', String(Math.min(1, board.parentElement.clientWidth / 1600)));
-const sizeBox = () => { fit(); board.parentElement.style.height = `${900 * Math.min(1, board.parentElement.clientWidth / 1600)}px`; };
+const sizeBox = () => { for (const el of document.querySelectorAll('.bb')) { const k = Math.min(1, el.parentElement.clientWidth / 1600); el.style.setProperty('--s', String(k)); el.parentElement.style.height = `${900 * k}px`; } };
 addEventListener('resize', sizeBox); sizeBox();
 
 const money = (v, d = 1) => (v >= 1e9 ? `$${(v / 1e9).toFixed(d)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(d)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(d)}k` : `$${Math.round(v)}`);
@@ -63,6 +62,23 @@ function render() {
   $('v-apps').innerHTML = [['Aerodrome', 'aerodrome', '#1f4bff', 'pool swaps', true], ['Uniswap', 'uniswap', '#ff007a', 'v4 swaps', true], ['Morpho', 'morpho', '#2470ff', 'actions', false], ['Aave', 'aave', '#9391f7', 'actions', false]]
     .map(([name, id, color, what, sw]) => { const v = perMin(id, sw); return `<li><span><i style="background:${color}"></i>${name} <small>${what}</small></span><b>${v == null ? '—' : int(v)}</b></li>`; }).join('')
     + (st?.tvl ? `<li><span><i style="background:#0a0b0d"></i>Base TVL <sup>6</sup></span><b>${money(st.tvl)}</b></li>` : '');
+  // board 2: beyond USDC
+  if (b) {
+    const w = S.blocks.slice(-30), secs = (w.at(-1).t - w[0].t) / 1000 + bt(), pm = (f) => (w.reduce((s, x) => s + (f(x) || 0), 0) / secs) * 60;
+    const rows = [['USDC', '$', pm((x) => x.usdc.small ?? x.usdc.usd), '#2775ca'], ['USDT', '$', pm((x) => x.stables?.usdt?.amt), '#26a17b'], ['EURC', '€', pm((x) => x.stables?.eurc?.amt), '#0052ff'], ['USDS', '$', pm((x) => x.stables?.usds?.amt), '#f5ac37']];
+    const m = (v, sym) => money(v).replace('$', sym);
+    $('v2-stables').innerHTML = rows.map(([k, sym, v, c]) => `<li><span><i style="background:${c}"></i>${k}</span><b>${b.stables || k === 'USDC' ? m(v, sym) : '—'}</b></li>`).join('');
+    const f = S.stats?.fees;
+    if (f?.ethUsd) {
+      const perTx = w.reduce((s, x) => s + (x.gasUsed || 0), 0) / Math.max(1, w.reduce((s, x) => s + x.tx, 0));
+      const fee = (perTx * (b.gwei * 1e9 + f.prioWei) / 1e18) * f.ethUsd;
+      $('v2-fee').textContent = fee < 0.01 ? `$${fee.toFixed(5)}` : `$${fee.toFixed(3)}`;
+      $('v2-fee-n').textContent = `${int(perTx)} gas on average, last ${w.length} blocks`;
+    }
+    const stocks = Object.keys(b.stocks || {});
+    $('v2-stocks').innerHTML = stocks.length ? stocks.map((k) => `<li><span>${k}</span><b>${int(pm((x) => x.stocks?.[k]))} transfers / min</b></li>`).join('') : '<li><span>Tracking starts once their contracts are checked</span><b></b></li>';
+  }
+  if (st?.names) { $('v2-names').textContent = int(st.names.n); $('v2-names-n').textContent = st.names.last?.length ? `latest: ${st.names.last.slice(0, 3).join(' · ')}` : ''; }
   // the share text follows the numbers
   const parts = [flow?.usd24h && `${money(flow.usd24h)} in USDC moved on Base in 24h`, flow?.closedShare != null && `${Math.round(flow.closedShare * 100)}% of it while US banks were closed`, fee !== null && `sending $200 costs ${fee < 0.01 ? `$${fee.toFixed(4)}` : `$${fee.toFixed(2)}`}`].filter(Boolean);
   $('bb-share').href = `https://x.com/intent/post?text=${encodeURIComponent(`Base, live:\n${parts.map((p) => `→ ${p}`).join('\n')}\n\nthe always-on chain, read block by block by @${X}\n${SITE}/base.html`)}`;
@@ -110,15 +126,18 @@ async function embedFonts() {
   return fontCss;
 }
 
-$('bb-save').onclick = async () => {
-  const btn = $('bb-save'); btn.textContent = 'Saving…';
+const save = (btnId, el, name) => async () => {
+  const btn = $(btnId); btn.textContent = 'Saving…';
+  const board = el;
   try {
     await document.fonts.ready;
     const fontEmbedCSS = await embedFonts();
     const prev = board.style.transform; board.style.transform = 'none';
     const url = await toPng(board, { width: 1600, height: 900, pixelRatio: 2, cacheBust: true, ...(fontEmbedCSS ? { fontEmbedCSS } : {}) });
     board.style.transform = prev;
-    const a = document.createElement('a'); a.href = url; a.download = `base-live-${new Date().toISOString().slice(0, 10)}.png`; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = `${name}-${new Date().toISOString().slice(0, 10)}.png`; a.click();
   } catch (e) { console.error(e); }
   btn.textContent = 'Save image';
 };
+$('bb-save').onclick = save('bb-save', board, 'base-live');
+$('bb-save2').onclick = save('bb-save2', $('bb2'), 'base-beyond-usdc');

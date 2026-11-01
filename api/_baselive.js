@@ -6,6 +6,7 @@
 import { RPC } from './_store.js';
 import { cleanName } from './_names.js';
 import { bankHours } from '../src/bankhours.js';
+import { CONFIG } from '../src/config.js';
 
 // contracts and event topics, checked against Base mainnet
 export const USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // native USDC (6 decimals)
@@ -25,6 +26,14 @@ export const SWAPS = [T.swapV3, T.swapV2, T.swapAero, T.swapV4];
 // Four of the biggest apps on Base, each with a number we can read live (and its TVL on Base from
 // DefiLlama): Aerodrome's pools' swaps (its v2 pools' own Swap event), Uniswap v4's swaps (its
 // PoolManager), and every action on Morpho and on Aave (their core contracts' events).
+// other stablecoins on Base (checked on mainnet: symbol and decimals), and tokenized stocks from
+// CONFIG.baseLive.stocks ({ symbol, address, decimals }) once their addresses are checked
+export const STABLES = [
+  { id: 'usdt', symbol: 'USDT', address: '0xfde4c96c8593536e31f229ea8f37b2ada2699bb2', decimals: 6 },
+  { id: 'eurc', symbol: 'EURC', address: '0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42', decimals: 6 },
+  { id: 'usds', symbol: 'USDS', address: '0x820c137fa70c8691f0e44dc420a5e53c168921dc', decimals: 18 },
+];
+export const STOCKS = (CONFIG.baseLive?.stocks || []).map((s) => ({ ...s, address: s.address.toLowerCase() }));
 export const MORPHO = '0xbbbbbbbbbb9cc5e90e3b3af64bdaf62c37eeffcb'; // Morpho Blue
 export const AAVE = '0xa238dd80c259a72e81d7e4664a9801593f98d1c5'; // Aave v3 Pool on Base
 export const UNIV4 = '0x498581ff718922c3f8e6a244956af099b2652b2b'; // Uniswap v4 PoolManager on Base
@@ -80,7 +89,7 @@ export function bridgeOf(l) {
 }
 
 // one block's summary for the city, from its header and its logs
-export function summarize(block, { usdc = [], swaps = null, names = [], bridge = [], apps = [] } = {}) {
+export function summarize(block, { usdc = [], swaps = null, names = [], bridge = [], apps = [], tokens = [] } = {}) {
   const n = num(block.number);
   const mine = (l) => num(l.blockNumber) === n;
   const transfers = usdc.filter(mine).map(usdcOf);
@@ -90,6 +99,10 @@ export function summarize(block, { usdc = [], swaps = null, names = [], bridge =
     n,
     t: num(block.timestamp) * 1000,
     tx: block.transactions?.length ?? 0,
+    gasUsed: num(block.gasUsed),
+    // other stablecoins (transfers under $10M, amounts in their own unit) and tokenized stocks (transfers)
+    stables: Object.fromEntries(STABLES.map((t) => { const ls = tokens.filter((l) => mine(l) && l.address.toLowerCase() === t.address).map((l) => units(big(l.data), t.decimals)).filter((v) => v < 10e6); return [t.id, { n: ls.length, amt: Math.round(ls.reduce((s, v) => s + v, 0)) }]; })),
+    stocks: Object.fromEntries(STOCKS.map((t) => [t.symbol, tokens.filter((l) => mine(l) && l.address.toLowerCase() === t.address).length])),
     gas: num(block.gasLimit) ? num(block.gasUsed) / num(block.gasLimit) : 0,
     gwei: num(block.baseFeePerGas) / 1e9,
     // small: transfers under $10M only, the same measure as the hourly flow (readFlow)
@@ -122,13 +135,14 @@ export async function readBlocks(since, max = Number(since) ? 24 : 4, url = RPC)
     getLogs(head, head, { topics: [SWAPS] }),
     getLogs(from, head, { address: [NAMES, BRIDGE], topics: [[T.name, T.ethIn, T.tokenIn]] }),
     getLogs(from, head, { address: [MORPHO, AAVE] }),
+    getLogs(from, head, { address: [...STABLES, ...STOCKS].map((t) => t.address), topics: [T.transfer] }),
   ], url);
-  const blocks = res.slice(0, ns.length), [usdc, swaps, misc, apps] = res.slice(ns.length);
+  const blocks = res.slice(0, ns.length), [usdc, swaps, misc, apps, tokens] = res.slice(ns.length);
   const names = misc.filter((l) => l.topics[0] === T.name && l.address.toLowerCase() === NAMES);
   const bridge = misc.filter((l) => l.address.toLowerCase() === BRIDGE);
   return {
     head,
-    blocks: blocks.filter(Boolean).map((b) => summarize(b, { usdc, swaps: num(b.number) === head ? swaps : null, names, bridge, apps })),
+    blocks: blocks.filter(Boolean).map((b) => summarize(b, { usdc, swaps: num(b.number) === head ? swaps : null, names, bridge, apps, tokens })),
   };
 }
 

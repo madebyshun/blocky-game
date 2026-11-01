@@ -26,6 +26,11 @@
 .t-small { font-size: 34px; font-weight: 400; }
 .t-small.dark { font-size: 22px; font-weight: 700; margin-bottom: 8px !important; }
 .t-note { font-size: 15px; opacity: 0.7; margin-top: 10px !important; }
+.bb2 { grid-template-rows: 1fr 1fr 34px; grid-template-areas: 'title stables stables fee' 'names stocks stocks foot' 'src src src src'; }
+.bb-bar2 { margin-top: 26px; }
+.c2-title { grid-area: title; } .c2-title h1 { margin: 6px 0 0; font: 800 64px/1.05 Inter, sans-serif; }
+.c2-stables { grid-area: stables; } .c2-fee { grid-area: fee; } .c2-names { grid-area: names; } .c2-stocks { grid-area: stocks; } .c2-foot { grid-area: foot; justify-content: space-between; }
+.c2-fee p, .c2-names p { font-size: 20px; margin-top: 8px; }
 .c-title { grid-area: title; }
 .c-title h1 { margin: 6px 0 0; font: 800 68px/1.05 Inter, sans-serif; letter-spacing: -0.02em; }
 .c-usd { grid-area: usd; align-items: flex-end; text-align: right; }
