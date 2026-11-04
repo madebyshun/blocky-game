@@ -5,6 +5,7 @@ const PAGES = [
   ['home', '/home.html', 'Home'],
   ['city', '/', 'City'],
   ['base', '/base.html', 'Base Live'],
+  ['dash', '/dash.html', 'Dashboards'],
   ['blockies', '/collection.html', 'Blockies'],
   ['viewer', '/blocky.html', 'Viewer'],
   ['claim', '/claim.html', 'Claim'],

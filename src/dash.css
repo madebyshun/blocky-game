@@ -1,0 +1,25 @@
+/* dash.html: the dashboard maker. The board reuses the bento's look (src/basebento.css). */
+.dm-make { max-width: 760px; margin: 10px auto 26px; }
+.dm-make h1 { font: 400 40px/1.1 'Lilita One', Inter, sans-serif; margin: 0 0 6px; }
+.dm-sub { color: var(--soft); margin: 0 0 14px; }
+#dm-form { display: grid; gap: 10px; }
+#dm-form input, #dm-form textarea { width: 100%; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font: 500 15px Inter, sans-serif; }
+.dm-msg { color: var(--soft); min-height: 1.4em; margin: 0; }
+.dm-msg.err { color: var(--down); }
+.bb.dm { grid-template-areas: 'title title hero hero' 'stat bars bars facts' 'stat quote closer facts' 'src src src src'; }
+.dm .c-hero { grid-area: hero; align-items: flex-end; text-align: right; }
+.dm .c-hero .huge { font-size: 120px; color: var(--blue); }
+.dm .c-hero p { font-size: 26px; margin-top: 10px; max-width: 640px; }
+.dm .c-stat { grid-area: stat; justify-content: flex-end; }
+.dm .c-stat p { font-size: 26px; line-height: 1.2; margin-top: 10px; }
+.dm .c-bars { grid-area: bars; }
+.dm .c-bars .bar { grid-template-columns: 220px 1fr; font-size: 15px; }
+.dm .c-facts { grid-area: facts; }
+.dm .c-quote { grid-area: quote; }
+.dm .c-closer { grid-area: closer; justify-content: space-between; }
+.dm .c-title { grid-area: title; }
+.dm-gallery { margin-top: 34px; }
+.dm-gallery h2 { font: 400 26px 'Lilita One', Inter, sans-serif; }
+.dm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.dm-list a { display: block; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; text-decoration: none; }
+.dm-list a b { display: block; } .dm-list a span { color: var(--muted); font-size: 13px; }
