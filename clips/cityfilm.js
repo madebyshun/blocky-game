@@ -11,7 +11,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { buildBlocky } from '../src/citizens.js';
 
 export function start() {
-  const { THREE, scene, renderer, city, traffic, views } = window.__bc;
+  const { THREE, scene, renderer, city, traffic, views, sim } = window.__bc;
   const W = innerWidth, H = innerHeight;
   renderer.setPixelRatio(1); renderer.setSize(W, H);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.82;
@@ -48,13 +48,19 @@ export function start() {
 
   // the cast: a Base Builder in front, three Blockies after
   const mk = (b, k) => { const r = buildBlocky(b, { merge: false }); r.group.scale.multiplyScalar(k); r.group.traverse((o) => { if (o.isMesh) o.castShadow = true; }); scene.add(r.group); return r; };
-  const lead = mk({ id: 7, role: { id: 'architect', hat: 0x0052ff }, legend: null, tier: { id: 'base' }, shirt: 0x1b2a4a, skin: 0xf1c9a5, trait: null }, 1.12);
-  const kids = [[0x52c49a, 0xf6d5cf, 'builder'], [0xf2a33a, 0xc68e6a, 'carrier'], [0xd65db1, 0x8d5a3b, 'builder']]
-    .map(([shirt, skin, role], i) => mk({ id: 40 + i * 13, role: { id: role, hat: 0xffc83d }, legend: null, tier: null, shirt, skin, trait: null }, 1));
-  const cast = [lead, ...kids];
-  // down the avenue at x = 4 (the road east of Town Square), heading -z, then they stop by the square
-  const START = [[4.0, 21], [3.4, 22.6], [4.6, 23.2], [4.0, 24.4]], STOP = [[4.0, 3.6], [3.3, 5.0], [4.7, 5.2], [4.0, 6.4]];
+  const builder = (id, skin) => mk({ id, role: { id: 'architect', hat: 0x0052ff }, legend: null, tier: { id: 'base' }, shirt: 0x1b2a4a, skin, trait: null }, 1.12);
+  const lead = builder(7, 0xf1c9a5), crew = [lead, builder(19, 0x8d5a3b), builder(23, 0xc68e6a)]; // the Base Builders
+  const kids = [[0x52c49a, 0xf6d5cf, 'builder'], [0xf2a33a, 0xc68e6a, 'carrier'], [0xd65db1, 0x8d5a3b, 'builder'], [0x5b8def, 0xf1c9a5, 'carrier']]
+    .map(([shirt, skin, role], i) => mk({ id: 40 + i * 13, role: { id: role, hat: 0xffc83d }, legend: null, tier: null, shirt, skin, trait: null }, 0.92)); // the Blockies, behind
+  const cast = [...crew, ...kids];
+  // down the avenue at x = 4 (between Town Square and the tower going up on lot 1,0), heading -z
+  const START = [[4.0, 19], [3.45, 19.6], [4.55, 19.6], [3.6, 21.2], [4.4, 21.4], [3.7, 22.6], [4.3, 22.8]];
+  const STOP = [[4.0, 3.6], [3.45, 4.4], [4.55, 4.4], [3.6, 6.0], [4.4, 6.2], [3.7, 7.4], [4.3, 7.6]];
+  // the construction site next door (the sim's own, live): lot 1,0 if it's being built, else the nearest one
+  const sites = (sim()?.sites || []).map((x) => x.p?.lot).filter(Boolean).sort((a, b) => Math.hypot(...a) - Math.hypot(...b));
+  const SITE = V0(...(sites.find((l) => l[0] === 1 && l[1] === 0) || sites[0] || [1, 0]));
 
+  function V0(i, j) { return new THREE.Vector3(i * 8, 0, j * 8); }
   // post: bloom, depth of field, a vivid grade
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, cam));
@@ -77,11 +83,11 @@ export function start() {
   const cl = (x) => Math.max(0, Math.min(1, x)), ease = (u) => u * u * (3 - 2 * u), lerp = (a, b, u) => a + (b - a) * u;
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const HEAD_Y = new THREE.Box3().setFromObject(lead.group).max.y - lead.group.position.y - 0.35;
-  const head = (r) => r.group.position.clone().add(V(0, HEAD_Y * (r === lead ? 1 : 0.9), 0));
+  const head = (r) => r.group.position.clone().add(V(0, HEAD_Y * (crew.includes(r) ? 1 : 0.85), 0));
   const tmp = new THREE.Vector3();
 
   function walk(r, i, t) {
-    const u = ease(cl((t - 0.25 * i) / 8)), [sx, sz] = START[i], [ex, ez] = STOP[i];
+    const u = ease(cl((t - 2.6 - 0.15 * i) / 6.4)), [sx, sz] = START[i], [ex, ez] = STOP[i];
     r.group.position.set(lerp(sx, ex, u), 0.02, lerp(sz, ez, u));
     const sw = u > 0 && u < 1 ? Math.sin(t * 8 + i) * 0.55 : 0;
     r.legs[0].rotation.x = sw; r.legs[1].rotation.x = -sw; r.arms[0].rotation.x = -sw * 0.7; r.arms[1].rotation.x = sw * 0.7;
@@ -91,7 +97,7 @@ export function start() {
   function frame(t, dt = 1 / 30) {
     cast.forEach((r, i) => walk(r, i, t));
     // stopped by the square, they turn to it (west, -x) and look up
-    const turn = ease(cl((t - 8.6) / 0.8));
+    const turn = ease(cl((t - 9.2) / 0.8));
     cast.forEach((r) => { r.group.rotation.y = lerp(Math.PI, -Math.PI / 2, turn); });
     // the touch: the Base Builder steps up and lays a hand on it
     if (t > 11.6) {
@@ -107,21 +113,21 @@ export function start() {
     // keep the street clear of traffic around the cast
     for (const car of traffic.group.children) { car.getWorldPosition(tmp); car.visible = !(Math.abs(tmp.x - 4) < 3.2 && tmp.z > -6 && tmp.z < 30) && !(Math.abs(tmp.z - 4) < 3.2 && Math.abs(tmp.x) < 14); }
 
-    for (const v of views().values()) { const g = v.group; if (!g) continue; g.getWorldPosition(tmp); g.visible = !(Math.abs(tmp.x - 4) < 3.4 && tmp.z > -4 && tmp.z < 30) && !(Math.abs(tmp.x) < 3.5 && Math.abs(tmp.z) < 3.5); }
+    for (const v of views().values()) { const g = v.group; if (!g) continue; g.getWorldPosition(tmp); g.visible = !(Math.abs(tmp.x - 4) < 1.3 && tmp.z > -4 && tmp.z < 30) && !(Math.abs(tmp.x) < 3.5 && Math.abs(tmp.z) < 3.5); }
     let pos, tgt, fov = 42, focus = null, ap = 0.004;
     const L = lead.group.position;
-    if (t < 3) { // low behind them: the avenue, the towers, the square at the end
-      const u = ease(t / 3); pos = V(4.2, lerp(7.5, 5.5, u), L.z + lerp(12, 10, u)); tgt = V(2.5, 1.2, L.z - 12); fov = 46; ap = 0.0006; focus = pos.distanceTo(L);
-    } else if (t < 6) { // the Base Builder, close, walking toward us
-      const h = head(lead); pos = h.clone().add(V(0.7, 0.05, -2.3)); tgt = h.clone().add(V(0, -0.1, 0)); fov = 32; focus = pos.distanceTo(h);
+    if (t < 3.2) { // the tower going up next door: low by the site, craning up its frame
+      const u = ease(t / 3.2); const a = lerp(0.3, 0.55, u); pos = V(SITE.x + Math.cos(a) * 12, lerp(9.5, 8, u), SITE.z + Math.sin(a) * 12); tgt = V(SITE.x, lerp(4, 3, u), SITE.z); fov = 50; ap = 0.0008; focus = pos.distanceTo(SITE);
+    } else if (t < 6) { // the Base Builders walk down the avenue, the Blockies behind, the city around them
+      const u = (t - 3.2) / 2.8; pos = V(4.0, lerp(1.0, 1.3, u), L.z - lerp(4.2, 3.8, u)); tgt = V(4.0, 1.1, L.z + 1); fov = 44; ap = 0.002; focus = pos.distanceTo(L);
     } else if (t < 8.8) { // over their shoulders: there it is
       const u = (t - 6) / 2.8; pos = V(lerp(5.6, 5.2, u), 2.2, L.z + lerp(4.5, 3.5, u)); tgt = SQ.clone().add(V(0, 0.6, 0)); fov = 40; ap = 0.002; focus = pos.distanceTo(SQ);
     } else if (t < 11.6) { // low, close on their faces looking up at it, lit blue
-      const r = t < 10.2 ? lead : kids[1], h = head(r); pos = h.clone().add(V(-1.2, -0.25, -0.8)); tgt = h.clone().add(V(0, 0.1, 0)); fov = 40; focus = pos.distanceTo(h);
+      const r = t < 10.2 ? lead : crew[1], h = head(r); pos = h.clone().add(V(-1.2, -0.25, -0.8)); tgt = h.clone().add(V(0, 0.1, 0)); fov = 40; focus = pos.distanceTo(h);
     } else if (t < 15) { // the touch, from the side
       pos = V(L.x + 1.5, 1.7, L.z + 5.2); tgt = V(L.x - 1.2, 1.6, L.z - 1.0); fov = 44; focus = pos.distanceTo(L);
     } else { // crane up: the square alight in the middle of BaseCity
-      const u = ease((t - 15) / 2.6); pos = V(lerp(5, 6, u), lerp(2.2, 19, u), lerp(13, 21, u)); tgt = V(0.5, lerp(2.4, 1.2, u), 0); fov = 48; ap = 0.0008; focus = pos.distanceTo(SQ);
+      const u = ease((t - 15) / 2.6); pos = V(lerp(5, 8, u), lerp(2.2, 20, u), lerp(13, 22, u)); tgt = V(lerp(0.5, 4, u), lerp(2.4, 2.5, u), 0); fov = 48; ap = 0.0008; focus = pos.distanceTo(SQ);
     }
     cam.position.copy(pos); cam.lookAt(tgt); cam.fov = fov; cam.updateProjectionMatrix();
     bokeh.uniforms.focus.value = focus ?? 8; bokeh.uniforms.aperture.value = ap;
