@@ -204,5 +204,5 @@ export function createTraffic(city) {
     }
   }
 
-  return { update, setBusy(k) { busy = k; } };
+  return { update, group, setBusy(k) { busy = k; } };
 }

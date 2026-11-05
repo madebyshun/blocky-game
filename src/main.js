@@ -692,6 +692,7 @@ $('card-film').onclick = () => selected && cine.enter(selected.b.id);
 
 // ---------- cinematic mode: a film camera, photos and clips (src/cinematic.js) ----------
 
+if (qs.has('film')) window.__bc = { THREE, scene, renderer, city, traffic, metro, sim: () => sim, views: () => views };
 const cine = createCinematic({
   renderer, scene, city, controls,
   views: () => views,
@@ -1039,6 +1040,7 @@ function frame() {
   slowAcc += dt;
   if (slowAcc > 1) { slowAcc = 0; renderLeaders(); updateChips(); renderCard(); renderHud(); renderStream(); nextUnlockText(); traffic.setBusy(baseLive.busy); music.setMood(city.env.daylight, city.env.gloom || 0); }
 
+  if (window.__film) { requestAnimationFrame(frame); window.__film(t, dt); return; } // ?film: a scripted short film drives the camera
   if (cine.active) { // the film camera takes over
     requestAnimationFrame(frame); // first: a shot that throws must never stop the loop (a black screen)
     try { cine.frame(t, dt); } catch (e) { console.error('[cinematic]', e); cine.skip?.(); }
