@@ -14,22 +14,22 @@ const W = innerWidth, H = innerHeight;
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setSize(W, H);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.18;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.style.margin = '0';
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-const FOG = new THREE.Color(0xd8dde6); // a light, neutral haze
-scene.fog = new THREE.FogExp2(FOG, 0.007);
+const FOG = new THREE.Color(0xbfe0ff); // clear blue air
+scene.fog = new THREE.FogExp2(FOG, 0.0045);
 const cam = new THREE.PerspectiveCamera(42, W / H, 0.1, 600);
 
 // ---------- sky: a warm gradient dome and a square sun low behind the hill ----------
 {
   const c = document.createElement('canvas'); c.width = 4; c.height = 256;
   const g = c.getContext('2d'), grad = g.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, '#3f7fe0'); grad.addColorStop(0.45, '#9cc4f0'); grad.addColorStop(0.6, '#f3e3cf'); grad.addColorStop(1, '#ffd8a8');
+  grad.addColorStop(0, '#2f86ff'); grad.addColorStop(0.4, '#5fb0ff'); grad.addColorStop(0.58, '#a9dcff'); grad.addColorStop(1, '#d6f0ff');
   g.fillStyle = grad; g.fillRect(0, 0, 4, 256);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false }));
@@ -40,24 +40,24 @@ const sunDisc = new THREE.Mesh(new THREE.PlaneGeometry(34, 34), new THREE.MeshBa
 sunDisc.position.copy(SUN_POS); scene.add(sunDisc);
 // blocky clouds
 for (let i = 0; i < 9; i++) {
-  const cl = new THREE.Mesh(new THREE.BoxGeometry(30 + (i % 3) * 14, 2.5, 10), new THREE.MeshBasicMaterial({ color: 0xffe2c4, fog: false, transparent: true, opacity: 0.85 }));
+  const cl = new THREE.Mesh(new THREE.BoxGeometry(30 + (i % 3) * 14, 2.5, 10), new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, transparent: true, opacity: 0.95 }));
   cl.position.set(-150 + i * 38, 60 + (i % 4) * 7, -230 + (i % 2) * 30); scene.add(cl);
 }
 
 // ---------- light: a low sun behind the square (backlight), a cool fill ----------
-const sun = new THREE.DirectionalLight(0xffe6c8, 2.8);
+const sun = new THREE.DirectionalLight(0xfff6e8, 3.0);
 sun.position.set(0, 18, -60); sun.target.position.set(0, 0, 10);
 sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -50, right: 50, top: 50, bottom: -50, near: 1, far: 160 });
 scene.add(sun, sun.target);
-scene.add(new THREE.HemisphereLight(0xbcd2ff, 0x4a3a30, 1.25));
-const rim = new THREE.DirectionalLight(0xffd2b0, 0.8); rim.position.set(-30, 10, 30); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x5a7a3a, 1.45));
+const rim = new THREE.DirectionalLight(0xfff0e0, 0.9); rim.position.set(-30, 10, 30); scene.add(rim);
 
 // ---------- the land: voxel field, a hill, autumn trees ----------
 const rand = (() => { let s = 7; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
 const hillAt = (x, z) => 7.5 * Math.exp(-((x * x) / 260 + ((z + 30) ** 2) / 220)); // the hill the square sits on
 const groundH = (x, z) => Math.round(hillAt(x, z) + Math.sin(x * 0.15) * 0.6 + Math.cos(z * 0.13) * 0.6);
-const GRASS = [0x6aa84f, 0x5e9a45, 0x7fb85a, 0xc98b3a, 0x88b04b], DIRT = 0x7a4a2c;
+const GRASS = [0x5cbf3a, 0x4fae30, 0x6ccb44, 0x47a32b, 0x63c23c], DIRT = 0x7a4a2c;
 {
   const box = new THREE.BoxGeometry(1, 1, 1), cells = [];
   for (let x = -70; x <= 70; x++) for (let z = -90; z <= 40; z++) cells.push([x, z]);
@@ -77,11 +77,11 @@ const GRASS = [0x6aa84f, 0x5e9a45, 0x7fb85a, 0xc98b3a, 0x88b04b], DIRT = 0x7a4a2
   for (let i = 0; i < 1600; i++) {
     const x = Math.round(-60 + rand() * 120), z = Math.round(-80 + rand() * 115);
     m.makeScale(1, 0.6 + rand(), 1).setPosition(x + rand() - 0.5, groundH(x, z) + 0.25, z + rand() - 0.5); tuft.setMatrixAt(i, m);
-    tuft.setColorAt(i, col.setHex([0xffc23a, 0xff7b3a, 0xe8452c, 0xd9a03a][Math.floor(rand() * 4)]));
+    tuft.setColorAt(i, col.setHex([0x6fd04a, 0x58b83a, 0x7ed65a, 0x4fae30, 0x6fd04a, 0x58b83a, 0xff8cc0, 0xfff27a][Math.floor(rand() * 8)]));
   }
   scene.add(tuft);
   // trees: trunks and leafy crowns of cubes
-  const LEAF = [0xe0631f, 0xf09a2a, 0xc23a1e, 0x4e8a3a];
+  const LEAF = [0xf28ac8, 0xd96bb5, 0x3f9a2e, 0x55b83a];
   const trunk = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial({ color: 0x5b3a26 }), 400), leaf = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial(), 6000);
   let ti = 0, li = 0;
   for (let n = 0; n < 70; n++) {
@@ -102,17 +102,17 @@ const GRASS = [0x6aa84f, 0x5e9a45, 0x7fb85a, 0xc98b3a, 0x88b04b], DIRT = 0x7a4a2
 
 // ---------- the Blue Square on the hill ----------
 const SQ = new THREE.Vector3(0, groundH(0, -30) + 5, -30);
-const squareMat = new THREE.MeshStandardMaterial({ color: 0x0000ff, emissive: 0x0000ff, emissiveIntensity: 0.35, roughness: 0.35, metalness: 0.1, fog: false }); // Base blue, not tinted by the haze
+const squareMat = new THREE.MeshStandardMaterial({ color: 0x1040ff, emissive: 0x1a66ff, emissiveIntensity: 0.35, roughness: 0.35, metalness: 0.1, fog: false }); // Base blue, not tinted by the haze
 const square = new THREE.Mesh(new THREE.BoxGeometry(10, 10, 10), squareMat);
 square.position.copy(SQ); square.castShadow = true; scene.add(square);
-const glow = new THREE.PointLight(0x6f8cff, 0, 45, 1.6); glow.position.copy(SQ).add(new THREE.Vector3(0, 0, 7)); scene.add(glow);
+const glow = new THREE.PointLight(0x5aa8ff, 0, 45, 1.6); glow.position.copy(SQ).add(new THREE.Vector3(0, 0, 7)); scene.add(glow);
 
 // ---------- falling leaves and dust in the light ----------
 const leaves = [];
 {
   const geo = new THREE.PlaneGeometry(0.22, 0.22);
   for (let i = 0; i < 260; i++) {
-    const mm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: [0xff9f43, 0xe8572f, 0xffd36a][i % 3], side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
+    const mm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: [0xffb3dc, 0xf28ac8, 0xffffff][i % 3], side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
     mm.position.set(-30 + rand() * 60, rand() * 14, -40 + rand() * 70);
     leaves.push({ m: mm, sp: 0.3 + rand() * 0.6, ph: rand() * 6.28, base: mm.position.clone() });
     scene.add(mm);
@@ -140,10 +140,10 @@ composer.addPass(new ShaderPass({
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `uniform sampler2D tDiffuse; uniform float fade; varying vec2 vUv;
     void main(){ vec4 c = texture2D(tDiffuse, vUv);
-      c.rgb = mix(c.rgb, c.rgb * vec3(1.03, 1.0, 0.97), 0.5);                       // barely warm
-      c.rgb = (c.rgb - 0.5) * 1.06 + 0.5;                                          // a touch of contrast
+      float l = dot(c.rgb, vec3(0.299, 0.587, 0.114)); c.rgb = mix(vec3(l), c.rgb, 1.18); // vivid
+      c.rgb = (c.rgb - 0.5) * 1.1 + 0.5;                                          // a touch of contrast
       float v = smoothstep(1.05, 0.45, distance(vUv, vec2(0.5)));                 // vignette
-      gl_FragColor = vec4(c.rgb * mix(0.78, 1.0, v) * fade, 1.0); }`,
+      gl_FragColor = vec4(c.rgb * mix(0.86, 1.0, v) * fade, 1.0); }`,
 }));
 composer.addPass(new OutputPass());
 
@@ -177,9 +177,9 @@ function frame(t, dt) {
     lead.arms[1].rotation.x = -2.6 * ease(cl((t - 13) / 0.6)); // the arm goes up
   }
   const wake = ease(cl((t - 13.6) / 0.9));
-  squareMat.emissiveIntensity = 0.25 + wake * 2.6 + (wake > 0 ? Math.sin(t * 3) * 0.15 : 0);
-  glow.intensity = wake * 260;
-  bloom.strength = 0.7 + wake * 0.45;
+  squareMat.emissiveIntensity = 0.3 + wake * 0.9 + (wake > 0 ? Math.sin(t * 3) * 0.08 : 0);
+  glow.intensity = wake * 80;
+  bloom.strength = 0.55 + wake * 0.25;
   for (const l of leaves) { l.m.position.set(l.base.x + Math.sin(t * 0.7 + l.ph) * 1.5 + t * 0.4, ((l.base.y - t * l.sp) % 14 + 14) % 14, l.base.z + Math.cos(t * 0.5 + l.ph)); l.m.rotation.set(t * l.sp * 3 + l.ph, t * 2 + l.ph, 0); }
 
   // cameras
@@ -195,10 +195,10 @@ function frame(t, dt) {
   } else if (t < 15) { // the touch, from the side
     const L = at(lead); pos = V(L.x + 3.2, L.y + 2.4, L.z + 7.5); tgt = V(L.x, L.y + 2.2, L.z - 4); fov = 44; focus = pos.distanceTo(tgt);
   } else { // wide: the square alight, the crew small before it
-    const u = (t - 15) / 2.6; pos = V(lerp(-10, -7, u), lerp(2, 3, u), lerp(24, 20, u)); tgt = SQ.clone().add(V(0, -1, 0)); fov = 46; focus = pos.distanceTo(V(0, 2, 6));
+    const u = (t - 15) / 2.6; pos = V(lerp(-10, -7, u), lerp(2, 3, u), lerp(24, 20, u)); tgt = SQ.clone().add(V(0, -1, 0)); fov = 46; focus = pos.distanceTo(V(0, 3, -10));
   }
   cam.position.copy(pos); cam.lookAt(tgt); cam.fov = fov; cam.updateProjectionMatrix();
-  bokeh.uniforms.focus.value = focus;
+  bokeh.uniforms.focus.value = focus; bokeh.uniforms.aperture.value = t >= 15 ? 0.0012 : 0.004;
   sunDisc.lookAt(cam.position);
   composer.render(dt);
 }
