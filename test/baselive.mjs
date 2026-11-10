@@ -78,11 +78,13 @@ const url = `http://127.0.0.1:${server.address().port}`;
 const live = await readBlocks(HEAD - 2, 4, url);
 assert.equal(live.head, HEAD);
 assert.deepEqual(live.blocks.map((b) => b.n), [HEAD - 1, HEAD]);
-assert.deepEqual(live.blocks.map((b) => b.swaps), [null, 42]); // swaps: newest block only
+assert.deepEqual(live.blocks.map((b) => b.swaps), [0, 42]); // swaps: every block (the stand-in's are all in the newest)
 assert.deepEqual(live.blocks[1].apps, { aerodrome: 7, uniswap: 5, morpho: 2, aave: 1 });
 assert.deepEqual(live.blocks[1].stables, { usdt: { n: 1, amt: 25 }, eurc: { n: 1, amt: 3 }, usds: { n: 0, amt: 0 } }); // USDS 20M left out (over $10M)
 assert.equal(live.blocks[1].gasUsed, 0x3aa5625);
-assert.deepEqual(live.blocks[0].apps, { aerodrome: null, uniswap: null, morpho: 0, aave: 0 });
+assert.deepEqual(live.blocks[0].apps, { aerodrome: 0, uniswap: 0, morpho: 0, aave: 0 });
+// 20 blocks (a poll since Denim): the blocks go in batches of at most 6
+{ const many = await readBlocks(HEAD - 20, 24, url); assert.deepEqual(many.blocks.map((b) => b.n), Array.from({ length: 20 }, (_, i) => HEAD - 19 + i)); }
 assert.deepEqual(live.blocks.map((b) => b.usdc.usd), [20, 1500000]);
 assert.deepEqual(live.blocks[1].usdc.big.map((x) => x.usd), [1500000]);
 assert.deepEqual(live.blocks[0].names, ['jessesp.base.eth']);

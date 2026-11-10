@@ -29,7 +29,8 @@ function drawBars(feeUsd) {
 drawBars(null);
 
 const S = { stats: null, blocks: [], head: 0 };
-const bt = () => { const b = S.blocks; if (b.length < 6) return 2; const s = (b.at(-1).t - b[0].t) / 1000 / (b.length - 1); return s > 0 ? s : 2; };
+const sched = () => (Date.now() > 1793901601000 ? 0.2 : 2); // Base's block time: 200 ms since Denim
+const bt = () => { const b = S.blocks; if (b.length < 6) return sched(); const s = (b.at(-1).t - b[0].t) / 1000 / (b.length - 1); return s > 0 ? s : sched(); };
 function feeNow() {
   const f = S.stats?.fees, b = S.blocks.at(-1);
   if (!f?.ethUsd || !b) return null;

@@ -120,8 +120,7 @@ export function summarize(block, { usdc = [], swaps = null, names = [], bridge =
   };
 }
 
-// the blocks after `since` (at most `max`, newest last), summarized. Swaps are counted on the newest
-// block only (there are hundreds per block); USDC, names and bridge deposits on all of them.
+// the blocks after `since` (at most `max`, newest last), summarized: USDC, swaps, names, bridge deposits.
 // (`max`: on a first call the last 4; after that up to 24, so when Base moves to 200 ms blocks the city
 // still gets every one)
 export async function readBlocks(since, max = Number(since) ? 24 : 4, url = RPC) {
@@ -129,20 +128,25 @@ export async function readBlocks(since, max = Number(since) ? 24 : 4, url = RPC)
   const head = num(headHex), from = Math.max(head - max + 1, (Number(since) || 0) + 1);
   if (from > head) return { head, blocks: [] };
   const ns = Array.from({ length: head - from + 1 }, (_, i) => from + i);
-  const res = await rpc([
-    ...ns.map(getBlock),
-    getLogs(from, head, { address: USDC, topics: [T.transfer] }),
-    getLogs(head, head, { topics: [SWAPS] }),
-    getLogs(from, head, { address: [NAMES, BRIDGE], topics: [[T.name, T.ethIn, T.tokenIn]] }),
-    getLogs(from, head, { address: [MORPHO, AAVE] }),
-    getLogs(from, head, { address: [...STABLES, ...STOCKS].map((t) => t.address), topics: [T.transfer] }),
-  ], url);
-  const blocks = res.slice(0, ns.length), [usdc, swaps, misc, apps, tokens] = res.slice(ns.length);
+  // since Denim a poll asks for ~20 blocks: the blocks go in batches of 6 (RPCs cap a batch), the logs in one
+  const chunks = [];
+  for (let i = 0; i < ns.length; i += 6) chunks.push(ns.slice(i, i + 6));
+  const [logs, ...blockSets] = await Promise.all([
+    rpc([
+      getLogs(from, head, { address: USDC, topics: [T.transfer] }),
+      getLogs(from, head, { topics: [SWAPS] }),
+      getLogs(from, head, { address: [NAMES, BRIDGE], topics: [[T.name, T.ethIn, T.tokenIn]] }),
+      getLogs(from, head, { address: [MORPHO, AAVE] }),
+      getLogs(from, head, { address: [...STABLES, ...STOCKS].map((t) => t.address), topics: [T.transfer] }),
+    ], url),
+    ...chunks.map((c) => rpc(c.map(getBlock), url)),
+  ]);
+  const blocks = blockSets.flat(), [usdc, swaps, misc, apps, tokens] = logs;
   const names = misc.filter((l) => l.topics[0] === T.name && l.address.toLowerCase() === NAMES);
   const bridge = misc.filter((l) => l.address.toLowerCase() === BRIDGE);
   return {
     head,
-    blocks: blocks.filter(Boolean).map((b) => summarize(b, { usdc, swaps: num(b.number) === head ? swaps : null, names, bridge, apps, tokens })),
+    blocks: blocks.filter(Boolean).map((b) => summarize(b, { usdc, swaps, names, bridge, apps, tokens })), // swaps: every block now (200 ms blocks hold few)
   };
 }
 

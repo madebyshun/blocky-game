@@ -456,9 +456,10 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   // seconds between blocks, measured (2 s until Denim, 0.2 s since Nov 5 2026)
   const bt = () => {
     const bs = S.blocks.slice(-20);
-    if (bs.length < 6) return 2;
+    const sched = Date.now() > 1793901601000 ? 0.2 : 2; // the schedule: 200 ms since Denim
+    if (bs.length < 6) return sched;
     const s = (bs.at(-1).t - bs[0].t) / 1000 / (bs.length - 1);
-    return s > 0 ? s : 2;
+    return s > 0 ? s : sched;
   };
   // a $200 USDC transfer's fee on Base now, in USD (the block's base fee + the usual tip, plus L1 data)
   const transferFee = () => {
