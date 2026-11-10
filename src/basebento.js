@@ -58,14 +58,15 @@ function render() {
   } else if (flow?.lastHourUsd) $('v-read').textContent = money((flow.lastHourUsd / 3600) * 5);
   // the apps: what we count ourselves from their contracts' events, per minute (DefiLlama's per-app
   // TVL couldn't be checked: Morpho's came out at three quarters of all of Base)
-  const win2 = S.blocks.slice(-30), mins = win2.length > 1 ? ((win2.at(-1).t - win2[0].t) / 1000 + bt()) / 60 : 0;
+  // the last minute of blocks (30 blocks were 6 s since Denim: each event counted 10x, round numbers)
+  const lastT = S.blocks.at(-1)?.t ?? 0, win2 = S.blocks.filter((x) => x.t > lastT - 60000), mins = win2.length > 1 ? ((win2.at(-1).t - win2[0].t) / 1000 + bt()) / 60 : 0;
   const perMin = (id, swaps) => { const v = win2.map((x) => x.apps?.[id]).filter((x) => x != null); if (!v.length || !mins) return null; return swaps ? (v.reduce((s, x) => s + x, 0) / v.length) * (60 / bt()) : v.reduce((s, x) => s + x, 0) / mins; };
   $('v-apps').innerHTML = [['Aerodrome', 'aerodrome', '#1f4bff', 'pool swaps', true], ['Uniswap', 'uniswap', '#ff007a', 'v4 swaps', true], ['Morpho', 'morpho', '#2470ff', 'actions', false], ['Aave', 'aave', '#9391f7', 'actions', false]]
     .map(([name, id, color, what, sw]) => { const v = perMin(id, sw); return `<li><span><i style="background:${color}"></i>${name} <small>${what}</small></span><b>${v == null ? '—' : int(v)}</b></li>`; }).join('')
     + (st?.tvl ? `<li><span><i style="background:#0a0b0d"></i>Base TVL <sup>6</sup></span><b>${money(st.tvl)}</b></li>` : '');
   // stablecoins beyond USDC, fee per tx, new Basenames: folded into this one board
   if (b) {
-    const w = S.blocks.slice(-30), secs = (w.at(-1).t - w[0].t) / 1000 + bt(), pm = (f) => (w.reduce((s, x) => s + (f(x) || 0), 0) / secs) * 60;
+    const w = win2, secs = (w.at(-1).t - w[0].t) / 1000 + bt(), pm = (f) => (w.reduce((s, x) => s + (f(x) || 0), 0) / secs) * 60;
     const f = S.stats?.fees;
     if (f?.ethUsd) { const perTx = w.reduce((s, x) => s + (x.gasUsed || 0), 0) / Math.max(1, w.reduce((s, x) => s + x.tx, 0)); const fee = (perTx * (b.gwei * 1e9 + f.prioWei) / 1e18) * f.ethUsd; $('v-txfee').textContent = fee < 0.01 ? `$${fee.toFixed(4)}` : `$${fee.toFixed(3)}`; }
     if (b.stables) $('v-apps').insertAdjacentHTML('beforeend', [['USDT', '#26a17b', '$', pm((x) => x.stables?.usdt?.amt)], ['EURC', '#0052ff', '€', pm((x) => x.stables?.eurc?.amt)]].map(([k, c, sym, v]) => `<li><span><i style="background:${c}"></i>${k} <small>moved</small></span><b>${money(v).replace('$', sym)}</b></li>`).join(''));
@@ -87,7 +88,7 @@ async function poll() {
     for (const x of j.blocks || []) if (x.n > S.head) { S.blocks.push(x); S.head = x.n; }
     if (!S.head && j.head) S.head = j.head;
     if (S.head > DENIM.block) denimFix = (S.head - DENIM.block) - Math.floor((Date.now() - DENIM.t) / 200);
-    S.blocks = S.blocks.slice(-40);
+    S.blocks = S.blocks.slice(-320); // a minute of 200 ms blocks, and some
     render();
   } catch { /* next time */ }
 }
