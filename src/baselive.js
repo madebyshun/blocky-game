@@ -453,7 +453,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     log?.(`🐋 Whale on Base: <b>${usd(x.usd)} USDC</b> just moved <a href="https://basescan.org/tx/${x.tx}" target="_blank" rel="noopener">↗</a>`);
   }
 
-  // seconds between blocks, measured (2 s today; 0.2 s once Base ships 200 ms blocks)
+  // seconds between blocks, measured (2 s until Denim, 0.2 s since Nov 5 2026)
   const bt = () => {
     const bs = S.blocks.slice(-20);
     if (bs.length < 6) return 2;
@@ -541,7 +541,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   }
   // what the plaza shows when /api/basestats has nothing: the pace of the blocks played here, how long
   // they've been watched, TVL fetched here
-  const pace = () => S.stats?.txPerDay || (S.blocks.length >= 3 ? Math.round((S.blocks.reduce((s, x) => s + x.tx, 0) / S.blocks.length) * 43200) : null);
+  const pace = () => S.stats?.txPerDay || (S.blocks.length >= 3 ? Math.round((S.blocks.reduce((s, x) => s + x.tx, 0) / S.blocks.length) * (86400 / bt())) : null);
   const tvl = () => S.stats?.tvl || S.tvl;
   const liveMin = () => { const m = S.live.from ? Math.max(1, Math.round((Date.now() - S.live.from) / 60000)) : 0; return m >= 60 ? 'hour' : `${m || 1} min`; };
   function drawScreens() {

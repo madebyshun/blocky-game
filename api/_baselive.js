@@ -97,7 +97,7 @@ export function summarize(block, { usdc = [], swaps = null, names = [], bridge =
   const sorted = transfers.filter((x) => x.usd >= BIG_USDC).sort((a, b) => b.usd - a.usd).slice(0, 6);
   return {
     n,
-    t: num(block.timestamp) * 1000,
+    t: tOf(block),
     tx: block.transactions?.length ?? 0,
     gasUsed: num(block.gasUsed),
     // other stablecoins (transfers under $10M, amounts in their own unit) and tokenized stocks (transfers)
@@ -147,7 +147,18 @@ export async function readBlocks(since, max = Number(since) ? 24 : 4, url = RPC)
 }
 
 // the last hour: Basenames registered, deposits bridged in, the pace of transactions (sampled blocks)
-export const HOUR_BLOCKS = 1800; // 2 s blocks
+// Base's block time: 2 s until the Denim upgrade (Nov 5 2026, 18:00 UTC), 200 ms since. Block 53,556,127
+// (at 1793901601 s) was the last 2 s block (checked on chain: block 53,556,117 is 20 s before it, 53,556,137
+// 2 s after). Blocks since Denim carry timestampMs.
+export const DENIM = { block: 53556127, t: 1793901601000 };
+export const blockMsAt = (t) => (t > DENIM.t ? 200 : 2000);
+export const tOf = (b) => (b.timestampMs ? num(b.timestampMs) : num(b.timestamp) * 1000);
+// the block at time t, from a known block (n at time nT): across the switch if need be
+export function blockAtTime(t, n = DENIM.block, nT = DENIM.t) {
+  const toD = (x) => (x > DENIM.t ? DENIM.block + (x - DENIM.t) / 200 : DENIM.block - (DENIM.t - x) / 2000); // ideal schedule
+  return Math.round(n + toD(t) - toD(nT));
+}
+export const HOUR_BLOCKS = 1800; // 2 s blocks (before Denim; readHour works it out from the time)
 export const LOG_RANGE = 450; // blocks per eth_getLogs: many RPC plans cap the range (often at 500)
 // logs over [from, to] in ranges of LOG_RANGE blocks, a few ranges per batch
 // (if the RPC still refuses, smaller ranges: 100 blocks)
@@ -163,14 +174,15 @@ async function logsOver(from, to, filter, url, size = LOG_RANGE) {
   }
   return out;
 }
-export async function readHour(url = RPC) {
+export async function readHour(url = RPC, now = Date.now()) {
   // each part on its own, so one that fails (a limit, a timeout) leaves the others: null where it
   // failed, and why in `errors` (open /api/basestats to see it)
   const errors = {};
   const part = (name, p) => p.catch((e) => { errors[name] = String(e.message || e).slice(0, 200); console.warn('[basestats]', name, e.message); return null; });
   const [headHex] = await rpc([['eth_blockNumber', []]], url);
-  const head = num(headHex), from = head - HOUR_BLOCKS + 1;
-  const samples = Array.from({ length: 12 }, (_, i) => head - i * 150);
+  const head = num(headHex);
+  const span = Math.max(1, head - blockAtTime(now - HOUR_MS, head, now)), from = head - span + 1; // an hour of blocks
+  const samples = Array.from({ length: 12 }, (_, i) => head - Math.round((i * span) / 12));
   const [names, bridge, blocks] = await Promise.all([
     part('names', logsOver(from, head, { address: NAMES, topics: [T.name] }, url)),
     part('bridge', logsOver(from, head, { address: BRIDGE, topics: [[T.ethIn, T.tokenIn]] }, url)),
@@ -184,7 +196,8 @@ export async function readHour(url = RPC) {
     names: names ? { n: names.length, last: names.slice(-6).map(nameOf).filter(Boolean).reverse() } : null,
     bridge: deposits ? { n: deposits.length, eth: +deposits.reduce((s, d) => s + d.eth, 0).toFixed(3) } : null,
     txPerBlock: perBlock === null ? null : Math.round(perBlock), // sampled every 5 minutes over the hour
-    txPerDay: perBlock === null ? null : Math.round(perBlock * 43200), // that pace for a day
+    txPerDay: perBlock === null ? null : Math.round(perBlock * span * 24), // that pace for a day
+    blockMs: Math.round(HOUR_MS / span),
     errors,
   };
 }
@@ -226,21 +239,21 @@ export async function readFees(url = RPC) {
 }
 
 // USDC moved on Base, hour by hour, for the last week: each hour estimated from SAMPLES blocks spread
-// over it (their USDC transfers, times the hour's 1,800 blocks), computed once and kept (`store`), a
+// over it (their USDC transfers, times the hour's blocks: 1,800 before Denim, 18,000 since), computed once and kept (`store`), a
 // few missing hours per call so a cold start fills in over a few calls. From it: the last 24 hours, the
 // last hour's pace, and the share that moved while US banks were closed (src/bankhours.js).
 export const FLOW_CAP = 10e6; // USDC per transfer: bigger ones are left out of the hourly estimate
 export const HOUR_MS = 3600000, SAMPLES = 12, WEEK = 168; // 12 blocks an hour: USDC volume is heavy-tailed (a few huge transfers), so few samples swing the estimate
-export async function readFlow(store, { url = RPC, now = Date.now(), maxNew = 6, blockMs = 2000 } = {}) {
+export async function readFlow(store, { url = RPC, now = Date.now(), maxNew = 6 } = {}) {
   const [top] = await rpc([getBlock('latest')], url);
-  const head = num(top.number), headT = num(top.timestamp) * 1000;
-  const blockAt = (t) => head - Math.round((headT - t) / blockMs);
-  const perHour = HOUR_MS / blockMs, cur = Math.floor(now / HOUR_MS);
+  const head = num(top.number), headT = tOf(top);
+  const blockAt = (t) => blockAtTime(t, head, headT);
+  const cur = Math.floor(now / HOUR_MS);
   const hours = Array.from({ length: WEEK }, (_, i) => cur - 1 - i); // finished hours, newest first
   const have = await store.get(hours);
   const missing = hours.filter((h) => !have[h] && blockAt((h + 1) * HOUR_MS) <= head).slice(0, maxNew);
   await Promise.all(missing.map(async (h) => {
-    const b0 = blockAt(h * HOUR_MS), picks = Array.from({ length: SAMPLES }, (_, i) => b0 + Math.round(((i + 0.5) * perHour) / SAMPLES));
+    const b0 = blockAt(h * HOUR_MS), perHour = blockAt((h + 1) * HOUR_MS) - b0, picks = Array.from({ length: SAMPLES }, (_, i) => b0 + Math.round(((i + 0.5) * perHour) / SAMPLES));
     try {
       const res = await rpc(picks.map((b) => getLogs(b, b, { address: USDC, topics: [T.transfer] })), url);
       // transfers of $10M+ are left out: they're flash loans and protocol rebalancing, and one in a sampled
@@ -291,7 +304,7 @@ export async function readTx(hash, url = RPC) {
     to: tx.to ? tx.to.toLowerCase() : null,
     eth: units(big(tx.value), 18),
     block: receipt ? num(receipt.blockNumber) : null,
-    t: block ? num(block.timestamp) * 1000 : null,
+    t: block ? tOf(block) : null,
     ok: receipt ? receipt.status === '0x1' : null, // null: still pending
     logs: receipt?.logs?.length ?? 0,
     gasUsed: receipt ? num(receipt.gasUsed) : null,

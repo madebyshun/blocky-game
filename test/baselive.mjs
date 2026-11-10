@@ -2,7 +2,7 @@
 // (block 53,159,703's neighbourhood), against a stand-in RPC. Run: npm test
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { STABLES, readAppTvl, readFlow, HOUR_MS, readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
+import { DENIM, blockAtTime, tOf, STABLES, readAppTvl, readFlow, HOUR_MS, readFees, ETH_USD_FEED, GAS_ORACLE, summarize, nameOf, bridgeOf, usdcOf, readBlocks, readHour, readTx, readWallet, USDC, BRIDGE, NAMES, MORPHO, AAVE, UNIV4, T } from '../api/_baselive.js';
 
 const pad = (a) => `0x${a.slice(2).toLowerCase().padStart(64, '0')}`;
 const amt = (n) => `0x${BigInt(n).toString(16).padStart(64, '0')}`;
@@ -90,12 +90,18 @@ assert.equal(live.blocks[1].bridge.length, 1);
 assert.deepEqual((await readBlocks(HEAD, 4, url)).blocks, []); // nothing new
 assert.equal((await readBlocks(0, 4, url)).blocks.length, 4); // first call: the last 4
 
-const hour = await readHour(url);
+const hour = await readHour(url, DENIM.t - 10 * HOUR_MS); // before Denim: 2 s blocks, 1,800 an hour
 assert.deepEqual(hour.names, { n: 2, last: ['jessesp.base.eth', 'jessesp.base.eth'] });
 assert.equal(hour.bridge.n, 1);
 assert.equal(hour.bridge.eth, 0.412);
 assert.ok(hour.txPerBlock >= 300 && hour.txPerBlock <= 306);
 assert.equal(hour.txPerDay, hour.txPerBlock * 43200);
+assert.equal(hour.blockMs, 2000);
+// since Denim: 200 ms blocks, 18,000 an hour; a block's time from timestampMs
+assert.equal(blockAtTime(DENIM.t + HOUR_MS), DENIM.block + 18000);
+assert.equal(blockAtTime(DENIM.t - HOUR_MS), DENIM.block - 1800);
+assert.equal(blockAtTime(DENIM.t + HOUR_MS, DENIM.block + 18000 + 50, DENIM.t + HOUR_MS + 10000), DENIM.block + 18000);
+assert.equal(tOf({ timestamp: '0x6aecc423', timestampMs: '0x1a1acde28b8' }), 1793901603000);
 // the hour's logs are read in ranges of at most 450 blocks (RPC plans cap eth_getLogs)
 assert.ok(ranges.length === 4 && ranges.every(([a, b]) => parseInt(b, 16) - parseInt(a, 16) < 450), JSON.stringify(ranges));
 assert.equal(parseInt(ranges[0][0], 16), HEAD - 1799);
