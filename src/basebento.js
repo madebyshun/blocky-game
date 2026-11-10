@@ -72,7 +72,7 @@ function render() {
   }
   { const n = S.stats?.names?.n; const live = S.blocks.reduce((s, x) => s + (x.names?.length || 0), 0); $('v-names').textContent = n != null ? `${int(n)} new Basenames in the last hour` : live ? `${live} new Basenames while you watched` : ''; }
   // the share text follows the numbers
-  const parts = [flow?.usd24h && `${money(flow.usd24h)} in USDC moved on Base in 24h`, flow?.closedShare != null && `${Math.round(flow.closedShare * 100)}% of it while US banks were closed`, fee !== null && `sending $200 costs ${fee < 0.01 ? `$${fee.toFixed(4)}` : `$${fee.toFixed(2)}`}`].filter(Boolean);
+  const parts = [flow?.usd24h && `${money(flow.usd24h)} in USDC moved on Base in 24h`, flow?.closedShare != null && `${Math.round(flow.closedShare * 100)}% of it while US banks were closed`, `${int(denimNow())} blocks since Denim (200 ms)`, fee !== null && `sending $200 costs ${fee < 0.01 ? `$${fee.toFixed(4)}` : `$${fee.toFixed(2)}`}`].filter(Boolean);
   $('bb-share').href = `https://x.com/intent/post?text=${encodeURIComponent(`Base, live:\n${parts.map((p) => `→ ${p}`).join('\n')}\n\nthe always-on chain, read block by block by @${X}\n${SITE}/base.html`)}`;
 }
 
@@ -85,10 +85,18 @@ async function poll() {
     const j = await r.json();
     for (const x of j.blocks || []) if (x.n > S.head) { S.blocks.push(x); S.head = x.n; }
     if (!S.head && j.head) S.head = j.head;
+    if (S.head > DENIM.block) denimFix = (S.head - DENIM.block) - Math.floor((Date.now() - DENIM.t) / 200);
     S.blocks = S.blocks.slice(-40);
     render();
   } catch { /* next time */ }
 }
+// Denim: blocks since Base went to 200 ms, ticking 5 a second. From the schedule (2 s blocks up to
+// DENIM.block, 200 ms since), set right by the chain's head whenever a poll brings one.
+const DENIM = { block: 53556127, t: 1793901601000 };
+let denimFix = 0; // head minus the schedule, from the last poll
+const denimNow = () => Math.floor((Date.now() - DENIM.t) / 200) + denimFix;
+function tickDenim() { if (Date.now() > DENIM.t) $('v-denim').textContent = int(Math.max(0, denimNow())); requestAnimationFrame(tickDenim); }
+tickDenim();
 loadStats(); poll();
 setInterval(poll, 4000);
 setInterval(loadStats, 60000);

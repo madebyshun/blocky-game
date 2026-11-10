@@ -63,11 +63,14 @@
             <li><span>Blocks full</span><b id="v-gas">—</b></li>
             <li><span>Base fee</span><b id="v-gwei">—</b></li>
             <li><span>Avg fee per tx</span><b id="v-txfee">—</b></li>
+            <li><span>USDC moved, last 5 s</span><b id="v-read">—</b></li>
           </ul>
-          <p class="t-note">200 ms blocks: coming to mainnet</p>
         </div>
-        <div class="cell pale c-read">
-          <p class="read">In the five seconds it took to read this, <b id="v-read">—</b> in USDC moved on Base <sup>5</sup></p>
+        <div class="cell pale c-read c-denim">
+          <p class="t-small dark">Since Denim · Nov 5 <sup>7</sup></p>
+          <b class="big blue-t" id="v-denim">—</b>
+          <p>blocks since Base went to <b>200 ms</b></p>
+          <p class="denim-row"><span>2 s</span><i></i><span class="blue-t">200 ms</span><em>10× the blocks</em></p>
         </div>
         <div class="cell white c-apps">
           <p class="t-small dark">Per minute on Base, live <sup>5</sup></p>
@@ -78,7 +81,7 @@
           <p class="foot-names" id="v-names"></p>
           <p class="foot-site"><span class="mark"></span> basecity.space</p>
         </div>
-        <p class="bb-src" id="bb-src">1. USDC transfer volume on Base: transfers under $10M (flash loans and rebalancing left out), estimated per hour from 12 sampled blocks. 2. US bank hours: Mon-Fri 9:00-17:00 New York time, federal holidays closed. 3. A 62k-gas USDC transfer at the current block's base fee + usual tip + L1 data fee, ETH/USD from Chainlink on Base. 4. "The Always-On Dollar: Money for an Economy that Doesn't Close", The Block Pro Research for Coinbase. 5. Live, from the last blocks: USDC under $10M; swaps and Morpho/Aave events read from their contracts. 6. TVL: DefiLlama. USDT/EURC: transfers under $10M; avg fee per tx: gas used per tx at the base fee + tip (no L1 fee).</p>
+        <p class="bb-src" id="bb-src">1. USDC transfer volume on Base: transfers under $10M (flash loans and rebalancing left out), estimated per hour from 12 sampled blocks. 2. US bank hours: Mon-Fri 9:00-17:00 New York time, federal holidays closed. 3. A 62k-gas USDC transfer at the current block's base fee + usual tip + L1 data fee, ETH/USD from Chainlink on Base. 4. "The Always-On Dollar: Money for an Economy that Doesn't Close", The Block Pro Research for Coinbase. 5. Live, from the last blocks: USDC under $10M; swaps and Morpho/Aave events read from their contracts. 6. TVL: DefiLlama. 7. Denim, Base's upgrade to 200 ms blocks: 2 s blocks up to block 53,556,127, 200 ms since; counted from the chain's head. USDT/EURC: transfers under $10M; avg fee per tx: gas used per tx at the base fee + tip (no L1 fee).</p>
       </section></div>
     </main>
     <script type="module" src="/src/basebento.js"></script>
