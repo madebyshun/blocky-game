@@ -417,3 +417,14 @@ body.cine .bl-layer, body.cine .bl-panel { display: none; }
 }
 .bl-panel .btn { background: #0b1220; color: #fff; border: 0; border-radius: 10px; padding: 8px 12px; font-weight: 700; }
 .bl-panel .btn.primary { background: #0052ff; }
+
+/* Blocky Street's tower card (src/stocks.js) */
+.st-card { right: auto; left: 16px; }
+.st-chip { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.st-name { color: #6b7280; font-size: 12px; }
+.st-row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid #eef1f6; }
+.st-row span { color: #4a5568; } .st-row b { text-align: right; }
+.st-buy { display: block; text-align: center; text-decoration: none; margin: 12px 0 8px; }
+.st-links { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; } .st-links a { color: #0052ff; }
+.st-note { color: #8a94a6; font-size: 11px; margin: 10px 0 0; }
+body.cine .st-card { display: none; }

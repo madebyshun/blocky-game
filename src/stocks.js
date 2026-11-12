@@ -9,6 +9,12 @@ import * as THREE from 'three';
 import { PITCH } from './sim.js';
 import { CONFIG } from './config.js';
 import { nyseHours } from './nysehours.js';
+import { esc } from './names.js';
+
+// Quadra (madebyshun/quadra) trades the stocks: `?do=swap&buy=<token>` opens its Swap with the stock picked;
+// the swap goes through Relay and is signed in the visitor's own wallet (Quadra blocks the U.S.)
+export const QUADRA = 'https://quadra-eta.vercel.app';
+export const quadraBuy = (address) => `${QUADRA}/?do=swap&buy=${address}`;
 
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
 const mats = new Map();
@@ -82,7 +88,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
   const SLOTS = [];
   const rows = Math.ceil(tickers.length / 2), dz = (D - 9) / Math.max(1, rows - 1);
   for (let r = 0; r < rows; r++) for (const s of [-1, 1]) SLOTS.push([s * (W / 4 + 0.9), -D / 2 + 5.5 + r * dz]);
-  const towers = new Map();
+  const towers = new Map(), hits = [];
   tickers.forEach((t, i) => {
     const [x, z] = SLOTS[i], g = new THREE.Group(); g.position.set(x, 0, z); group.add(g);
     box(g, 3.2, 0.5, 3.2, 0xe8ebf0, 0, 0.25, 0);
@@ -95,6 +101,9 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     const label = panel(3.2, 1.2); label.position.set(0, 1.0, 1.62); g.add(label);
     label.rotation.y = 0; // faces the street through the tower's +z… turned below
     g.rotation.y = x < 0 ? Math.PI / 2 : -Math.PI / 2; // the label faces the street
+    // what a tap hits: an invisible box round the tower, as tall as the tallest it gets
+    const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ visible: false }));
+    hit.scale.set(3.4, 26, 3.4); hit.position.y = 13; hit.userData.ticker = t; g.add(hit); hits.push(hit);
     towers.set(t, { t, g, blocks, glow, label, n: 0, nGlow: 0, falling: [], base: 0, price: null, usd24: null });
   });
 
@@ -240,8 +249,45 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     bell.rotation.z = ring;
   }
 
+  // ---------- the card a tower opens: its numbers, and "Add a block" (buy it on Quadra) ----------
+  const card = document.createElement('div');
+  card.className = 'bl-panel st-card'; card.hidden = true;
+  document.body.appendChild(card);
+  function showCard(t) {
+    const s = S.byTicker.get(t), w = S.week?.tickers?.[t], wk = S.weekend?.call?.rows?.find((r) => r.ticker === t);
+    const ny = S.nyse, hex = `#${colorOf(t).toString(16).padStart(6, '0')}`;
+    const row = (k, v) => `<div class="st-row"><span>${k}</span><b>${v}</b></div>`;
+    card.innerHTML = `
+      <div class="bl-ph"><i class="st-chip" style="background:${hex}"></i><b>${esc(t)}</b><span class="st-name">${esc(s?.name || '')}</span><button class="bl-x" title="Close">✕</button></div>
+      <p class="bl-sub">Coinbase's tokenized ${esc(t)} on Base. Every block on its tower is a real transfer${ny.open ? '' : '; the glowing ones moved while Wall Street was closed'}.</p>
+      ${row('Reference price (Chainlink NAV)', s?.nav ? `$${s.nav.toFixed(2)}` : '—')}
+      ${row('Moved on Base, 24 h', Number.isFinite(w?.usd24) ? `${usd(w.usd24)} · ${w.n24.toLocaleString('en-US')} transfers` : '—')}
+      ${row('Moved on Base, 7 d', Number.isFinite(w?.usd7) ? usd(w.usd7) : '—')}
+      ${wk && Number.isFinite(wk.move) ? row("This weekend on Base vs Friday's close", `<span style="color:${wk.move >= 0 ? '#16a34a' : '#dc2626'}">${wk.move >= 0 ? '▲' : '▼'} ${Math.abs(wk.move).toFixed(2)}%</span>${wk.call ? ` · Blue's call: ${esc(wk.call)}` : ''}`) : ''}
+      ${row('Wall Street', ny.open ? `open · ${ny.time}` : `closed (${ny.why}) · ${ny.time}`)}
+      ${s?.paused?.length ? '<p class="bl-err">Coinbase has paused some features of this stock right now.</p>' : ''}
+      ${s ? `<a class="btn primary st-buy" target="_blank" rel="noopener" href="${quadraBuy(s.address)}">＋ Add a block: buy ${esc(t)} on Quadra</a>` : ''}
+      <div class="st-links">
+        <a target="_blank" rel="noopener" href="${QUADRA}/?do=basket">A basket of stocks (Quadra)</a>
+        <a target="_blank" rel="noopener" href="https://blueagent.dev/markets/weekend">Weekend calls (Blue Agent)</a>
+        ${s ? `<a target="_blank" rel="noopener" href="https://basescan.org/token/${s.address}">Basescan ↗</a>` : ''}
+      </div>
+      <p class="st-note">Swaps go through Relay on Quadra, signed in your own wallet. Tokenized stocks aren't offered in the U.S. Not financial advice.</p>`;
+    card.querySelector('.bl-x').onclick = () => (card.hidden = true);
+    card.hidden = false;
+  }
+
   return {
     update,
+    // a tap: the tower it hit opens its card (true), or nothing here (false)
+    pick(ray) {
+      if (!group.visible) return false;
+      const t = ray.intersectObjects(hits, false)[0]?.object.userData.ticker;
+      if (!t) return false;
+      showCard(t);
+      return true;
+    },
+    closeCard() { card.hidden = true; },
     get center() { return center; },
     get week() { return S.week; },
     get live() { return S.live; },

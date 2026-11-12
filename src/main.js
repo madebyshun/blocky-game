@@ -779,6 +779,7 @@ canvas.addEventListener('pointerup', (e) => {
   ray.setFromCamera(p, camera);
   const hits = ray.intersectObjects([...views.values()].map((v) => v.hit), false);
   if (hits[0]) return select(hits[0].object.userData.builder);
+  if (street.pick(ray)) return; // a Blocky Street tower: its card
   const board = ray.intersectObjects(city.billboards, false)[0]?.object.userData.sponsor;
   if (board?.cinema) { select(null); cinemaRoom.show(); return; }
   if (board?.url) { open(board.url, '_blank', 'noopener'); return; }
