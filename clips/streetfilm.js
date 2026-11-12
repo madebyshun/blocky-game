@@ -83,9 +83,9 @@ export function start() {
   const V = (x, y, z) => new THREE.Vector3(cx + x, y, cz + z);
   let nextDrop = 0.2, k = 0, closed = false;
 
-  function frame(t, dt = 1 / 30) {
+  function frame(t, dt = 1 / 30, draw = true) {
     // the day goes: late afternoon → dusk → night, so the glowing blocks carry the end
-    city.env.phaseOverride = lerp(0.44, 0.58, cl(t / DUR)); city.env.warm = 0.5;
+    city.env.phaseOverride = lerp(0.44, 0.53, cl(t / DUR)); city.env.warm = 0.5;
     if (!closed && t >= OPEN_END) { closed = true; street.film.nyse = { open: false, why: 'after hours', time: '16:00 ET' }; }
     if (closed && t > OPEN_END + 1) street.film.nyse = { open: false, why: 'after hours', time: `16:0${Math.min(9, Math.floor((t - OPEN_END) / 1.5))} ET` };
     // blocks: a steady few while Wall Street is open, then faster, and every one after 16:00 glows
@@ -110,12 +110,12 @@ export function start() {
     } else if (t < 13) { // low between the towers, looking up into the pour
       const u = ease((t - 7) / 6), a = lerp(-0.5, 0.5, u); pos = V(Math.sin(a) * 1.4, 0.8, lerp(6, 1, u)); tgt = V(Math.sin(a) * 4, lerp(6, 9, u), lerp(-4, -8, u)); fov = 62;
     } else { // crane up: the street lit in the city at night
-      const u = ease((t - 13) / (DUR - 13)); pos = V(lerp(6, 14, u), lerp(4, 24, u), lerp(16, 26, u)); tgt = V(0, lerp(4, 2, u), 0); fov = 48;
+      const u = ease((t - 13) / (DUR - 13)); pos = V(lerp(5, 10, u), lerp(4, 17, u), lerp(16, 22, u)); tgt = V(0, lerp(4, 3, u), lerp(0, -2, u)); fov = 50;
     }
     cam.position.copy(pos); cam.lookAt(tgt); cam.fov = fov; cam.updateProjectionMatrix();
     bloom.strength = 0.25 + cl((t - OPEN_END) / 6) * 0.35;
     sky.position.copy(cam.position);
-    composer.render(dt);
+    if (draw) composer.render(dt); // a render split into parts fast-forwards to its first frame without drawing
   }
   window.__film = () => {};
   window.__clip = { frame, duration: DUR };
