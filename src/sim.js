@@ -208,6 +208,10 @@ export const isIndustrial = ([i, j]) => ring(i, j) >= 4 && j < 0 && i > riverCol
 // Base Live's block (CONFIG.baseLive): kept for it from `from` on
 export const BASELIVE_LOTS = new Set((CONFIG.baseLive?.lots || []).map((lot) => lot.join(',')));
 const BASELIVE_FROM = CONFIG.baseLive ? Date.parse(CONFIG.baseLive.from) : Infinity;
+// Blocky Street's block (CONFIG.stocks): Coinbase's tokenized stocks, kept for it from `from` on, the same way
+export const STOCKS_LOTS = new Set((CONFIG.stocks?.lots || []).map((lot) => lot.join(',')));
+const STOCKS_FROM = CONFIG.stocks ? Date.parse(CONFIG.stocks.from) : Infinity;
+const DISTRICTS = [{ kind: 'baselive', lots: BASELIVE_LOTS, from: BASELIVE_FROM, flag: 'blOpen' }, { kind: 'stocks', lots: STOCKS_LOTS, from: STOCKS_FROM, flag: 'stOpen' }];
 
 // Woods the city keeps: some lots from ring 3 out stay forest for good, in clumps (more in the
 // outskirts), so the city grows around green space. Never on a landmark's lot.
@@ -422,6 +426,7 @@ export class CitySim {
     this.metroPlanned = false;
     this.metroBuilt = false;
     this.blOpen = false; // Base Live's block taken (CONFIG.baseLive)
+    this.stOpen = false; // Blocky Street's block taken (CONFIG.stocks)
     this.reserved = new Set([...LANDMARKS.map((l) => l.lot), ...AVENUE].map((lot) => lot.join(',')));
     this.queue = [];
     for (let r = 0; r <= this.land; r++) this.queue.push(...this.ringLots(r));
@@ -606,7 +611,8 @@ export class CitySim {
         if (f.start <= now && f.at < done) { done = f.at; lane = l; }
       }
       const opens = this.siteOpens[this.lanes.length] ?? Infinity, leaves = this.di < D.length ? D[this.di].t : Infinity;
-      if (!this.blOpen && BASELIVE_FROM <= Math.min(done, opens, leaves, now)) { this.openBaseLive(BASELIVE_FROM); continue; }
+      const due = DISTRICTS.find((d) => !this[d.flag] && d.from <= Math.min(done, opens, leaves, now));
+      if (due) { this.openDistrict(due); continue; }
       if (Math.min(done, opens, leaves) > now) break;
       if (leaves < done && leaves <= opens) { this.depart(D[this.di++]); continue; }
       if (opens <= done) { this.openSite(opens); continue; }
@@ -687,20 +693,22 @@ export class CitySim {
 
   // Base Live takes its block: whatever stands there comes down, a site working there starts something
   // else, and nothing is planned there again
-  openBaseLive(t) {
-    this.blOpen = true;
+  openBaseLive(t) { this.openDistrict({ ...DISTRICTS[0], from: t }); }
+  // a district (Base Live, Blocky Street) takes its block on its day, the same way
+  openDistrict({ kind, lots, from: t, flag }) {
+    this[flag] = true;
     const gone = [];
-    for (const key of BASELIVE_LOTS) {
+    for (const key of lots) {
       this.reserved.add(key);
       const p = this.standing.get(key);
       if (p) { this.standing.delete(key); gone.push(p); }
     }
-    this.queue = this.queue.filter((lot) => !BASELIVE_LOTS.has(lot.join(',')));
+    this.queue = this.queue.filter((lot) => !lots.has(lot.join(',')));
     for (const l of this.lanes) {
       const key = l.p?.lot?.join(',');
-      if (key && BASELIVE_LOTS.has(key)) { this.busy.delete(key); this.assign(l, t); }
+      if (key && lots.has(key)) { this.busy.delete(key); this.assign(l, t); }
     }
-    this.events.push({ kind: 'baselive', at: t, gone });
+    this.events.push({ kind, at: t, gone });
   }
 
   // abandoned buildings standing now (the one being rebuilt included)

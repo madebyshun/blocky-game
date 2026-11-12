@@ -212,3 +212,23 @@ console.log('city: all checks pass');
   assert.deepEqual(again.done.map((p) => p.name), s.done.slice(0, before).map((p) => p.name), 'history before Base Live changed');
   console.log(`city: Base Live takes its block on its day (${onBlock} buildings came down), history before it unchanged`);
 }
+
+// Blocky Street (CONFIG.stocks): the same, on its own day
+{
+  const { STOCKS_LOTS, BASELIVE_LOTS } = await import('../src/sim.js');
+  const { CONFIG } = await import('../src/config.js');
+  const from = Date.parse(CONFIG.stocks.from);
+  assert.ok([...STOCKS_LOTS].every((k) => !BASELIVE_LOTS.has(k)), 'Blocky Street overlaps Base Live');
+  const s = city(1200);
+  s.advance(from - HOUR);
+  const before = s.done.length;
+  assert.equal(s.stOpen, false);
+  s.advance(from + 10 * DAY);
+  assert.equal(s.stOpen, true);
+  assert.deepEqual([...s.standing.keys()].filter((k) => STOCKS_LOTS.has(k)), [], 'something stands on Blocky Street');
+  assert.ok(!s.done.some((p) => p.at > from && p.lot && STOCKS_LOTS.has(p.lot.join(','))), 'built on Blocky Street after its day');
+  assert.equal(s.events.find((e) => e.kind === 'stocks')?.at, from);
+  const again = city(1200); again.advance(from - HOUR);
+  assert.deepEqual(again.done.map((p) => p.name), s.done.slice(0, before).map((p) => p.name), 'history before Blocky Street changed');
+  console.log('city: Blocky Street takes its block on its day, history before it unchanged');
+}

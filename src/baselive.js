@@ -415,7 +415,9 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   }
 
   // one block, played out in the city
+  const listeners = []; // others that play each block too (Blocky Street, src/stocks.js)
   function play(b) {
+    for (const f of listeners) { try { f(b); } catch (e) { console.warn('[base live]', e); } }
     S.blocks.push(b); if (S.blocks.length > BARS) S.blocks.shift();
     S.last = b;
     if (!S.live.from) S.live.from = Date.now();
@@ -720,6 +722,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     get busy() { return S.last ? Math.max(0.4, Math.min(1.7, tps() / 150)) : 1; }, // the city's traffic follows Base
     get live() { return S.ok; },
     setDash(on) { dash = on; },
+    onBlock(f) { listeners.push(f); },
     get dash() { return dash; },
   };
 }

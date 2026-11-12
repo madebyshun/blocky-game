@@ -16,6 +16,7 @@ import { BuilderView } from './citizens.js';
 import { createTraffic } from './vehicles.js';
 import { createBaseLive } from './baselive.js';
 import { createBaseLivePanel } from './baselivepanel.js';
+import { createBlockyStreet } from './stocks.js';
 import { createSky } from './sky.js';
 import { createWeather, WEATHER } from './weather.js';
 import { computeDistricts } from './districts.js';
@@ -275,6 +276,15 @@ const goToBaseLive = (close = false) => {
 const baseLivePanel = createBaseLivePanel({ baseLive, goTo: goToBaseLive, dashboard: () => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); } });
 $('baselive-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.toggle(); };
 if (qs.has('baselive')) setTimeout(() => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); }, 2500); // ?baselive: straight into the Dashboard view
+// 📈 Blocky Street: Coinbase's stocks on Base, a tower each, built by their transfers (src/stocks.js)
+const street = createBlockyStreet(city, { baseLive, open: () => !!sim?.stOpen && city.land >= 9, log: (html) => log(html) });
+const goToStreet = () => {
+  const c = street.center;
+  following = false; goHome = false; controls.autoRotate = false;
+  focus = { x: c.x, y: 4, z: c.z, zoom: wideZoom() * (innerWidth < innerHeight ? 2.4 : 3.6), t: 0 };
+};
+$('street-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.close(); goToStreet(); };
+if (qs.has('street')) setTimeout(goToStreet, 2500); // ?street: straight to Blocky Street
 const metro = createMetro(city);
 const agents = createAgents(city);
 const cats = createCats(city);
@@ -578,7 +588,9 @@ const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.le
   : p.rebuilds ? `🏗️ ${p.name} completed, replacing ${p.rebuilds}`
   : `🏗️ ${p.name} completed`);
 // what departures did to the city (CitySim.depart)
-const eventLine = (e) => (e.kind === 'baselive'
+const eventLine = (e) => (e.kind === 'stocks'
+  ? `📈 Blocky Street opened next to Base Live: Coinbase's stocks on Base, built block by block${e.gone.length ? `, where ${e.gone.map((p) => p.name).join(' and ')} stood` : ''}`
+  : e.kind === 'baselive'
   ? `🟦 Base Live opened on the west side: Base, block by block${e.gone.length ? `, where ${e.gone.map((p) => p.name).join(' and ')} stood` : ''}`
   : e.kind === 'unnamed'
   ? `🌑 ${e.p.name} went dark: ${whoHtml(e.p.whale.from)} sold. FOR SALE to the next whale`
@@ -1025,6 +1037,7 @@ function frame() {
   city.update(t, dt);
   traffic.update(t, dt);
   baseLive.update(t, dt);
+  street.update(t, dt);
   metro.update(t, dt);
   agents.update(t, dt);
   cats.update(t, dt);

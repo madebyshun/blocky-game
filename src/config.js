@@ -277,6 +277,11 @@ export const CONFIG = {
   // city's woods there). From `from` nothing else is built on them; the two buildings that stood there
   // came down that day (CitySim.openBaseLive), so everything the city built before is unchanged.
   baseLive: { lots: [[-9, 2], [-8, 2], [-7, 2], [-9, 3], [-8, 3], [-7, 3], [-9, 4], [-8, 4], [-7, 4], [-9, 5], [-8, 5], [-7, 5]], from: '2026-10-27T00:00:00Z' },
+  // Blocky Street (src/stocks.js): Coinbase's tokenized stocks on Base, a tower each, built block by block
+  // from their real transfers; the 12 lots north of Base Live, taken the same way from `from` on
+  // (CitySim.openDistrict), so everything the city built before is unchanged
+  stocks: { lots: [[-9, -2], [-8, -2], [-7, -2], [-9, -1], [-8, -1], [-7, -1], [-9, 0], [-8, 0], [-7, 0], [-9, 1], [-8, 1], [-7, 1]], from: '2026-11-13T00:00:00Z',
+    towers: ['NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'COIN', 'CRCL'] },
 
   avenue: {
     plots: [
