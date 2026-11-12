@@ -9,6 +9,7 @@ import { stockList, readStockHours, readHoldings } from './_stocks.js';
 import { addressOf, namesFor, cleanName } from './_names.js';
 import { nyseHours } from '../src/nysehours.js';
 import { useKv, kv, KEY_BASE } from './_store.js';
+import { crewEntry, crewView, dueForCheck } from './_crew.js';
 
 const KEY = `${KEY_BASE}:stocks:hours:v1`;
 const memory = new Map();
@@ -40,9 +41,53 @@ export async function readWeekend(fetchImpl = fetch) {
   } catch { return null; }
 }
 
+// Street Crew (api/_crew.js): one hash, address -> entry
+const CREW_KEY = `${KEY_BASE}:stocks:crew:v1`;
+const crewMemory = new Map();
+const crewStore = {
+  async all() {
+    if (!useKv()) return [...crewMemory.values()];
+    const flat = (await kv('HGETALL', CREW_KEY)) || [];
+    const out = [];
+    for (let i = 1; i < flat.length; i += 2) { try { out.push(JSON.parse(flat[i])); } catch { /* skip */ } }
+    return out;
+  },
+  async get(a) { if (!useKv()) return crewMemory.get(a) || null; const v = await kv('HGET', CREW_KEY, a); return v ? JSON.parse(v) : null; },
+  async put(a, e) {
+    if (!useKv()) { if (e) crewMemory.set(a, e); else crewMemory.delete(a); return; }
+    if (e) await kv('HSET', CREW_KEY, a, JSON.stringify(e)); else await kv('HDEL', CREW_KEY, a);
+  },
+};
+async function crewUpdate(address, name, holdings) {
+  const prev = await crewStore.get(address);
+  const e = crewEntry(prev, { address, name, holdings });
+  if (e || prev) await crewStore.put(address, e);
+  return { joined: !!e && !prev, left: !e && !!prev, entry: e };
+}
+
 let last = null;
 export default async function handler(req, res) {
   // ?wallet=0x…|name.base.eth: that wallet's Coinbase stocks (Blocky Street's "your stocks, block by block")
+  const q = req.query ?? Object.fromEntries(new URL(req.url, 'http://x').searchParams);
+  // ?crew: the Street Crew; a few members' holdings are read again each call (sell under $10 and they leave)
+  if (q.crew !== undefined) {
+    try {
+      let entries = await crewStore.all();
+      const due = dueForCheck(entries);
+      if (due.length) {
+        const list = await stockList();
+        await Promise.all(due.map(async (e) => {
+          try { await crewUpdate(e.a, e.name, await readHoldings(e.a, list)); } catch { /* next time */ }
+        }));
+        entries = await crewStore.all();
+      }
+      res.setHeader('cache-control', 'public, s-maxage=60');
+      return res.status(200).json({ crew: crewView(entries) });
+    } catch (e) {
+      res.setHeader('cache-control', 'no-store');
+      return res.status(502).json({ error: String(e.message || e) });
+    }
+  }
   let who = String(req.query?.wallet ?? new URL(req.url, 'http://x').searchParams.get('wallet') ?? '').trim().toLowerCase();
   if (who) {
     try {
@@ -57,8 +102,10 @@ export default async function handler(req, res) {
         try { name = (await namesFor([address]))[address] || null; } catch { /* no name */ }
       }
       const holdings = await readHoldings(address.toLowerCase(), await stockList());
-      res.setHeader('cache-control', 'public, s-maxage=60');
-      return res.status(200).json({ address: address.toLowerCase(), name, holdings });
+      let crew = null;
+      try { crew = await crewUpdate(address.toLowerCase(), name, holdings); } catch { /* the tower still goes up */ }
+      res.setHeader('cache-control', 'private, no-store'); // it updates the crew: every lookup must reach us
+      return res.status(200).json({ address: address.toLowerCase(), name, holdings, crew: crew && { joined: crew.joined, left: crew.left, blockies: crew.entry?.blockies ?? 0, since: crew.entry?.since ?? null } });
     } catch (e) {
       res.setHeader('cache-control', 'no-store');
       return res.status(502).json({ error: String(e.message || e) });

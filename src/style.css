@@ -427,6 +427,7 @@ body.cine .bl-layer, body.cine .bl-panel { display: none; }
 .st-buy { display: block; text-align: center; text-decoration: none; margin: 12px 0 8px; }
 .st-links { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; } .st-links a { color: #0052ff; }
 .st-note { color: #8a94a6; font-size: 11px; margin: 10px 0 0; }
+.st-crew-line { color: #c9d0db; font-size: 12px; margin: 10px 0 0; line-height: 1.45; }
 body.cine .st-card { display: none; }
 .st-more { display: block; margin-top: 10px; color: #0052ff; font-weight: 700; font-size: 12px; }
 body.cine .st-panel { display: none; }

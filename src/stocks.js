@@ -225,6 +225,8 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     group.visible = !!S.film || open();
     if (!group.visible) return;
     if (!started && !S.film) { started = true; load(); setInterval(load, 5 * 60000); }
+    if (!C.started) { C.started = true; loadCrew(); setInterval(loadCrew, 2 * 60000); } // a film gets its crew too (?crewdemo)
+    updateCrew(dt);
     for (const tw of towers.values()) {
       for (let i = tw.falling.length - 1; i >= 0; i--) {
         const f = tw.falling[i], yEnd = slotPos(f.k)[1];
@@ -251,6 +253,109 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     }
     const ring = t - S.bellAt < 4 ? Math.sin((t - S.bellAt) * 14) * 0.35 * (1 - (t - S.bellAt) / 4) : 0;
     bell.rotation.z = ring;
+  }
+
+
+  // ---------- Street Crew: every $10 of Coinbase stocks a wallet holds is a Blocky building the street ----------
+  // The crew comes from /api/stocks?crew (api/_crew.js): wallets looked up here holding $10+, a Blocky per
+  // $10 (at most 5) in a hard hat of its top stock's colour. Held a day: a citizen of the street (gold hat).
+  // Each Blocky walks a block to a tower, lays it, and walks back for the next. Render only.
+  const crewG = new THREE.Group(); group.add(crewG);
+  const crewHits = [];
+  const C = { list: [], workers: [], loaded: false };
+  const MAX_CREW = 40;
+  // ?crewdemo: a sample crew, for clips and for checking the look (never mixed with the real one)
+  const CREW_DEMO = new URLSearchParams(location.search).has('crewdemo') ? [
+    { label: 'jesse.base.eth', a: '0x0000000000000000000000000000000000000001', tickers: ['NVDA', 'COIN'], blockies: 5, citizen: true, since: Date.now() - 3 * 864e5 },
+    { label: 'shun.base.eth', a: '0x0000000000000000000000000000000000000002', tickers: ['TSLA', 'META'], blockies: 3, citizen: false, since: Date.now() - 5 * 36e5 },
+    { label: '0xabcd…1234', a: '0x0000000000000000000000000000000000000003', tickers: ['AAPL'], blockies: 2, citizen: false, since: Date.now() - 2 * 36e5 },
+    { label: 'nibel.base.eth', a: '0x0000000000000000000000000000000000000004', tickers: ['MSFT', 'AMZN', 'GOOGL'], blockies: 4, citizen: true, since: Date.now() - 9 * 864e5 },
+  ] : null;
+  const SKIN = 0xf2c9a0;
+  const towerSlots = () => [...towers.values()].map((tw) => {
+    const x = tw.g.position.x, z = tw.g.position.z, s = x < 0 ? 1 : -1; // the tower's street side
+    return { x: x + s * 2.3, z, tw };
+  });
+  const pileZ = D / 2 - 3.2; // the block pile by the arch
+  function labelSprite(text, gold) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = gold ? '#ffc83d' : 'rgba(10,11,13,0.78)';
+    g.beginPath(); g.roundRect(4, 8, 248, 48, 14); g.fill();
+    g.fillStyle = gold ? '#0a0b0d' : '#fff'; g.font = '800 26px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text.length > 16 ? `${text.slice(0, 15)}…` : text, 128, 33);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
+    sp.scale.set(2.4, 0.6, 1); sp.renderOrder = 5;
+    return sp;
+  }
+  function makeWorker(m, k) {
+    const g = new THREE.Group();
+    const hat = m.citizen ? 0xffc83d : colorOf(m.tickers[k % m.tickers.length] || m.tickers[0]);
+    const shirt = colorOf(m.tickers[0]);
+    const legs = new THREE.Group(); g.add(legs);
+    const lL = box(legs, 0.22, 0.45, 0.22, 0x2b313b, -0.13, 0.22, 0), lR = box(legs, 0.22, 0.45, 0.22, 0x2b313b, 0.13, 0.22, 0);
+    box(g, 0.55, 0.5, 0.35, shirt, 0, 0.7, 0);
+    box(g, 0.45, 0.42, 0.42, SKIN, 0, 1.17, 0);
+    box(g, 0.08, 0.08, 0.02, 0x0a0b0d, -0.1, 1.2, 0.215); box(g, 0.08, 0.08, 0.02, 0x0a0b0d, 0.1, 1.2, 0.215);
+    box(g, 0.52, 0.14, 0.52, hat, 0, 1.44, 0); box(g, 0.6, 0.04, 0.62, hat, 0, 1.38, 0.03); // the hard hat
+    const carry = box(g, 0.34, 0.34, 0.34, colorOf(m.tickers[0]), 0, 0.85, 0.32); // the block it carries
+    if (k === 0) { const lb = labelSprite(m.label, m.citizen); lb.position.y = 2.1; g.add(lb); }
+    const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ visible: false }));
+    hit.scale.set(0.9, 1.8, 0.9); hit.position.y = 0.9; hit.userData.crew = m; g.add(hit); crewHits.push(hit);
+    g.scale.setScalar(0.9);
+    const h = [...m.a].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, k * 7919);
+    g.position.set((h % 2 ? 1 : -1) * 0.8, 0, pileZ - (h % 5));
+    crewG.add(g);
+    return { g, lL, lR, carry, m, h, state: 'toTower', target: null, wait: 0, phase: (h % 100) / 16 };
+  }
+  function spawnCrew() {
+    for (const w of C.workers) crewG.remove(w.g);
+    C.workers = []; crewHits.length = 0;
+    let n = 0;
+    for (const m of C.list) {
+      for (let k = 0; k < m.blockies && n < MAX_CREW; k++, n++) C.workers.push(makeWorker(m, k));
+      if (n >= MAX_CREW) break;
+    }
+  }
+  async function loadCrew() {
+    try {
+      let crew;
+      if (CREW_DEMO) crew = CREW_DEMO;
+      else {
+        const r = await fetch(`${feed}/stocks?crew`);
+        if (!r.ok) return;
+        ({ crew } = await r.json());
+      }
+      const was = new Set(C.list.map((m) => m.a));
+      if (C.loaded) for (const m of crew) if (!was.has(m.a)) log(`👷 ${esc(m.label)} joined the Street Crew: ${m.blockies} Block${m.blockies > 1 ? 'ies' : 'y'} in ${esc(m.tickers[0])} hats`);
+      C.list = crew; C.loaded = true;
+      spawnCrew(); drawCrewLine();
+    } catch { /* no crew yet */ }
+  }
+  function pickTarget(w) {
+    const slots = towerSlots();
+    const mine = slots.filter((s) => w.m.tickers.includes(s.tw.t));
+    const from = mine.length ? mine : slots;
+    return from[(w.h + Math.floor(w.phase * 3)) % from.length];
+  }
+  function updateCrew(dt) {
+    for (const w of C.workers) {
+      w.phase += dt;
+      if (w.wait > 0) { w.wait -= dt; w.lL.rotation.x = w.lR.rotation.x = 0; continue; }
+      if (w.state === 'toTower' && !w.target) w.target = pickTarget(w);
+      const tx = w.state === 'toTower' ? w.target.x : (w.h % 2 ? 0.9 : -0.9), tz = w.state === 'toTower' ? w.target.z + ((w.h % 3) - 1) * 0.6 : pileZ;
+      const dx = tx - w.g.position.x, dz = tz - w.g.position.z, d = Math.hypot(dx, dz);
+      if (d < 0.15) {
+        if (w.state === 'toTower') { w.state = 'back'; w.carry.visible = false; w.wait = 1.2; w.target = null; }
+        else { w.state = 'toTower'; w.carry.visible = true; w.wait = 0.8; }
+        continue;
+      }
+      const sp = 1.6 * dt;
+      w.g.position.x += (dx / d) * Math.min(sp, d); w.g.position.z += (dz / d) * Math.min(sp, d);
+      w.g.rotation.y = Math.atan2(dx, dz);
+      const sw = Math.sin(w.phase * 9) * 0.5; w.lL.rotation.x = sw; w.lR.rotation.x = -sw;
+      w.g.position.y = Math.abs(Math.sin(w.phase * 9)) * 0.05;
+    }
   }
 
   // ---------- your stocks, block by block: a tower of your own in the middle of the street ----------
@@ -292,11 +397,27 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     <form class="bl-form st-form"><input placeholder="0x… or name.base.eth" spellcheck="false" autocomplete="off"><button class="btn">Build</button></form>
     <button class="btn bl-wallet st-wallet">Connect wallet</button>
     <div class="bl-out st-out" hidden></div>
+    <p class="st-crew-line"></p>
     <p class="st-note">Read from Base: only Coinbase's own stock tokens count. Nothing is signed here.</p>`;
   document.body.appendChild(panelEl);
   const out = panelEl.querySelector('.st-out');
   const say = (html) => { out.hidden = false; out.innerHTML = html; };
   panelEl.querySelector('.bl-x').onclick = () => (panelEl.hidden = true);
+  const crewLine = panelEl.querySelector('.st-crew-line');
+  function drawCrewLine() {
+    const n = C.list.length, b = C.list.reduce((a, m) => a + m.blockies, 0), cit = C.list.filter((m) => m.citizen).length;
+    crewLine.innerHTML = n
+      ? `👷 <b>Street Crew:</b> ${b} Block${b > 1 ? 'ies' : 'y'} from ${n} wallet${n > 1 ? 's' : ''}${cit ? `, ${cit} citizen${cit > 1 ? 's' : ''}` : ''}. Every $10 of stock you hold is a Blocky building the street; hold a day and it's a citizen.`
+      : `👷 <b>Street Crew:</b> every $10 of stock you hold is a Blocky building the street; hold a day and it's a citizen. Build your tower to join.`;
+  }
+  drawCrewLine();
+  // a crew Blocky tapped: whose it is
+  function showCrew(m) {
+    const ms = Date.now() - m.since, days = Math.floor(ms / 864e5);
+    const held = days >= 1 ? `${days} day${days > 1 ? 's' : ''}` : `${Math.max(1, Math.floor(ms / 36e5))} h`;
+    panelEl.hidden = false; card.hidden = true;
+    say(`<p>👷 <b>${esc(m.label)}</b> ${m.citizen ? 'is a <b>citizen</b> of Blocky Street' : 'is on the Street Crew'}: ${m.blockies} Block${m.blockies > 1 ? 'ies' : 'y'}, holding ${m.tickers.map((t) => `$${esc(t)}`).join(' ')} for ${held}.</p>${m.citizen ? '' : '<p class="muted">Held a day, the crew are citizens for good.</p>'}<a class="st-more" target="_blank" rel="noopener" href="https://basescan.org/address/${esc(m.a)}">Wallet on Basescan</a>`);
+  }
   async function showMine(who) {
     const r = await fetch(`${feed}/stocks?wallet=${encodeURIComponent(who)}`);
     const j = await r.json();
@@ -304,10 +425,13 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     const label = j.name || `${j.address.slice(0, 6)}…${j.address.slice(-4)}`;
     if (!j.holdings.length) {
       mine.visible = false;
+      if (j.crew?.left) loadCrew();
       say(`<p><b>${esc(label)}</b> holds none of Coinbase's stocks on Base yet.</p><a class="btn primary st-buy" target="_blank" rel="noopener" href="${QUADRA}/?do=basket">＋ Lay your first block on Quadra</a>`);
       return;
     }
     buildMine(label, j.holdings);
+    if (j.crew?.joined || j.crew?.left) loadCrew();
+    const crewMsg = j.crew?.blockies ? `<p>👷 ${j.crew.joined ? 'Joined the Street Crew' : 'On the Street Crew'}: <b>${j.crew.blockies} Block${j.crew.blockies > 1 ? 'ies' : 'y'}</b> building the street${Date.now() - j.crew.since >= 864e5 ? ', citizens for good' : ', citizens after a day of holding'}.</p>` : '<p class="muted">Hold $10 or more of these stocks and your Blockies join the Street Crew.</p>';
     goTo?.(new THREE.Vector3(cx, 2, cz + 1.5));
     const total = j.holdings.reduce((a, h) => a + (h.usd || 0), 0);
     const pct = (h) => (total > 0 && h.usd ? `${Math.round((h.usd / total) * 100)}%` : '');
@@ -318,7 +442,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     if (j.holdings.length > 4) lines.push(`+ ${j.holdings.length - 4} more`);
     const img = baseLive?.shareImage ? await baseLive.shareImage({ kicker: 'MY STOCKS IN BASECITY', title: `${label}, built block by block`, lines }) : null;
     const text = `My stocks on Base, built block by block in BaseCity 📈\n${j.holdings.slice(0, 4).map((h) => `$${h.ticker}`).join(' ')}\n\nWall Street closes at 4pm. Blocky Street doesn't.\n${(CONFIG.siteUrl || 'https://basecity.space').replace(/\/$/, '')}/?street`;
-    say(`<p><b>${esc(label)}</b>'s tower: ${j.holdings.length} stock${j.holdings.length > 1 ? 's' : ''} on Base.</p>${rows}${img ? `<img class="bl-shot" src="${img}" alt=""><div class="bl-btns"><a class="btn" download="basecity-my-stocks.png" href="${img}">Save image</a><a class="btn primary" target="_blank" rel="noopener" href="https://x.com/intent/post?text=${encodeURIComponent(text)}">Share on X</a></div>` : ''}<a class="st-more" target="_blank" rel="noopener" href="${QUADRA}/?do=basket">＋ Add blocks on Quadra</a>`);
+    say(`<p><b>${esc(label)}</b>'s tower: ${j.holdings.length} stock${j.holdings.length > 1 ? 's' : ''} on Base.</p>${crewMsg}${rows}${img ? `<img class="bl-shot" src="${img}" alt=""><div class="bl-btns"><a class="btn" download="basecity-my-stocks.png" href="${img}">Save image</a><a class="btn primary" target="_blank" rel="noopener" href="https://x.com/intent/post?text=${encodeURIComponent(text)}">Share on X</a></div>` : ''}<a class="st-more" target="_blank" rel="noopener" href="${QUADRA}/?do=basket">＋ Add blocks on Quadra</a>`);
   }
   const form = panelEl.querySelector('.st-form');
   form.onsubmit = async (e) => {
@@ -371,6 +495,8 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     // a tap: the tower it hit opens its card (true), or nothing here (false)
     pick(ray) {
       if (!group.visible) return false;
+      const m = ray.intersectObjects(crewHits, false)[0]?.object.userData.crew;
+      if (m) { showCrew(m); return true; }
       const t = ray.intersectObjects(hits, false)[0]?.object.userData.ticker;
       if (!t) return false;
       showCard(t);
