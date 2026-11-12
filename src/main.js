@@ -28,7 +28,7 @@ import { now } from './time.js';
 import { addNames, who, whoHtml, esc } from './names.js';
 import { createCinematic } from './cinematic.js';
 import { watchLive } from './live.js';
-import { openTrade, closeTrade } from './tradedock.js';
+import { openBlocky10, closeBlocky10 } from './tradedock.js';
 
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -286,20 +286,20 @@ const goToStreet = () => {
 };
 $('street-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.close(); goToStreet(); street.togglePanel(); };
 if (qs.has('street')) setTimeout(goToStreet, 2500);
-// the city menu (index.html #citynav): City / Stocks / Live, and the Trade dock (Quadra in a popup, src/tradedock.js)
+// the city menu (index.html #citynav), tabs along the top: City / Stocks / Live / Blocky 10 (src/tradedock.js)
 {
   const nav = $('citynav');
   const mark = (k) => nav.querySelectorAll('.cn-item[data-go]').forEach((b) => b.classList.toggle('on', b.dataset.go === k));
   nav.addEventListener('click', (e) => {
     const b = e.target.closest('.cn-item');
     if (!b) return;
-    if (b.dataset.trade) { openTrade(b.dataset.trade); return; }
-    closeTrade();
+    if (b.dataset.go === 'b10') { openBlocky10(); return; }
+    closeBlocky10();
     if (b.dataset.go === 'city') { directory.close(); builderList.close(); baseLivePanel.close(); street?.closePanel(); street?.closeCard(); mark('city'); }
     if (b.dataset.go === 'stocks') { $('street-btn').click(); mark('stocks'); }
     if (b.dataset.go === 'live') { $('baselive-btn').click(); mark('live'); }
   });
-  if (qs.has('trade')) setTimeout(() => openTrade(qs.get('trade') || 'swap'), 2000); // ?trade=basket: straight to the dock
+  if (qs.has('b10')) setTimeout(openBlocky10, 2000); // ?b10: straight to Blocky 10
 } // ?street: straight to Blocky Street
 const metro = createMetro(city);
 const agents = createAgents(city);

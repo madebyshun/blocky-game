@@ -437,23 +437,22 @@ body.cine .st-card { display: none; }
 .st-more { display: block; margin-top: 10px; color: #0052ff; font-weight: 700; font-size: 12px; }
 body.cine .st-panel { display: none; }
 
-/* ---------- the city menu: a dashboard rail on the left (a bar along the bottom on phones) ---------- */
-.citynav { position: fixed; left: 16px; top: 168px; z-index: 30; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 18px; background: rgba(10, 14, 24, 0.72); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); }
-.cn-item { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 60px; padding: 8px 4px 6px; border: 0; border-radius: 12px; background: transparent; color: #fff; font: 700 10px Inter, sans-serif; cursor: pointer; font-size: 18px; line-height: 1; }
-.cn-item span { font-size: 10px; letter-spacing: 0.01em; opacity: 0.85; }
+/* ---------- the city menu: tabs along the top, centred (the build panel sits under it) ---------- */
+.citynav { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; gap: 2px; padding: 4px; border-radius: 14px; background: rgba(10, 14, 24, 0.72); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); }
+.cn-item { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border: 0; border-radius: 10px; background: transparent; color: #fff; font: 800 13px Inter, sans-serif; cursor: pointer; white-space: nowrap; }
 .cn-item:hover { background: rgba(255, 255, 255, 0.08); }
 .cn-item.on { background: #0052ff; }
-.cn-item.cn-hot { background: rgba(255, 200, 61, 0.16); box-shadow: inset 0 0 0 1px rgba(255, 200, 61, 0.5); }
-.cn-sep { display: block; height: 1px; margin: 4px 8px; background: rgba(255, 255, 255, 0.14); }
+.progress { top: 68px; }
 body.photo .citynav, body.cine .citynav { display: none; }
-@media (max-width: 720px) {
-  .citynav { top: auto; bottom: 64px; left: 50%; transform: translateX(-50%); flex-direction: row; max-width: calc(100vw - 16px); overflow-x: auto; }
-  .cn-item { width: 52px; }
-  .cn-sep { width: 1px; height: auto; margin: 6px 2px; }
+@media (max-width: 900px) {
+  .citynav { top: 62px; }
+  .cn-item { padding: 6px 10px; font-size: 12px; }
+  .progress { top: 110px; }
+  .stats { top: 242px; }
 }
+@media (max-width: 420px) { .cn-item { padding: 6px 8px; gap: 4px; font-size: 11px; } }
 
-
-/* ---------- the Trade dock: BaseCity's popup (runs on Quadra) ---------- */
+/* ---------- Blocky 10: BaseCity's popup ---------- */
 .td-wrap { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(5, 8, 15, 0.35); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
 .td-wrap[hidden] { display: none; }
 .td { width: min(440px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: rgba(255, 255, 255, 0.97); color: #0b1220; border-radius: 22px; padding: 18px; box-shadow: 0 24px 64px rgba(11, 18, 32, 0.35); font: 13px/1.45 Inter, system-ui, sans-serif; }
@@ -490,3 +489,5 @@ body.photo .citynav, body.cine .citynav { display: none; }
 .td-copy { background: #eef1f6 !important; color: #0b1220 !important; border: 0; }
 .td-go { background: #0052ff !important; color: #fff !important; border: 0; text-decoration: none; }
 .td-foot { margin-top: 12px; font-size: 11px; color: #6b7588; }
+.td-soon { margin: 12px 0; padding: 10px 12px; border-radius: 12px; background: #fff7e0; color: #6b4e00; font-size: 12px; }
+@media (max-width: 480px) { .td-b10 { flex-direction: column; } .td-legend { width: 100%; } }
