@@ -1,6 +1,7 @@
 // Vercel serverless function: Blocky Street (src/stocks.js), Coinbase's tokenized stocks on Base.
 //   GET /api/stocks -> { stocks: [{ symbol, ticker, name, address, nav, multiplier, decimals, paused }],
 //                        week: { usd24, n24, usd7, n7, closedShare, hours, tickers: { T: { n24, usd24, n7, usd7 } } },
+//                        weekend: Blue Agent's weekend scorecard ({ call: { rows: [{ ticker, move, call }] } } or null),
 //                        nyse: { open, why, time }, at, errors }
 // Cached 5 minutes by the CDN (30 s while the week is still filling in or something failed).
 import { stockList, readStockHours } from './_stocks.js';
@@ -18,6 +19,25 @@ const store = {
   async set(h, v) { if (useKv()) await kv('HSET', KEY, String(h), JSON.stringify(v)); else memory.set(h, v); },
 };
 
+// Blue Agent's weekend scorecard (free, public): over the weekend, how far each stock's Base DEX price has
+// moved from Friday's frozen Chainlink close, and Blue's call for Monday's open (UP / DOWN / FLAT)
+export const BLUE_WEEKEND = 'https://blueagent.dev/api/x402/weekend-scorecard?weekends=1';
+export async function readWeekend(fetchImpl = fetch) {
+  try {
+    const r = await fetchImpl(BLUE_WEEKEND, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    const call = j.live || j.pending; // live: Saturday to the open (provisional); pending: Blue's Sunday call, waiting for the open
+    const last = j.weekends?.[0];
+    return {
+      call: call ? { friday: call.friday, provisional: !!j.live, rows: (call.rows || []).map((x) => ({ ticker: x.ticker, move: x.weekend_move_pct, call: x.call, dex: x.dex_usd, close: x.close_usd })) } : null,
+      graded: j.summary ? { calls: j.summary.calls, hits: j.summary.hits, ready: j.summary.ready, hitRate: j.summary.hit_rate } : null,
+      lastFriday: last?.friday ?? null,
+      page: j.page || 'https://blueagent.dev/markets/weekend',
+    };
+  } catch { return null; }
+}
+
 let last = null;
 export default async function handler(req, res) {
   const filling = () => last && (last.errors.length || !last.week || last.week.hours < 168);
@@ -25,11 +45,11 @@ export default async function handler(req, res) {
     if (!last || Date.now() - last.at > (filling() ? 25000 : 240000)) {
       const errors = [];
       const list = await stockList();
-      const week = await readStockHours(store, list).catch((e) => { errors.push(String(e.message || e).slice(0, 200)); return null; });
+      const [week, weekend] = await Promise.all([readStockHours(store, list).catch((e) => { errors.push(String(e.message || e).slice(0, 200)); return null; }), readWeekend()]);
       if (week?.errors?.length) errors.push(...week.errors);
       last = {
         stocks: list.map(({ symbol, ticker, name, address, nav, navAt, multiplier, decimals, paused }) => ({ symbol, ticker, name, address, nav, navAt, multiplier, decimals, paused })),
-        week, errors, at: Date.now(),
+        week, weekend, errors, at: Date.now(),
       };
     }
     res.setHeader('cache-control', filling() ? 'public, s-maxage=30' : 'public, s-maxage=300, stale-while-revalidate=600');

@@ -134,7 +134,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       const r = await fetch(`${feed}/stocks`);
       if (!r.ok) return;
       const j = await r.json();
-      S.stocks = j.stocks; S.week = j.week;
+      S.stocks = j.stocks; S.week = j.week; S.weekend = j.weekend || null;
       S.byTicker = new Map((j.stocks || []).map((s) => [s.ticker, s]));
       for (const tw of towers.values()) {
         tw.price = S.byTicker.get(tw.t)?.nav ?? null;
@@ -160,6 +160,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
   // ---------- drawing ----------
   function drawTower(tw) {
     const s = S.byTicker.get(tw.t), w24 = S.week?.tickers?.[tw.t];
+    const wk = !S.nyse.open && S.weekend?.call?.rows?.find((r) => r.ticker === tw.t); // the weekend: Base's price vs Friday's close
     tw.label.userData.draw((g, w, h) => {
       g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
       g.fillStyle = `#${colorOf(tw.t).toString(16).padStart(6, '0')}`; g.fillRect(0, 0, w * 0.06, h);
@@ -168,7 +169,10 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       g.font = `700 ${h * 0.24}px Inter, sans-serif`; g.textAlign = 'right';
       g.fillText(s?.nav ? `$${s.nav >= 100 ? s.nav.toFixed(0) : s.nav.toFixed(2)}` : '—', w * 0.96, h * 0.3);
       g.textAlign = 'left'; g.fillStyle = '#5b6472'; g.font = `600 ${h * 0.2}px Inter, sans-serif`;
-      g.fillText(w24 ? `24h on Base · ${usd(w24.usd24)} · ${w24.n24.toLocaleString('en-US')} moves` : 'on Base · reading…', w * 0.1, h * 0.74);
+      if (wk && Number.isFinite(wk.move)) {
+        g.fillStyle = wk.move >= 0 ? '#16a34a' : '#dc2626'; g.font = `800 ${h * 0.21}px Inter, sans-serif`;
+        g.fillText(`${wk.move >= 0 ? '▲' : '▼'} ${Math.abs(wk.move).toFixed(2)}% on Base this weekend`, w * 0.1, h * 0.74);
+      } else g.fillText(w24 ? `24h on Base · ${usd(w24.usd24)} · ${w24.n24.toLocaleString('en-US')} moves` : 'on Base · reading…', w * 0.1, h * 0.74);
     });
   }
   function drawBoard() {
@@ -193,6 +197,8 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
         g.fillText(`moved while Wall Street was closed`, w * 0.36, h * 0.68);
         g.fillStyle = '#9aa3b2'; g.font = `600 ${h * 0.058}px Inter, sans-serif`;
         g.fillText(`${wk.dayHours >= 24 ? `${usd(wk.usd24)} moved in 24h` : `${usd(wk.usd7)} so far`} · last ${wk.hours >= 168 ? '7 days' : `${wk.hours} h`} · Coinbase's stocks only`, w * 0.05, h * 0.84);
+        const gr = S.weekend?.graded; // Blue Agent's weekend calls, graded at the open
+        if (!ny.open && S.weekend?.call) { g.fillStyle = '#3d7bff'; g.fillText(`Weekend prices on Base vs Friday's close · calls by Blue Agent${gr?.calls ? ` · ${gr.hits}/${gr.calls} right so far` : ''}`, w * 0.05, h * 0.93); }
       } else {
         g.font = `700 ${h * 0.08}px Inter, sans-serif`; g.fillText('Reading Base…', w * 0.05, h * 0.66);
       }
@@ -227,7 +233,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       slowAcc = 0;
       const ny = nyseHours();
       if (S.wasOpen !== null && ny.open !== S.wasOpen) { S.bellAt = t; log(ny.open ? '🔔 Wall Street just opened. Blocky Street never closed.' : '🔔 Wall Street just closed. Blocky Street keeps building.'); }
-      if (ny.open !== S.nyse.open || ny.why !== S.nyse.why || ny.time !== S.nyse.time) { S.nyse = ny; drawBoard(); }
+      if (ny.open !== S.nyse.open || ny.why !== S.nyse.why || ny.time !== S.nyse.time) { const flip = ny.open !== S.nyse.open; S.nyse = ny; if (flip) drawAll(); else drawBoard(); } // the towers read the weekend only while NYSE is shut
       S.wasOpen = ny.open;
     }
     const ring = t - S.bellAt < 4 ? Math.sin((t - S.bellAt) * 14) * 0.35 * (1 - (t - S.bellAt) / 4) : 0;
