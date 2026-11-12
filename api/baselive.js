@@ -4,6 +4,7 @@
 // The CDN keeps an answer for 2 s, so however many people watch, Base's RPC is read about once per
 // block. One instance also keeps the last answer and serves it again within that time.
 import { readBlocks } from './_baselive.js';
+import { stockList } from './_stocks.js';
 
 let last = null; // { at, since, out }
 
@@ -12,7 +13,8 @@ export default async function handler(req, res) {
   res.setHeader('cache-control', 'public, s-maxage=2, stale-while-revalidate=4');
   try {
     if (last && Date.now() - last.at < 1500 && last.since === since) return res.status(200).json(last.out);
-    const out = await readBlocks(since);
+    const stocks = await stockList().catch(() => []); // Coinbase's list, kept an hour: Blocky Street's trades
+    const out = await readBlocks(since, undefined, undefined, stocks);
     last = { at: Date.now(), since, out };
     res.status(200).json(out);
   } catch (e) {

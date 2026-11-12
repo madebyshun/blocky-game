@@ -88,8 +88,23 @@ export function bridgeOf(l) {
   return null;
 }
 
+// stock transfers as { ticker: [n, usd] } (only tickers that moved)
+const ZERO32 = `0x${'0'.repeat(64)}`;
+export function stockMoves(logs, list) {
+  if (!logs.length) return {};
+  const by = new Map(list.map((s) => [s.address, s])), out = {};
+  for (const l of logs) {
+    const s = by.get(l.address.toLowerCase());
+    if (!s || l.topics?.[0] !== T.transfer || l.topics.length !== 3 || l.topics[1] === ZERO32 || l.topics[2] === ZERO32) continue;
+    const r = (out[s.ticker] ||= [0, 0]);
+    r[0] += 1; r[1] += s.nav ? (Number(BigInt(l.data)) / 10 ** s.decimals) * s.multiplier * s.nav : 0;
+  }
+  for (const k in out) out[k][1] = Math.round(out[k][1]);
+  return out;
+}
+
 // one block's summary for the city, from its header and its logs
-export function summarize(block, { usdc = [], swaps = null, names = [], bridge = [], apps = [], tokens = [] } = {}) {
+export function summarize(block, { usdc = [], swaps = null, names = [], bridge = [], apps = [], tokens = [], stockList = [], stockLogs = [] } = {}) {
   const n = num(block.number);
   const mine = (l) => num(l.blockNumber) === n;
   const transfers = usdc.filter(mine).map(usdcOf);
@@ -102,7 +117,8 @@ export function summarize(block, { usdc = [], swaps = null, names = [], bridge =
     gasUsed: num(block.gasUsed),
     // other stablecoins (transfers under $10M, amounts in their own unit) and tokenized stocks (transfers)
     stables: Object.fromEntries(STABLES.map((t) => { const ls = tokens.filter((l) => mine(l) && l.address.toLowerCase() === t.address).map((l) => units(big(l.data), t.decimals)).filter((v) => v < 10e6); return [t.id, { n: ls.length, amt: Math.round(ls.reduce((s, v) => s + v, 0)) }]; })),
-    stocks: Object.fromEntries(STOCKS.map((t) => [t.symbol, tokens.filter((l) => mine(l) && l.address.toLowerCase() === t.address).length])),
+    // Coinbase's tokenized stocks (Blocky Street): per ticker, [transfers, USD at the Chainlink NAV]; mints and burns left out
+    stocks: stockMoves(stockLogs.filter(mine), stockList),
     gas: num(block.gasLimit) ? num(block.gasUsed) / num(block.gasLimit) : 0,
     gwei: num(block.baseFeePerGas) / 1e9,
     // small: transfers under $10M only, the same measure as the hourly flow (readFlow)
@@ -123,7 +139,7 @@ export function summarize(block, { usdc = [], swaps = null, names = [], bridge =
 // the blocks after `since` (at most `max`, newest last), summarized: USDC, swaps, names, bridge deposits.
 // (`max`: on a first call the last 4; after that up to 24, so when Base moves to 200 ms blocks the city
 // still gets every one)
-export async function readBlocks(since, max = Number(since) ? 24 : 4, url = RPC) {
+export async function readBlocks(since, max = Number(since) ? 24 : 4, url = RPC, stockList = []) {
   const [headHex] = await rpc([['eth_blockNumber', []]], url);
   const head = num(headHex), from = Math.max(head - max + 1, (Number(since) || 0) + 1);
   if (from > head) return { head, blocks: [] };
@@ -138,15 +154,16 @@ export async function readBlocks(since, max = Number(since) ? 24 : 4, url = RPC)
       getLogs(from, head, { address: [NAMES, BRIDGE], topics: [[T.name, T.ethIn, T.tokenIn]] }),
       getLogs(from, head, { address: [MORPHO, AAVE] }),
       getLogs(from, head, { address: [...STABLES, ...STOCKS].map((t) => t.address), topics: [T.transfer] }),
+      ...(stockList.length ? [getLogs(from, head, { address: stockList.map((t) => t.address), topics: [T.transfer] })] : []),
     ], url),
     ...chunks.map((c) => rpc(c.map(getBlock), url)),
   ]);
-  const blocks = blockSets.flat(), [usdc, swaps, misc, apps, tokens] = logs;
+  const blocks = blockSets.flat(), [usdc, swaps, misc, apps, tokens, stockLogs = []] = logs;
   const names = misc.filter((l) => l.topics[0] === T.name && l.address.toLowerCase() === NAMES);
   const bridge = misc.filter((l) => l.address.toLowerCase() === BRIDGE);
   return {
     head,
-    blocks: blocks.filter(Boolean).map((b) => summarize(b, { usdc, swaps, names, bridge, apps, tokens })), // swaps: every block now (200 ms blocks hold few)
+    blocks: blocks.filter(Boolean).map((b) => summarize(b, { usdc, swaps, names, bridge, apps, tokens, stockList, stockLogs })), // swaps: every block now (200 ms blocks hold few)
   };
 }
 
