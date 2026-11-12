@@ -281,7 +281,8 @@ export const CONFIG = {
   // from their real transfers; the 12 lots north of Base Live, taken the same way from `from` on
   // (CitySim.openDistrict), so everything the city built before is unchanged
   stocks: { lots: [[-9, -2], [-8, -2], [-7, -2], [-9, -1], [-8, -1], [-7, -1], [-9, 0], [-8, 0], [-7, 0], [-9, 1], [-8, 1], [-7, 1]], from: '2026-11-12T05:00:00Z',
-    towers: ['NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'COIN', 'CRCL'] },
+    // the stocks most traded on Base (24 h DEX volume, Nov 12 2026); COIN has no Coinbase token on Base
+    towers: ['SNDK', 'MSTR', 'SPCX', 'META', 'NVDA', 'AMZN', 'TSLA', 'MSFT'] },
 
   avenue: {
     plots: [

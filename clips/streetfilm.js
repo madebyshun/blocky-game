@@ -16,11 +16,12 @@ import { CONFIG } from '../src/config.js';
 import { PITCH } from '../src/sim.js';
 
 const OPEN_END = 4.5, DUR = 17;
-// Real numbers, read on 2026-11-12 ~05:00 UTC from Base (Coinbase's own tokens, 8 decimals, equity icon;
-// price and 24 h DEX volume as the Base MCP token search reports them). COIN's own token was not found
-// there, so it is left out of the tape and the total.
-const TAPE = [['META', 628.46, 12.43e6], ['NVDA', 162.34, 11.86e6], ['AMZN', 266.33, 10.77e6], ['GOOGL', 295.14, 9.29e6], ['MSFT', 520.77, 8.44e6], ['TSLA', 386.14, 8.21e6], ['AAPL', 355.89, 4.66e6]];
-const TOTAL = TAPE.reduce((a, [, , v]) => a + v, 0); // $65.66M
+// Real numbers, read on 2026-11-12 ~05:30 UTC from Base: Coinbase's own stock tokens (8 decimals, Coinbase's
+// equity icon, 0xb200… addresses), price and 24 h DEX volume as the Base MCP token search reports them. The
+// search can't list all of Coinbase's 300-odd stocks, so the total is the 26 it found trading (the big ones are
+// all there): a floor, said as "$153M+". Fakes and other issuers' wrappers (ST0x) left out.
+const TAPE = [['SNDK', 938.46, 27.20e6], ['MSTR', 117.12, 21.27e6], ['SPCX', 138.69, 13.01e6], ['META', 627.04, 12.81e6], ['NVDA', 162.57, 11.61e6], ['AMZN', 266.38, 10.76e6], ['GOOGL', 294.14, 9.51e6], ['MSFT', 520.38, 8.46e6], ['TSLA', 385.70, 8.41e6], ['MU', 780.62, 8.17e6], ['AMD', 561.51, 5.71e6], ['AAPL', 355.27, 4.82e6], ['PLTR', 168.91, 4.65e6]];
+const TOTAL = 153.47e6; // the 13 above plus ORCL 2.45, NFLX 1.94, HIMS 1.18, SKHY .36, BE .24, AVGO .24, TTWO .16, CRCL .15, INTC .13, MRNA .11, MRVL .08, LITE .03, ARM .01 ($M)
 const AS_OF = 'Nov 12, 2026';
 
 export function start() {
@@ -97,7 +98,7 @@ export function start() {
     <div class="cap" id="c1"><small>NYSE · 16:00 ET</small>Wall Street closed.</div>
     <div class="cap" id="c2"><small>BASE · EVERY 200 MS</small>Blocky Street didn't.</div>
     <div class="ctr" id="ctr"><small>BLOCKS ON BASE SINCE THE BELL</small><b id="ctrn">0</b></div>
-    <div class="big" id="big"><b id="bign">$0</b><span>in tokenized stocks traded on Base in 24h</span><small>7 COINBASE STOCKS · BASE DEXS · ${AS_OF.toUpperCase()}</small></div>
+    <div class="big" id="big"><b id="bign">$0</b><span>in tokenized stocks traded on Base in 24h</span><small>COINBASE STOCKS · BASE DEXS · ${AS_OF.toUpperCase()}</small></div>
     <div class="tag">ON BASE · 24H · ${AS_OF.toUpperCase()}</div>
     <div class="tape"><i id="tape">${[...TAPE, ...TAPE].map(([k, p, v]) => `<b>■</b>${k} $${p.toFixed(2)}<em>$${(v / 1e6).toFixed(1)}M traded</em>`).join('')}</i></div>`;
   document.documentElement.appendChild(ov);
@@ -154,7 +155,7 @@ export function start() {
     ctr.style.opacity = String(cl((t - OPEN_END - 0.3) / 0.3) * cl((13 - t) / 0.3));
     ctrn.textContent = `+${Math.max(0, Math.floor((t - OPEN_END) * 5)).toLocaleString('en-US')}`; // Base's real pace: a block every 200 ms
     const bu = cl((t - 13.3) / 0.3); big.style.opacity = String(bu);
-    bign.textContent = `$${(TOTAL * ease(cl((t - 13.3) / 2.4)) / 1e6).toFixed(1)}M`;
+    const kk = ease(cl((t - 13.3) / 2.4)); bign.textContent = `$${(TOTAL * kk / 1e6).toFixed(kk < 1 ? 1 : 0)}M${kk >= 1 ? '+' : ''}`;
 
     let pos, tgt, fov = 46, focus = 10, ap = 0.0012;
     if (t < 2.6) { // under the arch, up the street to the board: Wall Street still open

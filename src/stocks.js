@@ -42,7 +42,7 @@ function panel(w, h, px = 512) {
 }
 
 // the stocks' own colours
-const COLORS = { NVDA: 0x76b900, TSLA: 0xe31937, AAPL: 0xa3aab4, MSFT: 0x00a4ef, AMZN: 0xff9900, GOOGL: 0x4285f4, META: 0x0467df, COIN: 0x0052ff, CRCL: 0x3d6bf0 };
+const COLORS = { SNDK: 0xd6282d, MSTR: 0xf7931a, SPCX: 0xd9dee6, MU: 0x0a5ab0, AMD: 0x0c8a3e, PLTR: 0x2b2f36, NVDA: 0x76b900, TSLA: 0xe31937, AAPL: 0xa3aab4, MSFT: 0x00a4ef, AMZN: 0xff9900, GOOGL: 0x4285f4, META: 0x0467df, COIN: 0x0052ff, CRCL: 0x3d6bf0 };
 const colorOf = (t) => COLORS[t] ?? 0x8a94a6;
 const compact = (v) => (v >= 1e9 ? `${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${(v / 1e3).toFixed(1)}k` : `${Math.round(v)}`);
 const usd = (v) => `$${compact(v)}`;
