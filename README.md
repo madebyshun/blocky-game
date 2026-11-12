@@ -104,6 +104,7 @@ Environment variables (see `.env.example`):
 | `KV_KEY` | Name of the stored ledger (default `blocky:colony`). A new name starts a fresh city at 0 / 10,000. |
 | `LAUNCH_TIME_MS` | When the city starts from empty land and buys start counting. Default: the first time the API runs. |
 | `BASE_RPC_URL` | Base RPC for receipts, balance checks and the NFT contract (default: the public `mainnet.base.org`, rate limited). |
+| `LOGS_RPC_URL` | RPC for Blocky Street's stock transfers (`eth_getLogs`; default `base-rpc.publicnode.com`). Read 9,000 blocks × 10 addresses a call (`LOGS_SPAN`, `LOGS_ADDRESSES`), since many plans cap getLogs (Alchemy free: 10 blocks). |
 | `NFT_CONTRACT` | The BaseCity Blockies contract (from `/deploy.html`). Claims open when this and `CLAIM_SIGNER_KEY` are set. |
 | `CLAIM_SIGNER_KEY` | Private key that signs claims; its address is the contract's `signer`. Server only, never commit it. |
 | `OPENSEA_API_KEY` / `OPENSEA_SLUG` | Optional: reads the collection's floor and listings on OpenSea for the claim page's suggested prices and low-listing warnings (`src/pricing.js`; slug default `nft.openseaSlug`). Without a key, suggestions use a fixed $15 of ETH. The key also lets holders **list on OpenSea from the claim page** (`src/listing.js`, OpenSea's SDK; `api/opensea.js` relays only BaseCity Blocky listings, at `/api/os/*`, so the key never reaches the browser). |

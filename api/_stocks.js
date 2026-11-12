@@ -9,7 +9,7 @@
 // Fake "…c" tokens abound on Base (even at 0xb200… vanity addresses): only Coinbase's list counts here.
 import { rpc, getLogs, getBlock, T, tOf, blockAtTime, HOUR_MS } from './_baselive.js';
 import { nyseHours } from '../src/nysehours.js';
-import { RPC } from './_store.js';
+import { RPC, env } from './_store.js';
 
 export const COINBASE_STOCKS = 'https://api.coinbase.com/v1/tokenized-stocks';
 const ZERO = '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -58,18 +58,26 @@ export function stockMove(log, byAddress) {
 }
 export const usdOf = (s, units) => (s.nav ? units * s.multiplier * s.nav : 0);
 
-// the hour's logs, in ranges of `size` blocks, several ranges a batch, the batches side by side
-async function hourLogs(from, to, addresses, url, size = 450) {
-  const ranges = [];
-  for (let a = from; a <= to; a += size) ranges.push([a, Math.min(to, a + size - 1)]);
-  const batches = [];
-  for (let i = 0; i < ranges.length; i += 8) batches.push(ranges.slice(i, i + 8));
-  const out = await Promise.all(batches.map((b) => rpc(b.map(([a, z]) => getLogs(a, z, { address: addresses, topics: [T.transfer] })), url)));
-  return out.flat(2);
+// Stock transfers are read from LOGS_RPC_URL: an hour on Base is ~18,000 blocks (200 ms), and many plans
+// cap eth_getLogs far below that (Alchemy's free tier: 10 blocks), so the default is publicnode, which
+// takes 10,000 blocks a call but at most 10 addresses: LOG_SPAN blocks x LOG_GROUP addresses a request.
+export const LOGS_RPC = env.LOGS_RPC_URL || 'https://base-rpc.publicnode.com';
+export const LOG_SPAN = Number(env.LOGS_SPAN || 9000);
+export const LOG_GROUP = Number(env.LOGS_ADDRESSES || 10);
+
+// the hour's logs: every (range, address group) pair, 8 requests a batch, the batches one after another
+export async function hourLogs(from, to, addresses, url = LOGS_RPC, { span = LOG_SPAN, group = LOG_GROUP, rpcImpl = rpc } = {}) {
+  const ranges = [], groups = [];
+  for (let a = from; a <= to; a += span) ranges.push([a, Math.min(to, a + span - 1)]);
+  for (let i = 0; i < addresses.length; i += group) groups.push(addresses.slice(i, i + group));
+  const calls = ranges.flatMap(([a, z]) => groups.map((g) => getLogs(a, z, { address: g, topics: [T.transfer] })));
+  const out = [];
+  for (let i = 0; i < calls.length; i += 8) out.push(...(await rpcImpl(calls.slice(i, i + 8), url)).flat());
+  return out;
 }
 
 export const WEEK = 168;
-export async function readStockHours(store, list, { url = RPC, now = Date.now(), maxNew = 2 } = {}) {
+export async function readStockHours(store, list, { url = RPC, logsUrl = LOGS_RPC, now = Date.now(), maxNew = 2 } = {}) {
   const byAddress = new Map(list.map((s) => [s.address, s]));
   const [top] = await rpc([getBlock('latest')], url);
   const head = parseInt(top.number, 16), headT = tOf(top);
@@ -81,7 +89,7 @@ export async function readStockHours(store, list, { url = RPC, now = Date.now(),
   const errors = [];
   await Promise.all(missing.map(async (h) => {
     try {
-      const logs = await hourLogs(blockAt(h * HOUR_MS), blockAt((h + 1) * HOUR_MS) - 1, list.map((s) => s.address), url);
+      const logs = await hourLogs(blockAt(h * HOUR_MS), blockAt((h + 1) * HOUR_MS) - 1, list.map((s) => s.address), logsUrl);
       const row = {};
       for (const l of logs) {
         const m = stockMove(l, byAddress);

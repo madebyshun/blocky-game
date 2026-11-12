@@ -69,8 +69,8 @@ assert.deepEqual(stockMoves([tlog(NVDA, pad(A), pad(B), 2), tlog(NVDA, ZERO, pad
   await new Promise((r) => server.listen(0, r));
   const url = `http://127.0.0.1:${server.address().port}`;
   const kept = {}, store = { async get(hs) { return Object.fromEntries(hs.filter((h) => kept[h]).map((h) => [h, kept[h]])); }, async set(h, v) { kept[h] = v; } };
-  const w = await readStockHours(store, list, { url, now, maxNew: 2 });
-  assert.ok(ranges.every(([a, z]) => z - a < 450));
+  const w = await readStockHours(store, list, { url, logsUrl: url, now, maxNew: 2 });
+  assert.ok(ranges.every(([a, z]) => z - a < 9000)) // LOG_SPAN;
   assert.equal(Object.keys(kept).length, 2);
   assert.equal(w.tickers.NVDA.n24, 1);
   assert.equal(w.tickers.NVDA.usd24, 1605);
@@ -90,3 +90,16 @@ assert.deepEqual(stockMoves([tlog(NVDA, pad(A), pad(B), 2), tlog(NVDA, ZERO, pad
   server.close();
 }
 console.log('stocks: ok');
+
+// hourLogs: every block range x every group of addresses, so a plan's caps (10,000 blocks, 10 addresses) hold
+{
+  const { hourLogs } = await import('../api/_stocks.js');
+  const seen = [];
+  const rpcImpl = async (calls) => { seen.push(...calls); return calls.map(() => [{ ok: 1 }]); };
+  const addrs = Array.from({ length: 25 }, (_, i) => `0x${String(i).padStart(40, '0')}`);
+  const logs = await hourLogs(0, 17999, addrs, 'x', { span: 9000, group: 10, rpcImpl });
+  assert.equal(seen.length, 6); // 2 ranges x 3 groups
+  assert.ok(seen.every(([, [f]]) => f.address.length <= 10 && parseInt(f.toBlock, 16) - parseInt(f.fromBlock, 16) < 9000));
+  assert.equal(logs.length, 6);
+  console.log('stocks hourLogs: ok');
+}
