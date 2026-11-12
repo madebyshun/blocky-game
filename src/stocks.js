@@ -11,6 +11,7 @@ import { CONFIG } from './config.js';
 import { nyseHours } from './nysehours.js';
 import { esc } from './names.js';
 import { browserWallets, smartWallet, connect } from './wallet.js';
+import { openTrade } from './tradedock.js';
 
 // Quadra (madebyshun/quadra) trades the stocks: `?do=swap&buy=<token>` opens its Swap with the stock picked;
 // the swap goes through Relay and is signed in the visitor's own wallet (Quadra blocks the U.S.)
@@ -433,11 +434,8 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
   panelEl.querySelector('.st-b10-chips').innerHTML = B10.map((t) => `<span class="st-b10-chip"><i class="st-chip" style="background:#${colorOf(t).toString(16).padStart(6, '0')}"></i>${esc(t)}</span>`).join('');
   panelEl.querySelector('.st-b10').hidden = !B10.length;
   panelEl.querySelector('.st-b10-buy').onclick = async () => {
-    let copied = false;
-    try { await navigator.clipboard.writeText(b10Line); copied = true; } catch { /* shown below */ }
-    countGo('city', feed);
-    window.open(quadraBasket, '_blank', 'noopener');
-    say(`<p>🏙 <b>Blocky 10</b> opens in Quadra's Treasury Basket. Its first basket is MAG7: set the rows to the city's 10${copied ? ' (copied for you)' : ''}:</p><p class="st-b10-list">${esc(b10Line)}</p><p class="muted">Then type an amount of USDC: one swap per stock, each into your own wallet. Hold $10+ and your Blockies join the Street Crew.</p>`);
+    try { await navigator.clipboard.writeText(b10Line); } catch { /* the dock has a Copy button */ }
+    openTrade('basket');
   };
 
   // ---------- Bell post: the day on Blocky Street, as an image and a post for X (by hand, no keys here) ----------
@@ -515,6 +513,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
   const card = document.createElement('div');
   card.className = 'bl-panel st-card'; card.hidden = true;
   document.body.appendChild(card);
+  card.addEventListener('click', (e) => { const b = e.target.closest?.('.st-buy[data-buy]'); if (b) openTrade('swap', { buy: b.dataset.buy }, { title: `Add a block: buy ${b.dataset.t}` }); });
   function showCard(t) {
     const s = S.byTicker.get(t), w = S.week?.tickers?.[t], wk = S.weekend?.call?.rows?.find((r) => r.ticker === t);
     const ny = S.nyse, hex = `#${colorOf(t).toString(16).padStart(6, '0')}`;
@@ -528,7 +527,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       ${wk && Number.isFinite(wk.move) ? row("This weekend on Base vs Friday's close", `<span style="color:${wk.move >= 0 ? '#16a34a' : '#dc2626'}">${wk.move >= 0 ? '▲' : '▼'} ${Math.abs(wk.move).toFixed(2)}%</span>${wk.call ? ` · Blue's call: ${esc(wk.call)}` : ''}`) : ''}
       ${row('Wall Street', ny.open ? `open · ${ny.time}` : `closed (${ny.why}) · ${ny.time}`)}
       ${s?.paused?.length ? '<p class="bl-err">Coinbase has paused some features of this stock right now.</p>' : ''}
-      ${s ? `<a class="btn primary st-buy" target="_blank" rel="noopener" data-go="block" href="${quadraBuy(s.address)}">＋ Add a block: buy ${esc(t)} on Quadra</a>` : ''}
+      ${s ? `<button class="btn primary st-buy" data-buy="${esc(s.address)}" data-t="${esc(t)}">＋ Add a block: buy ${esc(t)}</button>` : ''}
       <div class="st-links">
         <a target="_blank" rel="noopener" data-go="basket" href="${quadraBasket}">A basket of stocks (Quadra)</a>
         <a target="_blank" rel="noopener" href="https://blueagent.dev/markets/weekend">Weekend calls (Blue Agent)</a>

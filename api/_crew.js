@@ -37,7 +37,7 @@ export function crewTotals(entries, now = Date.now()) {
 }
 
 // "go" clicks: a visitor leaving BaseCity to buy on Quadra (the kind of link, a counter per kind)
-export const GO_KINDS = ['block', 'basket', 'city'];
+export const GO_KINDS = ['block', 'basket', 'city', 'send', 'bridge', 'launch'];
 
 // the members whose holdings are due a re-read, stalest first
 export const dueForCheck = (entries, now = Date.now(), n = RECHECK_PER_CALL) =>
