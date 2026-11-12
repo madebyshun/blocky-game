@@ -182,7 +182,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       if (wk && Number.isFinite(wk.move)) {
         g.fillStyle = wk.move >= 0 ? '#16a34a' : '#dc2626'; g.font = `800 ${h * 0.21}px Inter, sans-serif`;
         g.fillText(`${wk.move >= 0 ? '▲' : '▼'} ${Math.abs(wk.move).toFixed(2)}% on Base this weekend`, w * 0.1, h * 0.74);
-      } else g.fillText(w24 ? `24h on Base · ${usd(w24.usd24)} · ${w24.n24.toLocaleString('en-US')} moves` : 'on Base · reading…', w * 0.1, h * 0.74);
+      } else g.fillText(w24 ? `24h on Base · ${usd(w24.usd24)} · ${w24.n24.toLocaleString('en-US')} moves` : S.film ? "Coinbase's, on Base" : 'on Base · reading…', w * 0.1, h * 0.74);
     });
   }
   function drawBoard() {
@@ -209,6 +209,9 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
         g.fillText(`${wk.dayHours >= 24 ? `${usd(wk.usd24)} moved in 24h` : `${usd(wk.usd7)} so far`} · last ${wk.hours >= 168 ? '7 days' : `${wk.hours} h`} · Coinbase's stocks only`, w * 0.05, h * 0.84);
         const gr = S.weekend?.graded; // Blue Agent's weekend calls, graded at the open
         if (!ny.open && S.weekend?.call) { g.fillStyle = '#3d7bff'; g.fillText(`Weekend prices on Base vs Friday's close · calls by Blue Agent${gr?.calls ? ` · ${gr.hits}/${gr.calls} right so far` : ''}`, w * 0.05, h * 0.93); }
+      } else if (S.film) { // a film (clips/streetfilm.js): no numbers it hasn't read
+        g.font = `900 ${h * 0.1}px Inter, sans-serif`; g.fillText('Blocky Street never closes.', w * 0.05, h * 0.66);
+        g.fillStyle = '#9aa3b2'; g.font = `600 ${h * 0.058}px Inter, sans-serif`; g.fillText("Coinbase's tokenized stocks on Base, built block by block", w * 0.05, h * 0.82);
       } else {
         g.font = `700 ${h * 0.08}px Inter, sans-serif`; g.fillText('Reading Base…', w * 0.05, h * 0.66);
       }
@@ -219,9 +222,9 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
 
   let started = false, slowAcc = 0;
   function update(t, dt) {
-    group.visible = open();
+    group.visible = !!S.film || open();
     if (!group.visible) return;
-    if (!started) { started = true; load(); setInterval(load, 5 * 60000); }
+    if (!started && !S.film) { started = true; load(); setInterval(load, 5 * 60000); }
     for (const tw of towers.values()) {
       for (let i = tw.falling.length - 1; i >= 0; i--) {
         const f = tw.falling[i], yEnd = slotPos(f.k)[1];
@@ -239,9 +242,9 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     }
     // the bell rings at the open and the close
     slowAcc += dt;
-    if (slowAcc > 2) {
+    if (slowAcc > (S.film ? 0 : 2)) {
       slowAcc = 0;
-      const ny = nyseHours();
+      const ny = S.film?.nyse ?? nyseHours();
       if (S.wasOpen !== null && ny.open !== S.wasOpen) { S.bellAt = t; log(ny.open ? '🔔 Wall Street just opened. Blocky Street never closed.' : '🔔 Wall Street just closed. Blocky Street keeps building.'); }
       if (ny.open !== S.nyse.open || ny.why !== S.nyse.why || ny.time !== S.nyse.time) { const flip = ny.open !== S.nyse.open; S.nyse = ny; if (flip) drawAll(); else drawBoard(); } // the towers read the weekend only while NYSE is shut
       S.wasOpen = ny.open;
@@ -374,6 +377,15 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       return true;
     },
     closeCard() { card.hidden = true; },
+    // a film drives the street (clips/streetfilm.js): its own Wall Street clock, towers built to a height, blocks dropped on cue
+    film: {
+      start() { S.film = { nyse: { open: true, why: null, time: '15:59 ET' } }; S.nyse = S.film.nyse; S.wasOpen = true; drawAll(); },
+      set nyse(ny) { S.film.nyse = ny; },
+      build(t, layers) { const tw = towers.get(t); if (tw) buildTo(tw, layers); },
+      drop(t, after) { const tw = towers.get(t); if (tw) drop(tw, after); },
+      get tickers() { return [...towers.keys()]; },
+      get group() { return group; },
+    },
     togglePanel() { panelEl.hidden = !panelEl.hidden; if (!panelEl.hidden) card.hidden = true; },
     closePanel() { panelEl.hidden = true; },
     get center() { return center; },

@@ -704,7 +704,7 @@ $('card-film').onclick = () => selected && cine.enter(selected.b.id);
 
 // ---------- cinematic mode: a film camera, photos and clips (src/cinematic.js) ----------
 
-if (qs.has('film')) window.__bc = { THREE, scene, renderer, city, traffic, metro, sim: () => sim, views: () => views };
+if (qs.has('film')) window.__bc = { THREE, scene, renderer, city, traffic, metro, street, sim: () => sim, views: () => views };
 const cine = createCinematic({
   renderer, scene, city, controls,
   views: () => views,
