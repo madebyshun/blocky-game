@@ -118,3 +118,20 @@ export function summarize(have, hours, errors = []) {
     tickers: per, errors,
   };
 }
+
+// a wallet's Coinbase stocks: balanceOf on every listed token (batches of 60), as
+// [{ ticker, name, address, units, shares (units x multiplier), usd (shares x NAV) }], biggest first
+export async function readHoldings(address, list, url = RPC) {
+  const data = `0x70a08231${address.slice(2).toLowerCase().padStart(64, '0')}`;
+  const batches = [];
+  for (let i = 0; i < list.length; i += 60) batches.push(list.slice(i, i + 60));
+  const res = (await Promise.all(batches.map((b) => rpc(b.map((s) => ['eth_call', [{ to: s.address, data }, 'latest']]), url)))).flat();
+  const out = [];
+  list.forEach((s, i) => {
+    const raw = res[i] && res[i] !== '0x' ? BigInt(res[i]) : 0n;
+    if (raw === 0n) return;
+    const units = Number(raw) / 10 ** s.decimals, shares = units * s.multiplier;
+    out.push({ ticker: s.ticker, name: s.name, address: s.address, units, shares, usd: s.nav ? shares * s.nav : null });
+  });
+  return out.sort((a, b) => (b.usd ?? 0) - (a.usd ?? 0));
+}

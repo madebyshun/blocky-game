@@ -274,16 +274,16 @@ const goToBaseLive = (close = false) => {
   focus = { x: c.x + (close ? 4 : 0), y: close ? 2 : tall ? 3 : 5, z: c.z, zoom: wideZoom() * (close ? 4.6 : tall ? 2.2 : 3.5), t: 0 };
 };
 const baseLivePanel = createBaseLivePanel({ baseLive, goTo: goToBaseLive, dashboard: () => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); } });
-$('baselive-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.toggle(); };
+$('baselive-btn').onclick = () => { directory.close(); builderList.close(); street?.closePanel(); baseLivePanel.toggle(); };
 if (qs.has('baselive')) setTimeout(() => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); }, 2500); // ?baselive: straight into the Dashboard view
 // 📈 Blocky Street: Coinbase's stocks on Base, a tower each, built by their transfers (src/stocks.js)
-const street = createBlockyStreet(city, { baseLive, open: () => !!sim?.stOpen && city.land >= 9, log: (html) => log(html) });
+const street = createBlockyStreet(city, { baseLive, open: () => !!sim?.stOpen && city.land >= 9, log: (html) => log(html), goTo: (c) => { following = false; goHome = false; controls.autoRotate = false; focus = { x: c.x, y: 3, z: c.z, zoom: wideZoom() * 4.2, t: 0 }; } });
 const goToStreet = () => {
   const c = street.center;
   following = false; goHome = false; controls.autoRotate = false;
   focus = { x: c.x, y: 4, z: c.z, zoom: wideZoom() * (innerWidth < innerHeight ? 2.4 : 3.6), t: 0 };
 };
-$('street-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.close(); goToStreet(); };
+$('street-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.close(); goToStreet(); street.togglePanel(); };
 if (qs.has('street')) setTimeout(goToStreet, 2500); // ?street: straight to Blocky Street
 const metro = createMetro(city);
 const agents = createAgents(city);

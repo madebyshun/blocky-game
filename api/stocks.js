@@ -3,8 +3,10 @@
 //                        week: { usd24, n24, usd7, n7, closedShare, hours, tickers: { T: { n24, usd24, n7, usd7 } } },
 //                        weekend: Blue Agent's weekend scorecard ({ call: { rows: [{ ticker, move, call }] } } or null),
 //                        nyse: { open, why, time }, at, errors }
+//   GET /api/stocks?wallet=0x…|name.base.eth -> { address, name, holdings: [{ ticker, name, address, units, shares, usd }] }
 // Cached 5 minutes by the CDN (30 s while the week is still filling in or something failed).
-import { stockList, readStockHours } from './_stocks.js';
+import { stockList, readStockHours, readHoldings } from './_stocks.js';
+import { addressOf, namesFor, cleanName } from './_names.js';
 import { nyseHours } from '../src/nysehours.js';
 import { useKv, kv, KEY_BASE } from './_store.js';
 
@@ -40,6 +42,28 @@ export async function readWeekend(fetchImpl = fetch) {
 
 let last = null;
 export default async function handler(req, res) {
+  // ?wallet=0x…|name.base.eth: that wallet's Coinbase stocks (Blocky Street's "your stocks, block by block")
+  let who = String(req.query?.wallet ?? new URL(req.url, 'http://x').searchParams.get('wallet') ?? '').trim().toLowerCase();
+  if (who) {
+    try {
+      if (!who.startsWith('0x') && !who.includes('.')) who = `${who}.base.eth`;
+      let address = /^0x[0-9a-f]{40}$/.test(who) ? who : null, name = null;
+      if (!address) {
+        name = cleanName(who);
+        if (!name) return res.status(400).json({ error: 'Paste a 0x address or a name.base.eth' });
+        address = await addressOf(name);
+        if (!address) return res.status(404).json({ error: `${name} doesn't point to a wallet on Base` });
+      } else {
+        try { name = (await namesFor([address]))[address] || null; } catch { /* no name */ }
+      }
+      const holdings = await readHoldings(address.toLowerCase(), await stockList());
+      res.setHeader('cache-control', 'public, s-maxage=60');
+      return res.status(200).json({ address: address.toLowerCase(), name, holdings });
+    } catch (e) {
+      res.setHeader('cache-control', 'no-store');
+      return res.status(502).json({ error: String(e.message || e) });
+    }
+  }
   const filling = () => last && (last.errors.length || !last.week || last.week.hours < 168);
   try {
     if (!last || Date.now() - last.at > (filling() ? 25000 : 240000)) {

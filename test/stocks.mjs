@@ -1,7 +1,7 @@
 // Blocky Street's data: Coinbase's stock list, stock transfers, NYSE hours, the hourly week.
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { parseStocks, stockList, summarize, readStockHours } from '../api/_stocks.js';
+import { parseStocks, stockList, summarize, readStockHours, readHoldings } from '../api/_stocks.js';
 import { stockMoves, T, DENIM, HOUR_MS } from '../api/_baselive.js';
 import { nyseHours } from '../src/nysehours.js';
 
@@ -74,6 +74,19 @@ assert.deepEqual(stockMoves([tlog(NVDA, pad(A), pad(B), 2), tlog(NVDA, ZERO, pad
   assert.equal(Object.keys(kept).length, 2);
   assert.equal(w.tickers.NVDA.n24, 1);
   assert.equal(w.tickers.NVDA.usd24, 1605);
+  server.close();
+}
+// a wallet's stocks: balanceOf on each, units x multiplier x NAV, biggest first, zero balances left out
+{
+  const server = http.createServer(async (req, res) => {
+    let body = ''; for await (const c of req) body += c;
+    const q = JSON.parse(body);
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(q.map((x) => ({ jsonrpc: '2.0', id: x.id, result: x.params[0].to === NVDA ? amt(2) : x.params[0].to === TSLA ? amt(10) : '0x' }))));
+  });
+  await new Promise((r) => server.listen(0, r));
+  const h = await readHoldings(A, list, `http://127.0.0.1:${server.address().port}`);
+  assert.deepEqual(h.map((x) => [x.ticker, +x.shares.toFixed(3), Math.round(x.usd)]), [['TSLA', 10.004, 3862], ['NVDA', 2, 321]]);
   server.close();
 }
 console.log('stocks: ok');
