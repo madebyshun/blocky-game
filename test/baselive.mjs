@@ -92,7 +92,7 @@ assert.equal(live.blocks[1].bridge.length, 1);
 assert.deepEqual((await readBlocks(HEAD, 4, url)).blocks, []); // nothing new
 assert.equal((await readBlocks(0, 4, url)).blocks.length, 4); // first call: the last 4
 
-const hour = await readHour(url, DENIM.t - 10 * HOUR_MS); // before Denim: 2 s blocks, 1,800 an hour
+const hour = await readHour(url, DENIM.t - 10 * HOUR_MS, url); // before Denim: 2 s blocks, 1,800 an hour
 assert.deepEqual(hour.names, { n: 2, last: ['jessesp.base.eth', 'jessesp.base.eth'] });
 assert.equal(hour.bridge.n, 1);
 assert.equal(hour.bridge.eth, 0.412);
@@ -104,8 +104,8 @@ assert.equal(blockAtTime(DENIM.t + HOUR_MS), DENIM.block + 18000);
 assert.equal(blockAtTime(DENIM.t - HOUR_MS), DENIM.block - 1800);
 assert.equal(blockAtTime(DENIM.t + HOUR_MS, DENIM.block + 18000 + 50, DENIM.t + HOUR_MS + 10000), DENIM.block + 18000);
 assert.equal(tOf({ timestamp: '0x6aecc423', timestampMs: '0x1a1acde28b8' }), 1793901603000);
-// the hour's logs are read in ranges of at most 450 blocks (RPC plans cap eth_getLogs)
-assert.ok(ranges.length === 4 && ranges.every(([a, b]) => parseInt(b, 16) - parseInt(a, 16) < 450), JSON.stringify(ranges));
+// the hour's logs are read in ranges of at most LOG_SPAN (9,000) blocks: 1,800 blocks before Denim, one range per filter
+assert.ok(ranges.length === 1 && ranges.every(([a, b]) => parseInt(b, 16) - parseInt(a, 16) < 9000), JSON.stringify(ranges));
 assert.equal(parseInt(ranges[0][0], 16), HEAD - 1799);
 assert.equal(parseInt(ranges.at(-1)[1], 16), HEAD);
 

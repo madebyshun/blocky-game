@@ -3,7 +3,7 @@
 // real blocks (test/baselive.mjs); the routes are api/baselive.js, api/basestats.js, api/basetx.js
 // and api/baseme.js. Every number comes from Base's RPC (BASE_RPC_URL), except TVL (DefiLlama).
 
-import { RPC } from './_store.js';
+import { RPC, env } from './_store.js';
 import { cleanName } from './_names.js';
 import { bankHours } from '../src/bankhours.js';
 import { CONFIG } from '../src/config.js';
@@ -180,22 +180,29 @@ export function blockAtTime(t, n = DENIM.block, nT = DENIM.t) {
   return Math.round(n + toD(t) - toD(nT));
 }
 export const HOUR_BLOCKS = 1800; // 2 s blocks (before Denim; readHour works it out from the time)
-export const LOG_RANGE = 450; // blocks per eth_getLogs: many RPC plans cap the range (often at 500)
+// Logs over many blocks come from LOGS_RPC_URL: an hour on Base is ~18,000 blocks (200 ms) and many plans
+// cap eth_getLogs far below that (Alchemy's free tier: 10 blocks). The default, publicnode, takes 10,000
+// blocks and 10 addresses a call. Blocky Street (api/_stocks.js) reads its stock transfers the same way.
+export const LOGS_RPC = env.LOGS_RPC_URL || 'https://base-rpc.publicnode.com';
+export const LOG_SPAN = Number(env.LOGS_SPAN || 9000);
+export const LOG_GROUP = Number(env.LOGS_ADDRESSES || 10);
+export const LOG_RANGE = LOG_SPAN;
 // logs over [from, to] in ranges of LOG_RANGE blocks, a few ranges per batch
-// (if the RPC still refuses, smaller ranges: 100 blocks)
-async function logsOver(from, to, filter, url, size = LOG_RANGE) {
+// (if the RPC still refuses, smaller ranges: 2,000 then 450 blocks)
+async function logsOver(from, to, filter, url = LOGS_RPC, size = LOG_RANGE) {
   const ranges = [];
   for (let a = from; a <= to; a += size) ranges.push([a, Math.min(to, a + size - 1)]);
   const out = [];
   try {
     for (let i = 0; i < ranges.length; i += 4) out.push(...(await rpc(ranges.slice(i, i + 4).map(([a, b]) => getLogs(a, b, filter)), url)).flat());
   } catch (e) {
-    if (size > 100) return logsOver(from, to, filter, url, 100);
+    if (size > 2000) return logsOver(from, to, filter, url, 2000);
+    if (size > 450) return logsOver(from, to, filter, url, 450);
     throw e;
   }
   return out;
 }
-export async function readHour(url = RPC, now = Date.now()) {
+export async function readHour(url = RPC, now = Date.now(), logsUrl = LOGS_RPC) {
   // each part on its own, so one that fails (a limit, a timeout) leaves the others: null where it
   // failed, and why in `errors` (open /api/basestats to see it)
   const errors = {};
@@ -205,8 +212,8 @@ export async function readHour(url = RPC, now = Date.now()) {
   const span = Math.max(1, head - blockAtTime(now - HOUR_MS, head, now)), from = head - span + 1; // an hour of blocks
   const samples = Array.from({ length: 12 }, (_, i) => head - Math.round((i * span) / 12));
   const [names, bridge, blocks] = await Promise.all([
-    part('names', logsOver(from, head, { address: NAMES, topics: [T.name] }, url)),
-    part('bridge', logsOver(from, head, { address: BRIDGE, topics: [[T.ethIn, T.tokenIn]] }, url)),
+    part('names', logsOver(from, head, { address: NAMES, topics: [T.name] }, logsUrl)),
+    part('bridge', logsOver(from, head, { address: BRIDGE, topics: [[T.ethIn, T.tokenIn]] }, logsUrl)),
     part('blocks', Promise.all([0, 4, 8].map((i) => rpc(samples.slice(i, i + 4).map(getBlock), url))).then((x) => x.flat())),
   ]);
   const deposits = bridge ? bridge.map(bridgeOf).filter(Boolean) : null;

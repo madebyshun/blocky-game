@@ -7,9 +7,9 @@
 //                        `store`; a few hours per call, so a cold start fills in over calls.
 // The tokens are B20 with 8 decimals; one token is not one share: `multiplier` (dividends, splits) converts.
 // Fake "…c" tokens abound on Base (even at 0xb200… vanity addresses): only Coinbase's list counts here.
-import { rpc, getLogs, getBlock, T, tOf, blockAtTime, HOUR_MS } from './_baselive.js';
+import { rpc, getLogs, getBlock, T, tOf, blockAtTime, HOUR_MS, LOGS_RPC, LOG_SPAN, LOG_GROUP } from './_baselive.js';
 import { nyseHours } from '../src/nysehours.js';
-import { RPC, env } from './_store.js';
+import { RPC } from './_store.js';
 
 export const COINBASE_STOCKS = 'https://api.coinbase.com/v1/tokenized-stocks';
 const ZERO = '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -61,9 +61,7 @@ export const usdOf = (s, units) => (s.nav ? units * s.multiplier * s.nav : 0);
 // Stock transfers are read from LOGS_RPC_URL: an hour on Base is ~18,000 blocks (200 ms), and many plans
 // cap eth_getLogs far below that (Alchemy's free tier: 10 blocks), so the default is publicnode, which
 // takes 10,000 blocks a call but at most 10 addresses: LOG_SPAN blocks x LOG_GROUP addresses a request.
-export const LOGS_RPC = env.LOGS_RPC_URL || 'https://base-rpc.publicnode.com';
-export const LOG_SPAN = Number(env.LOGS_SPAN || 9000);
-export const LOG_GROUP = Number(env.LOGS_ADDRESSES || 10);
+export { LOGS_RPC, LOG_SPAN, LOG_GROUP };
 
 // the hour's logs: every (range, address group) pair, 8 requests a batch, the batches one after another
 export async function hourLogs(from, to, addresses, url = LOGS_RPC, { span = LOG_SPAN, group = LOG_GROUP, rpcImpl = rpc } = {}) {
