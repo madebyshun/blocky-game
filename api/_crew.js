@@ -20,8 +20,24 @@ export function crewEntry(prev, { address, name, holdings }, now = Date.now()) {
     checked: now,
     tickers: holdings.filter((h) => h.usd > 0).slice(0, 3).map((h) => h.ticker),
     blockies: Math.min(CREW_PER_WALLET, Math.floor(usd / CREW_USD)),
+    usd: Math.round(usd), // server only: crewView never sends it; crewTotals sums it, rounded
   };
 }
+
+// the whole crew, for the board and the pitch: wallets, Blockies, citizens, and what they hold in all
+// (rounded to $100, so no one wallet can be read back out of it)
+export function crewTotals(entries, now = Date.now()) {
+  const usd = entries.reduce((a, e) => a + (e.usd || 0), 0);
+  return {
+    wallets: entries.length,
+    blockies: entries.reduce((a, e) => a + e.blockies, 0),
+    citizens: entries.filter((e) => now - e.since >= CITIZEN_MS).length,
+    usd: entries.length >= 3 ? Math.round(usd / 100) * 100 : null,
+  };
+}
+
+// "go" clicks: a visitor leaving BaseCity to buy on Quadra (the kind of link, a counter per kind)
+export const GO_KINDS = ['block', 'basket', 'city'];
 
 // the members whose holdings are due a re-read, stalest first
 export const dueForCheck = (entries, now = Date.now(), n = RECHECK_PER_CALL) =>

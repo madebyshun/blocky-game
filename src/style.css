@@ -428,6 +428,11 @@ body.cine .bl-layer, body.cine .bl-panel { display: none; }
 .st-links { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; } .st-links a { color: #0052ff; }
 .st-note { color: #8a94a6; font-size: 11px; margin: 10px 0 0; }
 .st-crew-line { color: #c9d0db; font-size: 12px; margin: 10px 0 0; line-height: 1.45; }
+.st-b10 { margin-top: 12px; }
+.st-b10-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 8px; }
+.st-b10-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: rgba(127,127,127,0.12); }
+.st-b10-buy, .st-bell { width: 100%; margin-top: 4px; }
+.st-b10-list { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; background: rgba(127,127,127,0.1); padding: 8px; border-radius: 8px; word-break: break-word; }
 body.cine .st-card { display: none; }
 .st-more { display: block; margin-top: 10px; color: #0052ff; font-weight: 700; font-size: 12px; }
 body.cine .st-panel { display: none; }

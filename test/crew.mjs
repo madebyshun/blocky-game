@@ -21,3 +21,13 @@ assert.equal(crewView([{ ...e, name: null }])[0].label, '0x1234…5678');
 const old = { ...e, a: '0xb', checked: 0 }, fresh = { ...e, checked: RECHECK_MS };
 assert.deepEqual(dueForCheck([fresh, old], RECHECK_MS).map((x) => x.a), ['0xb']);
 console.log('crew ok');
+
+// totals: summed and rounded to $100, and only once there are 3 wallets (no one wallet read back out)
+{
+  const { crewTotals } = await import('../api/_crew.js');
+  const m = (usd, since = 0) => crewEntry(null, { address: `0x${usd}`, holdings: H(usd) }, since);
+  assert.equal(crewTotals([m(40), m(60)], 1).usd, null);
+  const t = crewTotals([m(40), m(60), m(1234)], CITIZEN_MS);
+  assert.deepEqual(t, { wallets: 3, blockies: 4 + 5 + 5, citizens: 3, usd: 1300 });
+  console.log('crew totals ok');
+}

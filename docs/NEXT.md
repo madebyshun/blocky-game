@@ -24,6 +24,20 @@ Blue Agent (`madebyshun/blue-agent`, blueagent.dev).
   Builders), `denimfilm.js` (Denim), `streetfilm.js` (Blocky Street launch: hook, real ticker tape, block counter,
   $153M+ total as of Nov 12). Render scripts live in the session scratchpad (Playwright + swiftshader + ffmpeg).
 
+- **Street Crew** (`api/_crew.js`, `src/stocks.js`): a wallet looked up on Blocky Street holding $10+ of Coinbase
+  stocks joins the crew (KV `stocks:crew:v1`): a Blocky per $10 (max 5) in its top stock's hard hat, carrying blocks to
+  that tower; held a day = citizen (gold hat); re-read every 6 h, under $10 leaves. `?crewdemo` for clips.
+- **Blocky 10** (`CONFIG.stocks.blocky10`): the city's 10-stock basket in the 📈 panel; "Buy the city" copies the
+  list and opens Quadra's Treasury Basket (`?do=basket&ref=basecity`; Quadra doesn't read basket picks from the URL
+  yet, so its MAG7 preset shows first: a Quadra change would make it one click).
+- **Traction counters**: every Quadra link carries `ref=basecity` and is counted (`/api/stocks?go=block|basket|city`,
+  KV `stocks:go:v1`); `/api/stocks?crew` returns `totals` (wallets, Blockies, citizens, USD held rounded to $100,
+  only from 3 wallets) and `go` counts: the numbers for the Stocks Maxxing submission.
+- **Bell post** (📣 in the panel, and a link in the city log at the open/close bell): image + X post text with the
+  day's real numbers, posted by hand (no X keys in the app).
+- **getLogs fix**: the prod RPC plan caps eth_getLogs at 10 blocks; Blocky Street's hours and Base Live's hour now
+  read logs from `LOGS_RPC_URL` (default publicnode: 9,000 blocks x 10 addresses a call).
+
 ## To check first
 
 1. Blocky Street live on prod (`basecity.space/?street`): land ≥ 9, `/api/stocks` answering (Coinbase API reachable

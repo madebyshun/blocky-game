@@ -9,7 +9,7 @@ import { stockList, readStockHours, readHoldings } from './_stocks.js';
 import { addressOf, namesFor, cleanName } from './_names.js';
 import { nyseHours } from '../src/nysehours.js';
 import { useKv, kv, KEY_BASE } from './_store.js';
-import { crewEntry, crewView, dueForCheck } from './_crew.js';
+import { crewEntry, crewView, crewTotals, dueForCheck, GO_KINDS } from './_crew.js';
 
 const KEY = `${KEY_BASE}:stocks:hours:v1`;
 const memory = new Map();
@@ -58,6 +58,19 @@ const crewStore = {
     if (e) await kv('HSET', CREW_KEY, a, JSON.stringify(e)); else await kv('HDEL', CREW_KEY, a);
   },
 };
+// clicks out to Quadra from BaseCity, per kind (GO_KINDS), for the board and the pitch
+const GO_KEY = `${KEY_BASE}:stocks:go:v1`;
+const goMemory = new Map();
+async function goCount(kind) {
+  if (!useKv()) { goMemory.set(kind, (goMemory.get(kind) || 0) + 1); return; }
+  await kv('HINCRBY', GO_KEY, kind, 1);
+}
+async function goCounts() {
+  if (!useKv()) return Object.fromEntries(GO_KINDS.map((k) => [k, goMemory.get(k) || 0]));
+  const vals = (await kv('HMGET', GO_KEY, ...GO_KINDS)) || [];
+  return Object.fromEntries(GO_KINDS.map((k, i) => [k, Number(vals[i] || 0)]));
+}
+
 async function crewUpdate(address, name, holdings) {
   const prev = await crewStore.get(address);
   const e = crewEntry(prev, { address, name, holdings });
@@ -69,6 +82,12 @@ let last = null;
 export default async function handler(req, res) {
   // ?wallet=0x…|name.base.eth: that wallet's Coinbase stocks (Blocky Street's "your stocks, block by block")
   const q = req.query ?? Object.fromEntries(new URL(req.url, 'http://x').searchParams);
+  // ?go=block|basket|city: a click out to Quadra (sent with sendBeacon, so a POST works too)
+  if (q.go !== undefined) {
+    if (GO_KINDS.includes(String(q.go))) { try { await goCount(String(q.go)); } catch { /* not counted */ } }
+    res.setHeader('cache-control', 'no-store');
+    return res.status(204).end();
+  }
   // ?crew: the Street Crew; a few members' holdings are read again each call (sell under $10 and they leave)
   if (q.crew !== undefined) {
     try {
@@ -82,7 +101,9 @@ export default async function handler(req, res) {
         entries = await crewStore.all();
       }
       res.setHeader('cache-control', 'public, s-maxage=60');
-      return res.status(200).json({ crew: crewView(entries) });
+      let go = null;
+      try { go = await goCounts(); } catch { /* no counts */ }
+      return res.status(200).json({ crew: crewView(entries), totals: crewTotals(entries), go });
     } catch (e) {
       res.setHeader('cache-control', 'no-store');
       return res.status(502).json({ error: String(e.message || e) });

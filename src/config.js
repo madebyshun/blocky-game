@@ -282,7 +282,10 @@ export const CONFIG = {
   // (CitySim.openDistrict), so everything the city built before is unchanged
   stocks: { lots: [[-9, -2], [-8, -2], [-7, -2], [-9, -1], [-8, -1], [-7, -1], [-9, 0], [-8, 0], [-7, 0], [-9, 1], [-8, 1], [-7, 1]], from: '2026-11-12T05:00:00Z',
     // the stocks most traded on Base (24 h DEX volume, Nov 12 2026); COIN has no Coinbase token on Base
-    towers: ['SNDK', 'MSTR', 'SPCX', 'META', 'NVDA', 'AMZN', 'TSLA', 'MSFT'] },
+    towers: ['SNDK', 'MSTR', 'SPCX', 'META', 'NVDA', 'AMZN', 'TSLA', 'MSFT'],
+    // Blocky 10: the city's basket, 10% each: Blocky Street's 8 towers plus Apple and Alphabet.
+    // "Buy the city" opens Quadra's Treasury Basket (each stock lands in the buyer's own wallet)
+    blocky10: ['NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'MSTR', 'SNDK', 'SPCX'] },
 
   avenue: {
     plots: [
