@@ -280,7 +280,7 @@ export const CONFIG = {
   // Blocky Street (src/stocks.js): Coinbase's tokenized stocks on Base, a tower each, built block by block
   // from their real transfers; the 12 lots north of Base Live, taken the same way from `from` on
   // (CitySim.openDistrict), so everything the city built before is unchanged
-  stocks: { lots: [[-9, -2], [-8, -2], [-7, -2], [-9, -1], [-8, -1], [-7, -1], [-9, 0], [-8, 0], [-7, 0], [-9, 1], [-8, 1], [-7, 1]], from: '2026-11-13T00:00:00Z',
+  stocks: { lots: [[-9, -2], [-8, -2], [-7, -2], [-9, -1], [-8, -1], [-7, -1], [-9, 0], [-8, 0], [-7, 0], [-9, 1], [-8, 1], [-7, 1]], from: '2026-11-12T05:00:00Z',
     towers: ['NVDA', 'TSLA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META', 'COIN', 'CRCL'] },
 
   avenue: {
