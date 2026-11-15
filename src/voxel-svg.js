@@ -51,8 +51,8 @@ function face(world, normal, material) {
 const depthAt = (f, x, y) => f.z0 - (f.nx * (x - f.x0) + f.ny * (y - f.y0)) / f.nz;
 
 // Every visible face of the Blocky, turned and tilted like its portrait.
-function faces(b) {
-  const { group } = buildBlocky(b, { merge: false });
+function faces(b, stockTrait = null) {
+  const { group } = buildBlocky(b, { merge: false, stockTrait });
   group.scale.setScalar(1);
   group.rotation.y = TURN;
   group.updateMatrixWorld(true);
@@ -148,8 +148,9 @@ function paintOrder(list) {
 const RARITY_TAG = { uncommon: 'UNCOMMON', rare: 'RARE', legendary: 'LEGENDARY' };
 
 // size: pixels of the square image. label: the Blocky's number and rarity in the corners.
-export function blockySvg(b, { size = 1024, label = true } = {}) {
-  const list = paintOrder(faces(b));
+// stockTrait: an optional STOCK_TRAITS key (src/stocktraits.js) worn over its normal look.
+export function blockySvg(b, { size = 1024, label = true, stockTrait = null } = {}) {
+  const list = paintOrder(faces(b, stockTrait));
   const pts = list.flatMap((f) => f.pts);
   const top = Math.max(...pts.map((p) => p[1])) + 0.06, bottom = 0.34 * Math.cos(TILT);
   const halfW = Math.max(...pts.filter((p) => p[1] > bottom).map((p) => Math.abs(p[0]))) + 0.06;

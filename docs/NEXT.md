@@ -38,6 +38,17 @@ Blue Agent (`madebyshun/blue-agent`, blueagent.dev).
 - **getLogs fix**: the prod RPC plan caps eth_getLogs at 10 blocks; Blocky Street's hours and Base Live's hour now
   read logs from `LOGS_RPC_URL` (default publicnode: 9,000 blocks x 10 addresses a call).
 
+
+- **Blocky Agent** (`src/blockyagent.js`, `api/agent.js`, `api/blueagent.js`, `docs/BLOCKY-AGENT.md`): hold time now **1 hour**
+  (`citizenDays: 1/24`). A claimed citizen can switch its agent on (wallet-signed message, no gas), then run paid jobs
+  against Blue Agent's x402 API — NVDAc quote, drift screen, stock movers. Ownership gate reads `ownerOf`, with the ledger
+  as fallback while the contract isn't readable. NFT metadata gains `Agent` / `Jobs done` / `USDC earned`; the builder card
+  shows a green agent row. Jobs go out on Blue Agent's free tier until `BLUE_PAYER_KEY` / `BLUE_PAYER_ADDRESS` are set.
+- **IPO Day** (`src/ipoday.js`, `api/ipoday.js`): a stock Coinbase lists after BaseCity's first snapshot gets a crane on
+  Blocky Street for a day. The first run seeds silently (`isSeeding`) so 358 existing stocks don't put 358 cranes up.
+- **Find me** (`src/findme.js`): paste a wallet / Basename in the city header → its Blockies, camera follows the one you pick.
+- **Weekly** (`weekly.html`, `src/weekly.js`): the city's week, same replay as the daily recap, seven days at a time.
+
 ## To check first
 
 1. Blocky Street live on prod (`basecity.space/?street`): land ≥ 9, `/api/stocks` answering (Coinbase API reachable

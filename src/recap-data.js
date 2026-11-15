@@ -58,6 +58,68 @@ export function recapOf(state, n, now = Date.now()) {
   return s;
 }
 
+// ---------- the week: seven days of the city in one page (src/weekly.js, /weekly) ----------
+export const WEEK = 7 * DAY;
+
+// Which week `n` covers: week 1 is the city's first 7 days. `weeks` is how many have started.
+export function weekCount(start, now = Date.now()) { return Math.max(1, Math.ceil((now - start) / WEEK)); }
+export const defaultWeek = (weeks) => Math.max(1, weeks - 1); // the last full one
+
+// One week replayed at once: the same numbers a day's recap shows, but summed, plus the week's own
+// highlights (the stock streak, the biggest buy, the busiest builder).
+export function weeklyOf(state, n, now = Date.now()) {
+  const r = replay(state);
+  const t0 = r.start + (n - 1) * WEEK, t1 = Math.min(r.start + n * WEEK, now);
+  const { sim, blockies } = r;
+  const here = (b, t) => b.arrivedAt <= t && !(b.leftAt <= t);
+  const before = blockies.filter((b) => b.arrivedAt < t0 && !(b.leftAt <= t0)).length;
+  const after = blockies.filter((b) => here(b, t1)).length;
+  const arrived = blockies.filter((b) => b.arrivedAt >= t0 && b.arrivedAt < t1);
+  const left = blockies.filter((b) => b.leftAt >= t0 && b.leftAt < t1);
+  sim.advance(t0);
+  const standing0 = sim.buildingCount;
+  sim.advance(t1);
+  const done = sim.done.filter((p) => p.at >= t0 && p.at < t1);
+  const best = arrived.filter((b) => b.rarity.id !== 'common').sort((a, b) => RANK[a.rarity.id] - RANK[b.rarity.id] || a.id - b.id);
+  const workers = blockies.filter((b) => !reserved(b) && here(b, t1)).map((b) => [b, sim.blocksBy(b, t1) - sim.blocksBy(b, Math.max(t0, b.arrivedAt))]).sort((a, b) => b[1] - a[1]);
+  const days = Math.max(1, Math.round((Math.min(now, t1) - t0) / DAY));
+  const s = {
+    n, t0, t1, live: t1 < r.start + n * WEEK, start: r.start, days,
+    inCity: after, net: after - before, arrived, left,
+    buildings: sim.buildingCount, built: sim.buildingCount - standing0,
+    rebuilt: done.filter((p) => p.rebuilds).length,
+    everBuilt: builtCount(sim, t1),
+    builtToday: builtCount(sim, t1) - builtCount(sim, t0),
+    blocks: sim.workAt(t1) - sim.workAt(t0), totalBlocks: sim.workAt(t1),
+    landmarks: done.filter((p) => p.kind === 'landmark' || p.kind === 'metro'),
+    whales: done.filter((p) => p.kind === 'wonder'),
+    land: done.filter((p) => p.kind === 'expand'),
+    legendary: arrived.filter((b) => b.rarity.id === 'legendary').length,
+    rare: arrived.filter((b) => b.rarity.id === 'rare').length,
+    stars: best.slice(0, 6), mvp: workers[0]?.[1] > 0 ? workers[0] : null,
+    bought: state?.boughtUsd ?? 0,
+  };
+  s.lines = [
+    ...s.whales.map((p) => `${p.build === 'fountain' ? '⛲' : '🏙️'} ${p.whale.tier || 'Whale Fountain'} for ${who(p.whale.from, 20)} (${usd(p.whale.usd)})`),
+    ...[...s.landmarks].sort((a, b) => Boolean(b.brand) - Boolean(a.brand)).map((p) => `🏛️ ${p.name}`),
+    ...s.land.map((p) => `🌍 ${p.name}`),
+  ];
+  return s;
+}
+
+// the post for X: a week, with the days it covers
+export function weeklyPost(s, link) {
+  const when = new Date(s.t0).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${CONFIG.cityName}: Week ${s.n}${s.live ? ' so far' : ''} 🏙 (from ${when})\n\n`
+    + `🧱 ${fmt(s.inCity)} Blockies in the city (${plus(s.net)} this week)\n`
+    + `🏢 ${fmt(s.everBuilt)} buildings built (${plus(s.builtToday)} this week)\n`
+    + `🧱 ${fmt(s.blocks)} blocks placed this week\n`
+    + (s.landmarks.length ? `🏛️ ${s.landmarks.map((p) => p.name).join(', ')}\n` : '')
+    + (s.whales.length ? `🐋 ${s.whales.length} whale build${s.whales.length > 1 ? 's' : ''}\n` : '')
+    + (s.legendary || s.rare ? `✨ ${[s.legendary && `${s.legendary} Legendary`, s.rare && `${s.rare} Rare`].filter(Boolean).join(', ')} arrived\n` : '')
+    + `🚶 ${fmt(s.left.length)} walked out\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
+}
+
 // what the city's buildings did today, for the stat under Buildings: grew, and/or rebuilt bigger
 const rebuiltNote = (s) => (!s.rebuilt ? '' : s.rebuilt >= s.builtToday ? 'all rebuilt bigger' : `${fmt(s.rebuilt)} of them rebuilt bigger`);
 export const buildingNote = (s) => [`${plus(s.builtToday)} today`, rebuiltNote(s)].filter(Boolean).join(' · ');

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { hash, PITCH } from './sim.js';
+import { dressStock } from './stocktraits.js';
 
 const BOX = new THREE.BoxGeometry(1, 1, 1);
 const MATS = new Map();
@@ -753,7 +754,9 @@ function finish(g, legs, arms, body = BODY) { mergeParts(g, body); for (const p 
 // One Blocky: a little builder in a safety vest, dressed for its role.
 // Returns the group plus the parts that animate (legs, arms) and the block it carries.
 // merge: false keeps every box separate (the SVG renderer reads them one by one).
-export function buildBlocky(b, { merge = true } = {}) {
+// stockTrait: an optional key of STOCK_TRAITS (docs/STOCK-NFTS-IDEAS.md, A. Ticker Traits),
+// drawn as an accessory over the Blocky's normal look.
+export function buildBlocky(b, { merge = true, stockTrait = null } = {}) {
   const g = new THREE.Group();
   g.scale.setScalar(0.95);
   const role = b.role.id;
@@ -790,6 +793,7 @@ export function buildBlocky(b, { merge = true } = {}) {
   if (look || uniform) {
     if (look) look.dress(g, arms); else tierUniform(g, tier === 'whale' ? 'whale' : 'base', hair, !!b.legend);
     if (b.trait) applyTrait(g, arms, b, skin);
+    if (stockTrait) dressStock(g, arms, stockTrait, B, mat);
     if (merge) finish(g, legs, arms, b.legend ? BODY_GRAIN : BODY);
     const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
     carry.visible = false;
@@ -801,7 +805,8 @@ export function buildBlocky(b, { merge = true } = {}) {
 
   const hardHat = (c) => { B(g, 0.5, 0.16, 0.5, c, 0, 1.2); B(g, 0.56, 0.04, 0.62, c, 0, 1.2, 0.04); };
   const cap = (c, back = false) => { B(g, 0.46, 0.13, 0.46, c, 0, 1.2); B(g, 0.4, 0.04, 0.24, c, 0, 1.2, back ? -0.32 : 0.32); };
-  switch (role) {
+  // a stock trait wears the head: the role hat stays off so the accessory reads clearly
+  if (!stockTrait) switch (role) {
     case 'founder':
       cap(b.role.hat);
       B(g, 0.12, 0.12, 0.04, 0xf4c542, 0, 1.24, 0.24, 0xa07000);
@@ -835,8 +840,8 @@ export function buildBlocky(b, { merge = true } = {}) {
   }
 
   if (b.trait) applyTrait(g, arms, b, skin);
-  if (merge) finish(g, legs, arms);
-  const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
+  if (stockTrait) dressStock(g, arms, stockTrait, B, mat);
+  if (merge) finish(g, legs, arms);  const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
   carry.visible = false;
   return { group: g, legs, arms, carry };
 }

@@ -17,7 +17,7 @@ export const CONFIG = {
   // (MAX_SUPPLY in the contract): first come, first claimed. Lower either any time; never raise them
   // after launch. (UNLOCK_USD / CITIZEN_DAYS on the API override them.)
   unlockUsd: 0,
-  citizenDays: 0.25, // 6 hours
+  citizenDays: 1 / 24, // 1 hour
   supply: 10000, // must match MAX_SUPPLY on the API
   whaleUsd: 1000, // a single buy this big also builds something with the buyer's name (WHALE_USD on the API)
   // What a whale buy builds, by its size: the biggest tier it reaches. It goes up next, named after the

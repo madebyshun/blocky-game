@@ -12,6 +12,7 @@ const PAGES = [
   ['vote', '/vote.html', 'Vote'],
   ['builders', '/builders.html', 'Builders'],
   ['recap', '/recap.html', 'Recap'],
+  ['weekly', '/weekly.html', 'Weekly'],
   ['about', '/about.html', 'About'],
 ];
 export const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '');

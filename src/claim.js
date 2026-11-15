@@ -1,7 +1,7 @@
 // The claim page: connect the wallet that bought $BLOCKY, see its Blockies, claim its citizens as NFTs
 // (a Blocky is a newcomer for its first `citizenDays` days in the city). The API signs what the ledger
 // says the wallet owns; the wallet sends the claim and pays the gas.
-import { encodeFunctionData, getAddress, isAddress } from 'viem';
+import { encodeFunctionData, getAddress, isAddress, toHex } from 'viem';
 import { CONFIG, holdText } from './config.js';
 import { CLAIM_ABI } from '../api/_sig.js';
 import { makeBlocky, TRAIT_LABEL } from './sim.js';
@@ -10,6 +10,7 @@ import { browserWallets, onWallets, smartWallet, connect, sendTx, waitTx, reject
 import { PRICING } from './pricing.js';
 import { mountSite, fmt, basescan, opensea, esc, nftInfo } from './site.js';
 import { fetchColony } from './data.js';
+import { AGENT_JOBS, loadAgentState, activateAgent, deactivateAgent, runJob } from './blockyagent.js';
 
 mountSite('claim');
 const $ = (id) => document.getElementById(id);
@@ -145,6 +146,7 @@ async function show(address) {
     $('who').href = basescan(`address/${j.address}`);
     mine = j;
     render(j);
+    refreshAgent().catch(() => {});
   } catch (e) {
     mine = null;
     render(null);
@@ -261,6 +263,93 @@ async function claim() {
   }
 }
 $('claim').onclick = claim;
+
+// ---------- Blocky Agent (src/blockyagent.js, api/agent.js) ----------
+// Only a claimed Blocky can switch its agent on: the NFT is the proof of citizenship, and the server
+// re-reads ownerOf on every call, so selling it switches the agent off with it.
+const AG = { state: null, running: null, log: [], errors: {} };
+
+const signAgent = async (message) => {
+  if (!provider || !account) throw new Error('Connect the wallet that holds this Blocky');
+  return provider.request({ method: 'personal_sign', params: [toHex(message), account] });
+};
+
+function agentHtml() {
+  const claimedIds = (mine?.blockies || []).filter((x) => x.claimed).map((x) => x.n);
+  if (!claimedIds.length) return '<p class="agent-empty">Claim a Blocky first: only a citizen NFT can become an agent.</p>';
+  const st = AG.state;
+  const row = (n) => {
+    const a = st?.agents?.[n];
+    const on = Boolean(a?.active);
+    const busy = AG.running === n;
+    const err = AG.errors[n];
+    const out = AG.log.filter((l) => l.n === n).slice(-1)[0];
+    return `<div class="agent-row${on ? ' on' : ''}">
+      <div class="agent-n"><b>Blocky #${n}</b>${on ? '<span class="agent-dot">● agent on</span>' : ''}</div>
+      ${on ? `<div class="agent-stats"><span>${fmt(a.jobsDone)} job${a.jobsDone === 1 ? '' : 's'}</span><span>${a.earnedUsdc ? `$${a.earnedUsdc.toFixed(4)} earned` : 'nothing earned yet'}</span></div>` : ''}
+      <div class="agent-acts">
+        ${on ? AGENT_JOBS.map((j) => `<button class="btn small" type="button" data-run="${j.id}" data-n="${n}"${busy ? ' disabled' : ''}>▶ ${esc(j.title)} <small>$${j.price.toFixed(2)}</small></button>`).join('') : ''}
+        <button class="btn ${on ? '' : 'primary'} small" type="button" data-toggle="${on ? 'off' : 'on'}" data-n="${n}"${busy ? ' disabled' : ''}>${on ? 'Switch off' : 'Activate agent'}</button>
+      </div>
+      ${busy ? '<p class="agent-out">Running the job…</p>' : out ? `<div class="agent-out"><b>${esc(out.title)}</b><pre>${esc(out.text)}</pre></div>` : ''}
+      ${err ? `<p class="agent-out bad">${esc(err)}</p>` : ''}
+    </div>`;
+  };
+  return claimedIds.map(row).join('');
+}
+
+function renderAgent() {
+  const el = $('agent');
+  if (!el) return;
+  const claimed = (mine?.blockies || []).filter((x) => x.claimed);
+  el.hidden = !claimed.length;
+  if (!claimed.length) return;
+  $('agent-list').innerHTML = agentHtml();
+  const t = AG.state?.totals;
+  $('agent-tot').innerHTML = t?.active ? `${fmt(t.active)} agent${t.active === 1 ? '' : 's'} on · ${fmt(t.jobsDone)} job${t.jobsDone === 1 ? '' : 's'}` : '';
+  $('agent-foot').innerHTML = AG.state?.paid
+    ? 'Jobs are paid in USDC to your wallet by Blue Agent. BaseCity relays the call and holds no funds.'
+    : "Jobs run on Blue Agent's free tier right now, so results are delivered but not paid. USDC payouts switch on when BaseCity's x402 payer is configured.";
+}
+
+async function refreshAgent() {
+  if (!viewing) return;
+  AG.state = await loadAgentState(viewing);
+  renderAgent();
+}
+
+document.addEventListener('click', async (e) => {
+  const tgl = e.target.closest?.('[data-toggle]');
+  const run = e.target.closest?.('[data-run]');
+  if (!tgl && !run) return;
+  const n = Number((tgl || run).dataset.n);
+  if (!Number.isInteger(n)) return;
+  AG.errors[n] = '';
+  try {
+    if (tgl) {
+      const on = tgl.dataset.toggle === 'on';
+      AG.running = n; renderAgent();
+      await (on ? activateAgent({ address: account, tokenId: n, sign: signAgent }) : deactivateAgent({ address: account, tokenId: n, sign: signAgent }));
+      AG.running = null;
+      await refreshAgent();
+      return;
+    }
+    const jobId = run.dataset.run;
+    const spec = AGENT_JOBS.find((j) => j.id === jobId);
+    AG.running = n; renderAgent();
+    const out = await runJob({ address: account, tokenId: n, jobId });
+    const text = typeof out.result === 'string' ? out.result : JSON.stringify(out.result, null, 2);
+    AG.log = [...AG.log.filter((l) => l.n !== n), { n, title: spec?.title || jobId, text: text.slice(0, 4000) }];
+    AG.running = null;
+    await refreshAgent();
+  } catch (err) {
+    AG.running = null;
+    AG.errors[n] = err.paymentRequired
+      ? 'This job needs an x402 payment from your wallet, which the page does not sign yet. The server call is ready; it pays once BaseCity has an x402 payer configured.'
+      : (err.shortMessage || err.message || String(err));
+    renderAgent();
+  }
+});
 
 (async () => {
   onWallets(renderWallets);

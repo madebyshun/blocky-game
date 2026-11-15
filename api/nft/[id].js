@@ -10,7 +10,7 @@
 import { CONFIG, holdText } from '../../src/config.js';
 import { cityCrew, makeBlocky, makeFounder, CitySim, TRAIT_LABEL } from '../../src/sim.js';
 import { blockySvg } from '../../src/voxel-svg.js';
-import { loadLedger, LEDGER, SITE, RESERVE } from '../_store.js';
+import { loadLedger, LEDGER, SITE, RESERVE, useKv, kv, KEY_BASE } from '../_store.js';
 import { teamOrigin } from '../../src/ledger.js';
 
 const NFT = CONFIG.nft;
@@ -38,7 +38,7 @@ async function city() {
 const short = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : 'a buyer');
 const siteOf = (req) => SITE || `https://${req.headers['x-forwarded-host'] || req.headers.host}`;
 
-function metadata(b, sim, site, openedAt, grants) {
+function metadata(b, sim, site, openedAt, grants, agent = null) {
   const now = Date.now();
   const here = !Number.isFinite(b.leftAt);
   const citizenAt = Math.max(b.arrivedAt + LEDGER.citizenDays * 86400e3, openedAt); // Infinity until trading opens
@@ -52,6 +52,13 @@ function metadata(b, sim, site, openedAt, grants) {
     { trait_type: 'Blocks placed', value: blocks, display_type: 'number' },
     { trait_type: 'Arrived', value: Math.floor(b.arrivedAt / 1000), display_type: 'date' },
     ...(here && Number.isFinite(citizenAt) ? [{ trait_type: 'Citizen since', value: Math.floor(citizenAt / 1000), display_type: 'date' }] : []),
+    // Blocky Agent (src/blockyagent.js): a citizen that takes paid jobs on Base and earns USDC
+    ...(agent?.active ? [
+      { trait_type: 'Agent', value: 'On' },
+      { trait_type: 'Jobs done', value: agent.jobsDone || 0, display_type: 'number' },
+      { trait_type: 'USDC earned', value: +(agent.earnedUsdc || 0).toFixed(6), display_type: 'number' },
+      { trait_type: 'Agent since', value: Math.floor((agent.since || Date.now()) / 1000), display_type: 'date' },
+    ] : []),
   ];
   return {
     name: b.name,
@@ -105,7 +112,10 @@ export default async function handler(req, res) {
       return svg(blockySvg(b), v != null && v === String(b.seed ?? 0)); // the portrait never changes once it has its seed
     }
     res.setHeader('cache-control', 'public, s-maxage=60, stale-while-revalidate=600');
-    res.status(200).json(metadata(b, sim, site, openedAt, grants));
+    // the agent state, if this Blocky has one: metadata says "Agent On", jobs done, USDC earned
+    let agent = null;
+    if (useKv()) { try { const v = await kv('HGET', `${KEY_BASE}:agent:v1`, String(n)); if (v) agent = JSON.parse(v); } catch { /* no agent */ } }
+    res.status(200).json(metadata(b, sim, site, openedAt, grants, agent));
   } catch (e) {
     console.warn('[nft]', e.message);
     res.status(502).json({ error: String(e.message || e) });

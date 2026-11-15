@@ -30,6 +30,10 @@
       "destination": "/recap.html"
     },
     {
+      "source": "/weekly",
+      "destination": "/weekly.html"
+    },
+    {
       "source": "/dash",
       "destination": "/dash.html"
     },

@@ -140,8 +140,67 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     tw.falling.push({ k, y: y0, vy: 0, after });
   }
 
+  // ---------- IPO Day: a crane on an empty lot for a stock Coinbase just listed ----------
+  // src/ipoday.js says which listings are fresh; the crane is render only (nothing in the sim changes).
+  // It stands on the street's spare lots, south of the arch, and comes down after a day.
+  const ipoG = new THREE.Group(); group.add(ipoG);
+  const ipoCranes = new Map(); // ticker -> { g, label }
+  function craneSlot(i) { return [(i % 2 ? 1 : -1) * (W / 4 + 0.9), D / 2 - 3.6 - Math.floor(i / 2) * 4.4]; }
+  function makeCrane(t, s, i) {
+    const g = new THREE.Group(); const [x, z] = craneSlot(i); g.position.set(x, 0, z); ipoG.add(g);
+    const c = colorOf(t);
+    box(g, 3.0, 0.35, 3.0, 0xc9ced8, 0, 0.17, 0); // the pad
+    box(g, 0.34, 7.4, 0.34, 0xffb200, 0, 3.8, 0); // the mast
+    for (let k = 0; k < 9; k++) box(g, 0.42, 0.1, 0.42, 0x2b313b, 0, 0.6 + k * 0.78, 0); // its rungs
+    box(g, 5.2, 0.26, 0.26, 0xffb200, 1.5, 7.3, 0); // the jib
+    box(g, 1.5, 0.22, 0.22, 0x2b313b, -1.4, 7.3, 0); // the counter-jib
+    box(g, 0.7, 0.5, 0.7, 0x2b313b, -2.1, 6.95, 0); // the counterweight
+    box(g, 0.06, 3.6, 0.06, 0x4a5160, 3.4, 5.5, 0); // the hoist cable
+    const load = box(g, 0.7, 0.7, 0.7, c, 3.4, 3.2, 0); load.userData.craneLoad = true; // the first block, in the stock's colour
+    const label = panel(3.0, 1.05); label.position.set(0, 9.1, 0); g.add(label);
+    label.userData.draw((gg, w, h) => {
+      gg.fillStyle = '#0a0e18'; gg.fillRect(0, 0, w, h);
+      gg.fillStyle = `#${c.toString(16).padStart(6, '0')}`; gg.fillRect(0, 0, w, h * 0.14);
+      gg.fillStyle = '#fff'; gg.textAlign = 'center'; gg.textBaseline = 'middle';
+      gg.font = `900 ${h * 0.42}px Inter, sans-serif`; gg.fillText('IPO DAY', w / 2, h * 0.44);
+      gg.fillStyle = `#${c.toString(16).padStart(6, '0')}`; gg.font = `800 ${h * 0.3}px Inter, sans-serif`; gg.fillText(t, w / 2, h * 0.8);
+    });
+    const hit = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ visible: false }));
+    hit.scale.set(3.6, 10, 3.6); hit.position.y = 5; hit.userData.ipo = { t, s }; g.add(hit); ipoHits.push(hit);
+    return { g, label, load, t, s };
+  }
+  const ipoHits = [];
+  const MAX_CRANES = 4; // at most four lots wear a crane; a burst of listings queues instead of paving the street
+  function syncIpos(live) {
+    const want = (live || []).slice(0, MAX_CRANES); // newest first (the API sorts them)
+    const keep = new Set(want.map((s) => s.ticker));
+    for (const [t, c] of ipoCranes) if (!keep.has(t)) { ipoG.remove(c.g); ipoCranes.delete(t); }
+    let i = ipoCranes.size;
+    for (const s of want) {
+      if (ipoCranes.has(s.ticker)) continue;
+      ipoCranes.set(s.ticker, makeCrane(s.ticker, s, i++));
+      log(`🔔 <b>IPO DAY:</b> ${esc(s.name || s.ticker)} just listed on Base. A crane is up on Blocky Street`);
+    }
+  }
+  // ?ipodemo: a sample IPO, for clips and for seeing the crane when no stock listed today (never
+  // mixed with the real one, the same way ?crewdemo works for the Street Crew)
+  const IPO_DEMO = new URLSearchParams(location.search).has('ipodemo') ? [
+    { ticker: 'PLTR', name: 'Palantir Technologies', address: null, nav: 180.5, firstSeenAt: Date.now() - 36e5 },
+  ] : null;
+  async function loadIpos() {
+    if (IPO_DEMO) { syncIpos(IPO_DEMO); return; }
+    try {
+      const r = await fetch(`${feed}/ipoday`);
+      if (!r.ok) return;
+      const j = await r.json();
+      S.ipos = j;
+      // only what the API announced is an IPO: a first snapshot seeds silently, so no 300 cranes
+      syncIpos((j.stocks || []).filter((s) => (j.live || []).includes(s.ticker)));
+    } catch { /* no cranes today */ }
+  }
+
   // ---------- the feed ----------
-  const S = { stocks: null, week: null, nyse: nyseHours(), byTicker: new Map(), bellAt: -9, wasOpen: null, live: { n: 0, usd: 0, closedUsd: 0 } };
+  const S = { stocks: null, week: null, nyse: nyseHours(), byTicker: new Map(), bellAt: -9, wasOpen: null, live: { n: 0, usd: 0, closedUsd: 0 }, ipos: null };
   async function load() {
     try {
       const r = await fetch(`${feed}/stocks`);
@@ -227,7 +286,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
   function update(t, dt) {
     group.visible = !!S.film || open();
     if (!group.visible) return;
-    if (!started && !S.film) { started = true; load(); setInterval(load, 5 * 60000); }
+    if (!started && !S.film) { started = true; load(); setInterval(load, 5 * 60000); loadIpos(); setInterval(loadIpos, 10 * 60000); }
     if (!C.started) { C.started = true; loadCrew(); setInterval(loadCrew, 2 * 60000); } // a film gets its crew too (?crewdemo)
     updateCrew(dt);
     for (const tw of towers.values()) {
@@ -530,6 +589,21 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     card.hidden = false; panelEl.hidden = true;
   }
 
+  // a fresh listing's card: what it is, when BaseCity saw it first, and a link to the token
+  function showIpo({ t, s }) {
+    const hex = `#${colorOf(t).toString(16).padStart(6, '0')}`;
+    const seen = s?.firstSeenAt ? new Date(s.firstSeenAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' }) : 'just now';
+    card.innerHTML = `
+      <div class="bl-ph"><i class="st-chip" style="background:${hex}"></i><b>${esc(t)}</b><span class="st-name">${esc(s?.name || '')}</span><button class="bl-x" title="Close">✕</button></div>
+      <p class="bl-sub">🔔 <b>IPO Day.</b> Coinbase listed ${esc(s?.name || t)} on Base and BaseCity had never seen it: the crane is up on Blocky Street, and every transfer from today builds its tower, block by block.</p>
+      <div class="st-row"><span>First seen in BaseCity</span><b>${esc(seen)}</b></div>
+      ${s?.nav ? `<div class="st-row"><span>Reference price (Chainlink NAV)</span><b>$${s.nav.toFixed(2)}</b></div>` : ''}
+      ${s?.address ? `<a class="st-more" target="_blank" rel="noopener" href="https://basescan.org/token/${esc(s.address)}">${esc(t)} on Basescan ↗</a>` : ''}
+      <p class="st-note">Tokenized stocks aren't offered in the U.S. Not financial advice.</p>`;
+    card.querySelector('.bl-x').onclick = () => (card.hidden = true);
+    card.hidden = false; panelEl.hidden = true;
+  }
+
   return {
     update,
     // a tap: the tower it hit opens its card (true), or nothing here (false)
@@ -537,6 +611,8 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       if (!group.visible) return false;
       const m = ray.intersectObjects(crewHits, false)[0]?.object.userData.crew;
       if (m) { showCrew(m); return true; }
+      const ipo = ray.intersectObjects(ipoHits, false)[0]?.object.userData.ipo;
+      if (ipo) { showIpo(ipo); return true; }
       const t = ray.intersectObjects(hits, false)[0]?.object.userData.ticker;
       if (!t) return false;
       showCard(t);

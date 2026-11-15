@@ -29,6 +29,8 @@ import { addNames, who, whoHtml, esc } from './names.js';
 import { createCinematic } from './cinematic.js';
 import { watchLive } from './live.js';
 import { openBlocky10, closeBlocky10 } from './tradedock.js';
+import { createIpoDay } from './ipoday.js';
+import { createFindMe } from './findme.js';
 
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -241,8 +243,23 @@ const builderList = createBuilderList({
   here: (id) => views.has(id),
   onPick: (b) => { const v = views.get(b.id); if (v) { builderList.close(); select(v, true); } }, // the card opens and the camera follows them
 });
-$('dir-btn').onclick = () => { builderList.close(); directory.toggle(); };
-$('bld-btn').onclick = () => { directory.close(); builderList.toggle(); };
+// Find yourself (src/findme.js): paste a wallet or Basename, pick one of its Blockies, the camera finds it.
+// A Blocky the view cap has off screen is drawn on demand so it can be followed at once.
+const findMe = createFindMe({
+  onPick: (b) => {
+    const target = crew.find((x) => x.id === b.id && x.kind === 'blocky');
+    if (!target || !inCity(target)) return;
+    findMe.close();
+    draw(target);
+    const v = views.get(b.id);
+    if (!v) return;
+    select(v, true); // before syncViews, so the view cap keeps it
+    syncViews();
+  },
+});
+$('dir-btn').onclick = () => { builderList.close(); findMe.close(); directory.toggle(); };
+$('bld-btn').onclick = () => { directory.close(); findMe.close(); builderList.toggle(); };
+$('find-btn').onclick = () => { directory.close(); builderList.close(); findMe.toggle(); };
 // the directory opens right under the brand block (title, tagline, chips, its button), however tall it is
 const brandEl = document.querySelector('.brand');
 const placeDir = () => document.documentElement.style.setProperty('--brand-bottom', `${Math.ceil(brandEl.getBoundingClientRect().bottom)}px`);
@@ -286,6 +303,27 @@ const goToStreet = () => {
 };
 $('street-btn').onclick = () => { directory.close(); builderList.close(); baseLivePanel.close(); goToStreet(); street.togglePanel(); };
 if (qs.has('street')) setTimeout(goToStreet, 2500);
+
+// Blocky Agents (api/agent.js): which citizens have their agent on, so their card can say what it does
+async function loadAgents() {
+  try {
+    const r = await fetch('/api/agent?all');
+    if (!r.ok) return;
+    const j = await r.json();
+    AGENTS.clear();
+    for (const [id, a] of Object.entries(j.agents || {})) AGENTS.set(Number(id), a);
+    if (selected) renderCard();
+  } catch { /* no agents today */ }
+}
+loadAgents();
+setInterval(loadAgents, 5 * 60000);
+
+// IPO Day (src/ipoday.js): the stocks Coinbase just listed, and the crane Blocky Street put up for each
+const ipo = createIpoDay({ feed: '/api', log: (html) => log(html) });
+const ipoBtn = $('ipo-btn');
+ipo.load().then(() => { ipoBtn.hidden = !ipo.live.length; if (ipo.live.length) ipoBtn.title = `IPO Day: ${ipo.live.map((s) => s.ticker).join(', ')} just listed on Base`; });
+setInterval(() => ipo.load().then(() => { ipoBtn.hidden = !ipo.live.length; }), 10 * 60000);
+ipoBtn.onclick = () => { directory.close(); builderList.close(); baseLivePanel.close(); street.closePanel(); ipo.toggle(); };
 // the city menu (index.html #citynav), tabs along the top: City / Stocks / Live / Blocky 10 (src/tradedock.js)
 {
   const nav = $('citynav');
@@ -343,6 +381,7 @@ let cityStart = 0;
 const crew = []; // every builder in arrival order: the founder, the Base Builders, then Blocky #1, #2, ...
 const byId = new Map();
 const views = new Map(); // id -> BuilderView; only some builders are drawn, every one of them builds
+const AGENTS = new Map(); // Blocky id -> agent state (src/blockyagent.js), for the builder card
 const OG = 10; // the first Blockies stay in view for good
 let minted = 0; // Blockies in the city now
 let known = 0; // Blockies the API has told us about (some may still be on the airship)
@@ -699,6 +738,11 @@ function renderCard() {
   $('card-joined').textContent = `${ago(b.arrivedAt)}${b.kind !== 'blocky' ? '' : left <= 0 ? ' · citizen' : !openedAt ? ' · NFT soon' : ` · citizen in ${left > 3600e3 ? `${Math.ceil(left / 3600e3)}h` : `${Math.ceil(left / 60e3)}m`}`}`;
   const team = b.kind === 'blocky' && b.id <= (CONFIG.nft.reserve?.count || 0) && b.from === CONFIG.nft.reserve.wallet.toLowerCase();
   $('card-by').textContent = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : team ? `Team reserve (${who(b.from)})` : b.from ? who(b.from, 28) : '—';
+  // Blocky Agent (api/agent.js): a citizen NFT whose agent is on shows what it has done
+  const ag = AGENTS.get(b.id);
+  const agRow = $('card-agent'), agKey = $('card-agent-k');
+  agRow.hidden = agKey.hidden = !ag;
+  if (ag) agRow.innerHTML = `<b style="color:#2ee87a">● on</b> · ${fmt(ag.jobsDone || 0)} job${ag.jobsDone === 1 ? '' : 's'}${ag.earnedUsdc ? ` · $${ag.earnedUsdc.toFixed(4)} earned` : ''}`;
   $('card-follow').textContent = following ? 'Unfollow' : 'Follow';
   $('card-nft').hidden = b.kind !== 'blocky';
   $('card-nft').href = `/collection.html#${b.id}`;

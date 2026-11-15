@@ -502,7 +502,13 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     const from = stars.length && Math.random() < 0.6 ? stars : pool;
     return from[Math.floor(Math.random() * from.length)];
   }
+  // ?caption=gm%20basecity... replaces the title for meme clips (the subtitle stays)
+  const CAPTION = new URLSearchParams(location.search).get('caption');
   function caption(shot, subject, s) {
+    const [t, sub] = autoCaption(shot, subject, s);
+    return CAPTION ? [CAPTION, sub] : [t, sub];
+  }
+  function autoCaption(shot, subject, s) {
     if (shot.caption) return shot.caption(s, subject);
     if (shot.subject && subject) {
       const b = subject.b;
