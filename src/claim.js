@@ -11,6 +11,7 @@ import { PRICING } from './pricing.js';
 import { mountSite, fmt, basescan, opensea, esc, nftInfo } from './site.js';
 import { fetchColony } from './data.js';
 import { AGENT_JOBS, loadAgentState, activateAgent, deactivateAgent, runJob } from './blockyagent.js';
+import { providerSigner } from './x402.js';
 
 mountSite('claim');
 const $ = (id) => document.getElementById(id);
@@ -307,9 +308,7 @@ function renderAgent() {
   $('agent-list').innerHTML = agentHtml();
   const t = AG.state?.totals;
   $('agent-tot').innerHTML = t?.active ? `${fmt(t.active)} agent${t.active === 1 ? '' : 's'} on · ${fmt(t.jobsDone)} job${t.jobsDone === 1 ? '' : 's'}` : '';
-  $('agent-foot').innerHTML = AG.state?.paid
-    ? 'Jobs are paid in USDC to your wallet by Blue Agent. BaseCity relays the call and holds no funds.'
-    : "Jobs run on Blue Agent's free tier right now, so results are delivered but not paid. USDC payouts switch on when BaseCity's x402 payer is configured.";
+  $('agent-foot').textContent = 'Each job costs a few cents of USDC on Base, signed in your own wallet and paid straight to Blue Agent. BaseCity relays the call and never holds your funds.';
 }
 
 async function refreshAgent() {
@@ -337,16 +336,18 @@ document.addEventListener('click', async (e) => {
     const jobId = run.dataset.run;
     const spec = AGENT_JOBS.find((j) => j.id === jobId);
     AG.running = n; renderAgent();
-    const out = await runJob({ address: account, tokenId: n, jobId });
+    // the wallet signs the x402 USDC payment when the job asks for one (src/x402.js): two prompts at
+    // most, and the USDC goes straight from this wallet to Blue Agent's payTo address
+    const out = await runJob({ address: account, tokenId: n, jobId, signTypedData: providerSigner(provider, account) });
     const text = typeof out.result === 'string' ? out.result : JSON.stringify(out.result, null, 2);
     AG.log = [...AG.log.filter((l) => l.n !== n), { n, title: spec?.title || jobId, text: text.slice(0, 4000) }];
     AG.running = null;
     await refreshAgent();
   } catch (err) {
     AG.running = null;
-    AG.errors[n] = err.paymentRequired
-      ? 'This job needs an x402 payment from your wallet, which the page does not sign yet. The server call is ready; it pays once BaseCity has an x402 payer configured.'
-      : (err.shortMessage || err.message || String(err));
+    AG.errors[n] = rejected(err) ? 'Cancelled: no payment was sent.'
+      : err.paymentRequired ? 'The payment went through but Blue Agent still asked for one. Try again in a minute.'
+        : (err.shortMessage || err.message || String(err));
     renderAgent();
   }
 });

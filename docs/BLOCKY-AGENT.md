@@ -49,17 +49,30 @@ Both return 403/401 before any Blue Agent call is made.
 `POST /api/agent` with `x-agent-action: run`. The server re-checks ownership and the on/off flag
 every call, then calls Blue Agent with the job's path and body.
 
-**Payment:** `BLUE_PAYER_KEY` + `BLUE_PAYER_ADDRESS` in the env is what makes jobs paid. Without it
-the call still goes out and Blue Agent's free tier answers — the result is delivered but `paid: 0`,
-and the panel says so instead of promising USDC.
+**Payment — the owner signs, no server key anywhere (built 2026-11-16).**
 
-**Not built:** wallet-side x402 signing in the browser. The server hands back a 402 with the accepts
-list; the page shows a plain message. Wiring it means building an EIP-3009 `transferWithAuthorization`
-payload in the wallet — real work, deliberately deferred.
+Every job in the catalogue is a *paid* tool: an unpaid call always answers `402`. (An earlier version of
+this doc claimed a "free tier" for these jobs; that was wrong — free tier covers other Blue Agent tools
+only.) So `src/x402.js` signs the payment in the wallet:
+
+```
+POST /api/agent  (x-agent-action: run, no payment)
+  -> 402 { accepts: [ { scheme:"exact", network:"eip155:8453",
+                        asset: USDC, amount:"20000", payTo, extra:{name,version} } ] }
+wallet signs EIP-3009 transferWithAuthorization(USDC on Base)
+POST /api/agent  (same body + base64 PAYMENT-SIGNATURE payload)
+  -> 200 with the result, and `_settle.tx` or a PAYMENT-RESPONSE header confirming settlement
+```
+
+Two wallet prompts at most, USDC moves straight from the owner to Blue Agent's `payTo`, and no key
+exists on the server. `test/x402.mjs` signs with a real key and checks that a tampered `amount` or a
+redirected `payTo` fails to verify.
+
+The v2 header is `PAYMENT-SIGNATURE` (base64 JSON); `X-PAYMENT` is the older name and both are sent.
 
 ## Checklist for going live
 
-1. Set `BLUE_PAYER_KEY` / `BLUE_PAYER_ADDRESS` (a funded Base wallet holding USDC) → jobs start paying.
+1. Nothing to configure for payments: the owner's wallet pays. Just have USDC on Base in their wallet.
 2. Set `NFT_CONTRACT` once the collection is live → `ownerOf` reads the chain instead of the ledger.
 3. After metadata changes, call `setBaseURI` (or rely on the existing 60 s cache) so OpenSea picks up
    the new attributes.

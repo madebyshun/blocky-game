@@ -19,14 +19,6 @@ export const JOB_SPECS = {
   'stock-movers': { path: '/api/x402/base-stock-movers', price: 0.03, body: (a) => ({ limit: String(a?.limit ?? 10), min_liquidity_usd: String(a?.minLiquidityUsd ?? 10000) }) },
 };
 
-// The wallet the server pays x402 from, if one is configured: { address, key } when BLUE_PAYER_KEY is
-// set. Without it, jobs still run against Blue Agent's free tier (no X-PAYMENT header).
-export function payingWallet() {
-  const key = process.env.BLUE_PAYER_KEY;
-  const address = process.env.BLUE_PAYER_ADDRESS;
-  return key && address ? { address, key } : null;
-}
-
 // Shape Blue Agent's answer into something a card can show: a string when it sends one, otherwise the
 // JSON as-is (the UI prints it).
 export function tidy(body) {
@@ -36,10 +28,12 @@ export function tidy(body) {
 }
 
 // One call. Returns { ok: true, body } | { ok: false, status, body } | { ok: false, status: 402, body }.
-// `payment` is the X-PAYMENT header value from the owner's wallet (a base64 x402 payment payload).
+// `payment` is the base64 PAYMENT-SIGNATURE payload the owner's wallet signed (src/x402.js). x402 v2
+// names the header PAYMENT-SIGNATURE (specs/transports-v2/http.md); X-PAYMENT is the older name and is
+// still sent so either side of the rollout works.
 export async function callBlue(spec, args = {}, payment = null, { fetchImpl = fetch, base = BLUE_BASE, timeout = 20000 } = {}) {
   const headers = { accept: 'application/json', 'content-type': 'application/json' };
-  if (payment) headers['x-payment'] = payment;
+  if (payment) { headers['payment-signature'] = payment; headers['x-payment'] = payment; }
   try {
     const r = await fetchImpl(`${base}${spec.path}`, {
       method: 'POST',
@@ -52,10 +46,19 @@ export async function callBlue(spec, args = {}, payment = null, { fetchImpl = fe
     try { body = JSON.parse(text); } catch { body = { result: text.slice(0, 4000) }; }
     if (r.status === 402) return { ok: false, status: 402, body };
     if (!r.ok) return { ok: false, status: r.status, body, error: `Blue Agent answered ${r.status}` };
-    return { ok: true, status: r.status, body: { ...(body || {}), paid: Boolean(body?._settle?.ok) } };
+    // a paid call settles on chain: Blue Agent reports it in `_settle`, and x402 v2 also puts a
+    // base64 PaymentResponse in a header. Either one saying success is the settlement.
+    const settled = body?._settle?.tx || decodeSettlement(r.headers?.get?.('payment-response') || r.headers?.get?.('x-payment-response'));
+    return { ok: true, status: r.status, body: { ...(body || {}), paid: Boolean(settled), settle: settled || null } };
   } catch (e) {
     return { ok: false, status: 0, error: String(e.message || e).slice(0, 200) };
   }
+}
+
+// The settlement details a 200 carries, from either the body or the PAYMENT-RESPONSE header.
+export function decodeSettlement(headerValue) {
+  if (!headerValue) return null;
+  try { const j = JSON.parse(Buffer.from(headerValue, 'base64').toString('utf8')); return j?.success ? (j.transaction || true) : null; } catch { return null; }
 }
 
 // The price an x402 402 answer asks for, in USDC, for the UI to show before the wallet signs.

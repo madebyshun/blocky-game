@@ -38,7 +38,7 @@ const accepts = { accepts: [{ scheme: 'exact', network: 'eip155:8453', asset: '0
 assert.equal(priceOf(accepts), 0.02);
 assert.equal(priceOf({}), null);
 
-// no paying wallet configured: jobs still go out (Blue Agent's free tier), nothing is counted as earned
-assert.equal((await import('../api/blueagent.js')).payingWallet(), null);
+// no server-side payer exists at all: the owner's wallet signs the x402 payment (src/x402.js)
+assert.equal('payingWallet' in (await import('../api/blueagent.js')), false);
 
 console.log('agent: all checks pass');

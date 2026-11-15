@@ -5,6 +5,8 @@
 // This module is the browser side (the claim page and the Blocky card). The server side is
 // api/agent.js (state in KV) and api/blueagent.js (the x402 proxy, which holds no keys).
 
+import { payRequirement } from './x402.js';
+
 export const AGENT_JOBS = [
   {
     id: 'nvda-quote',
@@ -31,8 +33,8 @@ export const AGENT_JOBS = [
 
 export const jobById = (id) => AGENT_JOBS.find((j) => j.id === id) || null;
 
-// has.enabled: the server has a paying wallet configured. Without one the job still runs and delivers
-// its result (Blue Agent's free tier), it just isn't paid: the UI says so instead of promising USDC.
+// The server holds no key and pays nothing: every job asks for a few cents of USDC, and the owner's own
+// wallet signs it (src/x402.js). An unpaid call answers 402, which the job flow turns into one prompt.
 const api = (path, opts) => fetch(path, { ...opts, headers: { 'content-type': 'application/json', ...(opts?.headers || {}) } });
 
 // The agent's state for a wallet: { enabled, agents: { [tokenId]: { active, jobsDone, earnedUsdc, lastJobAt } },
@@ -74,15 +76,25 @@ export async function deactivateAgent({ address, tokenId, sign }) {
 }
 
 // Run one job. The server checks the agent is on and owns the token, then calls Blue Agent.
-// `payment` is the x402 X-PAYMENT header the wallet signed (null when the server has no paying wallet:
-// Blue Agent's free tier answers the call unpriced).
-export async function runJob({ address, tokenId, jobId, args = {}, payment = null }) {
-  const r = await api('/api/agent', {
+// Blue Agent answers 402 with the payment it wants; the owner's wallet signs an EIP-3009
+// transferWithAuthorization for that USDC amount (src/x402.js) and the same call is retried with it.
+// Two wallet prompts, in this order, and the money always goes straight to Blue Agent's payTo.
+export async function runJob({ address, tokenId, jobId, args = {}, signTypedData = null }) {
+  const call = (payment) => api('/api/agent', {
     method: 'POST',
     headers: { 'x-agent-action': 'run' },
     body: JSON.stringify({ address, tokenId, jobId, args, payment }),
   });
-  const j = await r.json().catch(() => ({}));
+
+  let r = await call(null);
+  let j = await r.json().catch(() => ({}));
+  if (r.status === 402 && j.payment && signTypedData) {
+    const requirement = j.payment?.accepts?.[0];
+    if (!requirement) throw new Error('The job asked for payment but did not say where to pay');
+    const payment = await payRequirement({ requirement, from: address, signTypedData, resource: j.payment?.resource });
+    r = await call(payment);
+    j = await r.json().catch(() => ({}));
+  }
   if (!r.ok) {
     const err = new Error(j.error || 'The job failed');
     err.paymentRequired = r.status === 402 ? j.payment : null;

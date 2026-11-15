@@ -16,7 +16,7 @@
 // State lives in KV: `blocky:colony:agent:v1` (a hash, tokenId -> JSON).
 import { getAddress, isAddress } from 'viem';
 import { client, NFT, useKv, kv, KEY_BASE, loadLedger } from './_store.js';
-import { JOB_SPECS, callBlue, payingWallet } from './blueagent.js';
+import { JOB_SPECS, callBlue } from './blueagent.js';
 
 const KEY = `${KEY_BASE}:agent:v1`;
 const OWNER_ABI = [{ type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'address' }] }];
@@ -52,7 +52,8 @@ function viewFor(all, owned) {
     earnedUsdc += e.earnedUsdc || 0;
     activeCount += 1;
   }
-  return { enabled: Boolean(payingWallet()) || true, paid: Boolean(payingWallet()), agents, totals: { active: activeCount, jobsDone, earnedUsdc: Math.round(earnedUsdc * 1e6) / 1e6 } };
+  // payments are signed by the owner's own wallet (src/x402.js): no server key exists, ever
+  return { enabled: true, paidBy: 'owner', agents, totals: { active: activeCount, jobsDone, earnedUsdc: Math.round(earnedUsdc * 1e6) / 1e6 } };
 }
 
 // ---------- ownership ----------

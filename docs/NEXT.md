@@ -43,7 +43,7 @@ Blue Agent (`madebyshun/blue-agent`, blueagent.dev).
   (`citizenDays: 1/24`). A claimed citizen can switch its agent on (wallet-signed message, no gas), then run paid jobs
   against Blue Agent's x402 API — NVDAc quote, drift screen, stock movers. Ownership gate reads `ownerOf`, with the ledger
   as fallback while the contract isn't readable. NFT metadata gains `Agent` / `Jobs done` / `USDC earned`; the builder card
-  shows a green agent row. Jobs go out on Blue Agent's free tier until `BLUE_PAYER_KEY` / `BLUE_PAYER_ADDRESS` are set.
+  shows a green agent row. Jobs are paid per call in USDC, signed by the owner's wallet (src/x402.js); no server key exists.
 - **IPO Day** (`src/ipoday.js`, `api/ipoday.js`): a stock Coinbase lists after BaseCity's first snapshot gets a crane on
   Blocky Street for a day. The first run seeds silently (`isSeeding`) so 358 existing stocks don't put 358 cranes up.
 - **Find me** (`src/findme.js`): paste a wallet / Basename in the city header → its Blockies, camera follows the one you pick.
