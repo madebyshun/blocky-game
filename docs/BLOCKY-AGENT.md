@@ -94,6 +94,10 @@ this was confirmed to be a protocol limit rather than a bug in `src/x402.js`.
 to sign, and the claim page shows that message. The earlier "payment went through but Blue Agent still
 asked for one" text was wrong on both counts: nothing was charged, and the cause was this.
 
+**MetaMask users hit this by default** once Smart Account is on. To pay: ⋯ next to the account →
+Account details → Smart account → switch off, then reload. (Confirmed on the treasury-adjacent holder
+wallet `0x92c0…42e9`, whose bytecode is `0xef0100` + a 11 KB delegate.) Any plain EOA pays normally.
+
 **Not built:** a Permit2 path for delegated wallets. Blue Agent's `accepts` list only offers `exact`
 with `eip3009`, so it would need Blue Agent to accept `assetTransferMethod: "permit2"` first.
 

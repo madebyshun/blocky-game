@@ -96,7 +96,7 @@ export const isDelegated = async (address, rpc = 'https://mainnet.base.org') => 
 
 export class Eip3009Unsupported extends Error {
   constructor() {
-    super('This wallet signs with EIP-7702 delegation, and USDC\'s EIP-3009 can only verify a plain key signature, so it cannot pay for a job. Use a standard EOA wallet (or a smart wallet with Permit2 support) for Blocky Agent payments.');
+    super('This wallet is a smart account (EIP-7702), and USDC can only verify a payment signed by a plain key, so it cannot pay for a job. In MetaMask: the ⋯ next to the account → Account details → Smart account → turn it off, then reload this page. You can also pay from any standard wallet address.');
     this.name = 'Eip3009Unsupported';
     this.code = 'EIP3009_UNSUPPORTED';
   }
