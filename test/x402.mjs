@@ -45,7 +45,7 @@ assert.equal(typed.message.value, 20000n);
 
 // the whole flow: sign with a real key, decode the header, verify it recovers the payer
 const header = await payRequirement({
-  requirement: REQ, from: account.address, now: when,
+  requirement: REQ, from: account.address, now: when, checkWallet: false, // no network in this test
   signTypedData: (t) => account.signTypedData(t),
 });
 const decoded = JSON.parse(Buffer.from(header, 'base64').toString('utf8'));
@@ -63,12 +63,37 @@ const other = { ...decoded, payload: { ...decoded.payload, authorization: { ...d
 assert.equal(await verifyPayload(other), false, 'changing the payee breaks the signature');
 
 // bad input is refused, not silently mis-signed
-await assert.rejects(() => payRequirement({ requirement: { ...REQ, payTo: null }, from: account.address, signTypedData: (t) => account.signTypedData(t) }), /where to pay/);
-await assert.rejects(() => payRequirement({ requirement: { ...REQ, network: 'nope' }, from: account.address, signTypedData: (t) => account.signTypedData(t) }), /Unsupported payment network/);
+await assert.rejects(() => payRequirement({ requirement: { ...REQ, payTo: null }, from: account.address, checkWallet: false, signTypedData: (t) => account.signTypedData(t) }), /where to pay/);
+await assert.rejects(() => payRequirement({ requirement: { ...REQ, network: 'nope' }, from: account.address, checkWallet: false, signTypedData: (t) => account.signTypedData(t) }), /Unsupported payment network/);
 
 // decodeHeader round-trips
 assert.deepEqual(decodeHeader(header), decoded);
 assert.equal(decodeHeader('not-base64-!!'), null);
 void paymentPayload;
+
+
+// EIP-3009 has no contract-signature path: an EIP-7702 delegated wallet can never pay, so the flow
+// refuses before the owner signs instead of producing a signature USDC will reject.
+{
+  const { isDelegated, Eip3009Unsupported, payRequirement } = await import('../src/x402.js');
+  const fakeFetch = (code) => async () => ({ json: async () => ({ result: code }) });
+  const real = globalThis.fetch;
+  globalThis.fetch = fakeFetch('0xef0100' + 'ab'.repeat(20)); // delegated
+  assert.equal(await isDelegated('0x' + '1'.repeat(40)), true);
+  let signed = 0;
+  await assert.rejects(
+    () => payRequirement({ requirement: REQ, from: account.address, signTypedData: async () => { signed++; return '0x'; } }),
+    (e) => e instanceof Eip3009Unsupported && e.code === 'EIP3009_UNSUPPORTED');
+  assert.equal(signed, 0, 'a delegated wallet is refused before it is asked to sign');
+
+  globalThis.fetch = fakeFetch('0x60806040'); // ordinary contract / EOA bytecode
+  assert.equal(await isDelegated('0x' + '1'.repeat(40)), false);
+
+  globalThis.fetch = fakeFetch('0x'); // plain EOA
+  assert.equal(await isDelegated('0x' + '1'.repeat(40)), false);
+  const header2 = await payRequirement({ requirement: REQ, from: account.address, signTypedData: (t) => account.signTypedData(t) });
+  assert.ok(await verifyPayload(decodeHeader(header2)), 'a plain EOA still pays normally');
+  globalThis.fetch = real;
+}
 
 console.log('x402: all checks pass');

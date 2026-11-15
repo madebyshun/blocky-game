@@ -76,19 +76,50 @@ export function paymentPayload({ requirement, authorization, signature, resource
   };
 }
 
+// USDC's EIP-3009 verifies with a plain ecrecover, so it only accepts a signature from a key that is
+// the account. An EIP-7702 delegated account (bytecode `0xef0100 || address`, which Coinbase Smart
+// Wallet and many newer wallets now use) is not: its typed-data signature comes from a session key, so
+// ecrecover never recovers the account and the token reverts with "FiatTokenV2: invalid signature".
+// Unlike Permit2, EIP-3009 has no contract-signature path. So the payment cannot be made from that
+// wallet at all — say so, instead of sending a signature that is certain to fail.
+const DELEGATED = /^0xef0100/;
+export const isDelegated = async (address, rpc = 'https://mainnet.base.org') => {
+  try {
+    const r = await fetch(rpc, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getCode', params: [address, 'latest'] }),
+    });
+    const code = (await r.json())?.result || '0x';
+    return DELEGATED.test(code);
+  } catch { return false; } // can't tell: let the payment try, the error will explain it
+};
+
+export class Eip3009Unsupported extends Error {
+  constructor() {
+    super('This wallet signs with EIP-7702 delegation, and USDC\'s EIP-3009 can only verify a plain key signature, so it cannot pay for a job. Use a standard EOA wallet (or a smart wallet with Permit2 support) for Blocky Agent payments.');
+    this.name = 'Eip3009Unsupported';
+    this.code = 'EIP3009_UNSUPPORTED';
+  }
+}
+
 // Sign one x402 requirement with the connected wallet and return the header value.
 // `signTypedData` is the wallet's own signer: provider.request('eth_signTypedData_v4', …) in a browser,
 // or a viem account's signTypedData in a test.
-export async function payRequirement({ requirement, from, resource = null, signTypedData, now = Date.now() }) {
+export async function payRequirement({ requirement, from, resource = null, signTypedData, now = Date.now(), checkWallet = true }) {
   if (!requirement?.payTo || !requirement?.asset) throw new Error('This job did not say where to pay');
   const chainId = chainOf(requirement.network);
   if (!Number.isInteger(chainId)) throw new Error(`Unsupported payment network: ${requirement.network}`);
+  // a delegated wallet can never satisfy EIP-3009: stop before making the owner sign something useless
+  if (checkWallet && await isDelegated(from, rpcFor(chainId))) throw new Eip3009Unsupported();
   const authorization = authorizationOf(requirement, from, now);
   const typed = transferTypedData({ requirement, authorization, chainId });
   const signature = await signTypedData(typed);
   const payload = paymentPayload({ requirement, authorization: { ...authorization }, signature, resource });
   return b64(JSON.stringify(payload));
 }
+
+// The chain's code is read from a public RPC: Base mainnet for now (the only network Blue Agent prices).
+const rpcFor = (id) => (id === 8453 ? 'https://mainnet.base.org' : 'https://mainnet.base.org');
 
 // Sign with a wallet provider's JSON-RPC (EOAs and Coinbase Smart Wallet both answer eth_signTypedData_v4)
 export const providerSigner = (provider, account) => async (typed) => {

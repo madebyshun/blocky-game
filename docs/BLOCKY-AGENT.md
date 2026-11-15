@@ -77,6 +77,26 @@ The v2 header is `PAYMENT-SIGNATURE` (base64 JSON); `X-PAYMENT` is the older nam
 3. After metadata changes, call `setBaseURI` (or rely on the existing 60 s cache) so OpenSea picks up
    the new attributes.
 
+
+### Known limit: EIP-7702 wallets cannot pay (found on prod, 2026-11-16)
+
+USDC's `transferWithAuthorization` checks the signature with a plain `ecrecover`, so it only accepts one
+signed by a key that *is* the account. An **EIP-7702 delegated account** — bytecode beginning `0xef0100`,
+which Coinbase Smart Wallet and many newer wallets now use — signs with a session key, so `ecrecover`
+never recovers the account and USDC reverts with `FiatTokenV2: invalid signature`. EIP-3009 has no
+contract-signature path (unlike Permit2), so such a wallet cannot pay for a job at all.
+
+Verified against Base mainnet: a fresh EOA's signature simulates fine; the same signature from a
+delegated address reverts, and so does one built by Coinbase's own `@x402/evm` library, which is how
+this was confirmed to be a protocol limit rather than a bug in `src/x402.js`.
+
+`payRequirement` now reads `eth_getCode` first and throws `Eip3009Unsupported` before asking the owner
+to sign, and the claim page shows that message. The earlier "payment went through but Blue Agent still
+asked for one" text was wrong on both counts: nothing was charged, and the cause was this.
+
+**Not built:** a Permit2 path for delegated wallets. Blue Agent's `accepts` list only offers `exact`
+with `eip3009`, so it would need Blue Agent to accept `assetTransferMethod: "permit2"` first.
+
 ## Deliberately not done
 
 - **Swap to NVDAc from the earnings**: the brief asks for it, but it needs a swap route the owner signs

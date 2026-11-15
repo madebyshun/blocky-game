@@ -346,8 +346,9 @@ document.addEventListener('click', async (e) => {
   } catch (err) {
     AG.running = null;
     AG.errors[n] = rejected(err) ? 'Cancelled: no payment was sent.'
-      : err.paymentRequired ? 'The payment went through but Blue Agent still asked for one. Try again in a minute.'
-        : (err.shortMessage || err.message || String(err));
+      : err.code === 'EIP3009_UNSUPPORTED' ? err.message
+        : err.paymentRequired ? 'Blue Agent would not accept the payment. Nothing was charged. See docs/BLOCKY-AGENT.md.'
+          : (err.shortMessage || err.message || String(err));
     renderAgent();
   }
 });
