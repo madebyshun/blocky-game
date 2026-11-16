@@ -269,7 +269,7 @@ $('claim').onclick = claim;
 // ---------- Blocky Agent (src/blockyagent.js, api/agent.js) ----------
 // Only a claimed Blocky can switch its agent on: the NFT is the proof of citizenship, and the server
 // re-reads ownerOf on every call, so selling it switches the agent off with it.
-const AG = { state: null, running: null, log: [], errors: {}, needsApproval: {} };
+const AG = { selected: null, state: null, running: null, log: [], errors: {}, needsApproval: {} };
 
 const signAgent = async (message) => {
   if (!provider || !account) throw new Error('Connect the wallet that holds this Blocky');
@@ -298,7 +298,8 @@ function agentHtml() {
       ${AG.needsApproval[n] ? `<button class="btn small" type="button" data-approve="${n}"${busy ? ' disabled' : ''}>Approve USDC for Permit2 (once)</button>` : ''}
     </div>`;
   };
-  return claimedIds.map(row).join('');
+  if (!claimedIds.includes(AG.selected)) AG.selected = claimedIds.find(n => st?.agents?.[n]?.active) ?? claimedIds[0];
+  return row(AG.selected);
 }
 
 function renderAgent() {
@@ -308,10 +309,29 @@ function renderAgent() {
   el.hidden = !claimed.length;
   if (!claimed.length) return;
   $('agent-list').innerHTML = agentHtml();
+  $('agent-select').innerHTML = claimed.map(x => `<option value="${x.n}"${x.n === AG.selected ? ' selected' : ''}>Blocky #${x.n}${AG.state?.agents?.[x.n]?.active ? ' · agent on' : ''}</option>`).join('');
+  $('agent-select').disabled = AG.running !== null;
   const t = AG.state?.totals;
   $('agent-tot').innerHTML = t?.active ? `${fmt(t.active)} agent${t.active === 1 ? '' : 's'} on · ${fmt(t.jobsDone)} job${t.jobsDone === 1 ? '' : 's'}` : '';
   $('agent-foot').textContent = 'Each job costs a few cents of USDC on Base, signed in your own wallet and paid straight to Blue Agent. BaseCity relays the call and never holds your funds.';
 }
+
+document.addEventListener('click', e => {
+  const button = e.target.closest?.('[data-showcase]');
+  if (!button) return;
+  const card = button.closest('.research');
+  const expanded = card.classList.toggle('showcase');
+  button.textContent = expanded ? 'Exit showcase' : 'Showcase';
+  button.setAttribute('aria-pressed', String(expanded));
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.research.showcase').forEach(card => {
+    card.classList.remove('showcase'); const b = card.querySelector('[data-showcase]'); b.textContent = 'Showcase'; b.setAttribute('aria-pressed','false'); b.focus();
+  });
+});
+
+$('agent-select').addEventListener('change', e => { AG.selected = Number(e.target.value); renderAgent(); });
 
 async function refreshAgent() {
   if (!viewing) return;

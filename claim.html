@@ -55,19 +55,20 @@
           <button class="btn big" id="list-all" type="button" hidden>List on OpenSea</button>
           <div class="claim-msg" id="claim-msg" aria-live="polite"></div>
         </div>
-        <div class="tiles" id="tiles"></div>
-        <h3 class="gone-title" id="gone-title" hidden>Left the city</h3>
-        <div class="tiles" id="gone"></div>
-
         <section class="agent" id="agent" hidden>
           <div class="agent-head">
             <h3>🤖 Blocky Agent</h3>
             <span class="agent-tot" id="agent-tot"></span>
           </div>
           <p class="agent-lede">A claimed Blocky can switch its agent on and run stock jobs on Base. The agent reads NVIDIA/NVDAc data through <a href="https://blueagent.dev" target="_blank" rel="noopener">Blue Agent</a>; each job costs a few cents of USDC, signed in your own wallet and paid straight to Blue Agent. BaseCity relays the call and never holds your keys or your money.</p>
-          <div class="agent-list" id="agent-list"></div>
+          <label class="agent-picker">Selected Blocky <select id="agent-select" aria-label="Select Blocky agent"></select></label><div class="agent-list" id="agent-list"></div>
           <p class="agent-foot" id="agent-foot"></p>
         </section>
+        <details class="collection-drawer"><summary>Your collection · view Blockies & listings</summary>        <div class="tiles" id="tiles"></div>
+        <h3 class="gone-title" id="gone-title" hidden>Left the city</h3>
+        <div class="tiles" id="gone"></div>
+
+</details>
       </section>
 
       <section class="panel rules">
