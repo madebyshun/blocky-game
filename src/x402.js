@@ -118,7 +118,102 @@ export async function payRequirement({ requirement, from, resource = null, signT
   return b64(JSON.stringify(payload));
 }
 
-// The chain's code is read from a public RPC: Base mainnet for now (the only network Blue Agent prices).
+// ---------- Permit2 (the path that works for smart accounts) ----------
+// USDC's EIP-3009 verifies with a bare ecrecover, so it never accepts a contract account's signature.
+// Permit2 does: `permitWitnessTransferFrom` checks the signature with ERC-1271 when the owner has code,
+// which is exactly what an EIP-7702 wallet (MetaMask Smart Account, Coinbase Smart Wallet) needs. It
+// also works for plain EOAs, so it is the universal fallback the x402 spec calls it.
+//
+// A server has to offer it: the requirement must carry extra.assetTransferMethod === 'permit2'.
+// Blue Agent's list is `exact`/eip3009 today; the moment they add permit2, this path is used.
+export const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
+export const X402_EXACT_PERMIT2_PROXY = '0x402085c248EeA27D92E8b30b2C58ed07f9E20001';
+
+export const PERMIT2_WITNESS_TYPES = {
+  PermitWitnessTransferFrom: [
+    { name: 'permitted', type: 'TokenPermissions' },
+    { name: 'spender', type: 'address' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'deadline', type: 'uint256' },
+    { name: 'witness', type: 'Witness' },
+  ],
+  TokenPermissions: [
+    { name: 'token', type: 'address' },
+    { name: 'amount', type: 'uint256' },
+  ],
+  Witness: [
+    { name: 'to', type: 'address' },
+    { name: 'validAfter', type: 'uint256' },
+  ],
+};
+
+// Permit2 nonces are uint256, not bytes32
+const permit2Nonce = () => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return BigInt(`0x${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`).toString();
+};
+
+// The EIP-712 shape Permit2 wants, and the plain authorization object that goes in the payload beside
+// its signature (the facilitator rebuilds the typed data from these exact strings).
+export function permit2AuthorizationOf({ requirement, from, now = Date.now() }) {
+  const deadline = Math.floor(now / 1000) + (requirement.maxTimeoutSeconds ?? 120);
+  const permit2Authorization = {
+    from,
+    permitted: { token: requirement.asset, amount: String(requirement.amount) },
+    spender: requirement.extra?.proxyAddress || X402_EXACT_PERMIT2_PROXY,
+    nonce: permit2Nonce(),
+    deadline: String(deadline),
+    witness: { to: requirement.payTo, validAfter: '0' },
+  };
+  return permit2Authorization;
+}
+
+export function permit2TypedData({ permit2Authorization, chainId }) {
+  const a = permit2Authorization;
+  return {
+    domain: { name: 'Permit2', chainId, verifyingContract: PERMIT2_ADDRESS },
+    types: PERMIT2_WITNESS_TYPES,
+    primaryType: 'PermitWitnessTransferFrom',
+    message: {
+      permitted: { token: a.permitted.token, amount: BigInt(a.permitted.amount) },
+      spender: a.spender,
+      nonce: BigInt(a.nonce),
+      deadline: BigInt(a.deadline),
+      witness: { to: a.witness.to, validAfter: BigInt(a.witness.validAfter) },
+    },
+  };
+}
+
+// The transfer method a requirement asks for: 'permit2', or 'eip3009' by default (x402 spec).
+export const methodOf = (requirement) =>
+  String(requirement?.extra?.assetTransferMethod || requirement?.assetTransferMethod || 'eip3009').toLowerCase();
+
+// Pick the requirement to pay from a 402's accepts list. Permit2 wins whenever it is offered: it is the
+// only one a smart account can satisfy, and it works for plain keys too.
+export function chooseRequirement(accepts = []) {
+  const list = accepts.filter(Boolean);
+  return list.find((a) => methodOf(a) === 'permit2') || list.find((a) => methodOf(a) === 'eip3009') || list[0] || null;
+}
+
+// Sign a Permit2 requirement and return the header value.
+export async function payWithPermit2({ requirement, from, resource = null, signTypedData, now = Date.now() }) {
+  if (!requirement?.payTo || !requirement?.asset) throw new Error('This job did not say where to pay');
+  const chainId = chainOf(requirement.network);
+  if (!Number.isInteger(chainId)) throw new Error(`Unsupported payment network: ${requirement.network}`);
+  const permit2Authorization = permit2AuthorizationOf({ requirement, from, now });
+  const typed = permit2TypedData({ permit2Authorization, chainId });
+  const signature = await signTypedData(typed);
+  const payload = {
+    x402Version: 2,
+    ...(resource ? { resource } : {}),
+    accepted: { ...requirement, method: 'permit2' },
+    payload: { signature, permit2Authorization },
+  };
+  return b64(JSON.stringify(payload));
+}
+
+
 const rpcFor = (id) => (id === 8453 ? 'https://mainnet.base.org' : 'https://mainnet.base.org');
 
 // Sign with a wallet provider's JSON-RPC (EOAs and Coinbase Smart Wallet both answer eth_signTypedData_v4)

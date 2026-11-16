@@ -98,8 +98,22 @@ asked for one" text was wrong on both counts: nothing was charged, and the cause
 Account details → Smart account → switch off, then reload. (Confirmed on the treasury-adjacent holder
 wallet `0x92c0…42e9`, whose bytecode is `0xef0100` + a 11 KB delegate.) Any plain EOA pays normally.
 
-**Not built:** a Permit2 path for delegated wallets. Blue Agent's `accepts` list only offers `exact`
-with `eip3009`, so it would need Blue Agent to accept `assetTransferMethod: "permit2"` first.
+### Permit2: built and waiting on Blue Agent (2026-11-16)
+
+Permit2's `permitWitnessTransferFrom` checks signatures with ERC-1271 when the owner has code, so it is
+the method a smart account can satisfy — and it works for plain keys too. `src/x402.js` now has the full
+path: `payWithPermit2`, `permit2TypedData`, `chooseRequirement`, `methodOf`. Verified against the
+official @x402/evm types (PermitWitnessTransferFrom / TokenPermissions / Witness), Permit2
+`0x0000…78BA3` and the x402 proxy `0x4020…0001`, both deployed on Base.
+
+`runJob` picks the requirement like this:
+
+- any `accepts` entry with `extra.assetTransferMethod === 'permit2'` wins — it is the only one a
+  delegated wallet can use, and plain wallets sign it fine;
+- otherwise `eip3009`, and a delegated wallet gets the "switch Smart Account off" message.
+
+So the moment Blue Agent adds permit2 to their `accepts` list, smart-account wallets pay with no other
+change. Nothing to configure on our side: the client reads the method off whatever they send.
 
 ## Deliberately not done
 

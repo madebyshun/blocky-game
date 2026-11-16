@@ -5,7 +5,7 @@
 // This module is the browser side (the claim page and the Blocky card). The server side is
 // api/agent.js (state in KV) and api/blueagent.js (the x402 proxy, which holds no keys).
 
-import { payRequirement } from './x402.js';
+import { payRequirement, payWithPermit2, chooseRequirement, methodOf } from './x402.js';
 
 export const AGENT_JOBS = [
   {
@@ -76,9 +76,10 @@ export async function deactivateAgent({ address, tokenId, sign }) {
 }
 
 // Run one job. The server checks the agent is on and owns the token, then calls Blue Agent.
-// Blue Agent answers 402 with the payment it wants; the owner's wallet signs an EIP-3009
-// transferWithAuthorization for that USDC amount (src/x402.js) and the same call is retried with it.
-// Two wallet prompts, in this order, and the money always goes straight to Blue Agent's payTo.
+// Blue Agent answers 402 with an accepts list; the owner's wallet signs one of them (src/x402.js) and the
+// same call is retried with that payment. Permit2 is preferred when offered — it is the only method a
+// smart account (EIP-7702) can satisfy, and plain wallets sign it just as well. EIP-3009 needs a plain
+// key, so a delegated wallet is told why instead of being asked for a signature that cannot work.
 export async function runJob({ address, tokenId, jobId, args = {}, signTypedData = null }) {
   const call = (payment) => api('/api/agent', {
     method: 'POST',
@@ -89,9 +90,11 @@ export async function runJob({ address, tokenId, jobId, args = {}, signTypedData
   let r = await call(null);
   let j = await r.json().catch(() => ({}));
   if (r.status === 402 && j.payment && signTypedData) {
-    const requirement = j.payment?.accepts?.[0];
+    const requirement = chooseRequirement(j.payment?.accepts || []);
     if (!requirement) throw new Error('The job asked for payment but did not say where to pay');
-    const payment = await payRequirement({ requirement, from: address, signTypedData, resource: j.payment?.resource });
+    const payment = methodOf(requirement) === 'permit2'
+      ? await payWithPermit2({ requirement, from: address, signTypedData, resource: j.payment?.resource })
+      : await payRequirement({ requirement, from: address, signTypedData, resource: j.payment?.resource });
     r = await call(payment);
     j = await r.json().catch(() => ({}));
   }

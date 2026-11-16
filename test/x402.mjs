@@ -96,4 +96,59 @@ void paymentPayload;
   globalThis.fetch = real;
 }
 
+
+// ---------- Permit2: the path a smart account can actually use ----------
+{
+  const x = await import('../src/x402.js');
+  const PERMIT2_REQ = { ...REQ, extra: { name: 'USD Coin', version: '2', assetTransferMethod: 'permit2' } };
+
+  // the transfer method is read from the requirement, eip3009 by default
+  assert.equal(x.methodOf(REQ), 'eip3009');
+  assert.equal(x.methodOf(PERMIT2_REQ), 'permit2');
+
+  // permit2 is preferred whenever it is offered: only it can satisfy an EIP-7702 wallet
+  assert.equal(x.chooseRequirement([REQ, PERMIT2_REQ]), PERMIT2_REQ);
+  assert.equal(x.chooseRequirement([REQ]), REQ);
+  assert.equal(x.chooseRequirement([]), null);
+
+  // the authorization points at the payment, and the nonce is a uint256 (Permit2, not EIP-3009 bytes32)
+  const auth = x.permit2AuthorizationOf({ requirement: PERMIT2_REQ, from: account.address, now: when });
+  assert.equal(auth.from, account.address);
+  assert.equal(auth.permitted.token, PERMIT2_REQ.asset);
+  assert.equal(auth.permitted.amount, '20000');
+  assert.equal(auth.spender, x.X402_EXACT_PERMIT2_PROXY, 'spends through the x402 proxy, not directly');
+  assert.equal(auth.witness.to, PERMIT2_REQ.payTo, 'and the witness names the real payee');
+  assert.equal(auth.witness.validAfter, '0');
+  assert.equal(auth.deadline, String(Math.floor(when / 1000) + 120));
+  assert.match(auth.nonce, /^\d+$/);
+
+  // the typed data is Permit2's PermitWitnessTransferFrom over the Permit2 contract
+  const typed2 = x.permit2TypedData({ permit2Authorization: auth, chainId: 8453 });
+  assert.equal(typed2.domain.name, 'Permit2');
+  assert.equal(typed2.domain.verifyingContract, x.PERMIT2_ADDRESS);
+  assert.equal(typed2.primaryType, 'PermitWitnessTransferFrom');
+  assert.deepEqual(Object.keys(typed2.types).sort(), ['PermitWitnessTransferFrom', 'TokenPermissions', 'Witness']);
+  assert.deepEqual(typed2.types.Witness.map((f) => f.name), ['to', 'validAfter']);
+
+  // a real key signs it, and it recovers to the payer
+  const { recoverTypedDataAddress } = await import('viem');
+  const sig2 = await account.signTypedData(typed2);
+  assert.equal((await recoverTypedDataAddress({ ...typed2, signature: sig2 })).toLowerCase(), account.address.toLowerCase());
+
+  // the header the wallet sends, decoded
+  const header2 = await x.payWithPermit2({ requirement: PERMIT2_REQ, from: account.address, now: when, signTypedData: (t) => account.signTypedData(t) });
+  const p2 = JSON.parse(Buffer.from(header2, 'base64').toString('utf8'));
+  assert.equal(p2.x402Version, 2);
+  assert.equal(p2.payload.permit2Authorization.witness.to, PERMIT2_REQ.payTo);
+  assert.ok(p2.payload.signature.startsWith('0x'));
+  assert.equal(p2.payload.authorization, undefined, 'the EIP-3009 field is not used here');
+
+  // an EIP-7702 wallet is NOT blocked on this path (no isDelegated check): permit2 works for contracts
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => ({ json: async () => ({ result: '0xef0100' + 'ab'.repeat(20) }) });
+  const header7702 = await x.payWithPermit2({ requirement: PERMIT2_REQ, from: account.address, checkWallet: true, signTypedData: (t) => account.signTypedData(t) });
+  assert.ok(header7702.length > 100, 'a delegated wallet can still sign a permit2 payment');
+  globalThis.fetch = real;
+}
+
 console.log('x402: all checks pass');
