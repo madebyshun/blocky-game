@@ -54,7 +54,7 @@ export async function loadAgentState(address) {
 export const agentMessage = (kind, tokenId, address) =>
   `BaseCity: ${kind} Blocky Agent\n\nBlocky #${tokenId}\nWallet ${String(address).toLowerCase()}\n\n${
     kind === 'activate'
-      ? 'This switches the agent on for this Blocky: it can take paid jobs and earn USDC in your own wallet.'
+      ? 'This switches the agent on for this Blocky: it can run research jobs paid in USDC from your wallet.'
       : 'This switches the agent off for this Blocky.'} No transaction, no gas.`;
 
 export async function activateAgent({ address, tokenId, sign }) {

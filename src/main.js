@@ -742,7 +742,7 @@ function renderCard() {
   const ag = AGENTS.get(b.id);
   const agRow = $('card-agent'), agKey = $('card-agent-k');
   agRow.hidden = agKey.hidden = !ag;
-  if (ag) agRow.innerHTML = `<b style="color:#2ee87a">● on</b> · ${fmt(ag.jobsDone || 0)} job${ag.jobsDone === 1 ? '' : 's'}${ag.earnedUsdc ? ` · $${ag.earnedUsdc.toFixed(4)} earned` : ''}`;
+  if (ag) agRow.innerHTML = `<b style="color:#2ee87a">● on</b> · ${fmt(ag.jobsDone || 0)} job${ag.jobsDone === 1 ? '' : 's'}${ag.earnedUsdc ? ` · $${ag.earnedUsdc.toFixed(4)} spent` : ''}`;
   $('card-follow').textContent = following ? 'Unfollow' : 'Follow';
   $('card-nft').hidden = b.kind !== 'blocky';
   $('card-nft').href = `/collection.html#${b.id}`;

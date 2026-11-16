@@ -78,3 +78,38 @@
 .agent-out { margin: 0; font-size: 12px; color: var(--muted); }
 .agent-out pre { margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 11px; background: rgba(0,0,0,0.25); border-radius: 8px; padding: 8px 10px; max-height: 220px; overflow: auto; }
 .agent-out.bad { color: #ffc2c8; }
+
+/* Research workspace */
+.agent-list { display:grid; gap:18px; }
+.agent-row { padding:20px; border-radius:18px; gap:14px; }
+.agent-n { font-size:17px; justify-content:space-between; }
+.agent-stats { font-variant-numeric:tabular-nums; }
+.agent-acts .btn.small { min-height:42px; padding:10px 14px; }
+.research { min-width:0; padding:24px; border:1px solid var(--line); border-radius:14px; background:#0c1425; color:var(--text); }
+.research-caption,.research-heading,.research-receipt { display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.research-caption { font-size:12px; color:var(--muted); margin-bottom:24px; }
+.research-heading h4 { margin:6px 0 20px; font-size:26px; }
+.research-heading h4 span { font-size:14px; color:var(--muted); }
+.research-eyebrow { font-size:10px; letter-spacing:.12em; color:#90b8ff; font-weight:800; }
+.research-price { font-size:32px; font-weight:800; font-variant-numeric:tabular-nums; }
+.research-price small { display:block; font-size:13px; text-align:right; }
+.positive { color:var(--up); } .negative { color:#ff9ba8; }
+.research-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:8px 0 20px; }
+.research-metric { padding:16px; background:rgba(255,255,255,.035); border:1px solid var(--line); border-radius:10px; }
+.research dt,.research-muted,.research-metric small { color:var(--muted); font-size:12px; }
+.research dd { margin:4px 0; overflow-wrap:anywhere; }
+.research-metric dd { font-size:20px; font-weight:750; }
+.research-notice { border-left:3px solid #e8bb67; background:rgba(232,187,103,.07); padding:14px 16px; font-size:13px; }
+.research-notice p { margin:6px 0 0; color:var(--soft); }
+.research-provenance { display:grid; gap:5px; margin:18px 0; font-size:12px; color:var(--muted); }
+.research details { border-top:1px solid var(--line); padding:14px 0; }
+.research summary { cursor:pointer; font-size:13px; font-weight:700; }
+.research-links { display:flex; gap:18px; flex-wrap:wrap; margin:14px 0; }
+.research a { color:#9bbfff; font-size:13px; }
+.research-receipt { padding:14px 0; color:var(--muted); font-size:11px; }
+.research pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:360px; overflow:auto; font-size:12px; }
+.research-fields { display:grid; gap:10px; } .research-fields>div { border-bottom:1px solid var(--line); padding:8px 0; }
+.research-fields dt { text-transform:capitalize; } .research-items { display:grid; gap:12px; } .research-items article { padding:12px; border:1px solid var(--line); border-radius:8px; }
+.research-text { white-space:pre-wrap; line-height:1.75; }
+@media(max-width:800px) { .research-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:480px) { .agent-row,.research { padding:14px; } .research-grid { gap:8px; } .research-metric { padding:10px; } .research-metric dd { font-size:17px; } .research-price { font-size:27px; } }

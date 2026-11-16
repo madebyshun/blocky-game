@@ -56,7 +56,7 @@ function metadata(b, sim, site, openedAt, grants, agent = null) {
     ...(agent?.active ? [
       { trait_type: 'Agent', value: 'On' },
       { trait_type: 'Jobs done', value: agent.jobsDone || 0, display_type: 'number' },
-      { trait_type: 'USDC earned', value: +(agent.earnedUsdc || 0).toFixed(6), display_type: 'number' },
+      { trait_type: 'USDC spent', value: +(agent.earnedUsdc || 0).toFixed(6), display_type: 'number' },
       { trait_type: 'Agent since', value: Math.floor((agent.since || Date.now()) / 1000), display_type: 'date' },
     ] : []),
   ];

@@ -27,10 +27,13 @@ export function mountSite(active) {
   nav.className = 'nav-wrap';
   nav.innerHTML = `<nav class="nav" aria-label="${CONFIG.cityName}">
     <a class="logo" href="/"><span class="mark"></span>${CONFIG.cityName}</a>
-    <div class="links">${PAGES.map(([id, href, label]) => `<a href="${href}"${id === active ? ' class="on" aria-current="page"' : ''}>${label}</a>`).join('')}</div>
+    <div class="links">${PAGES.filter(([id]) => ['home','city','base','claim','blockies'].includes(id)).map(([id, href, label]) => `<a href="${href}"${id === active ? ' class="on" aria-current="page"' : ''}>${id === 'claim' ? 'My Blockies & Agent' : label}</a>`).join('')}</div>
+    <details class="nav-more"><summary>Explore</summary><div>${PAGES.filter(([id]) => !['home','city','base','claim','blockies'].includes(id)).map(([id,href,label]) => `<a href="${href}"${id===active?' aria-current="page"':''}>${label}</a>`).join('')}</div></details>
     ${CONFIG.buyUrl ? `<a class="btn primary buy" href="${CONFIG.buyUrl}" target="_blank" rel="noopener">Buy ${CONFIG.ticker}</a>` : ''}
   </nav>`;
   document.body.prepend(nav);
+  const skip = document.createElement('a'); skip.className = 'skip-link'; skip.href = '#page-content'; skip.textContent = 'Skip to content';
+  const main = document.querySelector('main'); if (main) { main.id ||= 'page-content'; skip.href = `#${main.id}`; document.body.prepend(skip); }
 
   const foot = document.createElement('footer');
   foot.className = 'foot';

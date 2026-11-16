@@ -1,3 +1,4 @@
+import { renderAgentResult } from './agent-result.js';
 // The claim page: connect the wallet that bought $BLOCKY, see its Blockies, claim its citizens as NFTs
 // (a Blocky is a newcomer for its first `citizenDays` days in the city). The API signs what the ledger
 // says the wallet owns; the wallet sends the claim and pays the gas.
@@ -287,12 +288,12 @@ function agentHtml() {
     const out = AG.log.filter((l) => l.n === n).slice(-1)[0];
     return `<div class="agent-row${on ? ' on' : ''}">
       <div class="agent-n"><b>Blocky #${n}</b>${on ? '<span class="agent-dot">● agent on</span>' : ''}</div>
-      ${on ? `<div class="agent-stats"><span>${fmt(a.jobsDone)} job${a.jobsDone === 1 ? '' : 's'}</span><span>${a.earnedUsdc ? `$${a.earnedUsdc.toFixed(4)} earned` : 'nothing earned yet'}</span></div>` : ''}
+      ${on ? `<div class="agent-stats"><span>${fmt(a.jobsDone)} job${a.jobsDone === 1 ? '' : 's'}</span><span>${a.earnedUsdc ? `$${a.earnedUsdc.toFixed(4)} spent` : 'no USDC spent yet'}</span></div>` : ''}
       <div class="agent-acts">
         ${on ? AGENT_JOBS.map((j) => `<button class="btn small" type="button" data-run="${j.id}" data-n="${n}"${busy ? ' disabled' : ''}>▶ ${esc(j.title)} <small>$${j.price.toFixed(2)}</small></button>`).join('') : ''}
         <button class="btn ${on ? '' : 'primary'} small" type="button" data-toggle="${on ? 'off' : 'on'}" data-n="${n}"${busy ? ' disabled' : ''}>${on ? 'Switch off' : 'Activate agent'}</button>
       </div>
-      ${busy ? '<p class="agent-out">Running the job…</p>' : out ? `<div class="agent-out"><b>${esc(out.title)}</b><pre>${esc(out.text)}</pre></div>` : ''}
+      ${busy ? '<p class="agent-out">Running the job…</p>' : out ? `${renderAgentResult(out.result, out.title)}` : ''}
       ${err ? `<p class="agent-out bad">${esc(err)}</p>` : ''}
       ${AG.needsApproval[n] ? `<button class="btn small" type="button" data-approve="${n}"${busy ? ' disabled' : ''}>Approve USDC for Permit2 (once)</button>` : ''}
     </div>`;
@@ -351,8 +352,8 @@ document.addEventListener('click', async (e) => {
     // the wallet signs the x402 USDC payment when the job asks for one (src/x402.js): two prompts at
     // most, and the USDC goes straight from this wallet to Blue Agent's payTo address
     const out = await runJob({ address: account, tokenId: n, jobId, signTypedData: providerSigner(provider, account) });
-    const text = typeof out.result === 'string' ? out.result : JSON.stringify(out.result, null, 2);
-    AG.log = [...AG.log.filter((l) => l.n !== n), { n, title: spec?.title || jobId, text: text.slice(0, 4000) }];
+    const result = out.result;
+    AG.log = [...AG.log.filter((l) => l.n !== n), { n, title: spec?.title || jobId, result }];
     AG.running = null;
     await refreshAgent();
   } catch (err) {

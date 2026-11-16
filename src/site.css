@@ -145,3 +145,19 @@ table.t td.n { text-align: right; font-variant-numeric: tabular-nums; font-weigh
 .foot a:hover { color: var(--text); }
 .foot button { all: unset; cursor: pointer; color: var(--soft); font-weight: 700; }
 .foot button:hover { color: var(--text); }
+
+/* Consistent reading and navigation across the city pages. */
+.skip-link { position:fixed; top:-80px; left:16px; z-index:100; padding:12px 18px; background:var(--base); color:white; border-radius:8px; }
+.skip-link:focus { top:12px; }
+.nav-more { position:relative; flex:none; }
+.nav-more summary { cursor:pointer; padding:8px 12px; font-weight:700; font-size:14px; }
+.nav-more>div { position:absolute; right:0; top:44px; display:grid; min-width:210px; padding:8px; border:1px solid var(--line); background:#141b2e; box-shadow:0 16px 40px #0008; border-radius:12px; }
+.nav-more a { padding:10px 14px; text-decoration:none; border-radius:7px; }
+.nav-more a:hover,.nav-more a[aria-current] { background:#243454; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+main { min-width:0; } input,select,textarea { max-width:100%; }
+.top { padding-top:42px; padding-bottom:20px; }
+.lede { line-height:1.75; max-width:760px; }
+.foot { line-height:1.8; }
+@media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; animation-duration:.01ms!important; transition-duration:.01ms!important; } }
+@media(max-width:480px) { .nav { gap:6px; } .nav .buy { font-size:11px; padding:8px; } .nav-more summary { font-size:12px; padding:8px; } }

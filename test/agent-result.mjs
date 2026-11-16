@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {renderAgentResult} from '../src/agent-result.js';
+const quote={name:'NVIDIA',dex:{price_usd:156.58,change_24h_pct:-5.63},oracle:{feed_is_stale:false},buy_impact:{status:'unknown',reason:'Unsupported pool'},token_url:'javascript:alert(1)',note:'<img onerror=alert(1)>'};
+const html=renderAgentResult(quote);
+assert.ok(html.includes('$156.58'));
+assert.ok(html.includes('-5.63%'));
+assert.ok(html.includes('Unavailable'));
+assert.ok(html.includes('Unsupported pool'));
+assert.ok(!html.includes('href="javascript:'));
+assert.ok(!html.includes('<img onerror'));
+assert.ok(html.includes('Full response'));
+assert.ok(renderAgentResult({rows:[{ticker:'NVDA',price:1}]}).includes('NVDA'));
+assert.ok(renderAgentResult('Plain text result').includes('Plain text result'));
+assert.ok(renderAgentResult(JSON.stringify(quote)).includes('$156.58'));
+console.log('agent-result: all checks pass');
