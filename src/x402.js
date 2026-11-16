@@ -110,10 +110,13 @@ export async function payRequirement({ requirement, from, resource = null, signT
   const chainId = chainOf(requirement.network);
   if (!Number.isInteger(chainId)) throw new Error(`Unsupported payment network: ${requirement.network}`);
   // a delegated wallet can never satisfy EIP-3009: stop before making the owner sign something useless
-  if (checkWallet && await isDelegated(from, rpcFor(chainId))) throw new Eip3009Unsupported();
+  // EIP-7702 still has an EOA key. Verify the actual signature, not the presence of code.
+  void checkWallet;
   const authorization = authorizationOf(requirement, from, now);
   const typed = transferTypedData({ requirement, authorization, chainId });
   const signature = await signTypedData(typed);
+  const recovered = await recoverTypedDataAddress({ ...typed, signature }).catch(() => null);
+  if (recovered?.toLowerCase() !== from.toLowerCase()) throw new Eip3009Unsupported();
   const payload = paymentPayload({ requirement, authorization: { ...authorization }, signature, resource });
   return b64(JSON.stringify(payload));
 }
@@ -189,11 +192,11 @@ export function permit2TypedData({ permit2Authorization, chainId }) {
 export const methodOf = (requirement) =>
   String(requirement?.extra?.assetTransferMethod || requirement?.assetTransferMethod || 'eip3009').toLowerCase();
 
-// Pick the requirement to pay from a 402's accepts list. Permit2 wins whenever it is offered: it is the
-// only one a smart account can satisfy, and it works for plain keys too.
+// Prefer EIP-3009 when offered and verify the recovered signer before sending payment.
+// EIP-7702 does not remove the account's EOA key; MetaMask can sign with that key.
 export function chooseRequirement(accepts = []) {
   const list = accepts.filter(Boolean);
-  return list.find((a) => methodOf(a) === 'permit2') || list.find((a) => methodOf(a) === 'eip3009') || list[0] || null;
+  return list.find((a) => methodOf(a) === 'eip3009') || list.find((a) => methodOf(a) === 'permit2') || list[0] || null;
 }
 
 // Sign a Permit2 requirement and return the header value.

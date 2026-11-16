@@ -83,8 +83,8 @@ void paymentPayload;
   let signed = 0;
   await assert.rejects(
     () => payRequirement({ requirement: REQ, from: account.address, signTypedData: async () => { signed++; return '0x'; } }),
-    (e) => e instanceof Eip3009Unsupported && e.code === 'EIP3009_UNSUPPORTED');
-  assert.equal(signed, 0, 'a delegated wallet is refused before it is asked to sign');
+    () => true);
+  assert.equal(signed, 1, 'the actual signature is checked even for delegated accounts');
 
   globalThis.fetch = fakeFetch('0x60806040'); // ordinary contract / EOA bytecode
   assert.equal(await isDelegated('0x' + '1'.repeat(40)), false);
@@ -107,7 +107,7 @@ void paymentPayload;
   assert.equal(x.methodOf(PERMIT2_REQ), 'permit2');
 
   // permit2 is preferred whenever it is offered: only it can satisfy an EIP-7702 wallet
-  assert.equal(x.chooseRequirement([REQ, PERMIT2_REQ]), PERMIT2_REQ);
+  assert.equal(x.chooseRequirement([REQ, PERMIT2_REQ]), REQ);
   assert.equal(x.chooseRequirement([REQ]), REQ);
   assert.equal(x.chooseRequirement([]), null);
 
@@ -164,4 +164,12 @@ console.log('x402: all checks pass');
   assert.equal(rejected({ code: 4001, message: 'User rejected the request.' }), true);
   assert.equal(rejected({ code: 'ACTION_REJECTED' }), true);
   assert.equal(rejected({ message: 'User denied message signature.' }), true);
+}
+
+{
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({json: async () => ({result: '0xef0100' + 'ab'.repeat(20)})});
+  const signed = await payRequirement({requirement: REQ, from: account.address, signTypedData: t => account.signTypedData(t)});
+  assert.equal(await verifyPayload(decodeHeader(signed)), true, 'EIP-7702 account with its own key can pay via EIP-3009');
+  globalThis.fetch = originalFetch;
 }

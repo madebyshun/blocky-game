@@ -1,3 +1,10 @@
+> Correction 2026-11-16: EIP-7702 bytecode alone does not make EIP-3009 incompatible.
+> MetaMask's StatelessDeleGator is controlled by the original EOA key. The client now prefers
+> EIP-3009 and verifies that the signed authorization recovers to the payer before sending it.
+> The earlier blanket claim below that delegated wallets cannot pay is superseded.
+> Permit2 simulation failed for the reported wallet despite sufficient balance and allowance;
+> its exact upstream revert has not been established.
+
 # Blocky Agent — implementation notes
 
 > Built 2026-11-15. Brief: citizen NFT → agent that takes paid jobs on Base and earns USDC.
