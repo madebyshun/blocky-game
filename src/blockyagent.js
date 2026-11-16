@@ -101,6 +101,9 @@ export async function runJob({ address, tokenId, jobId, args = {}, signTypedData
   if (!r.ok) {
     const err = new Error(j.error || 'The job failed');
     err.paymentRequired = r.status === 402 ? j.payment : null;
+    // Permit2 needs a one-time ERC-20 approval; the 402 detail says insufficient_funds when it's missing
+    const detail = j.payment?.detail || j.payment?.invalidReason || '';
+    err.code = /insufficient_funds|permit2/i.test(JSON.stringify(detail)) ? 'PERMIT2_APPROVAL' : err.code;
     throw err;
   }
   return j;

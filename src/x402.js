@@ -238,3 +238,13 @@ export const decodeHeader = (v) => {
   try { return JSON.parse(decodeURIComponent(escape(atob(v)))); } catch { return null; }
 };
 void hexToSignature;
+
+// called from the claim page to get ERC-20 approval for Permit2 so the job can succeed
+export async function approvePermit2({ send, from }) {
+  const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+  const PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
+  const spender = PERMIT2.slice(2).toLowerCase().padStart(64, '0');
+  const amount = 'f'.repeat(64); // uint256 max: approve once, never again
+  const data = `0x095ea7b3${spender}${amount}`;
+  return await send({ from, to: USDC, data });
+}

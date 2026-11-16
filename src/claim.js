@@ -11,7 +11,7 @@ import { PRICING } from './pricing.js';
 import { mountSite, fmt, basescan, opensea, esc, nftInfo } from './site.js';
 import { fetchColony } from './data.js';
 import { AGENT_JOBS, loadAgentState, activateAgent, deactivateAgent, runJob } from './blockyagent.js';
-import { providerSigner } from './x402.js';
+import { providerSigner, approvePermit2 } from './x402.js';
 
 mountSite('claim');
 const $ = (id) => document.getElementById(id);
@@ -268,7 +268,7 @@ $('claim').onclick = claim;
 // ---------- Blocky Agent (src/blockyagent.js, api/agent.js) ----------
 // Only a claimed Blocky can switch its agent on: the NFT is the proof of citizenship, and the server
 // re-reads ownerOf on every call, so selling it switches the agent off with it.
-const AG = { state: null, running: null, log: [], errors: {} };
+const AG = { state: null, running: null, log: [], errors: {}, needsApproval: {} };
 
 const signAgent = async (message) => {
   if (!provider || !account) throw new Error('Connect the wallet that holds this Blocky');
@@ -294,6 +294,7 @@ function agentHtml() {
       </div>
       ${busy ? '<p class="agent-out">Running the job…</p>' : out ? `<div class="agent-out"><b>${esc(out.title)}</b><pre>${esc(out.text)}</pre></div>` : ''}
       ${err ? `<p class="agent-out bad">${esc(err)}</p>` : ''}
+      ${AG.needsApproval[n] ? `<button class="btn small" type="button" data-approve="${n}"${busy ? ' disabled' : ''}>Approve USDC for Permit2 (once)</button>` : ''}
     </div>`;
   };
   return claimedIds.map(row).join('');
@@ -318,6 +319,17 @@ async function refreshAgent() {
 }
 
 document.addEventListener('click', async (e) => {
+  const appr = e.target.closest?.('[data-approve]');
+  if (appr) {
+    const n = Number(appr.dataset.approve);
+    appr.disabled = true; appr.textContent = 'Approving…';
+    try {
+      await approvePermit2({ send: (tx) => sendTx(provider, tx), from: account });
+      AG.needsApproval[n] = false; AG.errors[n] = '';
+      appr.remove();
+    } catch (err) { AG.errors[n] = rejected(err) ? 'Cancelled.' : (err.shortMessage || err.message || String(err)); renderAgent(); }
+    return;
+  }
   const tgl = e.target.closest?.('[data-toggle]');
   const run = e.target.closest?.('[data-run]');
   if (!tgl && !run) return;
@@ -345,10 +357,16 @@ document.addEventListener('click', async (e) => {
     await refreshAgent();
   } catch (err) {
     AG.running = null;
-    AG.errors[n] = rejected(err) ? 'Cancelled: no payment was sent.'
-      : err.code === 'EIP3009_UNSUPPORTED' ? err.message
-        : err.paymentRequired ? 'Blue Agent would not accept the payment. Nothing was charged. See docs/BLOCKY-AGENT.md.'
-          : (err.shortMessage || err.message || String(err));
+    // a Permit2 payment needs one ERC-20 approval first; a wallet that never used Permit2 starts at 0
+    if (err.code === 'PERMIT2_APPROVAL' || err.paymentRequired?.includes?.('insufficient_funds')) {
+      AG.needsApproval[n] = true;
+      AG.errors[n] = 'Permit2 needs a one-time approval to spend your USDC. Approve it once below, then run the job again — approve only what you need, or the exact amount.';
+    } else {
+      AG.errors[n] = rejected(err) ? 'Cancelled: no payment was sent.'
+        : err.code === 'EIP3009_UNSUPPORTED' ? err.message
+          : err.paymentRequired ? 'Blue Agent would not accept the payment. Nothing was charged. See docs/BLOCKY-AGENT.md.'
+            : (err.shortMessage || err.message || String(err));
+    }
     renderAgent();
   }
 });
