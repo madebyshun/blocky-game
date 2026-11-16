@@ -173,3 +173,21 @@ console.log('x402: all checks pass');
   assert.equal(await verifyPayload(decodeHeader(signed)), true, 'EIP-7702 account with its own key can pay via EIP-3009');
   globalThis.fetch = originalFetch;
 }
+
+// Exercise the JSON-RPC boundary, not just viem's account signer (which adds domain types).
+{
+  const { providerSigner, permit2AuthorizationOf, permit2TypedData } = await import('../src/x402.js');
+  for (const typed of [transferTypedData({ requirement: REQ, authorization: a, chainId: 8453 }),
+    permit2TypedData({ permit2Authorization: permit2AuthorizationOf({requirement: REQ, from: account.address}), chainId: 8453 })]) {
+    const provider = { request: async ({method, params}) => {
+      assert.equal(method, 'eth_signTypedData_v4');
+      const data = JSON.parse(params[1]);
+      assert.deepEqual(data.types.EIP712Domain.map(x => x.name),
+        Object.keys(typed.domain));
+      return account.signTypedData(data);
+    }};
+    const signature = await providerSigner(provider, account.address)(typed);
+    const { recoverTypedDataAddress } = await import('viem');
+    assert.equal((await recoverTypedDataAddress({...typed, signature})).toLowerCase(), account.address.toLowerCase());
+  }
+}

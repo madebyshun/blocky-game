@@ -9,7 +9,7 @@
 //   server -> client  PAYMENT-RESPONSE:  base64(JSON SettlementResponse)
 // Blue Agent happens to also accept the older X-PAYMENT name for the same value, and its own responses
 // carry `_settle` in the body; both are read.
-import { hexToSignature, recoverTypedDataAddress } from 'viem';
+import { hexToSignature, recoverTypedDataAddress, getTypesForEIP712Domain } from 'viem';
 
 const b64 = (s) => btoa(unescape(encodeURIComponent(s)));
 
@@ -96,7 +96,7 @@ export const isDelegated = async (address, rpc = 'https://mainnet.base.org') => 
 
 export class Eip3009Unsupported extends Error {
   constructor() {
-    super('This wallet is a smart account (EIP-7702), and USDC can only verify a payment signed by a plain key, so it cannot pay for a job. In MetaMask: the ⋯ next to the account → Account details → Smart account → turn it off, then reload this page. You can also pay from any standard wallet address.');
+    super('The payment signature did not recover to the connected wallet address. No payment was submitted. In MetaMask: the ⋯ next to the account → Account details → Smart account → turn it off, then reload this page. You can also pay from any standard wallet address.');
     this.name = 'Eip3009Unsupported';
     this.code = 'EIP3009_UNSUPPORTED';
   }
@@ -221,7 +221,8 @@ const rpcFor = (id) => (id === 8453 ? 'https://mainnet.base.org' : 'https://main
 
 // Sign with a wallet provider's JSON-RPC (EOAs and Coinbase Smart Wallet both answer eth_signTypedData_v4)
 export const providerSigner = (provider, account) => async (typed) => {
-  const json = JSON.stringify(typed, (k, v) => (typeof v === 'bigint' ? v.toString() : v));
+  const rpcTyped = { ...typed, types: { ...typed.types, EIP712Domain: getTypesForEIP712Domain({ domain: typed.domain }) } };
+  const json = JSON.stringify(rpcTyped, (k, v) => (typeof v === 'bigint' ? v.toString() : v));
   return provider.request({ method: 'eth_signTypedData_v4', params: [account, json] });
 };
 
