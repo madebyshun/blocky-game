@@ -152,3 +152,16 @@ void paymentPayload;
 }
 
 console.log('x402: all checks pass');
+
+// A server rejecting payment must not be shown as the user cancelling MetaMask.
+{
+  const previousWindow = globalThis.window;
+  globalThis.window = { addEventListener() {}, dispatchEvent() {} };
+  const { rejected } = await import('../src/wallet.js');
+  globalThis.window = previousWindow;
+  assert.equal(rejected({ message: 'Payment was rejected: insufficient_funds', paymentRequired: {} }), false);
+  assert.equal(rejected({ message: 'Payment was rejected' }), false);
+  assert.equal(rejected({ code: 4001, message: 'User rejected the request.' }), true);
+  assert.equal(rejected({ code: 'ACTION_REJECTED' }), true);
+  assert.equal(rejected({ message: 'User denied message signature.' }), true);
+}

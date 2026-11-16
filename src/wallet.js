@@ -74,4 +74,8 @@ export async function waitTx(hash, provider, timeoutMs = 180000) {
   return { ok: null };
 }
 
-export const rejected = (e) => e?.code === 4001 || /reject|denied|cancel/i.test(e?.message || '');
+// Server payment rejection is not a user cancelling a wallet prompt.
+export const rejected = (e) => !e?.paymentRequired && (
+  Number(e?.code) === 4001 || e?.code === 'ACTION_REJECTED' ||
+  /user (?:rejected|denied|cancelled|canceled)|(?:rejected|denied|cancelled|canceled) (?:by (?:the )?user)|userRejectedRequest/i.test(e?.message || '')
+);
