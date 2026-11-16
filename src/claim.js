@@ -358,13 +358,13 @@ document.addEventListener('click', async (e) => {
   } catch (err) {
     AG.running = null;
     // a Permit2 payment needs one ERC-20 approval first; a wallet that never used Permit2 starts at 0
-    if (err.code === 'PERMIT2_APPROVAL' || err.paymentRequired?.includes?.('insufficient_funds')) {
+    if (err.code === 'PERMIT2_APPROVAL') {
       AG.needsApproval[n] = true;
       AG.errors[n] = 'Permit2 needs a one-time approval to spend your USDC. Approve it once below, then run the job again — approve only what you need, or the exact amount.';
     } else {
       AG.errors[n] = rejected(err) ? 'Cancelled: no payment was sent.'
         : err.code === 'EIP3009_UNSUPPORTED' ? err.message
-          : err.paymentRequired ? 'Blue Agent would not accept the payment. Nothing was charged. See docs/BLOCKY-AGENT.md.'
+          : err.paymentRequired ? err.message
             : (err.shortMessage || err.message || String(err));
     }
     renderAgent();

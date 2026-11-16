@@ -80,6 +80,17 @@ export async function deactivateAgent({ address, tokenId, sign }) {
 // same call is retried with that payment. Permit2 is preferred when offered — it is the only method a
 // smart account (EIP-7702) can satisfy, and plain wallets sign it just as well. EIP-3009 needs a plain
 // key, so a delegated wallet is told why instead of being asked for a signature that cannot work.
+export function paymentFailure(payment, requirement) {
+  const raw = payment?.detail || payment?.invalidReason || payment?.error || '';
+  const detail = typeof raw === 'string' ? raw : JSON.stringify(raw);
+  const err = new Error(`Payment was rejected${detail ? `: ${detail.slice(0, 500)}` : '. Please retry or check your USDC balance on Base.'}`);
+  err.paymentRequired = payment;
+  if (methodOf(requirement) === 'permit2' && /insufficient_allowance|allowance|approval/i.test(detail)) {
+    err.code = 'PERMIT2_APPROVAL';
+  }
+  return err;
+}
+
 export async function runJob({ address, tokenId, jobId, args = {}, signTypedData = null }) {
   const call = (payment) => api('/api/agent', {
     method: 'POST',
@@ -87,10 +98,11 @@ export async function runJob({ address, tokenId, jobId, args = {}, signTypedData
     body: JSON.stringify({ address, tokenId, jobId, args, payment }),
   });
 
+  let requirement = null;
   let r = await call(null);
   let j = await r.json().catch(() => ({}));
   if (r.status === 402 && j.payment && signTypedData) {
-    const requirement = chooseRequirement(j.payment?.accepts || []);
+    requirement = chooseRequirement(j.payment?.accepts || []);
     if (!requirement) throw new Error('The job asked for payment but did not say where to pay');
     const payment = methodOf(requirement) === 'permit2'
       ? await payWithPermit2({ requirement, from: address, signTypedData, resource: j.payment?.resource })
@@ -99,12 +111,8 @@ export async function runJob({ address, tokenId, jobId, args = {}, signTypedData
     j = await r.json().catch(() => ({}));
   }
   if (!r.ok) {
-    const err = new Error(j.error || 'The job failed');
-    err.paymentRequired = r.status === 402 ? j.payment : null;
-    // Permit2 needs a one-time ERC-20 approval; the 402 detail says insufficient_funds when it's missing
-    const detail = j.payment?.detail || j.payment?.invalidReason || '';
-    err.code = /insufficient_funds|permit2/i.test(JSON.stringify(detail)) ? 'PERMIT2_APPROVAL' : err.code;
-    throw err;
+    if (r.status === 402) throw paymentFailure(j.payment, requirement);
+    throw new Error(j.error || 'The job failed');
   }
   return j;
 }
