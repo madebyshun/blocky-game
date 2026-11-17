@@ -9,7 +9,8 @@ assert.ok(!eligible({...job,brief:'no ticker'},s));assert.ok(!supportsStockJob({
 const data={stocks:[{ticker:'NVDA',name:'NVIDIA',address:'0xb2',nav:180,multiplier:1}],nyse:{open:false},
  week:{hours:168,closedShare:0.6,tickers:{NVDA:{n24:3,usd24:900,n7:20,usd7:5000}}},
  weekend:{call:{provisional:false,rows:[{ticker:'NVDA',move:1.5,call:'up',dex:182.7,close:180}]}}};
-const f=async()=>({ok:true,json:async()=>data});
+const hood={rows:[{contract:'0xb2',oracle_usd:180,dex_usd:182.7,pool_ref:'0xp',oracle_updated_at:1}]};
+const f=async(u)=>({ok:true,json:async()=>String(u).includes('hood-live')?hood:data});
 for(const skill of ['stock-weekend-gap','stock-after-hours-volume','stock-nav-premium']){
  const r=await researchStock({...job,contract:{skill}},{fetchImpl:f,site:'x'});assert.ok(r.result.includes('NVDA')&&r.preview&&r.costUnits===0,skill);}
 const r=await researchStock({...job,contract:{skill:'stock-nav-premium'}},{fetchImpl:f,site:'x'});assert.ok(r.preview.includes('1.50%'));

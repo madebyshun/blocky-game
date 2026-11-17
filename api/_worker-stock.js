@@ -1,3 +1,4 @@
+import { parseAbi } from 'viem';
 // Stock research templates for the Blocky worker. One template per Blue Agent job skill; all data is free:
 // BaseCity's /api/stocks (Coinbase list, NAV, on-chain hourly volume) and Blue Agent's weekend scorecard.
 const SITE = process.env.SITE_URL || 'https://www.basecity.space';
@@ -33,7 +34,7 @@ function find(data, ticker) {
   return s;
 }
 
-export async function researchStock(job, { fetchImpl = fetch, site = SITE } = {}) {
+export async function researchStock(job, { fetchImpl = fetch, site = SITE, client = null } = {}) {
   const skill = skillOf(job), ticker = tickerOf(job);
   const data = await json(`${site}/api/stocks`, fetchImpl);
   const s = find(data, ticker), want = job.contract?.inputs?.token;
@@ -59,14 +60,36 @@ export async function researchStock(job, { fetchImpl = fetch, site = SITE } = {}
         'Method: Blue Agent weekend scorecard (Base DEX vs Friday NYSE close).'];
       preview = `${ticker} weekend gap: Base DEX ${usd(r.dex)} vs Friday close ${usd(r.close)} (${pct(r.move)}).`;
     } else {
-      const nav = s.nav ? s.nav * (s.multiplier || 1) : null;
-      let dex = r?.dex, src = 'Blue weekend scorecard';
-      if (!dex) { const g = await json(`https://api.geckoterminal.com/api/v2/networks/base/tokens/${s.address}`, fetchImpl).catch(() => null); dex = +g?.data?.attributes?.price_usd || null; src = 'GeckoTerminal (Base pools)'; sources.push(`https://www.geckoterminal.com/base/tokens/${s.address}`); }
-      if (!nav || !dex) throw new Error(`${ticker}: NAV or DEX price unavailable`);
-      const prem = (dex / nav - 1) * 100;
-      lines = [`Chainlink NAV per token: ${usd(nav)}`, `Base DEX price: ${usd(dex)}`, `Premium (+) / discount (−) to NAV: ${pct(prem)}`,
-        `Method: DEX price from ${src}; NAV from the token\'s Chainlink feed. Prices are not synchronized to one block.`];
-      preview = `${ticker} trades ${pct(prem)} vs NAV on Base (DEX ${usd(dex)}, NAV ${usd(nav)}).`;
+      // NAV premium at one pinned Base block: pool price from the pool's slot0 at block B; oracle from the
+      // Chainlink round live at B (Blue Agent hood-live, free) — a round holds until the next update.
+      const hood = await fetchImpl('https://blueagent.dev/api/x402/hood-live', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ chain: 'base' }), signal: AbortSignal.timeout(20000) }).then((r) => r.json()).catch(() => null);
+      const h = (hood?.rows || []).find((x) => x.contract?.toLowerCase() === s.address.toLowerCase());
+      if (!h?.oracle_usd || !h.pool_ref) throw new Error(`${ticker}: no Chainlink oracle + pool on Blue's Base desk`);
+      sources.push('https://blueagent.dev/api/x402/hood-live', `https://basescan.org/address/${h.pool_ref}`);
+      let dex = h.dex_usd, block = null, blockAt = null, how = 'Blue hood-live pool price';
+      if (client) {
+        block = await client.getBlockNumber();
+        const b = await client.getBlock({ blockNumber: block }); blockAt = Number(b.timestamp);
+        const P = parseAbi(['function token0() view returns (address)', 'function token1() view returns (address)', 'function slot0() view returns (uint160)']);
+        const D = parseAbi(['function decimals() view returns (uint8)']);
+        const at = { address: h.pool_ref, blockNumber: block };
+        const [t0, t1, sq] = await Promise.all(['token0', 'token1', 'slot0'].map((f) => client.readContract({ ...at, abi: P, functionName: f })));
+        const [d0, d1] = await Promise.all([t0, t1].map((a) => client.readContract({ address: a, abi: D, functionName: 'decimals', blockNumber: block })));
+        const raw = (Number(Array.isArray(sq) ? sq[0] : sq) / 2 ** 96) ** 2 * 10 ** (d0 - d1); // token1 per token0
+        const stockIs0 = t0.toLowerCase() === s.address.toLowerCase(), other = stockIs0 ? t1 : t0;
+        if (!stockIs0 && t1.toLowerCase() !== s.address.toLowerCase()) throw new Error('Pool does not hold this token');
+        if (other.toLowerCase() !== '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913') throw new Error('Pool is not paired with USDC; no same-block USD price');
+        dex = stockIs0 ? raw : 1 / raw; how = `pool slot0 at block ${block} (USDC pair)`;
+      }
+      if (!dex) throw new Error(`${ticker}: pool price unavailable`);
+      const oracleAt = h.oracle_updated_at, valid = !blockAt || !oracleAt || oracleAt <= blockAt;
+      const prem = (dex / h.oracle_usd - 1) * 100;
+      lines = [`Block: ${block ?? 'n/a'}${blockAt ? ` (${new Date(blockAt * 1000).toISOString()})` : ''}`,
+        `Chainlink oracle (NAV, multiplier-adjusted): ${usd(h.oracle_usd)} — round updated ${oracleAt ? new Date(oracleAt * 1000).toISOString() : 'n/a'}${valid ? ', the live round at this block' : ''}`,
+        `Pool price: ${usd(dex)} — ${how}; pool ${h.pool_ref}`, `Premium (+) / discount (−) to NAV: ${pct(prem)}`,
+        `Market session: ${h.market_session || 'n/a'}; pool TVL ${usd(h.primary_pool_tvl_usd)}`,
+        'Method: sqrtPriceX96 from slot0 at the pinned block, decimals-adjusted; oracle is the Chainlink round in force at that block (rounds hold until the next update).'];
+      preview = `${ticker} at Base block ${block ?? 'n/a'}: pool ${usd(dex)} vs Chainlink NAV ${usd(h.oracle_usd)} → ${pct(prem)}.`;
     }
   }
   const req = job.contract?.required || [];

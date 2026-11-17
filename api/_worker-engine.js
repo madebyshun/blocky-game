@@ -45,7 +45,7 @@ export async function tick(owner,{syncOnly=false}={}){const release=await lock(o
    delegate=privateKeyToAccount(unseal(s.delegateKey));const issuedAt=new Date().toISOString();const signature=await delegate.signMessage({message:reservationMessage(job.id,s.settings.agentId,issuedAt)});
    await blue(`/${job.id}/reserve`,{agentId:s.settings.agentId,signer:delegate.address,signature,issuedAt,workerGrant:s.grant});
   }
-  const report=skillOf(job)==='base-token-exit-screen'?await researchExit(client):await researchStock(job);Object.assign(item,{...report,status:'Needs review'});delete item.evidence;
+  const report=skillOf(job)==='base-token-exit-screen'?await researchExit(client):await researchStock(job,{client});Object.assign(item,{...report,status:'Needs review'});delete item.evidence;
   if(Date.now()-Date.parse(report.evidence.timestamp)>10*60000)throw new Error('Research expired before submission');
   const current=await read(owner);if(current.version!==version||!current.enabled)return current;
   if(delegate){
