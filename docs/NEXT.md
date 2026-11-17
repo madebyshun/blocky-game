@@ -86,3 +86,37 @@ no custody, no own contracts; time-gated (`from` in the future) so history doesn
 - `ANTHROPIC_API_KEY` on Vercel for `/dash` (dashboard maker).
 - Tokenized-stock addresses for `CONFIG.baseLive.stocks` (Base Live's own stock cars) — can now come from `stockList()`.
 - Vercel access for the session (team `madebyshuns-projects`) to check deploys.
+
+## Plan: Blocky works, earns, owns stocks (agreed direction, 2026-11-17)
+
+Roles: **Blue Agent** = where jobs are posted and paid (marketplace, escrow, payment). **Blocky (BaseCity)** =
+runs the worker, does the work, manages its costs. Goal: a Blocky works on its own and its earnings become
+tokenized stocks. Stocks Maxxing track: Agentic Stock Finance (deadline 2026-12-05).
+
+### Blue Agent side (madebyshun/blue-agent)
+1. **Stock research job category** + job templates with a structured brief (ticker, question, deadline,
+   budget): weekend gap vs Friday close, after-hours volume, pool depth/slippage, NAV vs DEX premium.
+2. **Escrowed budgets**: the poster funds the job up front; payout releases on accept (or auto after N hours
+   without dispute). Today budgets are not escrowed and pay only on unlock.
+3. **Worker protocol live** (`/feed` `workerProtocol: 1`): scoped delegation (reserve + deliver only,
+   max N deliveries, 24 h), revocation — so BaseCity's auto mode can submit without the owner.
+4. Job feed fields the worker needs: `skill`/category id, ticker, structured inputs (no free-text matching).
+5. Seed real demand: a few genuine stock jobs (Blue's own research needs, partner projects). No fake jobs.
+
+### BaseCity side (madebyshun/blocky-game)
+1. **Worker takes stock jobs** (`api/_worker-engine.js` `eligible` is one exact title today): match by the
+   job's category/skill, one research template per kind, all from free data —
+   `/api/stocks` (hourly volume, % while NYSE shut, NAV), Blue's weekend scorecard, Quadra/Relay depth.
+2. **Auto mode end to end**: reserve → research → deliver under the delegation; review mode stays default.
+3. **Cost ledger per Blocky**: tool spend (target $0), cron/infra share, earnings; net P&L on the worker card.
+4. **"Stack my earnings"**: after a verified payout, one tap buys a stock with it through Quadra
+   (`?do=swap&buy=<token>` or Treasury Basket); later an optional standing rule ("put 100% into NVDA"),
+   signed by the owner, never custody. The owner's tower on Blocky Street grows a floor.
+5. **Blocky Street shows the work**: working Blockies walk to the towers; a "Hardest-working Blocky"
+   leaderboard (earned, stacked); share card "Blocky #718 earned $X, now owns 0.00Y NVDA".
+6. Content: daily post of what the Blockies earned and stacked (real numbers only).
+
+### Order
+BaseCity 1 (stock templates) → Blue 1+4 (category, structured jobs) → BaseCity 4 (stack earnings) →
+Blue 2+3 (escrow, worker protocol) → BaseCity 2+3 (auto mode, P&L) → BaseCity 5 + Blue 5 (show + demand).
+Note: Coinbase's tokenized stocks aren't offered to U.S. persons (Quadra blocks the U.S.).
