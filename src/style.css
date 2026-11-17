@@ -505,3 +505,8 @@ body.photo .citynav, body.cine .citynav { display: none; }
 .td-foot { margin-top: 12px; font-size: 11px; color: #6b7588; }
 .td-soon { margin: 12px 0; padding: 10px 12px; border-radius: 12px; background: #fff7e0; color: #6b4e00; font-size: 12px; }
 @media (max-width: 480px) { .td-b10 { flex-direction: column; } .td-legend { width: 100%; } }
+
+.wk-ledger{margin:10px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.12);border-radius:10px}
+.wk-ledger h4{margin:0 0 6px}.wk-ledger>div{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
+.wk-ledger .wk-net{border-top:1px solid rgba(255,255,255,.15);margin-top:4px;padding-top:6px;font-weight:700}
+.wk-ledger .btn{margin-top:8px;width:100%}.wk-note{font-size:12px;opacity:.7;margin:6px 0 0}

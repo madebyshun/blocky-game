@@ -120,3 +120,11 @@ tokenized stocks. Stocks Maxxing track: Agentic Stock Finance (deadline 2026-12-
 BaseCity 1 (stock templates) → Blue 1+4 (category, structured jobs) → BaseCity 4 (stack earnings) →
 Blue 2+3 (escrow, worker protocol) → BaseCity 2+3 (auto mode, P&L) → BaseCity 5 + Blue 5 (show + demand).
 Note: Coinbase's tokenized stocks aren't offered to U.S. persons (Quadra blocks the U.S.).
+
+### Progress (2026-11-18)
+- BaseCity 1 done: `api/_worker-stock.js` — worker matches by `job.contract.skill` (+ `contract.inputs.ticker`,
+  fallback "Ticker: X" in brief). Skills: `stock-weekend-gap`, `stock-after-hours-volume`, `stock-nav-premium`
+  (DEX price from Blue scorecard, else GeckoTerminal free). Tool cost $0. `stock-pool-depth` waits on a free depth source.
+- BaseCity 3 (display): P&L block on the worker card (earned verified, tool spend, running cost, net).
+- BaseCity 4: "Stack my earnings" button shown disabled ("coming soon") until Quadra's API is open (CORS).
+- Skill ids sent to the Blue Agent session for Blue 1+4; waiting on its confirmation.
