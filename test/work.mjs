@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {deliveryMessage,validateDelivery,clean} from '../src/work-protocol.js';
+const addr='0x'+'1'.repeat(40),b={agentId:'123',tokenId:717,signer:addr,payTo:addr,preview:'Snapshot preview',result:'Full report',priceUsd:'0.50',issuedAt:'2026-11-17T00:00:00.000Z'},job={status:'open',budgetUnits:500000};
+assert.equal(validateDelivery(b,job),null);
+assert.ok(validateDelivery({...b,priceUsd:1},job));
+assert.ok(validateDelivery({...b,payTo:'0x'+'2'.repeat(40)},job));
+assert.ok(validateDelivery({...b,agentId:'bad'},job));
+assert.ok(validateDelivery(b,{...job,status:'closed'}));
+assert.ok(validateDelivery({...b,result:''},job));
+assert.ok(validateDelivery({...b,tokenId:0},job));
+assert.equal(clean(' a\u0000b ',10),'ab');
+const m=await deliveryMessage({...b,jobId:'123abc123abc',priceUnits:500000});
+assert.ok(m.startsWith('Blue Agent job delivery\njob: 123abc123abc\nagent: 123\n'));
+assert.ok(m.includes('price: 500000 (USDC micro-units, Base 8453)'));
+for(const patch of [{preview:'Different preview'},{result:'Tampered report'},{payTo:'0x'+'2'.repeat(40)},{priceUnits:400000},{jobId:'other'},{agentId:'321'}])assert.notEqual(await deliveryMessage({...b,jobId:'123abc123abc',priceUnits:500000,...patch}),m);
+console.log('work: protocol, price, payee and signed field binding pass');
