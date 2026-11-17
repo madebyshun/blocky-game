@@ -7,7 +7,7 @@ export function mountWorkerConsole(el,context,review){
  const getOwner=()=>context().account?.toLowerCase();
  const auth=()=>({authorization:`Bearer ${token}`,'content-type':'application/json'});
  async function call(body){const r=await fetch('/api/worker',{method:body?'POST':'GET',headers:auth(),...(body?{body:JSON.stringify(body)}:{})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Worker unavailable');return j;}
- async function signed(action,opts={}){const c=context();if(!c.account||!c.provider)throw new Error('Connect owner wallet');const b={owner:getOwner(),action,issuedAt:new Date().toISOString(),settings:opts};b.signature=await c.provider.request({method:'personal_sign',params:[toHex(controlMessage(b)),c.account]});if(getOwner()!==b.owner)throw new Error('Wallet changed');return call(b);}
+ async function signed(action,opts={}){const c=context();if(!c.account||!c.provider)throw new Error('Connect owner wallet');const b={owner:getOwner(),action,issuedAt:new Date().toISOString(),settings:opts};b.signature=await c.provider.request({method:'personal_sign',params:[toHex(controlMessage(b)),c.account]});if(getOwner()!==b.owner)throw new Error('Wallet changed');const j=await call(b);if(j.token)token=j.token;return j;} // signed actions hand back a fresh session
  function capture(){const f=el.querySelector('form');if(f)for(const k of Object.keys(settings))settings[k]=f.elements[k].value;settings.agentId=agentIdOf(settings.agentId);} // "#1205445" as the site shows it reads as 1205445
  function draw(){
   if(getOwner()!==owner){owner=getOwner();token=null;state=null;error='';settings.agentId='';}
