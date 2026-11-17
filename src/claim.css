@@ -140,3 +140,19 @@
 .work-board p { font-size:13px; color:var(--muted); margin:0; }.work-board p.bad { color:#ffb0b8; }.work-board a { color:#9bbfff; font-size:13px; }.work-brief { background:#0c1425; padding:20px; border-radius:12px; display:grid; gap:12px; }
 .work-board .research-text { white-space:pre-wrap; }.work-board .work-check { display:flex; align-items:start; gap:10px; }.work-history { border-top:1px solid var(--line); padding-top:16px; }.work-history summary { cursor:pointer; font-weight:700; }.work-history>div { display:grid; gap:6px; padding:14px 0; border-bottom:1px solid var(--line); font-size:13px; }
 #worker-console form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }#worker-console form>p,#worker-console form>button { grid-column:1/-1; }#worker-console article { border:1px solid var(--line); padding:16px; border-radius:12px; display:grid; gap:10px; }#worker-console pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:320px; overflow:auto; font-size:12px; } .worker-earnings { display:grid; gap:8px; padding:18px; background:#0c1425; border:1px solid var(--line); border-radius:12px; }.worker-earnings span { color:var(--muted); font-size:12px; }@media(max-width:560px){#worker-console form { grid-template-columns:1fr; }}
+
+/* the agent's tabs (Quick jobs, Auto worker, Job board) and the worker's status card */
+.agent-tabs { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+.agent-tab { text-align:left; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:#0c1425; color:var(--text); font:700 14px/1.3 inherit; cursor:pointer; }
+.agent-tab small { display:block; font-weight:500; font-size:12px; color:var(--muted); margin-top:2px; }
+.agent-tab[aria-selected="true"] { border-color:#0052ff; background:#0b1d44; box-shadow:0 0 0 1px #0052ff inset; }
+.agent-pane { margin-top:16px; } .agent-pane .work-board { margin-top:0; border-top:0; padding-top:0; }
+@media(max-width:600px) { .agent-tabs { grid-template-columns:1fr; } }
+.wk-card { border:1px solid #1f8a4c; background:#0b1f17; border-radius:12px; padding:16px; display:grid; gap:8px; }
+.wk-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; } .wk-head span:last-child { color:var(--soft); font-size:13px; }
+.wk-dot { width:9px; height:9px; border-radius:50%; background:#3ddc84; box-shadow:0 0 8px #3ddc84; }
+.wk-last { font-size:13px !important; color:var(--soft) !important; }
+.wk-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; } .wk-stats div { background:#0c1425; border-radius:10px; padding:12px; } .wk-stats b { display:block; font-size:20px; } .wk-stats span { font-size:12px; color:var(--muted); }
+.wk-item { border-top:1px solid var(--line); padding-top:12px; display:grid; gap:6px; }
+.wk-log summary { cursor:pointer; color:var(--muted); font-size:13px; } .wk-tech { opacity:.7; }
+.work-identity.linked { align-items:center; color:#9be7b8; font-size:14px; }

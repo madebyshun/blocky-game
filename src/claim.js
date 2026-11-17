@@ -315,7 +315,7 @@ function renderAgent() {
   $('agent-list').innerHTML = agentHtml();
   workBoard ||= mountWorkBoard($('work-board'), () => ({account,provider,tokenId: AG.selected,result: AG.log.find(l => l.n === AG.selected)?.result}));
   workBoard.refresh();
-  workerConsole ||= mountWorkerConsole($('worker-console'), () => ({account,provider,tokenId:AG.selected}), (item,settings) => workBoard.useDraft(item,settings));
+  workerConsole ||= mountWorkerConsole($('worker-console'), () => ({account,provider,tokenId:AG.selected}), (item,settings) => { showTab('board'); return workBoard.useDraft(item,settings); });
   workerConsole.refresh();
   $('agent-select').innerHTML = claimed.map(x => `<option value="${x.n}"${x.n === AG.selected ? ' selected' : ''}>Blocky #${x.n}${AG.state?.agents?.[x.n]?.active ? ' · agent on' : ''}</option>`).join('');
   $('agent-select').disabled = AG.running !== null;
@@ -340,6 +340,14 @@ document.addEventListener('keydown', e => {
 });
 
 $('agent-select').addEventListener('change', e => { AG.selected = Number(e.target.value); renderAgent(); });
+// the agent's three ways to work, one at a time (they used to sit stacked, two asking for the same agent id)
+function showTab(tab) {
+  for (const b of document.querySelectorAll('.agent-tab')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+  for (const p of document.querySelectorAll('.agent-pane')) p.hidden = p.dataset.pane !== tab;
+  try { localStorage.setItem('basecity:agent-tab', tab); } catch { /* fine */ }
+}
+for (const b of document.querySelectorAll('.agent-tab')) b.addEventListener('click', () => showTab(b.dataset.tab));
+{ let t = 'quick'; try { t = localStorage.getItem('basecity:agent-tab') || t; } catch { /* fine */ } showTab(['quick', 'auto', 'board'].includes(t) ? t : 'quick'); }
 
 async function refreshAgent() {
   if (!viewing) return;

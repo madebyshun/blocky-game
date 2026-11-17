@@ -2,6 +2,7 @@ import { createPublicClient,http,toHex,decodeEventLog,parseAbi } from 'viem';
 import {base} from 'viem/chains';
 import {IDENTITY,OWNER_ABI,clean,deliveryMessage,validateDelivery} from './work-protocol.js';
 import {esc} from './site.js';
+import {linkedAgentId,linkAgentId} from './agent-id.js';
 const rpc=createPublicClient({chain:base,transport:http('https://mainnet.base.org')});
 const usd=n=>`$${(Number(n||0)/1e6).toFixed(2)}`;
 async function api(id='',body) {
@@ -9,7 +10,7 @@ async function api(id='',body) {
  const j=await r.json(); if(!r.ok) throw new Error(j.error || 'Jobs unavailable'); return j;
 }
 export function mountWorkBoard(el,context) {
- let jobs=[],selected=null,identity=null,busy=false,loading=false,error='',status='',draft={preview:'',result:'',priceUsd:''},revision=0,loadedWallet=null;
+ let jobs=[],selected=null,identity=null,busy=false,loading=false,error='',status='',draft={preview:'',result:'',priceUsd:''},revision=0,loadedWallet=null,changing=false;
  const owner=()=>context().account?.toLowerCase();
  const key=()=>`blocky-work-submissions:${owner()}`;
  const records=()=>{try{return JSON.parse(localStorage.getItem(key())||'[]');}catch{return [];}};
@@ -17,10 +18,11 @@ export function mountWorkBoard(el,context) {
  function draw() {
   const c=context(),wallet=owner();
   if(loadedWallet!==wallet){loadedWallet=wallet;identity=null;draft={preview:'',result:'',priceUsd:''};selected=null;status='';error='';revision++;}
+  if(!identity&&!changing&&wallet&&linkedAgentId(wallet))identity={id:linkedAgentId(wallet),wallet}; // linked once (here or by the worker); ownership is checked again on submit
   const job=jobs.find(j=>j.id===selected),mine=records();
   el.innerHTML=`<div class="work-title"><div><span class="research-eyebrow">BLOCKY × BLUE AGENT JOBS</span><h3>Put your Blocky to work</h3></div><button class="btn" data-work="load" ${busy||loading?'disabled':''}>${loading?'Loading…':'Refresh jobs & submissions'}</button></div>
    <p class="agent-lede">Deliver research. Earn USDC if the customer pays to unlock it. Budgets are not escrowed; payment is not guaranteed. Tool calls cost money separately.</p>
-   <div class="work-identity"><label>ERC-8004 agent ID <input id="work-identity" type="text" inputmode="numeric" placeholder="Your agent ID" value="${esc(identity?.id||'')}"></label><button class="btn" data-work="verify" ${busy?'disabled':''}>Verify ownership</button><a href="https://app.blueagent.dev/exchange/create" target="_blank" rel="noopener">Create identity ↗</a><span>${identity?`Verified for ${esc(identity.wallet.slice(0,8))}…`: 'Not linked'}</span></div>
+   ${identity?`<div class="work-identity linked"><span>✓ Agent <b>#${esc(identity.id)}</b> linked to this wallet</span><button class="btn" data-work="unlink" ${busy?'disabled':''}>Change</button></div>`:`<div class="work-identity"><label>ERC-8004 agent ID <input id="work-identity" type="text" inputmode="numeric" placeholder="e.g. 1205445" value=""></label><button class="btn" data-work="verify" ${busy?'disabled':''}>Link agent</button><a href="https://app.blueagent.dev/exchange/create" target="_blank" rel="noopener">No agent yet? Create one ↗</a></div>`}
    ${!wallet?'<p>Connect the wallet that owns your Blocky to deliver work.</p>':''}
    <label class="work-select">Find work <select id="work-job" ${busy?'disabled':''}><option value="">Choose an open job (${jobs.filter(j=>j.status==='open').length})</option>${jobs.filter(j=>j.status==='open').map(j=>`<option value="${esc(j.id)}"${selected===j.id?' selected':''}>${esc(j.title)} · up to ${usd(j.budgetUnits)}</option>`).join('')}</select></label>
    ${job?`<article class="work-brief"><h4>${esc(job.title)}</h4><p class="research-text">${esc(job.brief)}</p><small>Budget ${usd(job.budgetUnits)} · ${job.deliveries?.length||0} submissions · <a href="https://app.blueagent.dev/jobs/${job.id}" target="_blank" rel="noopener">Original job ↗</a></small></article>
@@ -62,7 +64,8 @@ export function mountWorkBoard(el,context) {
     if(Number(block.timestamp)*1000<Date.parse(delivery.at)-1000)throw new Error('This payment predates the delivery.');
     saveRecord({...record,receiptTx:tx});status='Matching incoming payment verified on Base. Job attribution uses the receipt you supplied.';
    }
-   if(action==='verify') {const id=el.querySelector('#work-identity').value.trim().replace(/^#\s*/,''),wallet=owner();if(!wallet||!/^\d{1,12}$/.test(id))throw new Error('Connect your wallet and enter a valid agent ID.');const who=await rpc.readContract({address:IDENTITY,abi:OWNER_ABI,functionName:'ownerOf',args:[BigInt(id)]});if(who.toLowerCase()!==wallet)throw new Error('This wallet does not own that ERC-8004 identity.');identity={id,wallet};status='Identity verified. Ownership is checked again when submitting.';}
+   if(action==='unlink'){identity=null;changing=true;status='';}
+   if(action==='verify') {const id=el.querySelector('#work-identity').value.trim().replace(/^#\s*/,''),wallet=owner();if(!wallet||!/^\d{1,12}$/.test(id))throw new Error('Connect your wallet and enter a valid agent ID.');const who=await rpc.readContract({address:IDENTITY,abi:OWNER_ABI,functionName:'ownerOf',args:[BigInt(id)]});if(who.toLowerCase()!==wallet)throw new Error('This wallet does not own that ERC-8004 identity.');identity={id,wallet};changing=false;linkAgentId(wallet,id);status='Agent linked to this wallet. Ownership is checked again when submitting.';}
    if(action==='evidence'){const result=context().result;if(!result)throw new Error('Run a research tool first. No paid tool runs automatically.');draft.result=typeof result==='string'?result:JSON.stringify(result,null,2);if(draft.result.length>20000)throw new Error('Evidence exceeds 20,000 characters. Summarize it before submitting.');status='Evidence added. Edit the report to meet the entire brief.';}
   }catch(e){error=e.shortMessage||e.message;loading=false;}draw();
  });
@@ -82,5 +85,6 @@ export function mountWorkBoard(el,context) {
    const {delivery}=await api(job.id,b);saveRecord({jobId:job.id,deliveryId:delivery.id,title:job.title,tokenId,priceUnits:delivery.priceUnits,unlocked:false});document.dispatchEvent(new CustomEvent('blocky-delivery-submitted',{detail:{jobId:job.id,deliveryId:delivery.id}}));status='Delivery submitted. Awaiting customer purchase; no earnings recorded yet.';
   }catch(e){error=e.shortMessage||e.message;}finally{busy=false;draw();}
  });
+ document.addEventListener('basecity-agent-id',e=>{if(e.detail.wallet===owner()&&!changing){identity={id:e.detail.id,wallet:e.detail.wallet};draw();}}); // the worker linked it
  draw(); return {refresh:()=>{capture();draw();},useDraft:async(item,workerSettings)=>{jobs=(await api()).jobs||[];selected=item.jobId;draft={preview:item.preview,result:item.result,priceUsd:String(workerSettings.priceUnits/1e6)};draw();el.scrollIntoView({behavior:'smooth',block:'start'});}};
 }

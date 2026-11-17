@@ -60,8 +60,16 @@
             <h3>🤖 Blocky Agent</h3>
             <span class="agent-tot" id="agent-tot"></span>
           </div>
-          <p class="agent-lede">A claimed Blocky can switch its agent on and run stock jobs on Base. The agent reads NVIDIA/NVDAc data through <a href="https://blueagent.dev" target="_blank" rel="noopener">Blue Agent</a>; each job costs a few cents of USDC, signed in your own wallet and paid straight to Blue Agent. BaseCity relays the call and never holds your keys or your money.</p>
-          <label class="agent-picker">Selected Blocky <select id="agent-select" aria-label="Select Blocky agent"></select></label><div class="agent-list" id="agent-list"></div><section id="worker-console" class="work-board" aria-label="Autonomous worker"></section><section id="work-board" class="work-board" aria-label="Research jobs"></section>
+          <p class="agent-lede">Your claimed Blocky can work for you on Base through <a href="https://blueagent.dev" target="_blank" rel="noopener">Blue Agent</a>. Everything is signed in your own wallet; BaseCity never holds your keys or your money.</p>
+          <label class="agent-picker">Blocky <select id="agent-select" aria-label="Select Blocky agent"></select></label>
+          <div class="agent-tabs" role="tablist">
+            <button class="agent-tab" role="tab" data-tab="quick">⚡ Quick jobs <small>pay a few cents, get data</small></button>
+            <button class="agent-tab" role="tab" data-tab="auto">🤖 Auto worker <small>researches on its own</small></button>
+            <button class="agent-tab" role="tab" data-tab="board">📋 Job board <small>deliver reports, earn USDC</small></button>
+          </div>
+          <div class="agent-pane" data-pane="quick"><div class="agent-list" id="agent-list"></div></div>
+          <div class="agent-pane" data-pane="auto" hidden><section id="worker-console" class="work-board" aria-label="Autonomous worker"></section></div>
+          <div class="agent-pane" data-pane="board" hidden><section id="work-board" class="work-board" aria-label="Research jobs"></section></div>
           <p class="agent-foot" id="agent-foot"></p>
         </section>
         <details class="collection-drawer"><summary>Your collection · view Blockies & listings</summary>        <div class="tiles" id="tiles"></div>
