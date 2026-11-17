@@ -156,3 +156,7 @@
 .wk-item { border-top:1px solid var(--line); padding-top:12px; display:grid; gap:6px; }
 .wk-log summary { cursor:pointer; color:var(--muted); font-size:13px; } .wk-tech { opacity:.7; }
 .work-identity.linked { align-items:center; color:#9be7b8; font-size:14px; }
+.wk-ledger{margin:10px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.12);border-radius:10px}
+.wk-ledger h4{margin:0 0 6px}.wk-ledger>div{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
+.wk-ledger .wk-net{border-top:1px solid rgba(255,255,255,.15);margin-top:4px;padding-top:6px;font-weight:700}
+.wk-ledger .btn{margin-top:8px;width:100%}.wk-note{font-size:12px;opacity:.7;margin:6px 0 0}
