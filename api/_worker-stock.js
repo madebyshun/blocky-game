@@ -22,6 +22,8 @@ export function supportsStockJob(job) {
   if (!STOCK_SKILLS.includes(skillOf(job))) return false;
   const c = job.contract || {};
   if (c.chainId && c.chainId !== 8453) return false;
+  if (c.inputs?.chainId && c.inputs.chainId !== 8453) return false;
+  if (c.inputs?.token && !/^0x[0-9a-fA-F]{40}$/.test(c.inputs.token)) return false;
   return !!tickerOf(job);
 }
 
@@ -34,7 +36,10 @@ function find(data, ticker) {
 export async function researchStock(job, { fetchImpl = fetch, site = SITE } = {}) {
   const skill = skillOf(job), ticker = tickerOf(job);
   const data = await json(`${site}/api/stocks`, fetchImpl);
-  const s = find(data, ticker), at = new Date().toISOString();
+  const s = find(data, ticker), want = job.contract?.inputs?.token;
+  // a ticker never identifies a stock token on its own (NVDA is also on Robinhood Chain): check the address
+  if (want && want.toLowerCase() !== s.address.toLowerCase()) throw new Error(`${ticker}: job token ${want} is not Coinbase's Base token ${s.address}`);
+  const at = new Date().toISOString();
   const head = [`${ticker} (${s.name}) — ${skill}`, `Token: ${s.address} on Base (8453); snapshot ${at}`];
   const sources = [`${site}/api/stocks`, `https://basescan.org/token/${s.address}`];
   let lines, preview;
@@ -64,6 +69,7 @@ export async function researchStock(job, { fetchImpl = fetch, site = SITE } = {}
       preview = `${ticker} trades ${pct(prem)} vs NAV on Base (DEX ${usd(dex)}, NAV ${usd(nav)}).`;
     }
   }
-  const result = [...head, '', ...lines, '', `Sources: ${sources.join('; ')}`, NOTE].join('\n');
+  const req = job.contract?.required || [];
+  const result = [...head, '', ...lines, ...(req.length ? ['', `Required by the job: ${req.join('; ')}`] : []), '', `Sources: ${sources.join('; ')}`, NOTE].join('\n');
   return { preview, result, evidence: { timestamp: at, chainId: 8453, ticker, skill }, costUnits: 0 };
 }

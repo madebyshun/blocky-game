@@ -14,4 +14,5 @@ for(const skill of ['stock-weekend-gap','stock-after-hours-volume','stock-nav-pr
  const r=await researchStock({...job,contract:{skill}},{fetchImpl:f,site:'x'});assert.ok(r.result.includes('NVDA')&&r.preview&&r.costUnits===0,skill);}
 const r=await researchStock({...job,contract:{skill:'stock-nav-premium'}},{fetchImpl:f,site:'x'});assert.ok(r.preview.includes('1.50%'));
 await assert.rejects(researchStock({...job,brief:'Ticker: ZZZZ'},{fetchImpl:f,site:'x'}));
+await assert.rejects(researchStock({...job,contract:{skill:'stock-nav-premium',inputs:{ticker:'NVDA',token:'0x'+'3'.repeat(40)}}},{fetchImpl:f,site:'x'}),/not Coinbase/);
 console.log('worker-stock ok');
