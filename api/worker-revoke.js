@@ -1,0 +1,2 @@
+// Owner-signed revocation only; cannot create grants or spend funds.
+export default async function handler(req,res){if(req.method!=='POST')return res.status(405).json({error:'Method not allowed'});try{const r=await fetch('https://blueagent.dev/api/jobs/workers/revoke',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(req.body||{}),signal:AbortSignal.timeout(15000)});return res.status(r.status).json(await r.json());}catch{return res.status(502).json({error:'Revocation unavailable'});}}

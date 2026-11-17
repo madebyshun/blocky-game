@@ -79,8 +79,8 @@ export function mountWorkBoard(el,context) {
    const message=await deliveryMessage({...b,jobId:job.id,priceUnits:Math.round(Number(b.priceUsd)*1e6)});
    b.signature=await c.provider.request({method:'personal_sign',params:[toHex(message),wallet]});
    if(owner()!==wallet||revision!==version||context().tokenId!==tokenId)throw new Error('Wallet or Blocky changed; review and submit again.');
-   const {delivery}=await api(job.id,b);saveRecord({jobId:job.id,deliveryId:delivery.id,title:job.title,tokenId,priceUnits:delivery.priceUnits,unlocked:false});status='Delivery submitted. Awaiting customer purchase; no earnings recorded yet.';
+   const {delivery}=await api(job.id,b);saveRecord({jobId:job.id,deliveryId:delivery.id,title:job.title,tokenId,priceUnits:delivery.priceUnits,unlocked:false});document.dispatchEvent(new CustomEvent('blocky-delivery-submitted',{detail:{jobId:job.id,deliveryId:delivery.id}}));status='Delivery submitted. Awaiting customer purchase; no earnings recorded yet.';
   }catch(e){error=e.shortMessage||e.message;}finally{busy=false;draw();}
  });
- draw(); return {refresh:()=>{capture();draw();}};
+ draw(); return {refresh:()=>{capture();draw();},useDraft:async(item,workerSettings)=>{jobs=(await api()).jobs||[];selected=item.jobId;draft={preview:item.preview,result:item.result,priceUsd:String(workerSettings.priceUnits/1e6)};draw();el.scrollIntoView({behavior:'smooth',block:'start'});}};
 }

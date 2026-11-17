@@ -1,3 +1,4 @@
+import { mountWorkerConsole } from './worker-console.js';
 import { mountWorkBoard } from './work-board.js';
 import { renderAgentResult } from './agent-result.js';
 // The claim page: connect the wallet that bought $BLOCKY, see its Blockies, claim its citizens as NFTs
@@ -271,6 +272,7 @@ $('claim').onclick = claim;
 // Only a claimed Blocky can switch its agent on: the NFT is the proof of citizenship, and the server
 // re-reads ownerOf on every call, so selling it switches the agent off with it.
 let workBoard = null;
+let workerConsole = null;
 const AG = { selected: null, state: null, running: null, log: [], errors: {}, needsApproval: {} };
 
 const signAgent = async (message) => {
@@ -313,6 +315,8 @@ function renderAgent() {
   $('agent-list').innerHTML = agentHtml();
   workBoard ||= mountWorkBoard($('work-board'), () => ({account,provider,tokenId: AG.selected,result: AG.log.find(l => l.n === AG.selected)?.result}));
   workBoard.refresh();
+  workerConsole ||= mountWorkerConsole($('worker-console'), () => ({account,provider,tokenId:AG.selected}), (item,settings) => workBoard.useDraft(item,settings));
+  workerConsole.refresh();
   $('agent-select').innerHTML = claimed.map(x => `<option value="${x.n}"${x.n === AG.selected ? ' selected' : ''}>Blocky #${x.n}${AG.state?.agents?.[x.n]?.active ? ' · agent on' : ''}</option>`).join('');
   $('agent-select').disabled = AG.running !== null;
   const t = AG.state?.totals;

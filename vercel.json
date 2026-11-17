@@ -73,5 +73,11 @@
       "source": "/api/os/:path*",
       "destination": "/api/opensea?p=:path*"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/worker?cron=1",
+      "schedule": "*/15 * * * *"
+    }
   ]
 }
