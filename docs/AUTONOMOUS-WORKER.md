@@ -16,7 +16,7 @@ Blue Agent: shared worker contract; explicit capability version; atomic 15-minut
 
 ## Runtime configuration
 - Blocky Vercel: KV already configured; new CRON_SECRET, WORKER_ENCRYPTION_KEY and WORKER_WEBHOOK_SECRET created as sensitive environment variables. Secrets are never exposed in responses.
-- Blue Agent must deploy the worker protocol and use the same WORKER_WEBHOOK_SECRET for delivery notifications; polling is the fallback.
+- Blue Agent worker protocol has been deployed and both projects have the same WORKER_WEBHOOK_SECRET configured; polling is the fallback.
 - Cron calls /api/worker?cron=1 every 15 minutes, with CRON_SECRET authorization. One wallet per invocation round-robin, so cadence per wallet increases with enrolled wallet count. This is a bounded pilot scheduler, not a high-volume queue service.
 - Paid-tool budget is hard-coded zero. Public API/RPC reads and infrastructure still have operational cost. No paid tool authorization, trading, escrow or guaranteed income is implemented.
 - Automatic earnings are customer payments, not treasury rewards. Gross received equals net after paid tools because paid tool spend is zero; infrastructure costs are excluded.
@@ -25,7 +25,7 @@ Blue Agent: shared worker contract; explicit capability version; atomic 15-minut
 - Blocky existing suite plus scope, budget, signed controls, replay, sessions, encryption integrity, lease and pause CAS tests pass. Read-only real executor completed a 3-token research report on Base.
 - Blue Agent TypeScript, Jobs tests, worker protocol tests and verify:build pass. Local Jobs/feed returns protocol version 1; Hire preset verified in browser.
 - Full Blue Agent test suite: 11 failures both on clean HEAD (11/159) and modified tree (same 11/160). Failing suites: action-card-inventory-check, aeon-null-path-check, catalog-compute-check, chat-skills-check, chat-tool-honesty-check, credit-price-override-test, curated-trigger-check, dead-tool-check, docs-truth-check, skills-truth-check, x402-free-and-validation-test. No worker/Jobs suite failed.
-- Blue Agent release remains gated by its AGENTS.md until baseline failures are fixed or the owner explicitly approves a gate exception. Blocky refuses auto-submit before production advertises workerProtocol=1.
+- Synced the nine newer main commits containing the official baseline repairs; the complete updated gate passed 164 suites, TypeScript and verify:build before release 524b6878. Production now advertises workerProtocol=1 and Blocky capability checks return ready. A separate unlock privacy regression was found and patched; its final gate and release are tracked in the chat.
 - No real user grant, enable, delivery, purchase, token approval or transaction was signed during implementation. Final wallet-based end-to-end acceptance is outstanding.
 
 ## Scope limits

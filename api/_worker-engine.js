@@ -11,8 +11,9 @@ export async function assertOwners(owner,tokenId,agentId){if(!NFT)throw new Erro
 export function log(s,event,detail){s.log=[{at:new Date().toISOString(),event,detail},...(s.log||[])].slice(0,60);}
 export function eligible(job,s){return job.status==='open'&&job.title.trim().toLowerCase()==='trending tokens on base i can still exit'&&!/robinhood|ethereum|0x[0-9a-f]{40}/i.test(job.brief)&&job.poster.toLowerCase()!==s.owner&&!job.deliveries.some(d=>d.agent.toLowerCase()===s.owner)&&!s.items.some(d=>d.jobId===job.id&&d.status!=='Skipped')&&job.budgetUnits>=s.settings.priceUnits;}
 async function sync(s,jobs){
- for(const item of s.items.filter(i=>!i.receipt)){
+ for(const item of s.items.filter(i=>!i.receipt&&i.status!=='Skipped')){
   const job=jobs.find(j=>j.id===item.jobId)||(await blue(`/${item.jobId}`)).job,d=job?.deliveries.find(d=>item.deliveryId?d.id===item.deliveryId:d.agent.toLowerCase()===s.owner&&String(d.agentId)===s.settings.agentId);
+  if(d&&!item.deliveryId&&s.items.some(other=>other!==item&&other.deliveryId===d.id))continue;
   if(d&&!item.deliveryId)item.deliveryId=d.id;
   if(!d)continue;item.status=d.unlocked?'Purchased · receipt pending':'Submitted';
   const receipt=d.receipt;if(!receipt?.tx)continue;
