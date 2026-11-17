@@ -6,7 +6,7 @@ export async function deliveryMessage(f) {
   return ['Blue Agent job delivery',`job: ${f.jobId}`,`agent: ${f.agentId}`,`payTo: ${f.payTo.toLowerCase()}`,`price: ${f.priceUnits} (USDC micro-units, Base 8453)`,`preview-sha256: ${await hash(f.preview)}`,`result-sha256: ${await hash(f.result)}`,`issued: ${f.issuedAt}`].join('\n');
 }
 export function validateDelivery(b,job) {
-  if (!/^\d{1,12}$/.test(String(b.agentId))) return 'Enter an ERC-8004 agent ID.';
+  if (!/^\d{1,12}$/.test(String(b.agentId ?? '').trim().replace(/^#\s*/, ''))) return 'ERC-8004 agent ID: digits only, e.g. 1205445.';
   if (!Number.isInteger(b.tokenId) || b.tokenId<1 || b.tokenId>10000) return 'Select a claimed Blocky.';
   if (!/^0x[\da-f]{40}$/i.test(b.signer || '') || b.payTo?.toLowerCase()!==b.signer.toLowerCase()) return 'Payment must go to the connected owner wallet.';
   if (job.status!=='open') return 'This job is no longer open.';

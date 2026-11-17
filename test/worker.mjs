@@ -52,3 +52,13 @@ console.log('worker: real signature controls, replay and private session access 
  assert.equal((await W.read(owner)).enabled,false,'an in-flight cycle cannot overwrite pause');
 }
 console.log('worker: pause compare-and-set pass');
+
+// an agent id typed the way the site shows it ("#1205445") reads as its digits; the two errors say which field
+{
+  const assert = (await import('node:assert/strict')).default;
+  assert.equal(workerSettings({ tokenId: 718, agentId: '#1205445' }).agentId, '1205445');
+  assert.equal(workerSettings({ tokenId: 718, agentId: ' 1205445 ' }).agentId, '1205445');
+  assert.throws(() => workerSettings({ tokenId: 718, agentId: 'abc' }), /agent ID: digits only/);
+  assert.throws(() => workerSettings({ agentId: '1205445' }), /claimed Blocky/);
+  console.log('worker: "#1205445" accepted, field errors named');
+}

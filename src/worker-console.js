@@ -1,6 +1,6 @@
 import {toHex} from 'viem';
 import {esc} from './site.js';
-import {controlMessage,workerGrantMessage,EXIT_SKILL,revokeMessage} from './worker-protocol.js';
+import {agentIdOf,controlMessage,workerGrantMessage,EXIT_SKILL,revokeMessage} from './worker-protocol.js';
 export function mountWorkerConsole(el,context,review){
  let token=null,owner=null,state=null,error='',busy=false,ready={};
  let settings={agentId:'',maxPending:2,maxJobsDaily:2,priceUsd:.1,mode:'review'};
@@ -8,7 +8,7 @@ export function mountWorkerConsole(el,context,review){
  const auth=()=>({authorization:`Bearer ${token}`,'content-type':'application/json'});
  async function call(body){const r=await fetch('/api/worker',{method:body?'POST':'GET',headers:auth(),...(body?{body:JSON.stringify(body)}:{})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Worker unavailable');return j;}
  async function signed(action,opts={}){const c=context();if(!c.account||!c.provider)throw new Error('Connect owner wallet');const b={owner:getOwner(),action,issuedAt:new Date().toISOString(),settings:opts};b.signature=await c.provider.request({method:'personal_sign',params:[toHex(controlMessage(b)),c.account]});if(getOwner()!==b.owner)throw new Error('Wallet changed');return call(b);}
- function capture(){const f=el.querySelector('form');if(f)for(const k of Object.keys(settings))settings[k]=f.elements[k].value;}
+ function capture(){const f=el.querySelector('form');if(f)for(const k of Object.keys(settings))settings[k]=f.elements[k].value;settings.agentId=agentIdOf(settings.agentId);} // "#1205445" as the site shows it reads as 1205445
  function draw(){
   if(getOwner()!==owner){owner=getOwner();token=null;state=null;error='';settings.agentId='';}
   el.innerHTML=`<div class="work-title"><div><span class="research-eyebrow">AUTOMATION · BASE 8453</span><h3>Your research worker</h3></div><a href="https://app.blueagent.dev/jobs" target="_blank" rel="noopener">Hire a researcher ↗</a></div><p>One worker per wallet. Base exit research only. Public data and read-only quotes; $0 paid-tool budget. No token approvals, trades or guaranteed income.</p>
