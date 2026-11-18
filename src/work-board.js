@@ -86,5 +86,5 @@ export function mountWorkBoard(el,context) {
   }catch(e){error=e.shortMessage||e.message;}finally{busy=false;draw();}
  });
  document.addEventListener('basecity-agent-id',e=>{if(e.detail.wallet===owner()&&!changing){identity={id:e.detail.id,wallet:e.detail.wallet};draw();}}); // the worker linked it
- draw(); return {refresh:()=>{capture();draw();},useDraft:async(item,workerSettings)=>{jobs=(await api()).jobs||[];selected=item.jobId;draft={preview:item.preview,result:item.result,priceUsd:String(workerSettings.priceUnits/1e6)};draw();el.scrollIntoView({behavior:'smooth',block:'start'});}};
+ draw(); return {refresh:()=>{capture();draw();},useDraft:async(item,workerSettings)=>{jobs=(await api()).jobs||[];selected=item.jobId;draft={preview:item.preview,result:item.result,priceUsd:String(workerSettings.priceUnits/1e6),tokenId:item.tokenId,agentId:item.agentId};draw();el.scrollIntoView({behavior:'smooth',block:'start'});}};
 }

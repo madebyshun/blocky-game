@@ -506,3 +506,13 @@ body.photo .citynav, body.cine .citynav { display: none; }
 .td-soon { margin: 12px 0; padding: 10px 12px; border-radius: 12px; background: #fff7e0; color: #6b4e00; font-size: 12px; }
 @media (max-width: 480px) { .td-b10 { flex-direction: column; } .td-legend { width: 100%; } }
 
+
+.whq-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.whq-stats div{background:rgba(255,255,255,.06);border-radius:10px;padding:8px;text-align:center}
+.whq-stats b{display:block;font-size:18px}.whq-stats span{font-size:11px;opacity:.7}
+.whq h4{margin:12px 0 6px;font-size:13px}.whq h4 small{opacity:.6;font-weight:500}
+.whq-lead{margin:0;padding-left:20px;font-size:13px}.whq-lead li{margin:3px 0}.whq-lead span{opacity:.75;margin-left:6px}
+.whq-ev,.whq-svc{list-style:none;margin:0;padding:0;font-size:12.5px}
+.whq-ev li,.whq-svc li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.whq-ev em,.whq-svc em{font-style:normal;opacity:.7;white-space:nowrap}.whq-svc span{opacity:.7;flex:1}
+@media (max-width:480px){.whq-stats{grid-template-columns:repeat(2,1fr)}}

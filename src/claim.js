@@ -477,3 +477,5 @@ $('tiles').addEventListener('click', (e) => {
   const x = (mine?.blockies || []).find((y) => y.n === Number(b.dataset.n));
   if (x) openList([x]);
 });
+
+document.addEventListener('basecity-agents-changed', () => refreshAgent().catch(() => {}));

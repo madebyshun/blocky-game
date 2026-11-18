@@ -29,6 +29,7 @@ import { addNames, who, whoHtml, esc } from './names.js';
 import { createCinematic } from './cinematic.js';
 import { watchLive } from './live.js';
 import { openBlocky10, closeBlocky10 } from './tradedock.js';
+import { createWorkHQ } from './workhq.js';
 import { createIpoDay } from './ipoday.js';
 import { createFindMe } from './findme.js';
 
@@ -296,6 +297,7 @@ $('baselive-btn').onclick = () => { directory.close(); builderList.close(); stre
 if (qs.has('baselive')) setTimeout(() => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); }, 2500); // ?baselive: straight into the Dashboard view
 // 📈 Blocky Street: Coinbase's stocks on Base, a tower each, built by their transfers (src/stocks.js)
 const street = createBlockyStreet(city, { baseLive, open: () => !!sim?.stOpen && city.land >= 9, log: (html) => log(html), goTo: (c) => { following = false; goHome = false; controls.autoRotate = false; focus = { x: c.x, y: 3, z: c.z, zoom: wideZoom() * 4.2, t: 0 }; } });
+const workHQ = createWorkHQ(city, { log: (html) => log(html), from: () => street.center });
 const goToStreet = () => {
   const c = street.center;
   following = false; goHome = false; controls.autoRotate = false;
@@ -331,13 +333,15 @@ ipoBtn.onclick = () => { directory.close(); builderList.close(); baseLivePanel.c
   nav.addEventListener('click', (e) => {
     const b = e.target.closest('.cn-item');
     if (!b) return;
-    if (b.dataset.go === 'b10') { openBlocky10(); return; }
-    closeBlocky10();
+    if (b.dataset.go === 'b10') { workHQ.close(); openBlocky10(); return; }
+    if (b.dataset.go === 'hq') { closeBlocky10(); workHQ.open(); return; }
+    closeBlocky10(); workHQ.close();
     if (b.dataset.go === 'city') { directory.close(); builderList.close(); baseLivePanel.close(); street?.closePanel(); street?.closeCard(); mark('city'); }
     if (b.dataset.go === 'stocks') { $('street-btn').click(); mark('stocks'); }
     if (b.dataset.go === 'live') { $('baselive-btn').click(); mark('live'); }
   });
   if (qs.has('b10')) setTimeout(openBlocky10, 2000); // ?b10: straight to Blocky 10
+  if (qs.has('hq')) setTimeout(() => workHQ.open(), 2000); // ?hq: straight to x402 HQ
 } // ?street: straight to Blocky Street
 const metro = createMetro(city);
 const agents = createAgents(city);
@@ -1099,6 +1103,7 @@ function frame() {
   traffic.update(t, dt);
   baseLive.update(t, dt);
   street.update(t, dt);
+  workHQ.update(t, dt);
   metro.update(t, dt);
   agents.update(t, dt);
   cats.update(t, dt);

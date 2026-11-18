@@ -6,15 +6,17 @@ import {reservationMessage} from '../src/worker-protocol.js';
 import {read,write,writeIf,lock,unseal} from './_worker-store.js';
 import {researchExit} from './_worker-research.js';
 import {skillOf,supportsStockJob,researchStock} from './_worker-stock.js';
+import {linksOf} from './agent-link.js';
+import {recordWork} from './_workfeed.js';
 const base='https://blueagent.dev/api/jobs';
 export async function blue(path='',body){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});const j=await r.json();if(!r.ok)throw new Error(j.error||`Jobs HTTP ${r.status}`);return j;}
 export async function assertOwners(owner,tokenId,agentId){if(!NFT)throw new Error('NFT contract unavailable');for(const [address,id]of [[NFT,tokenId],[IDENTITY,agentId]]){const who=await client.readContract({address,abi:OWNER_ABI,functionName:'ownerOf',args:[BigInt(id)]});if(who.toLowerCase()!==owner.toLowerCase())throw new Error('Ownership changed. Worker is paused.');}}
 export function log(s,event,detail){s.log=[{at:new Date().toISOString(),event,detail},...(s.log||[])].slice(0,60);}
 export const invitedTo=(job)=>job.invitedAgentId??job.invited_agent_id??job.contract?.invitedAgentId??null;
-export function eligible(job,s){const inv=invitedTo(job);if(inv!=null&&String(inv)!==String(s.settings.agentId)&&!((job.inviteUntil||job.inviteExpiresAt)&&Date.parse(job.inviteUntil||job.inviteExpiresAt)<Date.now()))return false;return job.status==='open'&&(skillOf(job)==='base-token-exit-screen'?!/robinhood|ethereum|0x[0-9a-f]{40}/i.test(job.brief):supportsStockJob(job)&&(s.settings.mode!=='auto'||job.contract?.autonomousEligible===true))&&job.poster.toLowerCase()!==s.owner&&!job.deliveries.some(d=>d.agent.toLowerCase()===s.owner)&&!s.items.some(d=>d.jobId===job.id&&d.status!=='Skipped')&&job.budgetUnits>=s.settings.priceUnits;}
+export function eligible(job,s,ids=[s.settings.agentId]){const inv=invitedTo(job);if(inv!=null&&!ids.map(String).includes(String(inv))&&!((job.inviteUntil||job.inviteExpiresAt)&&Date.parse(job.inviteUntil||job.inviteExpiresAt)<Date.now()))return false;return job.status==='open'&&(skillOf(job)==='base-token-exit-screen'?!/robinhood|ethereum|0x[0-9a-f]{40}/i.test(job.brief):supportsStockJob(job)&&(s.settings.mode!=='auto'||job.contract?.autonomousEligible===true))&&job.poster.toLowerCase()!==s.owner&&!job.deliveries.some(d=>d.agent.toLowerCase()===s.owner)&&!s.items.some(d=>d.jobId===job.id&&d.status!=='Skipped')&&job.budgetUnits>=s.settings.priceUnits;}
 async function sync(s,jobs){
  for(const item of s.items.filter(i=>!i.receipt&&i.status!=='Skipped')){
-  const job=jobs.find(j=>j.id===item.jobId)||(await blue(`/${item.jobId}`)).job,d=job?.deliveries.find(d=>item.deliveryId?d.id===item.deliveryId:d.agent.toLowerCase()===s.owner&&String(d.agentId)===s.settings.agentId);
+  const job=jobs.find(j=>j.id===item.jobId)||(await blue(`/${item.jobId}`)).job,d=job?.deliveries.find(d=>item.deliveryId?d.id===item.deliveryId:d.agent.toLowerCase()===s.owner&&String(d.agentId)===String(item.agentId||s.settings.agentId));
   if(d&&!item.deliveryId&&s.items.some(other=>other!==item&&other.deliveryId===d.id))continue;
   if(d&&!item.deliveryId)item.deliveryId=d.id;
   if(!d)continue;item.status=d.unlocked?'Purchased · receipt pending':'Submitted';
@@ -23,7 +25,7 @@ async function sync(s,jobs){
   const confirmed=await client.getBlockNumber();if(confirmed-r.blockNumber<10n)continue;
   if(s.items.some(i=>i.receipt?.tx===receipt.tx&&i!==item))continue;
   const matches=r.logs.some(l=>{if(l.address.toLowerCase()!=='0x833589fcd6edb6e08f4c7c32d4f71b54bda02913')return false;try{const {args}=decodeEventLog({abi:parseAbi(['event Transfer(address indexed from,address indexed to,uint256 value)']),topics:l.topics,data:l.data});return args.from.toLowerCase()===job.poster.toLowerCase()&&args.to.toLowerCase()===s.owner&&args.value===BigInt(d.priceUnits);}catch{return false;}});
-  if(matches){item.receipt={tx:receipt.tx,amountUnits:d.priceUnits,verifiedAt:new Date().toISOString()};item.status='Paid';log(s,'Paid',`${item.jobId}: ${d.priceUnits/1e6} USDC`);}
+  if(matches){item.receipt={tx:receipt.tx,amountUnits:d.priceUnits,verifiedAt:new Date().toISOString()};item.status='Paid';log(s,'Paid',`${item.jobId}: ${d.priceUnits/1e6} USDC`);await recordWork({kind:'job-paid',blocky:item.tokenId||s.settings.tokenId,agentId:item.agentId||s.settings.agentId,usd:d.priceUnits/1e6,tx:receipt.tx,title:item.title}).catch(()=>{});}
  }
 }
 export async function tick(owner,{syncOnly=false}={}){const release=await lock(owner);if(!release)return {busy:true};try{
@@ -36,10 +38,18 @@ export async function tick(owner,{syncOnly=false}={}){const release=await lock(o
  for(const item of s.items){if(item.status==='Researching'&&Date.now()-Date.parse(item.createdAt)>10*60000){item.status='Failed';item.error='Research timed out; no delivery was sent';}}
  const day=new Date().toISOString().slice(0,10),today=s.items.filter(i=>i.createdAt.startsWith(day));
  if(pending.length>=s.settings.maxPending||today.length>=s.settings.maxJobsDaily){log(s,'Idle','Pending or daily job limit reached');await writeIf(s,version);return s;}
- const job=jobs.find(j=>eligible(j,s)&&String(invitedTo(j))===String(s.settings.agentId))||jobs.find(j=>eligible(j,s));if(!job){log(s,'Idle','No new supported job (exit screen, stock weekend gap, after-hours volume, NAV premium). Repeat deliveries are skipped.');await writeIf(s,version);return s;}
+ // the fleet: every Blocky this wallet linked to an agent (one signature or batch registration); auto mode
+ // stays on the one agent its Blue Agent delegation names
+ const fleet=s.settings.mode==='auto'||s.settings.fleet===false?[{blocky:s.settings.tokenId,agentId:String(s.settings.agentId)}]:await linksOf(owner).then(l=>l.length?l:[{blocky:s.settings.tokenId,agentId:String(s.settings.agentId)}]).catch(()=>[{blocky:s.settings.tokenId,agentId:String(s.settings.agentId)}]);
+ const ids=fleet.map(p=>p.agentId),per=s.settings.perBlockyDaily||2,load=(p)=>today.filter(i=>String(i.agentId||s.settings.agentId)===p.agentId).length;
+ const invited=jobs.find(j=>eligible(j,s,ids)&&ids.includes(String(invitedTo(j))));
+ const job=invited||jobs.find(j=>eligible(j,s,ids));if(!job){log(s,'Idle',`No new supported job for ${fleet.length} Block${fleet.length===1?'y':'ies'} (exit screen, stock weekend gap, after-hours volume, NAV premium).`);await writeIf(s,version);return s;}
+ const pair=invited?fleet.find(p=>p.agentId===String(invitedTo(job))):fleet.filter(p=>load(p)<per).sort((a,b)=>load(a)-load(b))[0];
+ if(!pair){log(s,'Idle','Every Blocky reached its daily job limit');await writeIf(s,version);return s;}
  const before=await read(owner);if(before.version!==version||!before.enabled)return before;
- const item={jobId:job.id,title:job.title,createdAt:new Date().toISOString(),status:'Researching',costUnits:0};s.items.push(item);log(s,'Researching',job.title);if(!await writeIf(s,version))return await read(owner);
+ const item={jobId:job.id,title:job.title,createdAt:new Date().toISOString(),status:'Researching',costUnits:0,tokenId:Number(pair.blocky),agentId:pair.agentId};s.items.push(item);log(s,'Researching',`Blocky #${pair.blocky}: ${job.title}`);if(!await writeIf(s,version))return await read(owner);
  try{
+  await assertOwners(s.owner,pair.blocky,pair.agentId);
   let delegate=null;
   if(s.settings.mode==='auto'){
    if(!s.grant||Date.now()>=Date.parse(s.grant.expiresAt))throw new Error('Delegation expired or missing');
@@ -57,6 +67,7 @@ export async function tick(owner,{syncOnly=false}={}){const release=await lock(o
    const latest=await read(owner);if(latest.version!==version||!latest.enabled)return latest;
    const {delivery}=await blue(`/${job.id}/deliveries`,b);item.deliveryId=delivery.id;item.status='Submitted';
   }
+  if(item.status==='Submitted'||item.status==='Needs review')await recordWork({kind:item.status==='Submitted'?'job-delivered':'job-researched',blocky:item.tokenId,agentId:item.agentId,title:job.title}).catch(()=>{});
   log(s,item.status,job.title);
  }catch(e){item.status='Failed';item.error=String(e.shortMessage||e.message).slice(0,500);log(s,'Failed',item.error);}
  const latest=await read(owner);if(latest.version===version&&latest.enabled)await writeIf(s,version);return await read(owner);

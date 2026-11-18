@@ -168,3 +168,5 @@
 .al-shared input,.al-row input{width:140px}.al-rows{max-height:240px;overflow:auto;margin:6px 0}
 .al-row span{min-width:96px}.al-row em{color:#9be7b8;font-style:normal}
 .agent-link .good{color:#9be7b8}.agent-link .bad{color:#ff8a8a}
+.al-setup{margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(0,82,255,.12)}
+.al-setup b{display:block}.al-setup span{display:block;font-size:12px;opacity:.8;margin:2px 0 6px}

@@ -48,7 +48,7 @@ export default async function handler(req,res){res.setHeader('Cache-Control','no
  if(b.action==='pause'){s.enabled=false;s.version++;log(s,'Paused','Stopped by owner; in-flight network requests may finish');await write(s);return res.status(200).json({state:publicState(s),token:await session(b.owner)});} // a wallet-signed action renews the session too: an hour-old one must not lock the owner out
  if(b.action==='enable'){
   const settings=workerSettings(b.settings||{});await assertOwners(b.owner,settings.tokenId,settings.agentId);
-  s.settings=settings;s.expiresAt=new Date(Date.now()+24*3600000).toISOString();s.enabled=true;s.version++;
+  s.settings=settings;s.expiresAt=new Date(Date.now()+(settings.mode==='auto'?24:7*24)*3600000).toISOString();s.enabled=true;s.version++;
   if(settings.mode==='auto'){
    if((await blue('/feed')).workerProtocol!==1)throw new Error('Blue Agent worker protocol is not deployed yet; use review mode.');
    const g=b.settings.grant;

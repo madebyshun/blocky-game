@@ -12,6 +12,7 @@
 import { createFacilitatorConfig } from '@coinbase/x402';
 import { client, NFT, useKv, kv, KEY_BASE } from './_store.js';
 import { researchStock } from './_worker-stock.js';
+import { recordWork } from './_workfeed.js';
 
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const NETWORK = 'eip155:8453';
@@ -80,7 +81,17 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST' });
 
-  const tool = String(req.query.tool || ''), tokenId = String(req.query.blocky || '');
+  const tool = String(req.query.tool || '');
+  let tokenId = String(req.query.blocky || '');
+  // blocky=any: the city picks an on-duty Blocky (fewest calls sold so far), so a caller needs no number
+  if (tokenId === 'any' && useKv()) {
+    const flat = (await kv('HGETALL', AGENT_KEY)) || [], on = [];
+    for (let i = 0; i < flat.length; i += 2) { try { const e = JSON.parse(flat[i + 1]); if (e?.active) on.push([flat[i], e.soldCalls || 0]); } catch { /* skip */ } }
+    on.sort((a, b) => a[1] - b[1] || Number(a[0]) - Number(b[0]));
+    if (!on.length) return res.status(404).json({ error: 'agent_off', message: 'No Blocky is on duty right now' });
+    // the same Blocky for the 402 and the paid retry: the resource URL carries its number
+    tokenId = on[0][0];
+  }
   if (!TOOLS[tool]) return res.status(404).json({ error: 'unknown_tool', tools: Object.keys(TOOLS) });
   if (!/^\d{1,5}$/.test(tokenId) || !NFT) return res.status(400).json({ error: 'invalid_blocky' });
   const entry = await agentEntry(tokenId);
@@ -114,6 +125,7 @@ export default async function handler(req, res) {
   catch (e) { return res.status(503).json({ error: 'settle_failed', message: String(e.message).slice(0, 200), charged: false }); }
   if (!settle.success) return res.status(402).json(challenge(tool, payTo, resource, settle.errorReason || 'settle_failed'));
   await recordSale(tokenId, TOOLS[tool].priceUnits).catch(() => {});
+  await recordWork({ kind: 'x402-sale', blocky: tokenId, usd: TOOLS[tool].priceUnits / 1e6, tx: settle.transaction, tool, ticker }).catch(() => {});
   res.setHeader('payment-response', b64(settle));
   return res.status(200).json({ blocky: Number(tokenId), tool, ticker, preview: report.preview, result: report.result, evidence: report.evidence, paid: { tx: settle.transaction, payTo, amountUnits: TOOLS[tool].priceUnits } });
 }

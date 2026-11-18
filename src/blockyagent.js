@@ -57,6 +57,16 @@ export const agentMessage = (kind, tokenId, address) =>
       ? 'This switches the agent on for this Blocky: it can run research jobs paid in USDC from your wallet.'
       : 'This switches the agent off for this Blocky.'} No transaction, no gas.`;
 
+export const fleetMessage = (kind, tokenIds, address, issuedAt) =>
+  `BaseCity: ${kind} Blocky Agents\n\nWallet ${String(address).toLowerCase()}\nBlockies ${[...tokenIds].map(Number).sort((a, b) => a - b).join(',')}\nIssued ${issuedAt}\n\n${kind === 'activate' ? 'This switches the agent on for every Blocky listed.' : 'This switches the agent off for every Blocky listed.'} No transaction, no gas.`;
+export async function setFleet({ address, tokenIds, sign, on = true }) {
+  const message = fleetMessage(on ? 'activate' : 'deactivate', tokenIds, address, new Date().toISOString());
+  const signature = await sign(message);
+  const r = await api('/api/agent', { method: on ? 'POST' : 'PUT', body: JSON.stringify({ tokenIds, signature, message }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Could not switch the agents');
+  return j;
+}
 export async function activateAgent({ address, tokenId, sign }) {
   const message = agentMessage('activate', tokenId, address);
   const signature = await sign(message);

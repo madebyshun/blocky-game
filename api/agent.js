@@ -103,6 +103,8 @@ function body(req) {
   if (typeof req.body !== 'string') return req.body || {};
   try { return JSON.parse(req.body || '{}') || {}; } catch { return {}; }
 }
+// one signature for many Blockies (src/blockyagent.js fleetMessage)
+const FLEET = (m) => /^BaseCity: (activate|deactivate) Blocky Agents\n\nWallet (0x[0-9a-fA-F]{40})\nBlockies ([\d,]+)\nIssued (\S+)\n/.exec(m || '');
 const ACT = (m) => /^BaseCity: (activate|deactivate) Blocky Agent\n\nBlocky #(\d+)\nWallet (0x[0-9a-fA-F]{40})\n/.exec(m || '');
 
 export default async function handler(req, res) {
@@ -165,6 +167,25 @@ export default async function handler(req, res) {
       await writeOne(tokenId, next);
       res.status(200).json({ job: b.jobId, result: out.body?.result ?? out.body, paid, jobsDone: next.jobsDone, earnedUsdc: next.earnedUsdc });
       return;
+    }
+
+    // ---- POST/PUT with tokenIds: switch many on/off with one signature ----
+    if ((req.method === 'POST' || req.method === 'PUT') && Array.isArray(b.tokenIds)) {
+      const m = FLEET(b.message), want = req.method === 'POST' ? 'activate' : 'deactivate';
+      const ids = [...new Set(b.tokenIds.map(Number))].filter((n) => Number.isInteger(n) && n > 0 && n <= 10000).sort((x, y) => x - y);
+      if (!m || m[1] !== want || !ids.length || ids.length > 200 || m[3] !== ids.join(',')) return res.status(400).json({ error: 'The signed message does not match these Blockies' });
+      if (Math.abs(Date.now() - Date.parse(m[4])) > 15 * 60000) return res.status(400).json({ error: 'Signature expired: sign again' });
+      const address = m[2].toLowerCase();
+      const okSign = await client.verifyMessage({ address: getAddress(address), message: b.message, signature: b.signature }).catch(() => false);
+      if (!okSign) return res.status(401).json({ error: 'That signature is not for this wallet' });
+      const owned = await Promise.all(ids.map((id) => ownerIs(id, address)));
+      const mineIds = ids.filter((_, i) => owned[i]);
+      const all = await readAll();
+      for (const id of mineIds) {
+        const prev = all.get(String(id)) || { ...EMPTY };
+        await writeOne(id, want === 'activate' ? { ...prev, active: true, owner: address, since: prev.since ?? Date.now() } : { ...prev, active: false, owner: address });
+      }
+      return res.status(200).json({ [want === 'activate' ? 'activated' : 'deactivated']: mineIds, skipped: ids.filter((_, i) => !owned[i]) });
     }
 
     // ---- POST: activate; PUT: deactivate ----

@@ -152,3 +152,14 @@ Blue items 1,3,6,7,8,9 sent to the "Blueagent build progress" session.
   agent whose on-chain tokenURI already points at the card (`linkedBy: onchain-tokenURI`); `&agent=` alone is ignored.
 - Claim page: "Verify my Blockies as agents" panel — sign once; optional "Also write on chain" batches
   `setAgentURI` via EIP-5792 `wallet_sendCalls` (one tx per agent where unsupported; only 1-agent-1-Blocky pairs).
+
+### Blockies at work in BaseCity (2026-11-18)
+- One-time setup on /claim: "Create an agent for each Blocky" batches ERC-8004 `register(cardURI)` (EIP-5792,
+  one confirmation; per-tx fallback) → `/api/agent-link {minted:[tx]}` links each mint to its Blocky from the
+  receipt + tokenURI (no signature). "Switch all agents on": one personal_sign for every Blocky (`/api/agent` tokenIds).
+- Fleet worker: review-mode session 7 days; jobs go to the invited Blocky or the least-loaded one (perBlockyDaily);
+  items carry tokenId/agentId; auto mode stays on the delegated agent (Blue item 11 pending).
+- x402 `blocky=any` picks the on-duty Blocky with fewest calls.
+- `/api/work-feed` (real events only: x402-sale with tx, job-delivered, job-paid with tx) → x402 HQ popup in the
+  city menu (today, Hardest-working Blockies, latest receipts, services) + a drone from Blocky Street to the
+  x402 HQ with the amount, and a city-log line per event. `?hq` opens it.

@@ -58,13 +58,16 @@ export default async function handler(req, res) {
   let agentId = null, ownerProof = null, linkedBy = null;
   const link = await liveLink(tokenId).catch(() => null);
   const agentIds = [], via = [];
-  if (link) { agentIds.push(String(link.agentId)); ownerProof = { ...link.proof, signature: link.signature }; via.push('owner-signature'); }
+  if (link?.signature) { agentIds.push(String(link.agentId)); ownerProof = { ...link.proof, signature: link.signature }; via.push('owner-signature'); }
+  else if (link) { // registered for this Blocky: count it when its tokenURI still points here
+    try { const uri = await client.readContract({ address: IDENTITY, abi: URI_ABI, functionName: 'tokenURI', args: [BigInt(link.agentId)] }); const u = new URL(uri); if (/(^|\.)basecity\.space$/.test(u.hostname) && u.pathname === '/api/agent-card' && u.searchParams.get('blocky') === tokenId) { agentIds.push(String(link.agentId)); via.push('onchain-tokenURI'); } } catch { /* not pointed here */ }
+  }
   if (/^\d{1,12}$/.test(String(req.query.agent || ''))) {
     try {
       const id = BigInt(req.query.agent);
       const [uri, who] = await Promise.all([client.readContract({ address: IDENTITY, abi: URI_ABI, functionName: 'tokenURI', args: [id] }), client.readContract({ address: IDENTITY, abi: OWNER_ABI, functionName: 'ownerOf', args: [id] })]);
       const u = new URL(uri);
-      if (/(^|\.)basecity\.space$/.test(u.hostname) && u.pathname === '/api/agent-card' && u.searchParams.get('blocky') === tokenId && who.toLowerCase() === owner) { agentIds.unshift(String(id)); via.unshift('onchain-tokenURI'); }
+      if (/(^|\.)basecity\.space$/.test(u.hostname) && u.pathname === '/api/agent-card' && u.searchParams.get('blocky') === tokenId && who.toLowerCase() === owner) { if (!agentIds.includes(String(id))) { agentIds.unshift(String(id)); via.unshift('onchain-tokenURI'); } }
     } catch { /* not linked */ }
   }
   // both kinds can hold at once (e.g. an agent pointed here on chain, plus a signed link): list every one
