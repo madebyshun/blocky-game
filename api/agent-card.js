@@ -12,7 +12,9 @@ const URI_ABI = [{ type: 'function', name: 'tokenURI', stateMutability: 'view', 
 const OWNER_ABI = [{ type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'address' }] }];
 const SKILL_NAMES = { 'stock-weekend-gap': 'Weekend gap vs Friday close', 'stock-after-hours-volume': 'After-hours on-chain volume', 'stock-nav-premium': 'NAV premium (pool vs Chainlink, one block)', 'base-token-exit-screen': 'Base token exit screen' };
 
-export function card({ tokenId, owner, entry, site, agentId, ownerProof = null, linkedBy = null }) {
+export function card({ tokenId, owner, entry, site, agentId, agentIds = null, ownerProof = null, linkedBy = null }) {
+  const ids = [...new Set((agentIds || (agentId ? [agentId] : [])).map(String))];
+  agentId = ids[0] || null;
   const x402 = `${site}/api/x402`;
   return {
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
@@ -21,7 +23,7 @@ export function card({ tokenId, owner, entry, site, agentId, ownerProof = null, 
     image: `${site}/api/nft/${tokenId}.svg`,
     url: `${site}/claim?blocky=${tokenId}`,
     owner,
-    ...(agentId ? { registrations: [{ agentId: Number(agentId), agentRegistry: 'eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' }] } : {}),
+    ...(ids.length ? { registrations: ids.map((id) => ({ agentId: Number(id), agentRegistry: 'eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' })) } : {}),
     services: [
       { name: 'x402', endpoint: x402, version: '2' },
       { name: 'blue-agent-jobs', endpoint: agentId ? `https://app.blueagent.dev/jobs?agent=${agentId}` : 'https://app.blueagent.dev/jobs' },
@@ -55,14 +57,16 @@ export default async function handler(req, res) {
   // is never trusted.
   let agentId = null, ownerProof = null, linkedBy = null;
   const link = await liveLink(tokenId).catch(() => null);
-  if (link) { agentId = link.agentId; ownerProof = { ...link.proof, signature: link.signature }; linkedBy = 'owner-signature'; }
-  else if (/^\d{1,12}$/.test(String(req.query.agent || ''))) {
+  const agentIds = [], via = [];
+  if (link) { agentIds.push(String(link.agentId)); ownerProof = { ...link.proof, signature: link.signature }; via.push('owner-signature'); }
+  if (/^\d{1,12}$/.test(String(req.query.agent || ''))) {
     try {
       const id = BigInt(req.query.agent);
       const [uri, who] = await Promise.all([client.readContract({ address: IDENTITY, abi: URI_ABI, functionName: 'tokenURI', args: [id] }), client.readContract({ address: IDENTITY, abi: OWNER_ABI, functionName: 'ownerOf', args: [id] })]);
       const u = new URL(uri);
-      if (/(^|\.)basecity\.space$/.test(u.hostname) && u.pathname === '/api/agent-card' && u.searchParams.get('blocky') === tokenId && who.toLowerCase() === owner) { agentId = String(id); linkedBy = 'onchain-tokenURI'; }
+      if (/(^|\.)basecity\.space$/.test(u.hostname) && u.pathname === '/api/agent-card' && u.searchParams.get('blocky') === tokenId && who.toLowerCase() === owner) { agentIds.unshift(String(id)); via.unshift('onchain-tokenURI'); }
     } catch { /* not linked */ }
   }
-  return res.status(200).json(card({ tokenId, owner, entry, site, agentId, ownerProof, linkedBy }));
+  // both kinds can hold at once (e.g. an agent pointed here on chain, plus a signed link): list every one
+  return res.status(200).json(card({ tokenId, owner, entry, site, agentIds, ownerProof, linkedBy: via.join('+') || null }));
 }
