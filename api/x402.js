@@ -23,6 +23,7 @@ const OWNER_ABI = [{ type: 'function', name: 'ownerOf', stateMutability: 'view',
 export const TOOLS = {
   'nav-premium': { skill: 'stock-nav-premium', priceUnits: 20000, task: 'How far a tokenized stock on Base trades from its Chainlink NAV, pool and oracle read at one block' },
   'after-hours-volume': { skill: 'stock-after-hours-volume', priceUnits: 10000, task: "A tokenized stock's on-chain volume on Base over 24h and 7d, and how much ran while NYSE was shut" },
+  'weekend-gap': { skill: 'stock-weekend-gap', priceUnits: 10000, task: "How far a tokenized stock's Base DEX price moved over the weekend vs Friday's NYSE close (weekends only)" },
 };
 const INPUT = { type: 'object', properties: { ticker: { type: 'string', description: 'Ticker without the "c" suffix, e.g. NVDA' } }, required: ['ticker'] };
 
