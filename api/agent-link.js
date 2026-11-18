@@ -128,6 +128,17 @@ export default async function handler(req, res) {
       const e = await liveLink(String(req.query.blocky));
       return res.status(200).json(e ? { blocky: Number(req.query.blocky), agentId: Number(e.agentId), owner: e.owner, ...(e.signature ? { ownerProof: { ...e.proof, signature: e.signature } } : { via: 'onchain-register' }) } : { blocky: Number(req.query.blocky), agentId: null });
     }
+    // ?all: every Blocky with its own agent registered on chain whose BaseCity agent is on (for directories)
+    if (req.query.all !== undefined) {
+      res.setHeader('cache-control', 's-maxage=120, stale-while-revalidate=600');
+      const flat = useKv() ? (await kv('HGETALL', KEY)) || [] : [...memory.entries()].flatMap(([b, e]) => [b, JSON.stringify(e)]);
+      const act = useKv() ? (await kv('HGETALL', `${KEY_BASE}:agent:v1`)) || [] : [];
+      const on = new Set(); for (let i = 0; i < act.length; i += 2) { try { if (JSON.parse(act[i + 1])?.active) on.add(act[i]); } catch { /* skip */ } }
+      const rows = []; for (let i = 0; i < flat.length; i += 2) { try { const e = JSON.parse(flat[i + 1]); if (!e.signature) rows.push([flat[i], e]); } catch { /* skip */ } }
+      const got = rows.length ? await owners(rows.flatMap(([b, e]) => [[NFT, b], [IDENTITY, e.agentId]])) : [];
+      const live = rows.filter(([, e], i) => got[2 * i] === e.owner && got[2 * i + 1] === e.owner);
+      return res.status(200).json({ blockies: live.map(([b, e]) => ({ blocky: Number(b), agentId: Number(e.agentId), owner: e.owner, onDuty: on.has(b), card: `https://www.basecity.space/api/agent-card?blocky=${b}` })).sort((a, b) => a.blocky - b.blocky) });
+    }
     if (req.query.owner && isAddress(String(req.query.owner))) return res.status(200).json({ owner: String(req.query.owner).toLowerCase(), links: await linksOf(req.query.owner) });
     return res.status(400).json({ error: 'blocky or owner required' });
   } catch (e) {
