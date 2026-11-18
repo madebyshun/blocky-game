@@ -25,9 +25,9 @@ const OWNER_ABI = [{ type: 'function', name: 'ownerOf', stateMutability: 'view',
 
 // every skill, at its base price (USDC, 6 decimals); a Blocky's own price can be higher (its level)
 export const TOOLS = Object.fromEntries(Object.entries(SKILLS).map(([id, k]) => [id, { skill: id, priceUnits: k.units, task: k.task, guild: k.guild }]));
-// until Blue Agent reads skills from each Blocky's card, the three stock tools stay open on every Blocky
+// the three stock tools on every Blocky: only while STRICT is off (STRICT_SKILLS=0)
 const LEGACY = new Set(['nav-premium', 'after-hours-volume', 'weekend-gap']);
-const STRICT = process.env.STRICT_SKILLS === '1';
+const STRICT = process.env.STRICT_SKILLS !== '0'; // on since Blue Agent reads skills per Blocky (blue-agent #577); STRICT_SKILLS=0 reopens the stock tools
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64');
 const unb64 = (s) => JSON.parse(Buffer.from(s, 'base64').toString('utf8'));
