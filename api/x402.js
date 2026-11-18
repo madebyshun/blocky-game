@@ -117,6 +117,10 @@ export default async function handler(req, res) {
   let paymentPayload;
   try { paymentPayload = unb64(header); } catch { return res.status(402).json(challenge(tool, payTo, resource, 'invalid_payment_header')); }
   const paymentRequirements = requirement(tool, payTo, resource);
+  // the Bazaar learns a route from what reaches the facilitator: the payload's resource and extensions.
+  // Not every client echoes them back from the 402, so the server fills in what it advertised.
+  const offer = challenge(tool, payTo, resource);
+  paymentPayload = { ...paymentPayload, resource: paymentPayload.resource || offer.resource, extensions: { ...(offer.extensions || {}), ...(paymentPayload.extensions || {}) } };
   try {
     const v = await facilitatorCall('verify', { x402Version: 2, paymentPayload, paymentRequirements });
     if (!v.isValid) return res.status(402).json(challenge(tool, payTo, resource, v.invalidReason || 'payment_invalid'));
