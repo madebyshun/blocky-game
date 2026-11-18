@@ -21,7 +21,7 @@ export function card({ tokenId, owner, entry, site, agentId, agentIds = null, ow
   return {
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
     name: `Blocky #${tokenId}`,
-    description: `A BaseCity Blocky that does stock research jobs on Base and earns USDC. Hire it on Blue Agent jobs, or call its x402 tools and get the answer at once. Owner-controlled; payments go wallet to wallet.`,
+    description: profile ? `A BaseCity Blocky in the ${GUILDS[profile.guild]?.label || 'every'} guild (${profile.role}, ${profile.rarity}, level ${profile.level}). It sells ${profile.skills.join(', ')} over x402 and answers at once; it can also take Blue Agent jobs. Owner-controlled; payments go wallet to wallet.` : `A BaseCity Blocky that does research jobs on Base and earns USDC. Hire it on Blue Agent jobs, or call its x402 tools and get the answer at once. Owner-controlled; payments go wallet to wallet.`,
     image: `${site}/api/nft/${tokenId}.svg`,
     url: `${site}/claim?blocky=${tokenId}`,
     owner,

@@ -128,7 +128,7 @@ export default async function handler(req, res) {
   if (key) {
     let v = String(body[key] ?? '').trim();
     if (key === 'ticker') v = v.replace(/c$/, '').toUpperCase(); // NVDAc -> NVDA
-    if (!INPUTS[key].test(v)) return res.status(400).json({ error: `invalid_${key}`, expected: inputSchema(tool) });
+    if (!INPUTS[key].test(v)) return res.status(400).json({ error: `invalid_${key}`, message: `${v ? 'Not a valid' : 'Missing'} ${key}: send ${JSON.stringify({ [key]: INPUTS[key].example })} (${INPUTS[key].description}). Nothing was charged.`, expected: inputSchema(tool), example: { [key]: INPUTS[key].example } });
     input[key] = v;
   }
   const ticker = input.ticker || null;
