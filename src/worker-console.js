@@ -4,8 +4,8 @@ import {agentIdOf,controlMessage,workerGrantMessage,EXIT_SKILL,revokeMessage} fr
 import {linkedAgentId,linkAgentId} from './agent-id.js';
 // Cost ledger: tool spend from each report's costUnits (target $0), infra on free tiers, earnings from
 // verified payouts only. "Stack my earnings" buys stocks with it later, from the owner's own wallet.
-function ledger(items,earned){const spent=items.reduce((n,i)=>n+(i.costUnits||0),0)/1e6,net=earned-spent;
- return `<div class="wk-ledger"><h4>Profit & loss</h4><div><span>Earned (verified payouts)</span><b>$${earned.toFixed(2)}</b></div><div><span>Tool spend</span><b>$${spent.toFixed(2)}</b></div><div><span>Running cost (free tiers)</span><b>$0.00</b></div><div class="wk-net"><span>Net</span><b>${net<0?'-':''}$${Math.abs(net).toFixed(2)}</b></div>
+function ledger(items,jobs,sales){const spent=items.reduce((n,i)=>n+(i.costUnits||0),0)/1e6,x=sales?.x402Usdc||0,earned=jobs+x,net=earned-spent;
+ return `<div class="wk-ledger"><h4>Profit & loss</h4><div><span>Jobs paid (verified onchain)</span><b>$${jobs.toFixed(2)}</b></div><div><span>x402 calls sold${sales?.x402Calls?` (${sales.x402Calls})`:''}</span><b>$${x.toFixed(2)}</b></div><div><span>Tool spend</span><b>$${spent.toFixed(2)}</b></div><div><span>Running cost (free tiers)</span><b>$0.00</b></div><div class="wk-net"><span>Net</span><b>${net<0?'-':''}$${Math.abs(net).toFixed(2)}</b></div>
  <button class="btn" disabled title="Buys tokenized stocks from your own wallet; BaseCity never holds funds">🧱 Stack my earnings${earned>0?` ($${earned.toFixed(2)})`:''} · coming soon</button><p class="wk-note">Turns payouts into Blocky 10 stocks from your own wallet, and your tower on Blocky Street grows a floor. Not offered to U.S. persons.</p></div>`;}
 export function mountWorkerConsole(el,context,review){
  let token=null,owner=null,state=null,error='',busy=false,ready={},editing=false;
@@ -28,11 +28,12 @@ export function mountWorkerConsole(el,context,review){
   el.innerHTML=`<div class="work-title"><div><span class="research-eyebrow">AUTO WORKER · BASE</span><h3>Let your Blocky research on its own</h3></div><a href="https://app.blueagent.dev/jobs" target="_blank" rel="noopener">Blue Agent jobs ↗</a></div><p>It checks Blue Agent's job board, researches Base token exits and Coinbase stock jobs (weekend gap, after-hours volume, NAV premium) with free public data, and ${settings.mode==='auto'?'submits':'waits for your review before submitting'}. It never spends, trades or approves tokens.</p>
   ${!token?`<div class="agent-acts"><button class="btn primary" data-worker="unlock" ${busy?'disabled':''}>${busy?'Waiting for wallet…':'Open worker (sign in with wallet)'}</button></div>`:`${card}${!on||editing?form:''}`}
   <p role="status" class="${error?'bad':''}">${esc(error||'')}</p>
-  ${state?`<div class="wk-stats"><div><b>${items.length}</b><span>reports</span></div><div><b>${review}</b><span>to review</span></div><div><b>${earned.toFixed(2)}</b><span>USDC received (verified)</span></div></div>${ledger(items,earned)}
+  ${state?`<div class="wk-stats"><div><b>${items.length}</b><span>reports</span></div><div><b>${review}</b><span>to review</span></div><div><b>${earned.toFixed(2)}</b><span>USDC received (verified)</span></div></div>${ledger(items,earned,sales)}
   <h4>Reports</h4>${items.map((i,n)=>`<article class="wk-item"><b>${esc(i.title)}</b><p>${esc(i.status)} · ${esc(when(i.createdAt))}${i.error?` · ${esc(i.error)}`:''}</p>${i.result?`<details><summary>Read the report</summary><pre>${esc(i.result)}</pre></details>`:''}<div class="agent-acts">${i.status==='Needs review'?`<button class="btn primary" data-worker="review" data-index="${n}">Review & submit</button>`:''}${['Needs review','Failed'].includes(i.status)?`<button class="btn" data-worker="discard" data-index="${n}">Discard</button>`:''}${i.receipt?`<a href="https://basescan.org/tx/${esc(i.receipt.tx)}" target="_blank" rel="noopener">Payment ↗</a>`:''}</div></article>`).join('')||`<p>No reports yet.${on?' Press Run now, or it checks again on its own.':''}</p>`}
   <details class="wk-log"><summary>Worker log</summary>${(state.log||[]).map(l=>`<p>${esc(when(l.at))} · ${esc(l.event)} · ${esc(l.detail)}</p>`).join('')}<p class="wk-tech">Scheduler ${ready.schedulerReady?'on':'off'} · auto-submit ${ready.autoReady?'available':'unavailable'} · storage ${ready.storageReady?'ok':'unavailable'}</p></details>`:''}`;
  }
- async function refresh(){const j=await call();state=j.state;ready=j;}
+ async function refresh(){const j=await call();state=j.state;ready=j;const id=state?.settings?.tokenId||context().tokenId;if(id){try{sales=(await (await fetch(`/api/agent-card?blocky=${id}`)).json()).stats||null;}catch{}}}
+ let sales=null;
  el.addEventListener('click',async e=>{
   const action=e.target.closest('[data-worker]')?.dataset.worker;if(!action||busy)return;capture();busy=true;error='';draw();
   try{

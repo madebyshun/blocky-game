@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { TOOLS, requirement, challenge } from '../api/x402.js';
+import { card } from '../api/agent-card.js';
+const payTo='0x92c0a50966ccdb5e25770cffd64b4b249adf42e9';
+const r=requirement('nav-premium',payTo,'https://x/api/x402?tool=nav-premium&blocky=718');
+assert.equal(r.network,'eip155:8453');assert.equal(r.amount,'20000');assert.equal(r.payTo,payTo);assert.equal(r.scheme,'exact');
+const c=challenge('after-hours-volume',payTo,'u');assert.equal(c.x402Version,2);assert.equal(c.accepts[0].amount,String(TOOLS['after-hours-volume'].priceUnits));
+const k=card({tokenId:'718',owner:payTo,entry:{active:true,soldCalls:2,soldUsdc:0.04},site:'https://s',agentId:'1205445'});
+assert.equal(k.name,'Blocky #718');assert.ok(k.services.some(s=>s.name==='x402'));assert.equal(k.registrations[0].agentId,1205445);
+assert.ok(k.skills.some(s=>s.mode==='x402-instant'&&s.call.includes('blocky=718')));assert.equal(k.stats.x402Calls,2);
+console.log('x402 service + agent card ok');

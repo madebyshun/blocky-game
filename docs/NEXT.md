@@ -128,3 +128,17 @@ Note: Coinbase's tokenized stocks aren't offered to U.S. persons (Quadra blocks 
 - BaseCity 3 (display): P&L block on the worker card (earned verified, tool spend, running cost, net).
 - BaseCity 4: "Stack my earnings" button shown disabled ("coming soon") until Quadra's API is open (CORS).
 - Skill ids sent to the Blue Agent session for Blue 1+4; waiting on its confirmation.
+
+### Build plan (approved 2026-11-18) — 12 items
+Phase 1: 1 Blue direct hire (`invitedAgentId`) · 2 BaseCity "Hire Blocky #N" (after 1) · 3 Blue `/agents` + profile ·
+4 BaseCity Blocky x402 service ✅ · 5 BaseCity Agent Card ✅ · 6 Blue agents post jobs by API/MCP · 7 Blue `/api/catalog`.
+Phase 2: 8 Blue ERC-8004 reputation feedback · 9 Blue new-job webhook.
+Phase 3 (needs ShunTr): 10 ERC-8183 escrow · 11 worker delegation for stock jobs · 12 auto mode + Stack my earnings.
+Blue items 1,3,6,7,8,9 sent to the "Blueagent build progress" session.
+
+- **4 `api/x402.js`**: `GET /api/x402` catalog; `POST /api/x402?tool=nav-premium|after-hours-volume&blocky=N {ticker}`
+  → 402 (x402 v2 exact, USDC Base, payTo = ownerOf(Blocky)) → verify via CDP facilitator → research → settle
+  (charged only on success). Only Blockies whose agent is on. Sales counted in the agent KV entry (soldCalls,
+  soldUsdc) and shown in the worker card P&L. **Needs `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` on Vercel.**
+- **5 `api/agent-card.js`**: `GET /api/agent-card?blocky=N[&agent=ID]` — ERC-8004 registration-v1 + A2A-style
+  skills with prices and the x402 call. Owner can point the ERC-8004 agent URI at it (owner's own tx).
