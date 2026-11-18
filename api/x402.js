@@ -40,6 +40,12 @@ export function challenge(tool, payTo, resource, error = 'Payment Required') {
     resource: { url: resource, description: TOOLS[tool].task, mimeType: 'application/json', serviceName: 'BaseCity Blocky' },
     accepts: [requirement(tool, payTo, resource)],
     tool: { id: tool, price: `$${(TOOLS[tool].priceUnits / 1e6).toFixed(2)}`, input: INPUT },
+    // x402 v2 discovery ("bazaar" extension): lets the CDP facilitator list this route in the x402 Bazaar
+    // under the Blocky owner's payTo once a call settles
+    extensions: { bazaar: {
+      info: { input: { type: 'http', method: 'POST', bodyType: 'json', body: { ticker: 'NVDA' } }, output: { type: 'json', example: { blocky: 718, tool, ticker: 'NVDA', preview: '…', result: '…', paid: { tx: '0x…', amountUnits: TOOLS[tool].priceUnits } } } },
+      schema: { $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', properties: { input: { type: 'object', properties: { type: { const: 'http' }, method: { const: 'POST' }, bodyType: { const: 'json' }, body: INPUT }, required: ['type', 'method', 'body'] } }, required: ['input'] },
+    } },
   };
 }
 
