@@ -142,3 +142,13 @@ Blue items 1,3,6,7,8,9 sent to the "Blueagent build progress" session.
   soldUsdc) and shown in the worker card P&L. **Needs `CDP_API_KEY_ID` / `CDP_API_KEY_SECRET` on Vercel.**
 - **5 `api/agent-card.js`**: `GET /api/agent-card?blocky=N[&agent=ID]` — ERC-8004 registration-v1 + A2A-style
   skills with prices and the x402 call. Owner can point the ERC-8004 agent URI at it (owner's own tx).
+
+### Verify many Blockies at once (2026-11-18)
+- `src/agent-link.js` EIP-712 `AgentLink{owner, links: Pair{blocky, agentId}[], issuedAt}`, domain
+  `{name:'BaseCity Agent Link', version:'1', chainId:8453}`; one signature for up to 200 Blockies, no gas.
+- `api/agent-link.js`: POST verifies (EOA or smart wallet), checks ownerOf for every Blocky + agent, stores;
+  GET `?blocky=` / `?owner=` re-check ownership live (a sale ends a link).
+- Agent card lists an agent only from a signed link (`linkedBy: owner-signature`, with `ownerProof`) or an
+  agent whose on-chain tokenURI already points at the card (`linkedBy: onchain-tokenURI`); `&agent=` alone is ignored.
+- Claim page: "Verify my Blockies as agents" panel — sign once; optional "Also write on chain" batches
+  `setAgentURI` via EIP-5792 `wallet_sendCalls` (one tx per agent where unsupported; only 1-agent-1-Blocky pairs).

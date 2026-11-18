@@ -1,5 +1,6 @@
 import { mountWorkerConsole } from './worker-console.js';
 import { mountWorkBoard } from './work-board.js';
+import { mountAgentLink } from './agent-link-ui.js';
 import { renderAgentResult } from './agent-result.js';
 // The claim page: connect the wallet that bought $BLOCKY, see its Blockies, claim its citizens as NFTs
 // (a Blocky is a newcomer for its first `citizenDays` days in the city). The API signs what the ledger
@@ -31,6 +32,7 @@ let account = null; // its address
 let viewing = null; // the address on screen (connected or looked up)
 let market = null; // { floor, ethUsd, live, days, lowWarn } (OpenSea, from the API)
 let busy = false;
+let agentLink = null;
 
 // "1,234 / 10,000 claimed · 8,766 left" (the contract's totalSupply), when the chain could be read
 const count = () => (info.claimed == null ? '' : `<span class="count"><b>${fmt(info.claimed)}</b> / ${fmt(info.max)} claimed · <b>${fmt(Math.max(0, info.max - info.claimed))}</b> left</span> `);
@@ -313,6 +315,9 @@ function renderAgent() {
   el.hidden = !claimed.length;
   if (!claimed.length) return;
   $('agent-list').innerHTML = agentHtml();
+  agentLink ||= mountAgentLink($('agent-link'), () => ({ account, provider, blockies: (mine?.blockies || []).filter((x) => x.claimed).map((x) => x.n) }));
+  $('agent-link').hidden = !mineNow();
+  if (mineNow()) agentLink.refresh();
   workBoard ||= mountWorkBoard($('work-board'), () => ({account,provider,tokenId: AG.selected,result: AG.log.find(l => l.n === AG.selected)?.result}));
   workBoard.refresh();
   workerConsole ||= mountWorkerConsole($('worker-console'), () => ({account,provider,tokenId:AG.selected}), (item,settings) => { showTab('board'); return workBoard.useDraft(item,settings); });

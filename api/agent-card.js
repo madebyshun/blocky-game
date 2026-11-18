@@ -5,11 +5,14 @@
 // agent's URI at it; nothing here is signed or paid.
 import { client, NFT, useKv, kv, KEY_BASE } from './_store.js';
 import { TOOLS } from './x402.js';
+import { liveLink } from './agent-link.js';
+import { IDENTITY } from '../src/work-protocol.js';
+const URI_ABI = [{ type: 'function', name: 'tokenURI', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'string' }] }];
 
 const OWNER_ABI = [{ type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'address' }] }];
 const SKILL_NAMES = { 'stock-weekend-gap': 'Weekend gap vs Friday close', 'stock-after-hours-volume': 'After-hours on-chain volume', 'stock-nav-premium': 'NAV premium (pool vs Chainlink, one block)', 'base-token-exit-screen': 'Base token exit screen' };
 
-export function card({ tokenId, owner, entry, site, agentId }) {
+export function card({ tokenId, owner, entry, site, agentId, ownerProof = null, linkedBy = null }) {
   const x402 = `${site}/api/x402`;
   return {
     type: 'https://eips.ethereum.org/EIPS/eip-8004#registration-v1',
@@ -23,6 +26,7 @@ export function card({ tokenId, owner, entry, site, agentId }) {
       { name: 'x402', endpoint: x402, version: '2' },
       { name: 'blue-agent-jobs', endpoint: agentId ? `https://app.blueagent.dev/jobs?agent=${agentId}` : 'https://app.blueagent.dev/jobs' },
     ],
+    ...(agentId ? { linkedBy, ...(ownerProof ? { ownerProof } : {}) } : {}),
     supportedTrust: ['reputation'],
     active: !!entry?.active,
     skills: [
@@ -46,5 +50,19 @@ export default async function handler(req, res) {
   let entry = null;
   if (useKv()) { try { entry = JSON.parse((await kv('HGET', `${KEY_BASE}:agent:v1`, tokenId)) || 'null'); } catch { /* none */ } }
   const site = `https://${req.headers.host || 'www.basecity.space'}`;
-  return res.status(200).json(card({ tokenId, owner, entry, site, agentId: req.query.agent && /^\d+$/.test(req.query.agent) ? req.query.agent : entry?.agentId }));
+  // Which agent this Blocky is linked to: only a link the owner signed (api/agent-link.js), or an agent
+  // whose on-chain tokenURI already points at this card and that the same wallet owns. `&agent=` alone
+  // is never trusted.
+  let agentId = null, ownerProof = null, linkedBy = null;
+  const link = await liveLink(tokenId).catch(() => null);
+  if (link) { agentId = link.agentId; ownerProof = { ...link.proof, signature: link.signature }; linkedBy = 'owner-signature'; }
+  else if (/^\d{1,12}$/.test(String(req.query.agent || ''))) {
+    try {
+      const id = BigInt(req.query.agent);
+      const [uri, who] = await Promise.all([client.readContract({ address: IDENTITY, abi: URI_ABI, functionName: 'tokenURI', args: [id] }), client.readContract({ address: IDENTITY, abi: OWNER_ABI, functionName: 'ownerOf', args: [id] })]);
+      const u = new URL(uri);
+      if (/(^|\.)basecity\.space$/.test(u.hostname) && u.pathname === '/api/agent-card' && u.searchParams.get('blocky') === tokenId && who.toLowerCase() === owner) { agentId = String(id); linkedBy = 'onchain-tokenURI'; }
+    } catch { /* not linked */ }
+  }
+  return res.status(200).json(card({ tokenId, owner, entry, site, agentId, ownerProof, linkedBy }));
 }
