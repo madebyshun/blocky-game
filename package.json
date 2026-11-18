@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/ledger.mjs && node test/colony.mjs && node test/city.mjs && node test/market.mjs && node test/names.mjs && node test/live.mjs && node test/recap.mjs && node test/pricing.mjs && node test/vote.mjs && node test/chips.mjs && node test/baselive.mjs && node test/stocks.mjs && node test/crew.mjs && node test/worker-stock.mjs && node test/x402-service.mjs && node test/agent-link.mjs && node test/workhq.mjs && node test/ipoday.mjs && node test/agent.mjs && node test/x402.mjs && node test/agent-result.mjs && node test/work.mjs && node test/worker.mjs"
+    "test": "node test/ledger.mjs && node test/colony.mjs && node test/city.mjs && node test/market.mjs && node test/names.mjs && node test/live.mjs && node test/recap.mjs && node test/pricing.mjs && node test/vote.mjs && node test/chips.mjs && node test/baselive.mjs && node test/stocks.mjs && node test/crew.mjs && node test/worker-stock.mjs && node test/x402-service.mjs && node test/agent-link.mjs && node test/workhq.mjs && node test/skills.mjs && node test/ipoday.mjs && node test/agent.mjs && node test/x402.mjs && node test/agent-result.mjs && node test/work.mjs && node test/worker.mjs"
   },
   "dependencies": {
     "@coinbase/wallet-sdk": "^4.4.0",

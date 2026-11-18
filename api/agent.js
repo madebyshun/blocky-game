@@ -47,7 +47,7 @@ function viewFor(all, owned) {
   for (const id of owned) {
     const e = all.get(String(id));
     if (!e || !e.active) continue;
-    agents[id] = { active: true, jobsDone: e.jobsDone || 0, earnedUsdc: e.earnedUsdc || 0, lastJobAt: e.lastJobAt ?? null, since: e.since ?? null, soldCalls: e.soldCalls || 0, soldUsdc: e.soldUsdc || 0 };
+    agents[id] = { active: true, jobsDone: e.jobsDone || 0, earnedUsdc: e.earnedUsdc || 0, lastJobAt: e.lastJobAt ?? null, since: e.since ?? null, soldCalls: e.soldCalls || 0, soldUsdc: e.soldUsdc || 0, jobsPaid: e.jobsPaid || 0, priceMult: e.priceMult || 1 };
     jobsDone += e.jobsDone || 0;
     earnedUsdc += e.earnedUsdc || 0;
     activeCount += 1;
@@ -104,6 +104,7 @@ function body(req) {
   try { return JSON.parse(req.body || '{}') || {}; } catch { return {}; }
 }
 // one signature for many Blockies (src/blockyagent.js fleetMessage)
+const PRICE = (m) => /^BaseCity: price Blocky Agents\n\nWallet (0x[0-9a-fA-F]{40})\nBlockies ([\d,]+)\nMultiplier (\d(?:\.\d{1,2})?)\nIssued (\S+)\n/.exec(m || '');
 const FLEET = (m) => /^BaseCity: (activate|deactivate) Blocky Agents\n\nWallet (0x[0-9a-fA-F]{40})\nBlockies ([\d,]+)\nIssued (\S+)\n/.exec(m || '');
 const ACT = (m) => /^BaseCity: (activate|deactivate) Blocky Agent\n\nBlocky #(\d+)\nWallet (0x[0-9a-fA-F]{40})\n/.exec(m || '');
 
@@ -167,6 +168,21 @@ export default async function handler(req, res) {
       await writeOne(tokenId, next);
       res.status(200).json({ job: b.jobId, result: out.body?.result ?? out.body, paid, jobsDone: next.jobsDone, earnedUsdc: next.earnedUsdc });
       return;
+    }
+
+    // ---- PATCH: the owner sets its Blockies' price multiplier (capped per Blocky by its level) ----
+    if (req.method === 'PATCH') {
+      const m = PRICE(b.message);
+      const ids = [...new Set((b.tokenIds || []).map(Number))].filter((n) => Number.isInteger(n) && n > 0 && n <= 10000).sort((x, y) => x - y);
+      const mult = Number(m?.[3]);
+      if (!m || !ids.length || ids.length > 200 || m[2] !== ids.join(',') || !(mult >= 1 && mult <= 2)) return res.status(400).json({ error: 'The signed message does not match these Blockies and price' });
+      if (Math.abs(Date.now() - Date.parse(m[4])) > 15 * 60000) return res.status(400).json({ error: 'Signature expired: sign again' });
+      const address = m[1].toLowerCase();
+      if (!(await client.verifyMessage({ address: getAddress(address), message: b.message, signature: b.signature }).catch(() => false))) return res.status(401).json({ error: 'That signature is not for this wallet' });
+      const owned = await Promise.all(ids.map((id) => ownerIs(id, address)));
+      const all = await readAll(), done = [];
+      for (const [i, id] of ids.entries()) { if (!owned[i]) continue; const prev = all.get(String(id)) || { ...EMPTY }; await writeOne(id, { ...prev, owner: address, priceMult: mult }); done.push(id); }
+      return res.status(200).json({ priced: done, multiplier: mult, note: 'Each Blocky charges at most its level cap; the rest of the multiplier waits for its level.' });
     }
 
     // ---- POST/PUT with tokenIds: switch many on/off with one signature ----

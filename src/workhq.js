@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { makeDrone } from './fleet.js';
 import { esc } from './names.js';
+import { GUILDS } from './skills.js';
 
 const POLL_MS = 60000;
 const usd = (v) => `$${(Number(v) || 0).toFixed(v >= 1 ? 2 : 3).replace(/0$/, '')}`;
@@ -13,7 +14,7 @@ const ago = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m 
 const key = (e) => `${e.at}:${e.kind}:${e.blocky}:${e.tx || ''}`;
 
 export function eventLine(e) {
-  const who = `Blocky #${e.blocky}`;
+  const who = `${GUILDS[e.guild]?.icon ? GUILDS[e.guild].icon + ' ' : ''}Blocky #${e.blocky}`;
   if (e.kind === 'x402-sale') return `💸 ${who} sold ${esc(e.tool || 'research')}${e.ticker ? ` on ${esc(e.ticker)}` : ''} over x402 · ${usd(e.usd)}`;
   if (e.kind === 'job-paid') return `✅ ${who} got paid for a Blue Agent job · ${usd(e.usd)}`;
   if (e.kind === 'job-delivered') return `📨 ${who} delivered a report to Blue Agent`;
@@ -25,10 +26,10 @@ export function createWorkHQ(city, { log = () => {}, from = () => null, feed = '
   let data = null, first = true;
   const flights = [];
 
-  function label(text) {
+  function label(text, color = '#0052ff') {
     const c = document.createElement('canvas'); c.width = 256; c.height = 64;
     const g = c.getContext('2d');
-    g.fillStyle = '#0052ff'; g.beginPath(); g.roundRect(4, 8, 248, 48, 14); g.fill();
+    g.fillStyle = color; g.beginPath(); g.roundRect(4, 8, 248, 48, 14); g.fill();
     g.fillStyle = '#fff'; g.font = '800 26px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(text, 128, 33);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
@@ -42,7 +43,8 @@ export function createWorkHQ(city, { log = () => {}, from = () => null, feed = '
     if (!to) return;
     const start = from() || { x: to.x + 18, z: to.z + 18 };
     const d = makeDrone(); d.scale.setScalar(1.6);
-    const tag = label(e.usd ? `+${usd(e.usd)} · #${e.blocky}` : `#${e.blocky} delivered`); tag.position.y = 1.2; d.add(tag);
+    const gd = GUILDS[e.guild];
+    const tag = label(e.usd ? `${gd ? gd.icon + ' ' : ''}+${usd(e.usd)} · #${e.blocky}` : `#${e.blocky} delivered`, gd?.color); tag.position.y = 1.2; d.add(tag);
     const top = (to.h || 6) + 3;
     d.position.set(start.x, top, start.z);
     city.root.add(d);
@@ -92,6 +94,8 @@ export function createWorkHQ(city, { log = () => {}, from = () => null, feed = '
       <div class="td-head"><div class="td-icon">💸</div><div class="td-title"><b>x402 HQ</b><span>where the Blockies get paid</span></div><button class="td-x" title="Close (Esc)">✕</button></div>
       <p class="td-blurb">Blockies do research for agents and people, and get paid in USDC on Base, straight to their owner's wallet. Every number here is a settled payment or a verified delivery.</p>
       <div class="whq-stats"><div><b>${usd(t.earnedUsd)}</b><span>earned today</span></div><div><b>${t.calls || 0}</b><span>x402 calls</span></div><div><b>${t.jobsPaid || 0}</b><span>jobs paid</span></div><div><b>${t.delivered || 0}</b><span>delivered</span></div></div>
+      <h4>Guilds <small>7 days</small></h4>
+      <div class="whq-guilds">${Object.entries(GUILDS).map(([id, g]) => { const r = (d.guilds || []).find((x) => x.guild === id); return `<div style="border-color:${g.color}"><b>${g.icon} ${g.label}</b><span>${r ? `${usd(r.earnedUsd)} · ${r.calls} paid` : 'no paid work yet'}</span></div>`; }).join('')}</div>
       <h4>Hardest-working Blockies <small>7 days</small></h4>
       ${(d.leaders || []).length ? `<ol class="whq-lead">${d.leaders.map((l) => `<li><b>Blocky #${l.blocky}</b><span>${usd(l.earnedUsd)} · ${l.calls} call${l.calls === 1 ? '' : 's'} · ${l.jobs} job${l.jobs === 1 ? '' : 's'}</span></li>`).join('')}</ol>` : '<p class="td-soon">No paid work yet this week. The first Blocky to get paid tops the board.</p>'}
       <h4>Latest</h4>

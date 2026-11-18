@@ -49,8 +49,11 @@
         </section>
 
         <section class="panel">
-          <div class="ag-h"><h3>Your fleet</h3><input id="ag-filter" type="search" placeholder="Find a Blocky or agent #" aria-label="Filter Blockies" /></div>
-          <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th>Blocky</th><th>Agent</th><th>Status</th><th>Calls</th><th>Earned 7d</th><th></th></tr></thead><tbody id="ag-fleet"></tbody></table></div>
+          <div class="ag-h"><h3>Your fleet</h3><input id="ag-filter" type="search" placeholder="Blocky, agent #, guild or skill" aria-label="Filter Blockies" /></div>
+          <p class="ag-note">Each Blocky's guild comes from its Role, how many skills it knows from its Rarity, and its price cap from its level (paid work: ×1, ×1.25 at 5, ×1.5 at 20, ×2 at 100).</p>
+          <div class="ag-guilds" id="ag-guilds"></div>
+          <div class="ag-price"><label>Price for all my Blockies <select id="ag-price"><option value="1">base ×1</option><option value="1.25">×1.25</option><option value="1.5">×1.5</option><option value="2">×2</option></select></label><button class="btn" id="ag-price-set" type="button">Set price (signature)</button><span id="ag-price-msg" class="ag-note"></span></div>
+          <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th>Blocky</th><th>Guild</th><th>Skills · price</th><th>Lv</th><th>Agent</th><th>Status</th><th>Calls</th><th>Earned 7d</th><th></th></tr></thead><tbody id="ag-fleet"></tbody></table></div>
         </section>
 
         <section class="panel">

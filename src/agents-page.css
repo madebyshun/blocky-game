@@ -19,3 +19,7 @@
 .ag-adv summary{cursor:pointer;font-weight:700}
 .ag-msg.bad{color:#ff8a8a}
 @media (max-width:640px){.ag-sum{grid-template-columns:repeat(2,1fr)}}
+
+.ag-guilds{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}.ag-guilds span{border:1px solid;border-radius:999px;padding:3px 10px;font-size:12px}
+.ag-skills span{display:inline-block;background:rgba(255,255,255,.06);border-radius:6px;padding:1px 6px;margin:1px 3px 1px 0;font-size:11.5px}
+.ag-price{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 10px;font-size:13px}

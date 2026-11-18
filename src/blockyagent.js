@@ -67,6 +67,16 @@ export async function setFleet({ address, tokenIds, sign, on = true }) {
   if (!r.ok) throw new Error(j.error || 'Could not switch the agents');
   return j;
 }
+export const priceMessage = (tokenIds, address, mult, issuedAt) =>
+  `BaseCity: price Blocky Agents\n\nWallet ${String(address).toLowerCase()}\nBlockies ${[...tokenIds].map(Number).sort((a, b) => a - b).join(',')}\nMultiplier ${mult}\nIssued ${issuedAt}\n\nSets what these Blockies charge: their base price times this, never above each Blocky's level cap. No transaction, no gas.`;
+export async function setPrice({ address, tokenIds, mult, sign }) {
+  const message = priceMessage(tokenIds, address, mult, new Date().toISOString());
+  const signature = await sign(message);
+  const r = await api('/api/agent', { method: 'PATCH', body: JSON.stringify({ tokenIds, signature, message }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Could not set the price');
+  return j;
+}
 export async function activateAgent({ address, tokenId, sign }) {
   const message = agentMessage('activate', tokenId, address);
   const signature = await sign(message);

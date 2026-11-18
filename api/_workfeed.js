@@ -9,7 +9,7 @@ const KINDS = new Set(['x402-sale', 'job-delivered', 'job-paid', 'job-researched
 
 export async function recordWork(ev) {
   if (!KINDS.has(ev?.kind) || !ev.blocky) return;
-  const row = { at: Date.now(), kind: ev.kind, blocky: Number(ev.blocky), agentId: ev.agentId ? String(ev.agentId) : null, usd: Number(ev.usd) || 0, tx: ev.tx || null, tool: ev.tool || null, ticker: ev.ticker || null, title: ev.title ? String(ev.title).slice(0, 120) : null };
+  const row = { at: Date.now(), kind: ev.kind, blocky: Number(ev.blocky), agentId: ev.agentId ? String(ev.agentId) : null, usd: Number(ev.usd) || 0, tx: ev.tx || null, tool: ev.tool || null, ticker: ev.ticker || null, title: ev.title ? String(ev.title).slice(0, 120) : null, guild: ev.guild || null };
   if (!useKv()) { memory.unshift(row); memory.length = Math.min(memory.length, MAX); return; }
   await kv('LPUSH', FEED_KEY, JSON.stringify(row));
   await kv('LTRIM', FEED_KEY, 0, MAX - 1);
@@ -36,6 +36,7 @@ export function summarizeWork(rows, now = Date.now()) {
   }
   return {
     today: { earnedUsd: Math.round(today.filter(paid).reduce((n, r) => n + r.usd, 0) * 1e6) / 1e6, calls: today.filter((r) => r.kind === 'x402-sale').length, jobsPaid: today.filter((r) => r.kind === 'job-paid').length, delivered: today.filter((r) => r.kind === 'job-delivered').length },
+    guilds: Object.entries(rows.filter((r) => r.at >= week && r.guild && paid(r)).reduce((m, r) => { m[r.guild] = m[r.guild] || { calls: 0, earnedUsd: 0 }; m[r.guild].calls += 1; m[r.guild].earnedUsd = Math.round((m[r.guild].earnedUsd + r.usd) * 1e6) / 1e6; return m; }, {})).map(([guild, v]) => ({ guild, ...v })),
     leaders: [...board.values()].filter((b) => b.earnedUsd > 0 || b.jobs || b.calls).sort((a, b) => b.earnedUsd - a.earnedUsd || b.jobs + b.calls - (a.jobs + a.calls)).slice(0, 10),
   };
 }

@@ -5,6 +5,8 @@
 // agent's URI at it; nothing here is signed or paid.
 import { client, NFT, useKv, kv, KEY_BASE } from './_store.js';
 import { TOOLS } from './x402.js';
+import { profileFor } from './_profile.js';
+import { SKILLS, GUILDS, INPUTS, priceUnits } from '../src/skills.js';
 import { liveLink } from './agent-link.js';
 import { IDENTITY } from '../src/work-protocol.js';
 const URI_ABI = [{ type: 'function', name: 'tokenURI', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'string' }] }];
@@ -12,7 +14,7 @@ const URI_ABI = [{ type: 'function', name: 'tokenURI', stateMutability: 'view', 
 const OWNER_ABI = [{ type: 'function', name: 'ownerOf', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'address' }] }];
 const SKILL_NAMES = { 'stock-weekend-gap': 'Weekend gap vs Friday close', 'stock-after-hours-volume': 'After-hours on-chain volume', 'stock-nav-premium': 'NAV premium (pool vs Chainlink, one block)', 'base-token-exit-screen': 'Base token exit screen' };
 
-export function card({ tokenId, owner, entry, site, agentId, agentIds = null, ownerProof = null, linkedBy = null }) {
+export function card({ tokenId, owner, entry, site, agentId, agentIds = null, ownerProof = null, linkedBy = null, profile = null }) {
   const ids = [...new Set((agentIds || (agentId ? [agentId] : [])).map(String))];
   agentId = ids[0] || null;
   const x402 = `${site}/api/x402`;
@@ -32,9 +34,10 @@ export function card({ tokenId, owner, entry, site, agentId, agentIds = null, ow
     supportedTrust: ['reputation'],
     active: !!entry?.active,
     skills: [
-      ...Object.entries(TOOLS).map(([id, t]) => ({ id, name: SKILL_NAMES[t.skill], mode: 'x402-instant', priceUsd: t.priceUnits / 1e6, call: `POST ${x402}?tool=${id}&blocky=${tokenId}`, input: { ticker: 'NVDA' } })),
+      ...(profile ? profile.skills : Object.keys(TOOLS)).map((id) => ({ id, name: SKILLS[id].task, guild: SKILLS[id].guild, mode: 'x402-instant', priceUsd: (profile ? priceUnits(id, profile, profile.mult) : TOOLS[id].priceUnits) / 1e6, call: `POST ${x402}?tool=${id}&blocky=${tokenId}`, input: SKILLS[id].input ? { [SKILLS[id].input]: INPUTS[SKILLS[id].input].example } : {} })),
       ...['stock-weekend-gap', 'stock-after-hours-volume', 'stock-nav-premium', 'base-token-exit-screen'].map((s) => ({ id: s, name: SKILL_NAMES[s], mode: 'blue-agent-job' })),
     ],
+    ...(profile ? { specialization: { guild: profile.guild, guildLabel: GUILDS[profile.guild]?.label || 'All guilds', role: profile.role, rarity: profile.rarity, trait: profile.trait, perk: profile.perk, level: profile.level, priceCap: profile.priceCap } } : {}),
     stats: { x402Calls: entry?.soldCalls || 0, x402Usdc: entry?.soldUsdc || 0 },
     network: 'eip155:8453',
     note: 'Research only, not financial advice. Coinbase tokenized stocks are not offered to U.S. persons.',
@@ -71,5 +74,6 @@ export default async function handler(req, res) {
     } catch { /* not linked */ }
   }
   // both kinds can hold at once (e.g. an agent pointed here on chain, plus a signed link): list every one
-  return res.status(200).json(card({ tokenId, owner, entry, site, agentIds, ownerProof, linkedBy: via.join('+') || null }));
+  const profile = await profileFor(tokenId, entry).catch(() => null);
+  return res.status(200).json(card({ tokenId, owner, entry, site, agentIds, ownerProof, linkedBy: via.join('+') || null, profile }));
 }

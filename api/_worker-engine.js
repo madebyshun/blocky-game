@@ -8,6 +8,7 @@ import {researchExit} from './_worker-research.js';
 import {skillOf,supportsStockJob,researchStock} from './_worker-stock.js';
 import {linksOf} from './agent-link.js';
 import {recordWork} from './_workfeed.js';
+import {bumpJobsPaid} from './_profile.js';
 const base='https://blueagent.dev/api/jobs';
 export async function blue(path='',body){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});const j=await r.json();if(!r.ok)throw new Error(j.error||`Jobs HTTP ${r.status}`);return j;}
 export async function assertOwners(owner,tokenId,agentId){if(!NFT)throw new Error('NFT contract unavailable');for(const [address,id]of [[NFT,tokenId],[IDENTITY,agentId]]){const who=await client.readContract({address,abi:OWNER_ABI,functionName:'ownerOf',args:[BigInt(id)]});if(who.toLowerCase()!==owner.toLowerCase())throw new Error('Ownership changed. Worker is paused.');}}
@@ -25,7 +26,7 @@ async function sync(s,jobs){
   const confirmed=await client.getBlockNumber();if(confirmed-r.blockNumber<10n)continue;
   if(s.items.some(i=>i.receipt?.tx===receipt.tx&&i!==item))continue;
   const matches=r.logs.some(l=>{if(l.address.toLowerCase()!=='0x833589fcd6edb6e08f4c7c32d4f71b54bda02913')return false;try{const {args}=decodeEventLog({abi:parseAbi(['event Transfer(address indexed from,address indexed to,uint256 value)']),topics:l.topics,data:l.data});return args.from.toLowerCase()===job.poster.toLowerCase()&&args.to.toLowerCase()===s.owner&&args.value===BigInt(d.priceUnits);}catch{return false;}});
-  if(matches){item.receipt={tx:receipt.tx,amountUnits:d.priceUnits,verifiedAt:new Date().toISOString()};item.status='Paid';log(s,'Paid',`${item.jobId}: ${d.priceUnits/1e6} USDC`);await recordWork({kind:'job-paid',blocky:item.tokenId||s.settings.tokenId,agentId:item.agentId||s.settings.agentId,usd:d.priceUnits/1e6,tx:receipt.tx,title:item.title}).catch(()=>{});}
+  if(matches){item.receipt={tx:receipt.tx,amountUnits:d.priceUnits,verifiedAt:new Date().toISOString()};item.status='Paid';log(s,'Paid',`${item.jobId}: ${d.priceUnits/1e6} USDC`);await bumpJobsPaid(item.tokenId||s.settings.tokenId).catch(()=>{});await recordWork({kind:'job-paid',blocky:item.tokenId||s.settings.tokenId,agentId:item.agentId||s.settings.agentId,usd:d.priceUnits/1e6,tx:receipt.tx,title:item.title}).catch(()=>{});}
  }
 }
 export async function tick(owner,{syncOnly=false}={}){const release=await lock(owner);if(!release)return {busy:true};try{

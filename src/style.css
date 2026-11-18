@@ -516,3 +516,6 @@ body.photo .citynav, body.cine .citynav { display: none; }
 .whq-ev li,.whq-svc li{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .whq-ev em,.whq-svc em{font-style:normal;opacity:.7;white-space:nowrap}.whq-svc span{opacity:.7;flex:1}
 @media (max-width:480px){.whq-stats{grid-template-columns:repeat(2,1fr)}}
+
+.whq-guilds{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.whq-guilds div{border:1px solid;border-radius:10px;padding:6px;font-size:12px}.whq-guilds b{display:block}.whq-guilds span{opacity:.7}
+@media (max-width:480px){.whq-guilds{grid-template-columns:repeat(2,1fr)}}

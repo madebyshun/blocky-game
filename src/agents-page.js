@@ -8,11 +8,15 @@ import { browserWallets, onWallets, smartWallet, connect, rejected } from './wal
 import { mountAgentLink } from './agent-link-ui.js';
 import { mountWorkerConsole } from './worker-console.js';
 import { mountWorkBoard } from './work-board.js';
+import { makeBlocky, TRAIT_LABEL } from './sim.js';
+import { profileOf, GUILDS, SKILLS, priceUnits } from './skills.js';
+import { setPrice } from './blockyagent.js';
+import { toHex } from 'viem';
 
 mountSite('agents');
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `$${(Number(v) || 0).toFixed(2)}`;
-let provider = null, account = null, blockies = [], links = {}, agents = {}, linkPanel = null, worker = null, board = null;
+let provider = null, account = null, blockies = [], links = {}, agents = {}, linkPanel = null, worker = null, board = null, profiles = {}, rows = [];
 
 function say(t, tone = '') { $('ag-msg').textContent = t; $('ag-msg').className = `ag-msg ${tone}`; }
 
@@ -36,9 +40,12 @@ const json = (u) => fetch(u, { cache: 'no-store' }).then((r) => r.json()).catch(
 async function load() {
   say('Loading your Blockies…');
   const [claim, link, ag] = await Promise.all([json(`/api/claim?address=${account}`), json(`/api/agent-link?owner=${account}`), json(`/api/agent?address=${account}`)]);
-  blockies = (claim.blockies || []).filter((b) => b.claimed).map((b) => b.n).sort((a, b) => a - b);
+  rows = (claim.blockies || []).filter((b) => b.claimed);
+  blockies = rows.map((b) => b.n).sort((a, b) => a - b);
   links = Object.fromEntries((link.links || []).map((l) => [l.blocky, l]));
   agents = ag.agents || {};
+  // each Blocky's specialization, from the same NFT traits the server reads (src/skills.js)
+  profiles = Object.fromEntries(rows.map((b) => { const k = makeBlocky(b.n, b.at, null, b.seed); const e = agents[b.n] || {}; return [b.n, { ...profileOf(b.n, { Role: k.role.label, Rarity: k.rarity.label, Trait: k.trait ? TRAIT_LABEL[k.trait] : 'None' }, (e.soldCalls || 0) + (e.jobsPaid || 0)), mult: e.priceMult || 1 }]; }));
   $('ag-connect').hidden = true; $('ag-main').hidden = false; say('');
   if (!blockies.length) { $('ag-sum').innerHTML = `<p class="ag-note">This wallet has no claimed Blockies yet. <a href="/claim">Claim them first →</a></p>`; return; }
   render();
@@ -64,17 +71,25 @@ function render() {
   board ||= mountWorkBoard($('ag-board'), () => ({ account, provider, tokenId: blockies[0] }));
   board.refresh();
 
+  const by = {}; for (const n of blockies) { const g = profiles[n]?.guild || 'market'; by[g] = (by[g] || 0) + 1; }
+  $('ag-guilds').innerHTML = Object.entries(by).map(([g, c]) => `<span style="border-color:${GUILDS[g]?.color || '#0052ff'}">${GUILDS[g]?.icon || '👑'} ${esc(GUILDS[g]?.label || 'All')} · ${c}</span>`).join('');
   drawFleet();
 }
+$('ag-price-set').addEventListener('click', async () => {
+  const mult = Number($('ag-price').value);
+  try { $('ag-price-msg').textContent = 'Sign in your wallet…'; const j = await setPrice({ address: account, tokenIds: blockies, mult, sign: (m) => provider.request({ method: 'personal_sign', params: [toHex(m), account] }) }); for (const n of j.priced) profiles[n].mult = mult; $('ag-price-msg').textContent = `Set ×${mult} on ${j.priced.length} Blockies (each capped by its level).`; drawFleet(); }
+  catch (e) { $('ag-price-msg').textContent = e?.code === 4001 ? 'Cancelled.' : String(e.message).slice(0, 200); }
+});
 
 function drawFleet() {
   const q = $('ag-filter').value.trim().replace(/^#/, '');
-  const rows = blockies.filter((n) => !q || String(n).includes(q) || String(links[n]?.agentId || '').includes(q));
-  $('ag-fleet').innerHTML = rows.map((n) => {
+  const list = blockies.filter((n) => !q || String(n).includes(q) || String(links[n]?.agentId || '').includes(q) || (profiles[n]?.guild || '').includes(q.toLowerCase()) || (profiles[n]?.skills || []).some((k) => k.includes(q.toLowerCase())));
+  $('ag-fleet').innerHTML = list.map((n) => {
     const l = links[n], a = agents[n];
     const id = l?.agentId;
-    return `<tr><td><a href="/b/${n}">Blocky #${n}</a></td><td>${id ? `#${esc(id)}${l.via === 'owner-signature' ? ' <small>shared</small>' : ''}` : '<small>none</small>'}</td><td>${a ? '<span class="ag-on">● on duty</span>' : '<small>off</small>'}</td><td>${fmt(a?.soldCalls || 0)}</td><td>${usd(a?.soldUsdc || 0)}</td><td class="ag-acts">${id ? `<a href="/api/agent-card?blocky=${n}" target="_blank" rel="noopener">Card</a><a href="https://app.blueagent.dev/exchange/agent/${esc(id)}#hire" target="_blank" rel="noopener">Hire ↗</a>` : ''}</td></tr>`;
-  }).join('') || '<tr><td colspan="6">No Blocky matches.</td></tr>';
+    const p = profiles[n], g = GUILDS[p?.guild] || { icon: '👑', label: 'All' };
+    return `<tr><td><a href="/b/${n}">Blocky #${n}</a></td><td title="${esc(p?.role || '')} · ${esc(p?.rarity || '')}${p?.trait ? ` · ${esc(p.trait)}` : ''}">${g.icon} ${esc(g.label)}</td><td class="ag-skills">${(p?.skills || []).map((k) => `<span title="${esc(SKILLS[k].task)}">${esc(k)} $${(priceUnits(k, p, p.mult) / 1e6).toFixed(3).replace(/0$/, '')}</span>`).join('')}</td><td>${p?.level || 1}</td><td>${id ? `#${esc(id)}${l.via === 'owner-signature' ? ' <small>shared</small>' : ''}` : '<small>none</small>'}</td><td>${a ? '<span class="ag-on">● on duty</span>' : '<small>off</small>'}</td><td>${fmt(a?.soldCalls || 0)}</td><td>${usd(a?.soldUsdc || 0)}</td><td class="ag-acts">${id ? `<a href="/api/agent-card?blocky=${n}" target="_blank" rel="noopener">Card</a><a href="https://app.blueagent.dev/exchange/agent/${esc(id)}#hire" target="_blank" rel="noopener">Hire ↗</a>` : ''}</td></tr>`;
+  }).join('') || '<tr><td colspan="9">No Blocky matches.</td></tr>';
 }
 $('ag-filter').addEventListener('input', drawFleet);
 document.addEventListener('basecity-agents-changed', () => account && load());
