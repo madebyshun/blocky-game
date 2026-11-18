@@ -18,5 +18,5 @@ await assert.rejects(researchStock({...job,brief:'Ticker: ZZZZ'},{fetchImpl:f,si
 await assert.rejects(researchStock({...job,contract:{skill:'stock-nav-premium',inputs:{ticker:'NVDA',token:'0x'+'3'.repeat(40)}}},{fetchImpl:f,site:'x'}),/not Coinbase/);
 const s2={...s,settings:{priceUnits:100000,agentId:'7'}};
 assert.ok(!eligible({...job,invitedAgentId:'9'},s2));assert.ok(eligible({...job,invitedAgentId:'7'},s2));
-assert.ok(eligible({...job,invitedAgentId:'9',inviteExpiresAt:'2000-01-01T00:00:00Z'},s2));
+assert.ok(eligible({...job,invitedAgentId:'9',inviteUntil:'2000-01-01T00:00:00Z'},s2));
 console.log('worker-stock ok');
