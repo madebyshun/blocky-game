@@ -9,6 +9,7 @@ const PAGES = [
   ['blockies', '/collection.html', 'Blockies'],
   ['viewer', '/blocky.html', 'Viewer'],
   ['claim', '/claim.html', 'Claim'],
+  ['agents', '/agents', 'My Agents'],
   ['vote', '/vote.html', 'Vote'],
   ['builders', '/builders.html', 'Builders'],
   ['recap', '/recap.html', 'Recap'],
@@ -27,8 +28,8 @@ export function mountSite(active) {
   nav.className = 'nav-wrap';
   nav.innerHTML = `<nav class="nav" aria-label="${CONFIG.cityName}">
     <a class="logo" href="/"><span class="mark"></span>${CONFIG.cityName}</a>
-    <div class="links">${PAGES.filter(([id]) => ['home','city','base','claim','blockies'].includes(id)).map(([id, href, label]) => `<a href="${href}"${id === active ? ' class="on" aria-current="page"' : ''}>${id === 'claim' ? 'My Blockies & Agent' : label}</a>`).join('')}</div>
-    <details class="nav-more"><summary>Explore</summary><div>${PAGES.filter(([id]) => !['home','city','base','claim','blockies'].includes(id)).map(([id,href,label]) => `<a href="${href}"${id===active?' aria-current="page"':''}>${label}</a>`).join('')}</div></details>
+    <div class="links">${PAGES.filter(([id]) => ['home','city','base','claim','agents','blockies'].includes(id)).map(([id, href, label]) => `<a href="${href}"${id === active ? ' class="on" aria-current="page"' : ''}>${label}</a>`).join('')}</div>
+    <details class="nav-more"><summary>Explore</summary><div>${PAGES.filter(([id]) => !['home','city','base','claim','agents','blockies'].includes(id)).map(([id,href,label]) => `<a href="${href}"${id===active?' aria-current="page"':''}>${label}</a>`).join('')}</div></details>
     ${CONFIG.buyUrl ? `<a class="btn primary buy" href="${CONFIG.buyUrl}" target="_blank" rel="noopener">Buy ${CONFIG.ticker}</a>` : ''}
   </nav>`;
   document.body.prepend(nav);

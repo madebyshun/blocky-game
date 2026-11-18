@@ -308,11 +308,13 @@ function agentHtml() {
   return row(AG.selected);
 }
 
+const QUICK = new URLSearchParams(location.search).has('quick'); // the agent tools live on /agents now; ?quick keeps Quick jobs here
 function renderAgent() {
   const el = $('agent');
   if (!el) return;
   const claimed = (mine?.blockies || []).filter((x) => x.claimed);
-  el.hidden = !claimed.length;
+  if ($('to-agents')) $('to-agents').hidden = !claimed.length || QUICK;
+  el.hidden = !claimed.length || !QUICK;
   if (!claimed.length) return;
   $('agent-list').innerHTML = agentHtml();
   agentLink ||= mountAgentLink($('agent-link'), () => ({ account, provider, blockies: (mine?.blockies || []).filter((x) => x.claimed).map((x) => x.n) }));

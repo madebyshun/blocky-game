@@ -10,6 +10,10 @@
       "destination": "/claim.html"
     },
     {
+      "source": "/agents",
+      "destination": "/agents.html"
+    },
+    {
       "source": "/vote",
       "destination": "/vote.html"
     },
@@ -78,6 +82,10 @@
     {
       "path": "/api/worker?cron=1",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/work-feed?bazaar=1",
+      "schedule": "7 * * * *"
     }
   ]
 }

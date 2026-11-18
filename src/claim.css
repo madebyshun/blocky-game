@@ -170,3 +170,6 @@
 .agent-link .good{color:#9be7b8}.agent-link .bad{color:#ff8a8a}
 .al-setup{margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(0,82,255,.12)}
 .al-setup b{display:block}.al-setup span{display:block;font-size:12px;opacity:.8;margin:2px 0 6px}
+
+.to-agents{display:flex;flex-direction:column;gap:4px;text-decoration:none;margin:16px 0;border:1px solid rgba(0,82,255,.5)}
+.to-agents span{font-size:13px;opacity:.8}

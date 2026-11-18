@@ -47,7 +47,7 @@ function viewFor(all, owned) {
   for (const id of owned) {
     const e = all.get(String(id));
     if (!e || !e.active) continue;
-    agents[id] = { active: true, jobsDone: e.jobsDone || 0, earnedUsdc: e.earnedUsdc || 0, lastJobAt: e.lastJobAt ?? null, since: e.since ?? null };
+    agents[id] = { active: true, jobsDone: e.jobsDone || 0, earnedUsdc: e.earnedUsdc || 0, lastJobAt: e.lastJobAt ?? null, since: e.since ?? null, soldCalls: e.soldCalls || 0, soldUsdc: e.soldUsdc || 0 };
     jobsDone += e.jobsDone || 0;
     earnedUsdc += e.earnedUsdc || 0;
     activeCount += 1;
