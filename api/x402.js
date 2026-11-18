@@ -128,6 +128,14 @@ export default async function handler(req, res) {
   if (key) {
     let v = String(body[key] ?? '').trim();
     if (key === 'ticker') v = v.replace(/c$/, '').toUpperCase(); // NVDAc -> NVDA
+    // a token given by symbol ("AX1"): resolve it on Base when exactly one token has that symbol, else list them
+    if (key === 'token' && v && !INPUTS.token.test(v) && /^\$?[A-Za-z0-9]{1,15}$/.test(v)) {
+      const sym = v.replace(/^\$/, '').toUpperCase();
+      const found = await fetch(`https://api.geckoterminal.com/api/v2/search/pools?query=${encodeURIComponent(sym)}&network=base`, { signal: AbortSignal.timeout(8000) }).then((r) => r.json()).catch(() => null);
+      const cands = [...new Map((found?.data || []).filter((p) => (p.attributes?.name || '').split(' / ')[0].toUpperCase() === sym).map((p) => { const a = p.relationships.base_token.data.id.replace('base_', ''); return [a.toLowerCase(), { token: a, pool: p.attributes.name, liquidityUsd: Math.round(Number(p.attributes.reserve_in_usd) || 0) }]; })).values()].sort((a, b) => b.liquidityUsd - a.liquidityUsd);
+      if (cands.length === 1) v = cands[0].token;
+      else if (cands.length > 1) return res.status(400).json({ error: 'ambiguous_token', message: `${cands.length} tokens on Base are called ${sym}. Send the contract address of the one you mean, e.g. {"token":"${cands[0].token}"} (${cands[0].pool}, $${cands[0].liquidityUsd.toLocaleString('en-US')} liquidity). Nothing was charged.`, candidates: cands.slice(0, 5), example: { token: cands[0].token } });
+    }
     if (!INPUTS[key].test(v)) return res.status(400).json({ error: `invalid_${key}`, message: `${v ? 'Not a valid' : 'Missing'} ${key}: send ${JSON.stringify({ [key]: INPUTS[key].example })} (${INPUTS[key].description}). Nothing was charged.`, expected: inputSchema(tool), example: { [key]: INPUTS[key].example } });
     input[key] = v;
   }
