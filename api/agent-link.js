@@ -56,7 +56,8 @@ export async function verifyAndStore(body, { ownersOf = owners, verify = (args) 
   const proof = typed.json, entries = [];
   for (const p of links) {
     const prev = await read(p.blocky);
-    if (prev && prev.owner === lower && Date.parse(prev.proof.issuedAt) > t) continue; // a newer link from the same owner wins
+    if (prev && prev.owner === lower && !prev.signature) continue; // an agent registered for this Blocky on chain wins over a signed link
+    if (prev && prev.owner === lower && Date.parse(prev.proof?.issuedAt) > t) continue; // a newer link from the same owner wins
     entries.push([p.blocky, { agentId: p.agentId, owner: lower, proof, signature: body.signature }]);
   }
   await write(entries);
