@@ -14,7 +14,13 @@ const SET_URI = [{ type: 'function', name: 'setAgentURI', stateMutability: 'nonp
 export const cardUrl = (blocky, agentId) => `https://www.basecity.space/api/agent-card?blocky=${blocky}&agent=${agentId}`;
 
 const cardOf = (blocky) => `https://www.basecity.space/api/agent-card?blocky=${blocky}`;
-async function sendBatch(provider, account, calls) {
+// MetaMask caps an EIP-5792 batch at 10 calls: send in chunks of 10 (5 confirmations for 50 Blockies)
+async function sendBatch(provider, account, calls, onChunk = () => {}) {
+  const out = [];
+  for (let i = 0; i < calls.length; i += 10) { onChunk(i / 10 + 1, Math.ceil(calls.length / 10)); out.push(...await sendBatch1(provider, account, calls.slice(i, i + 10))); }
+  return out;
+}
+async function sendBatch1(provider, account, calls) {
   // EIP-5792: one wallet request, then wait for the bundle's receipts; else one transaction per call
   try {
     const r = await provider.request({ method: 'wallet_sendCalls', params: [{ version: '2.0.0', chainId: toHex(8453), from: account, atomicRequired: false, calls }] });
@@ -77,7 +83,7 @@ export function mountAgentLink(el, context) {
           if (!need.length) throw new Error('Every Blocky already has its own agent.');
           const calls = need.map((n) => ({ to: IDENTITY, data: encodeFunctionData({ abi: REGISTER, functionName: 'register', args: [cardOf(n)] }), value: '0x0' }));
           msg = `Confirm ${calls.length} agent registration${calls.length === 1 ? '' : 's'} in your wallet…`; draw();
-          const hashes = await sendBatch(provider, account, calls);
+          const hashes = await sendBatch(provider, account, calls, (k, n) => { msg = n > 1 ? `Confirm batch ${k} of ${n} (${Math.min(10, calls.length - (k - 1) * 10)} registrations) in your wallet…` : msg; draw(); });
           const r = await fetch('/api/agent-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: account, minted: hashes }) });
           const j = await r.json();
           if (!r.ok) throw new Error(j.error || 'Linking failed');
