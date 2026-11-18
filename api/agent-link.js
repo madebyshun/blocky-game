@@ -9,6 +9,7 @@ import { getAddress, isAddress } from 'viem';
 import { client, NFT, useKv, kv, KEY_BASE } from './_store.js';
 import { linkTypedData, cleanLinks } from '../src/agent-link.js';
 import { IDENTITY, OWNER_ABI } from '../src/work-protocol.js';
+import { LOGS_RPC } from './_baselive.js';
 
 const KEY = `${KEY_BASE}:agentlink:v1`; // hash: blocky -> { agentId, owner, proof: {owner, links, issuedAt}, signature }
 const memory = new Map();
@@ -98,11 +99,25 @@ export async function linkMinted(owner, txs, { ownersOf = owners, receipt = (has
   return { owner: lower, linked: ok.map((p) => ({ blocky: Number(p.blocky), agentId: Number(p.agentId) })) };
 }
 
+// Find this wallet's recent agent mints on chain (last ~3 hours) and link those registered for a Blocky.
+// Lets the claim page finish linking even when the wallet never reports the batch's receipts.
+export async function scanMinted(owner, { blocks = 54000n } = {}) {
+  const head = await client.getBlockNumber(), hashes = new Set();
+  const topicTo = `0x${String(owner).toLowerCase().slice(2).padStart(64, '0')}`;
+  for (let to = head; to > head - blocks; to -= 9000n) {
+    const from = to - 8999n;
+    const r = await fetch(LOGS_RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getLogs', params: [{ address: IDENTITY, fromBlock: `0x${from.toString(16)}`, toBlock: `0x${to.toString(16)}`, topics: [TRANSFER, `0x${'0'.repeat(64)}`, topicTo] }] }) }).then((x) => x.json()).catch(() => null);
+    for (const l of r?.result || []) hashes.add(l.transactionHash);
+  }
+  return linkMinted(owner, [...hashes]);
+}
+
 export default async function handler(req, res) {
   res.setHeader('access-control-allow-origin', '*');
   try {
     if (req.method === 'POST') {
       const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+      if (body.scan) { if (!isAddress(String(body.owner || ''))) return res.status(400).json({ error: 'owner must be an address' }); return res.status(200).json(await scanMinted(body.owner)); }
       if (Array.isArray(body.minted)) { if (!isAddress(String(body.owner || ''))) return res.status(400).json({ error: 'owner must be an address' }); return res.status(200).json(await linkMinted(body.owner, body.minted)); }
       return res.status(200).json(await verifyAndStore(body));
     }

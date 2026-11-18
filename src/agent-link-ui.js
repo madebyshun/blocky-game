@@ -16,33 +16,31 @@ export const cardUrl = (blocky, agentId) => `https://www.basecity.space/api/agen
 const cardOf = (blocky) => `https://www.basecity.space/api/agent-card?blocky=${blocky}`;
 // MetaMask caps an EIP-5792 batch at 10 calls: send in chunks of 10 (5 confirmations for 50 Blockies)
 async function sendBatch(provider, account, calls, onChunk = () => {}) {
-  const out = [];
-  for (let i = 0; i < calls.length; i += 10) { onChunk(i / 10 + 1, Math.ceil(calls.length / 10)); out.push(...await sendBatch1(provider, account, calls.slice(i, i + 10))); }
-  return out;
+  let linked = await scan(account).catch(() => []);
+  for (let i = 0; i < calls.length; i += 10) { onChunk(i / 10 + 1, Math.ceil(calls.length / 10)); linked = await sendBatch1(provider, account, calls.slice(i, i + 10), linked.length); }
+  return linked;
 }
-async function sendBatch1(provider, account, calls) {
-  // EIP-5792: one wallet request, then wait for the bundle's receipts; else one transaction per call
+const scan = async (owner) => { const r = await fetch('/api/agent-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner, scan: true }) }); const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Linking failed'); return j.linked || []; };
+// One batch: send it, then wait until its mints show up on chain (wallets differ in what
+// wallet_getCallsStatus returns, the chain does not). Wallets without EIP-5792: one tx per call.
+async function sendBatch1(provider, account, calls, before) {
   try {
-    const r = await provider.request({ method: 'wallet_sendCalls', params: [{ version: '2.0.0', chainId: toHex(8453), from: account, atomicRequired: false, calls }] });
-    const id = typeof r === 'string' ? r : r?.id;
-    for (let i = 0; i < 90; i++) {
-      const st = await provider.request({ method: 'wallet_getCallsStatus', params: [id] }).catch(() => null);
-      const done = st && (st.status === 200 || st.status === 'CONFIRMED' || st.status === 'confirmed');
-      if (done) return (st.receipts || []).map((x) => x.transactionHash).filter(Boolean);
-      if (st && Number(st.status) >= 400) throw new Error('The wallet reported the batch failed');
-      await new Promise((ok) => setTimeout(ok, 2000));
-    }
-    throw new Error('The batch is still pending; press Create again later to finish linking');
+    await provider.request({ method: 'wallet_sendCalls', params: [{ version: '2.0.0', chainId: toHex(8453), from: account, atomicRequired: false, calls }] });
   } catch (err) {
-    if (err?.code === 4001 || !/sendCalls|not supported|unsupported|4200|method/i.test(String(err?.message || err?.code))) throw err;
-    const hashes = [];
-    for (const c of calls) { const h = await sendTx(provider, { from: account, to: c.to, data: c.data }); await waitTx(h, provider); hashes.push(h); }
-    return hashes;
+    if (err?.code === 4001 || !/sendCalls|not supported|unsupported|4200|does not exist|not available/i.test(String(err?.message || err?.code))) throw err;
+    for (const c of calls) { const h = await sendTx(provider, { from: account, to: c.to, data: c.data }); await waitTx(h, provider); }
   }
+  for (let i = 0; i < 60; i++) {
+    const linked = await scan(account).catch(() => []);
+    if (linked.length >= before + calls.length) return linked;
+    await new Promise((ok) => setTimeout(ok, 4000));
+  }
+  throw new Error('The wallet sent the batch but it is not on chain yet; press Create again in a minute to finish');
 }
 
 export function mountAgentLink(el, context) {
   let linked = {}, msg = '', tone = '', busy = false, open = false;
+  const own = new Set(); // Blockies with an agent registered for them on chain
   const blockies = () => context().blockies.slice(0, MAX_LINKS);
   async function load() {
     const { account } = context();
@@ -78,16 +76,15 @@ export function mountAgentLink(el, context) {
       try {
         if (a === 'create') {
           // Blockies without their own agent: an agent shared by several Blockies counts as none
+          for (const l of await scan(account).catch(() => [])) { linked[l.blocky] = String(l.agentId); own.add(l.blocky); }
           const counts = {}; for (const n of blockies()) if (linked[n]) counts[linked[n]] = (counts[linked[n]] || 0) + 1;
-          const need = blockies().filter((n) => !linked[n] || counts[linked[n]] > 1);
+          const need = blockies().filter((n) => !own.has(n) && (!linked[n] || counts[linked[n]] > 1));
           if (!need.length) throw new Error('Every Blocky already has its own agent.');
           const calls = need.map((n) => ({ to: IDENTITY, data: encodeFunctionData({ abi: REGISTER, functionName: 'register', args: [cardOf(n)] }), value: '0x0' }));
           msg = `Confirm ${calls.length} agent registration${calls.length === 1 ? '' : 's'} in your wallet…`; draw();
-          const hashes = await sendBatch(provider, account, calls, (k, n) => { msg = n > 1 ? `Confirm batch ${k} of ${n} (${Math.min(10, calls.length - (k - 1) * 10)} registrations) in your wallet…` : msg; draw(); });
-          const r = await fetch('/api/agent-link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: account, minted: hashes }) });
-          const j = await r.json();
-          if (!r.ok) throw new Error(j.error || 'Linking failed');
-          for (const l of j.linked) linked[l.blocky] = String(l.agentId);
+          const done = await sendBatch(provider, account, calls, (k, n) => { msg = `Confirm batch ${k} of ${n} in your wallet…`; draw(); });
+          const j = { linked: done };
+          for (const l of done) { linked[l.blocky] = String(l.agentId); own.add(l.blocky); }
           msg = `${j.linked.length} Block${j.linked.length === 1 ? 'y has' : 'ies have'} their own agent now.`; tone = 'good';
         } else {
           const j = await setFleet({ address: account, tokenIds: blockies(), sign: (m) => provider.request({ method: 'personal_sign', params: [toHex(m), account] }) });
