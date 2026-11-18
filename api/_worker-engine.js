@@ -10,7 +10,8 @@ const base='https://blueagent.dev/api/jobs';
 export async function blue(path='',body){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});const j=await r.json();if(!r.ok)throw new Error(j.error||`Jobs HTTP ${r.status}`);return j;}
 export async function assertOwners(owner,tokenId,agentId){if(!NFT)throw new Error('NFT contract unavailable');for(const [address,id]of [[NFT,tokenId],[IDENTITY,agentId]]){const who=await client.readContract({address,abi:OWNER_ABI,functionName:'ownerOf',args:[BigInt(id)]});if(who.toLowerCase()!==owner.toLowerCase())throw new Error('Ownership changed. Worker is paused.');}}
 export function log(s,event,detail){s.log=[{at:new Date().toISOString(),event,detail},...(s.log||[])].slice(0,60);}
-export function eligible(job,s){return job.status==='open'&&(skillOf(job)==='base-token-exit-screen'?!/robinhood|ethereum|0x[0-9a-f]{40}/i.test(job.brief):supportsStockJob(job)&&(s.settings.mode!=='auto'||job.contract?.autonomousEligible===true))&&job.poster.toLowerCase()!==s.owner&&!job.deliveries.some(d=>d.agent.toLowerCase()===s.owner)&&!s.items.some(d=>d.jobId===job.id&&d.status!=='Skipped')&&job.budgetUnits>=s.settings.priceUnits;}
+export const invitedTo=(job)=>job.invitedAgentId??job.contract?.invitedAgentId??null;
+export function eligible(job,s){const inv=invitedTo(job);if(inv!=null&&String(inv)!==String(s.settings.agentId)&&!(job.inviteExpiresAt&&Date.parse(job.inviteExpiresAt)<Date.now()))return false;return job.status==='open'&&(skillOf(job)==='base-token-exit-screen'?!/robinhood|ethereum|0x[0-9a-f]{40}/i.test(job.brief):supportsStockJob(job)&&(s.settings.mode!=='auto'||job.contract?.autonomousEligible===true))&&job.poster.toLowerCase()!==s.owner&&!job.deliveries.some(d=>d.agent.toLowerCase()===s.owner)&&!s.items.some(d=>d.jobId===job.id&&d.status!=='Skipped')&&job.budgetUnits>=s.settings.priceUnits;}
 async function sync(s,jobs){
  for(const item of s.items.filter(i=>!i.receipt&&i.status!=='Skipped')){
   const job=jobs.find(j=>j.id===item.jobId)||(await blue(`/${item.jobId}`)).job,d=job?.deliveries.find(d=>item.deliveryId?d.id===item.deliveryId:d.agent.toLowerCase()===s.owner&&String(d.agentId)===s.settings.agentId);
@@ -35,7 +36,7 @@ export async function tick(owner,{syncOnly=false}={}){const release=await lock(o
  for(const item of s.items){if(item.status==='Researching'&&Date.now()-Date.parse(item.createdAt)>10*60000){item.status='Failed';item.error='Research timed out; no delivery was sent';}}
  const day=new Date().toISOString().slice(0,10),today=s.items.filter(i=>i.createdAt.startsWith(day));
  if(pending.length>=s.settings.maxPending||today.length>=s.settings.maxJobsDaily){log(s,'Idle','Pending or daily job limit reached');await writeIf(s,version);return s;}
- const job=jobs.find(j=>eligible(j,s));if(!job){log(s,'Idle','No new supported job (exit screen, stock weekend gap, after-hours volume, NAV premium). Repeat deliveries are skipped.');await writeIf(s,version);return s;}
+ const job=jobs.find(j=>eligible(j,s)&&String(invitedTo(j))===String(s.settings.agentId))||jobs.find(j=>eligible(j,s));if(!job){log(s,'Idle','No new supported job (exit screen, stock weekend gap, after-hours volume, NAV premium). Repeat deliveries are skipped.');await writeIf(s,version);return s;}
  const before=await read(owner);if(before.version!==version||!before.enabled)return before;
  const item={jobId:job.id,title:job.title,createdAt:new Date().toISOString(),status:'Researching',costUnits:0};s.items.push(item);log(s,'Researching',job.title);if(!await writeIf(s,version))return await read(owner);
  try{
