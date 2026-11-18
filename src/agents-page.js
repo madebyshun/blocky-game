@@ -10,7 +10,7 @@ import { mountWorkerConsole } from './worker-console.js';
 import { mountWorkBoard } from './work-board.js';
 import { makeBlocky, TRAIT_LABEL } from './sim.js';
 import { profileOf, GUILDS, SKILLS, priceUnits } from './skills.js';
-import { setPrice } from './blockyagent.js';
+import { setPrice, setPayout } from './blockyagent.js';
 import { toHex } from 'viem';
 
 mountSite('agents');
@@ -44,6 +44,7 @@ async function load() {
   blockies = rows.map((b) => b.n).sort((a, b) => a - b);
   links = Object.fromEntries((link.links || []).map((l) => [l.blocky, l]));
   agents = ag.agents || {};
+  const po = Object.values(agents).find((x) => x.payout)?.payout; if (po) $('ag-payout').value = po;
   // each Blocky's specialization, from the same NFT traits the server reads (src/skills.js)
   profiles = Object.fromEntries(rows.map((b) => { const k = makeBlocky(b.n, b.at, null, b.seed); const e = agents[b.n] || {}; return [b.n, { ...profileOf(b.n, { Role: k.role.label, Rarity: k.rarity.label, Trait: k.trait ? TRAIT_LABEL[k.trait] : 'None' }, (e.soldCalls || 0) + (e.jobsPaid || 0)), mult: e.priceMult || 1 }]; }));
   $('ag-connect').hidden = true; $('ag-main').hidden = false; say('');
@@ -75,6 +76,12 @@ function render() {
   $('ag-guilds').innerHTML = Object.entries(by).map(([g, c]) => `<span style="border-color:${GUILDS[g]?.color || '#0052ff'}">${GUILDS[g]?.icon || '👑'} ${esc(GUILDS[g]?.label || 'All')} · ${c}</span>`).join('');
   drawFleet();
 }
+$('ag-payout-set').addEventListener('click', async () => {
+  const v = $('ag-payout').value.trim() || account;
+  if (!/^0x[0-9a-fA-F]{40}$/.test(v)) { $('ag-payout-msg').textContent = 'Enter a 0x wallet address.'; return; }
+  try { $('ag-payout-msg').textContent = 'Sign in your wallet…'; const j = await setPayout({ address: account, tokenIds: blockies, payout: v, sign: (m) => provider.request({ method: 'personal_sign', params: [toHex(m), account] }) }); $('ag-payout-msg').textContent = j.payout ? `x402 sales of ${j.set.length} Blockies now pay ${j.payout}.` : `x402 sales pay your own wallet again.`; }
+  catch (e) { $('ag-payout-msg').textContent = e?.code === 4001 ? 'Cancelled.' : String(e.message).slice(0, 200); }
+});
 $('ag-price-set').addEventListener('click', async () => {
   const mult = Number($('ag-price').value);
   try { $('ag-price-msg').textContent = 'Sign in your wallet…'; const j = await setPrice({ address: account, tokenIds: blockies, mult, sign: (m) => provider.request({ method: 'personal_sign', params: [toHex(m), account] }) }); for (const n of j.priced) profiles[n].mult = mult; $('ag-price-msg').textContent = `Set ×${mult} on ${j.priced.length} Blockies (each capped by its level).`; drawFleet(); }

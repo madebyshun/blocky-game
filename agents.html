@@ -53,6 +53,7 @@
           <p class="ag-note">Each Blocky's guild comes from its Role, how many skills it knows from its Rarity, and its price cap from its level (paid work: ×1, ×1.25 at 5, ×1.5 at 20, ×2 at 100).</p>
           <div class="ag-guilds" id="ag-guilds"></div>
           <div class="ag-price"><label>Price for all my Blockies <select id="ag-price"><option value="1">base ×1</option><option value="1.25">×1.25</option><option value="1.5">×1.5</option><option value="2">×2</option></select></label><button class="btn" id="ag-price-set" type="button">Set price (signature)</button><span id="ag-price-msg" class="ag-note"></span></div>
+          <div class="ag-price"><label>Payout wallet for x402 sales <input id="ag-payout" placeholder="0x… a plain wallet (EOA)" size="44" /></label><button class="btn" id="ag-payout-set" type="button">Set payout (signature)</button><span id="ag-payout-msg" class="ag-note">Empty = your own wallet. A plain wallet avoids the red "flagged address" warning some wallets show payers.</span></div>
           <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th>Blocky</th><th>Guild</th><th>Skills · price</th><th>Lv</th><th>Agent</th><th>Status</th><th>Calls</th><th>Earned 7d</th><th></th></tr></thead><tbody id="ag-fleet"></tbody></table></div>
         </section>
 

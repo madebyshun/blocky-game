@@ -5,7 +5,7 @@
 // agent's URI at it; nothing here is signed or paid.
 import { client, NFT, useKv, kv, KEY_BASE } from './_store.js';
 import { TOOLS } from './x402.js';
-import { profileFor } from './_profile.js';
+import { profileFor, payToFor } from './_profile.js';
 import { SKILLS, GUILDS, INPUTS, priceUnits } from '../src/skills.js';
 import { liveLink } from './agent-link.js';
 import { IDENTITY } from '../src/work-protocol.js';
@@ -25,6 +25,7 @@ export function card({ tokenId, owner, entry, site, agentId, agentIds = null, ow
     image: `${site}/api/nft/${tokenId}.svg`,
     url: `${site}/claim?blocky=${tokenId}`,
     owner,
+    ...(profile?.payout && payToFor(owner, profile.payout) !== owner ? { payout: payToFor(owner, profile.payout), payoutProof: { message: profile.payout.message, signature: profile.payout.signature } } : {}),
     ...(ids.length ? { registrations: ids.map((id) => ({ agentId: Number(id), agentRegistry: 'eip155:8453:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432' })) } : {}),
     services: [
       { name: 'x402', endpoint: x402, version: '2' },

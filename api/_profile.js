@@ -26,7 +26,7 @@ export async function profileFor(n, entry) {
   const a = await attrsOf(String(n));
   if (entry === undefined && useKv()) { try { entry = JSON.parse((await kv('HGET', `${KEY_BASE}:agent:v1`, String(n))) || 'null'); } catch { entry = null; } }
   const paid = (entry?.soldCalls || 0) + (entry?.jobsPaid || 0);
-  return { ...profileOf(n, a, paid), mult: entry?.priceMult || 1, onDuty: !!entry?.active };
+  return { ...profileOf(n, a, paid), mult: entry?.priceMult || 1, onDuty: !!entry?.active, payout: entry?.payout || null };
 }
 
 // a Blue Agent job paid to this Blocky (verified on chain by the worker): counts toward its level
@@ -37,3 +37,6 @@ export async function bumpJobsPaid(n) {
   e.jobsPaid = (e.jobsPaid || 0) + 1;
   await kv('HSET', k, String(n), JSON.stringify(e));
 }
+
+// where an x402 sale pays: the payout wallet the current owner signed for, else the owner itself
+export const payToFor = (owner, payout) => (payout && payout.owner === String(owner).toLowerCase() ? payout.to : owner);

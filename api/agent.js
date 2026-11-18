@@ -47,7 +47,7 @@ function viewFor(all, owned) {
   for (const id of owned) {
     const e = all.get(String(id));
     if (!e || !e.active) continue;
-    agents[id] = { active: true, jobsDone: e.jobsDone || 0, earnedUsdc: e.earnedUsdc || 0, lastJobAt: e.lastJobAt ?? null, since: e.since ?? null, soldCalls: e.soldCalls || 0, soldUsdc: e.soldUsdc || 0, jobsPaid: e.jobsPaid || 0, priceMult: e.priceMult || 1 };
+    agents[id] = { active: true, jobsDone: e.jobsDone || 0, earnedUsdc: e.earnedUsdc || 0, lastJobAt: e.lastJobAt ?? null, since: e.since ?? null, soldCalls: e.soldCalls || 0, soldUsdc: e.soldUsdc || 0, jobsPaid: e.jobsPaid || 0, priceMult: e.priceMult || 1, payout: e.payout?.to || null };
     jobsDone += e.jobsDone || 0;
     earnedUsdc += e.earnedUsdc || 0;
     activeCount += 1;
@@ -104,6 +104,7 @@ function body(req) {
   try { return JSON.parse(req.body || '{}') || {}; } catch { return {}; }
 }
 // one signature for many Blockies (src/blockyagent.js fleetMessage)
+const PAYOUT = (m) => /^BaseCity: payout for Blocky Agents\n\nWallet (0x[0-9a-fA-F]{40})\nBlockies ([\d,]+)\nPayout (0x[0-9a-fA-F]{40})\nIssued (\S+)\n/.exec(m || '');
 const PRICE = (m) => /^BaseCity: price Blocky Agents\n\nWallet (0x[0-9a-fA-F]{40})\nBlockies ([\d,]+)\nMultiplier (\d(?:\.\d{1,2})?)\nIssued (\S+)\n/.exec(m || '');
 const FLEET = (m) => /^BaseCity: (activate|deactivate) Blocky Agents\n\nWallet (0x[0-9a-fA-F]{40})\nBlockies ([\d,]+)\nIssued (\S+)\n/.exec(m || '');
 const ACT = (m) => /^BaseCity: (activate|deactivate) Blocky Agent\n\nBlocky #(\d+)\nWallet (0x[0-9a-fA-F]{40})\n/.exec(m || '');
@@ -171,6 +172,22 @@ export default async function handler(req, res) {
     }
 
     // ---- PATCH: the owner sets its Blockies' price multiplier (capped per Blocky by its level) ----
+    // ---- PATCH payout: the owner names the wallet its Blockies' x402 sales pay into (a plain EOA) ----
+    if (req.method === 'PATCH' && PAYOUT(b.message)) {
+      const m = PAYOUT(b.message);
+      const ids = [...new Set((b.tokenIds || []).map(Number))].filter((n) => Number.isInteger(n) && n > 0 && n <= 10000).sort((x, y) => x - y);
+      if (!ids.length || ids.length > 200 || m[2] !== ids.join(',')) return res.status(400).json({ error: 'The signed message does not match these Blockies' });
+      if (Math.abs(Date.now() - Date.parse(m[4])) > 15 * 60000) return res.status(400).json({ error: 'Signature expired: sign again' });
+      const address = m[1].toLowerCase(), payout = getAddress(m[3]);
+      if (!(await client.verifyMessage({ address: getAddress(address), message: b.message, signature: b.signature }).catch(() => false))) return res.status(401).json({ error: 'That signature is not for this wallet' });
+      const code = await client.getCode({ address: payout }).catch(() => null);
+      if (code && code !== '0x' && payout.toLowerCase() !== address) return res.status(400).json({ error: 'Payout must be a plain wallet (EOA) with no contract code, so payers see no warning' });
+      const owned = await Promise.all(ids.map((id) => ownerIs(id, address)));
+      const all = await readAll(), done = [];
+      const reset = payout.toLowerCase() === address; // paying the owner itself again
+      for (const [i, id] of ids.entries()) { if (!owned[i]) continue; const prev = all.get(String(id)) || { ...EMPTY }; await writeOne(id, { ...prev, owner: address, payout: reset ? null : { to: payout.toLowerCase(), owner: address, message: b.message, signature: b.signature } }); done.push(id); }
+      return res.status(200).json({ payout: reset ? null : payout, set: done });
+    }
     if (req.method === 'PATCH') {
       const m = PRICE(b.message);
       const ids = [...new Set((b.tokenIds || []).map(Number))].filter((n) => Number.isInteger(n) && n > 0 && n <= 10000).sort((x, y) => x - y);

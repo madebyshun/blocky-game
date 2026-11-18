@@ -77,6 +77,16 @@ export async function setPrice({ address, tokenIds, mult, sign }) {
   if (!r.ok) throw new Error(j.error || 'Could not set the price');
   return j;
 }
+export const payoutMessage = (tokenIds, address, payout, issuedAt) =>
+  `BaseCity: payout for Blocky Agents\n\nWallet ${String(address).toLowerCase()}\nBlockies ${[...tokenIds].map(Number).sort((a, b) => a - b).join(',')}\nPayout ${payout}\nIssued ${issuedAt}\n\nThese Blockies' x402 sales pay this wallet. It holds while this wallet owns each Blocky. No transaction, no gas.`;
+export async function setPayout({ address, tokenIds, payout, sign }) {
+  const message = payoutMessage(tokenIds, address, payout, new Date().toISOString());
+  const signature = await sign(message);
+  const r = await api('/api/agent', { method: 'PATCH', body: JSON.stringify({ tokenIds, signature, message }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Could not set the payout wallet');
+  return j;
+}
 export async function activateAgent({ address, tokenId, sign }) {
   const message = agentMessage('activate', tokenId, address);
   const signature = await sign(message);

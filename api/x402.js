@@ -15,7 +15,7 @@ import { createFacilitatorConfig } from '@coinbase/x402';
 import { client, NFT, useKv, kv, KEY_BASE } from './_store.js';
 import { runSkill } from './_skills.js';
 import { SKILLS, INPUTS, inputSchema, priceUnits } from '../src/skills.js';
-import { profileFor } from './_profile.js';
+import { profileFor, payToFor } from './_profile.js';
 import { recordWork } from './_workfeed.js';
 
 const USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
@@ -120,6 +120,7 @@ export default async function handler(req, res) {
 
   const profile = await profileFor(tokenId).catch(() => null);
   if (!profile) return res.status(503).json({ error: 'profile_unavailable' });
+  const ownerAddr = payTo; payTo = payToFor(ownerAddr, profile.payout); // a signed payout wallet, while its signer owns the Blocky
   const knows = profile.skills.includes(tool) || (LEGACY.has(tool) && !STRICT);
   if (!knows) return res.status(404).json({ error: 'not_this_blockys_skill', message: `Blocky #${tokenId} (${profile.guild} guild) sells: ${profile.skills.join(', ')}`, skills: profile.skills, any: `${base}?tool=${tool}&blocky=any` });
   const units = priceUnits(tool, profile, profile.mult);

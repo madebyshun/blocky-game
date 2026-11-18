@@ -10,3 +10,7 @@ assert.equal(levelOf(0), 1); assert.equal(levelOf(5), 2); assert.equal(levelOf(1
 assert.equal(priceUnits('nav-premium', { priceCap: 1 }, 2), 20000); // capped by level
 assert.equal(priceUnits('nav-premium', { priceCap: 1.5 }, 2), 30000);
 console.log('skills ok');
+const { payToFor } = await import('../api/_profile.js');
+const o = '0x' + 'a'.repeat(40), p2 = '0x' + 'b'.repeat(40);
+assert.equal(payToFor(o, { to: p2, owner: o }), p2); assert.equal(payToFor(o, { to: p2, owner: '0x' + 'c'.repeat(40) }), o); assert.equal(payToFor(o, null), o);
+console.log('payout ok');
