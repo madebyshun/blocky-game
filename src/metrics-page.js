@@ -11,7 +11,7 @@ async function load() {
   const t = m.totals, b = m.blockies;
   $('mx-sum').innerHTML = [
     [usd(t.earnedUsd), 'USDC earned (all time)'], [fmt(t.paidCalls), 'paid calls & jobs'], [usd(t.outsideUsd), `from ${fmt(t.outsidePayers)} outside payer${t.outsidePayers === 1 ? '' : 's'}`],
-    [fmt(b.withOwnAgent), 'Blockies with their own agent'], [fmt(b.onDuty), 'on duty now'],
+    [fmt(b.withOwnAgent), 'Blockies with their own agent (all owners)'], [fmt(b.onDuty), 'Blockies on duty (all owners)'],
   ].map(([v, l]) => `<div><b>${v}</b><span>${esc(l)}</span></div>`).join('');
 
   const days = m.daily || [], max = Math.max(0.0001, ...days.map((d) => d.earnedUsd));
