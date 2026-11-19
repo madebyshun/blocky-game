@@ -14,14 +14,14 @@ export default defineConfig(({ mode }) => {
     build: {
       chunkSizeWarningLimit: 800,
       // every page (gallery.html: every building design, linked from the launch thread)
-      rollupOptions: { input: { main: 'index.html', builders: 'builders.html', collection: 'collection.html', claim: 'claim.html', agents: 'agents.html', about: 'about.html', gallery: 'gallery.html', recap: 'recap.html', weekly: 'weekly.html', blocky: 'blocky.html', vote: 'vote.html', deploy: 'deploy.html', home: 'home.html', base: 'base.html', dash: 'dash.html' } },
+      rollupOptions: { input: { main: 'index.html', builders: 'builders.html', collection: 'collection.html', claim: 'claim.html', agents: 'agents.html', metrics: 'metrics.html', about: 'about.html', gallery: 'gallery.html', recap: 'recap.html', weekly: 'weekly.html', blocky: 'blocky.html', vote: 'vote.html', deploy: 'deploy.html', home: 'home.html', base: 'base.html', dash: 'dash.html' } },
     },
     plugins: [
       {
         // /b/N is the Blocky viewer (vercel.json does the same on Vercel)
         name: 'viewer-route',
         configureServer(server) {
-          server.middlewares.use((req, _res, next) => { if (/^\/b(\/[^/?]*)?\/?(\?|$)/.test(req.url)) req.url = '/blocky.html'; else if (/^\/agents\/?(\?|$)/.test(req.url)) req.url = '/agents.html'; next(); });
+          server.middlewares.use((req, _res, next) => { if (/^\/b(\/[^/?]*)?\/?(\?|$)/.test(req.url)) req.url = '/blocky.html'; else if (/^\/agents\/?(\?|$)/.test(req.url)) req.url = '/agents.html'; else if (/^\/metrics\/?(\?|$)/.test(req.url)) req.url = '/metrics.html'; next(); });
         },
       },
       {

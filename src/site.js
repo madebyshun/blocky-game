@@ -10,6 +10,7 @@ const PAGES = [
   ['viewer', '/blocky.html', 'Viewer'],
   ['claim', '/claim.html', 'Claim'],
   ['agents', '/agents', 'My Agents'],
+  ['metrics', '/metrics', 'Agent numbers'],
   ['vote', '/vote.html', 'Vote'],
   ['builders', '/builders.html', 'Builders'],
   ['recap', '/recap.html', 'Recap'],

@@ -3,16 +3,37 @@
 import { useKv, kv, KEY_BASE } from './_store.js';
 
 export const FEED_KEY = `${KEY_BASE}:workfeed:v1`;
+export const METRICS_KEY = `${KEY_BASE}:metrics:v1`; // hash of running totals (all time), never trimmed
+export const PAYERS_KEY = `${KEY_BASE}:metrics:payers:v1`; // set of wallets that paid a Blocky
+// the team's own wallets: their payments are tests, not demand (same list Blue Agent keeps)
+export const TEAM = new Set(['0xd5c1dfc036f9911348ea8065f73c8123f4013fab', '0x00fd29b7d6dbf13afb879afbb239db1d48ce746f', '0x64d1c1d957b6b69d3d82cd2756f44c1a6b30e318', '0xa4660f6b1d939358042abd8111735a1d6f149845']);
 const MAX = 500;
 const memory = [];
 const KINDS = new Set(['x402-sale', 'job-delivered', 'job-paid', 'job-researched']);
 
 export async function recordWork(ev) {
   if (!KINDS.has(ev?.kind) || !ev.blocky) return;
-  const row = { at: Date.now(), kind: ev.kind, blocky: Number(ev.blocky), agentId: ev.agentId ? String(ev.agentId) : null, usd: Number(ev.usd) || 0, tx: ev.tx || null, tool: ev.tool || null, ticker: ev.ticker || null, title: ev.title ? String(ev.title).slice(0, 120) : null, guild: ev.guild || null };
+  const row = { at: Date.now(), kind: ev.kind, blocky: Number(ev.blocky), agentId: ev.agentId ? String(ev.agentId) : null, usd: Number(ev.usd) || 0, tx: ev.tx || null, tool: ev.tool || null, ticker: ev.ticker || null, title: ev.title ? String(ev.title).slice(0, 120) : null, guild: ev.guild || null, payer: ev.payer ? String(ev.payer).toLowerCase() : null };
   if (!useKv()) { memory.unshift(row); memory.length = Math.min(memory.length, MAX); return; }
   await kv('LPUSH', FEED_KEY, JSON.stringify(row));
   await kv('LTRIM', FEED_KEY, 0, MAX - 1);
+  await countWork(row).catch(() => {});
+}
+
+// running totals: by kind, skill, guild, day and Blocky; outside demand counted apart from the team's tests
+export async function countWork(row) {
+  const day = new Date(row.at).toISOString().slice(0, 10), team = row.payer && TEAM.has(row.payer);
+  const inc = (f, n = 1) => kv('HINCRBYFLOAT', METRICS_KEY, f, String(n));
+  await inc(`kind:${row.kind}`);
+  if (row.kind === 'x402-sale' || row.kind === 'job-paid') {
+    const units = Math.round((row.usd || 0) * 1e6);
+    await inc('paid:n'); await inc('paid:units', units); await inc(`day:${day}:n`); await inc(`day:${day}:units`, units);
+    await inc(`blocky:${row.blocky}:units`, units);
+    if (row.tool) { await inc(`skill:${row.tool}:n`); await inc(`skill:${row.tool}:units`, units); }
+    if (row.guild) { await inc(`guild:${row.guild}:n`); await inc(`guild:${row.guild}:units`, units); }
+    if (team) { await inc('team:n'); await inc('team:units', units); }
+    if (row.payer && !team) await kv('SADD', PAYERS_KEY, row.payer);
+  }
 }
 
 export async function readWork(n = MAX) {

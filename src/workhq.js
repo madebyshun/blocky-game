@@ -102,7 +102,7 @@ export function createWorkHQ(city, { log = () => {}, from = () => null, feed = '
       <ul class="whq-ev">${(d.events || []).slice(0, 8).map((e) => `<li><span>${eventLine(e)}</span><em>${ago(e.at)}${e.tx ? ` · <a href="https://basescan.org/tx/${esc(e.tx)}" target="_blank" rel="noopener">tx ↗</a>` : ''}</em></li>`).join('') || '<li><span>Waiting for the first paid call.</span></li>'}</ul>
       <h4>Call a Blocky</h4>
       <ul class="whq-svc">${(d.services || []).map((s) => `<li><b>${esc(s.id)}</b> <span>${esc(s.task)}</span><em>$${s.priceUsd.toFixed(2)}</em></li>`).join('')}</ul>
-      <div class="td-actions"><a class="btn" href="/api/x402" target="_blank" rel="noopener">x402 catalog</a><a class="btn" href="https://app.blueagent.dev/agents" target="_blank" rel="noopener">Hire on Blue Agent ↗</a><a class="btn" href="/claim">Put my Blocky to work</a></div>
+      <div class="td-actions"><a class="btn" href="/api/x402" target="_blank" rel="noopener">x402 catalog</a><a class="btn" href="https://app.blueagent.dev/agents" target="_blank" rel="noopener">Hire on Blue Agent ↗</a><a class="btn" href="/metrics">All the numbers</a><a class="btn" href="/agents">Put my Blocky to work</a></div>
       ${d.bazaar?.listed ? '<p class="whq-bz">✓ Listed on the x402 Bazaar</p>' : ''}<div class="td-foot">x402 calls settle through Coinbase's CDP facilitator. Research only, not financial advice; Coinbase's tokenized stocks aren't offered in the U.S.</div>
     </div>`;
   }

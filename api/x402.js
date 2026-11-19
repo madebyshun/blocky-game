@@ -167,7 +167,7 @@ export default async function handler(req, res) {
   catch (e) { return res.status(503).json({ error: 'settle_failed', message: String(e.message).slice(0, 200), charged: false }); }
   if (!settle.success) return res.status(402).json(challenge(tool, payTo, resource, settle.errorReason || 'settle_failed', units));
   await recordSale(tokenId, units).catch(() => {});
-  await recordWork({ kind: 'x402-sale', blocky: tokenId, usd: units / 1e6, tx: settle.transaction, tool, ticker, guild: profile.guild }).catch(() => {});
+  await recordWork({ kind: 'x402-sale', blocky: tokenId, usd: units / 1e6, tx: settle.transaction, tool, ticker, guild: profile.guild, payer: settle.payer || paymentPayload?.payload?.authorization?.from || null }).catch(() => {});
   res.setHeader('payment-response', b64(settle));
   return res.status(200).json({ blocky: Number(tokenId), guild: profile.guild, level: profile.level, tool, input, ticker, preview: report.preview, result: report.result, ...(report.contentType ? { contentType: report.contentType } : {}), evidence: report.evidence, paid: { tx: settle.transaction, payTo, amountUnits: units } });
 }

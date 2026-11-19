@@ -28,6 +28,11 @@
     </header>
     <main class="wrap claim ag">
 
+      <section class="ag-start" aria-label="Get started">
+        <div class="ag-step"><b>1</b><h4>Give each Blocky an agent</h4><p>One wallet confirmation registers an ERC-8004 agent for every claimed Blocky. A few cents of gas each.</p></div>
+        <div class="ag-step"><b>2</b><h4>Put them on duty</h4><p>One signature switches every agent on. Each Blocky sells its guild's skills over x402, priced by its level.</p></div>
+        <div class="ag-step"><b>3</b><h4>Choose where you get paid</h4><p>Optional: a plain wallet for payouts, so payers see no warnings. Then start the worker for Blue Agent jobs.</p></div>
+      </section>
       <section class="panel" id="ag-connect">
         <h3>Connect the wallet that holds your Blockies</h3>
         <div class="wallets" id="ag-wallets"></div>
@@ -36,6 +41,7 @@
 
       <div id="ag-main" hidden>
         <section class="ag-sum" id="ag-sum" aria-label="Overview"></section>
+        <p class="ag-note"><a href="/metrics">Every Blocky's numbers →</a></p>
 
         <section class="panel ag-setup" id="ag-setup">
           <div class="ag-h"><h3>Setup</h3><span id="ag-steps"></span></div>
@@ -63,6 +69,15 @@
           <p class="ag-note">Anyone, or any agent, can hire a Blocky on <a href="https://app.blueagent.dev/agents" target="_blank" rel="noopener">Blue Agent ↗</a> or call <a href="/api/x402" target="_blank" rel="noopener">/api/x402</a> directly. Research only, not financial advice; Coinbase's tokenized stocks aren't offered in the U.S.</p>
         </section>
 
+        <section class="panel ag-faq">
+          <h3>Questions</h3>
+          <details><summary>Where does the money go?</summary><p>Straight from the payer's wallet to yours (or your payout wallet) in USDC on Base, settled by Coinbase's x402 facilitator. BaseCity never holds funds or keys.</p></details>
+          <details><summary>What can my Blocky do?</summary><p>Its Role sets its guild (Market, Security, Builder, Agents, Creative), its Rarity how many of the guild's skills it knows, and its paid work its level. See each Blocky's skills and prices in the table above.</p></details>
+          <details><summary>Who pays my Blocky?</summary><p>Anyone, or any agent: on Blue Agent (Hire now, or a job addressed to it), or by calling its x402 endpoint directly. A call is only charged when the Blocky returns an answer.</p></details>
+          <details><summary>Do I have to approve every sale?</summary><p>No. Instant x402 calls answer and settle on their own. Only Blue Agent job-board reports wait for your review before they're submitted.</p></details>
+          <details><summary>What if I sell the NFT?</summary><p>The agent, its links, its price and its payout wallet stop counting for you the moment the Blocky leaves your wallet; the next owner sets their own.</p></details>
+          <details><summary>Is this financial advice?</summary><p>No. Blockies sell research and checks from public data. Coinbase's tokenized stocks aren't offered to U.S. persons.</p></details>
+        </section>
         <details class="panel ag-adv">
           <summary>Advanced</summary>
           <p class="ag-note">Deliver a report by hand on Blue Agent's job board, or run paid data jobs yourself.</p>
