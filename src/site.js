@@ -1,5 +1,6 @@
 // The top bar and footer of the pages around the city (Blockies, Claim, Base Builders, About).
 import { CONFIG } from './config.js';
+import { initBaseCitySelects } from './select-ui.js';
 
 const PAGES = [
   ['home', '/home.html', 'Home'],
@@ -29,6 +30,7 @@ export const opensea = (contract, id) => `https://opensea.io/assets/base/${contr
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 export function mountSite(active) {
+  initBaseCitySelects();
   if (!document.querySelector('link[href*="Silkscreen"]')) {
     const fl = document.createElement('link');
     fl.rel = 'stylesheet';

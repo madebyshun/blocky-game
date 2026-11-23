@@ -38,6 +38,9 @@ import { createDefiUI } from './defi-ui.js';
 import { createRanksModal } from './ranks.js';
 import { browserWallets, smartWallet, connect, restoreWallet, forgetWallet, rejected } from './wallet.js';
 import { privyConfigured, loginWithPrivyOAuth, sendPrivyEmailCode, verifyPrivyEmailCode, shouldResumePlayAfterPrivy, consumeLastPrivyError } from './privy.js';
+import { initBaseCitySelects } from './select-ui.js';
+
+initBaseCitySelects();
 
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
