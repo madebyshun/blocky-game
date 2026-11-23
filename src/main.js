@@ -1051,6 +1051,7 @@ const play = createPlayMode({
   scene, renderer, city, controls, street,
   sim: () => sim,
   crew: () => crew,
+  views: () => views,
   toast,
   onOpenRanks: () => ranksModal.open(),
   onOpenAction: (action, arg = '') => {

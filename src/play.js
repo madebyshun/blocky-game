@@ -11,11 +11,11 @@ import { createPublicClient, fallback, http, parseAbi } from 'viem';
 import { base } from 'viem/chains';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
-import { makeBlocky, PITCH, isWater, BASELIVE_LOTS, STOCKS_LOTS } from './sim.js';
+import { makeBlocky, PITCH, isWater, BASELIVE_LOTS, STOCKS_LOTS, TRAIT_LABEL } from './sim.js';
 import { renderPfp } from './pfp.js';
 import { browserWallets, smartWallet, connect, restoreWallet, forgetWallet, rejected } from './wallet.js';
 import { privyConfigured, loginWithPrivyOAuth, sendPrivyEmailCode, verifyPrivyEmailCode } from './privy.js';
-import { esc } from './names.js';
+import { esc, who } from './names.js';
 import { now } from './time.js';
 import { fetchCityTasks, createCityTask, claimCityTask, unclaimCityTask, cancelCityTask, submitCityTask, submitBlueAgentJob, approveAndPayCityTask, formatTaskReward, renderTaskBoardHtml, renderPostTaskHtml } from './city-tasks.js';
 import { fetchStockIntel, publishStockIntel, unlockStockIntel, renderStockIntelHtml } from './stock-intel.js';
@@ -144,7 +144,7 @@ function modalOpen() {
   return Boolean(document.querySelector('.td-wrap:not([hidden]), .cinema-room:not([hidden]), .gm-modal-wrap:not([hidden])'));
 }
 
-export function createPlayMode({ scene, renderer, city, controls, street, sim, crew, toast, onInteract, onOpenRanks, onOpenAction, onExit }) {
+export function createPlayMode({ scene, renderer, city, controls, street, sim, crew, views, toast, onInteract, onOpenRanks, onOpenAction, onExit }) {
   const cam = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 450);
   const hud = document.getElementById('play-hud');
   const promptEl = document.getElementById('play-prompt');
@@ -286,6 +286,187 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
           ${m.ready ? `<button type="button" class="qt-claim" data-qt-claim="${esc(m.id)}">Claim</button>` : `<small>${m.claimed ? 'DONE' : `${m.cur}/${m.target}`}</small>`}
         </div>`).join('')}</div>
         <button type="button" class="qt-all" data-qt-open="1">All Quests &amp; Passport (${p.passportCount}/${p.passportTotal})</button>`}`;
+  }
+
+  let inspectEl = null;
+  let inspectedView = null;
+  if (hud && !document.getElementById('gm-inspect')) {
+    inspectEl = document.createElement('aside');
+    inspectEl.id = 'gm-inspect';
+    inspectEl.className = 'gm-inspect';
+    inspectEl.hidden = true;
+    hud.appendChild(inspectEl);
+  }
+
+  function closeInspect() {
+    if (inspectedView) { inspectedView.setSelected?.(false); inspectedView = null; }
+    if (inspectEl) inspectEl.hidden = true;
+  }
+
+  function showInspect({ eyebrow, title, sub = '', pfp = '', rows = [], desc = '', gps = null, primaryLbl = '', onPrimary = null, link = null }) {
+    if (!inspectEl) return;
+    const rowsHtml = rows.length ? `<dl class="gmi-dl">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : '';
+    const descHtml = desc ? `<p class="gmi-desc">${esc(desc)}</p>` : '';
+    inspectEl.innerHTML = `
+      <div class="gmi-head">
+        ${pfp ? `<img class="gmi-pfp" src="${pfp}" alt="${esc(title)}" />` : ''}
+        <div class="gmi-title">
+          <small>${esc(eyebrow)}</small>
+          <b>${esc(title)}</b>
+          ${sub ? `<span>${esc(sub)}</span>` : ''}
+        </div>
+        <button type="button" class="gmi-x" id="gmi-close" aria-label="Close">Close</button>
+      </div>
+      ${descHtml}
+      ${rowsHtml}
+      <div class="gmi-acts">
+        ${primaryLbl && onPrimary ? `<button type="button" class="gm-poi-open" id="gmi-pri">${esc(primaryLbl)}</button>` : ''}
+        ${gps ? `<button type="button" class="gm-poi-go" id="gmi-gps">Go Here (GPS)</button>` : ''}
+        ${link ? `<a class="gm-poi-go" href="${esc(link.href)}"${link.ext ? ' target="_blank" rel="noopener"' : ''}>${esc(link.label)}</a>` : ''}
+      </div>`;
+    inspectEl.hidden = false;
+    inspectEl.querySelector('#gmi-close').onclick = closeInspect;
+    inspectEl.querySelector('#gmi-pri')?.addEventListener('click', () => { const fn = onPrimary; closeInspect(); fn?.(); });
+    inspectEl.querySelector('#gmi-gps')?.addEventListener('click', () => { navigateTo(gps[0], gps[1], title); });
+  }
+
+  function inspectCharacter(v) {
+    if (!v?.b) return;
+    if (inspectedView && inspectedView !== v) inspectedView.setSelected?.(false);
+    inspectedView = v;
+    v.setSelected?.(true);
+    const b = v.b;
+    const s = sim?.();
+    const placed = s ? s.blocksBy(b, now()) : 0;
+    const rare = b.trait && TRAIT_LABEL?.[b.trait] ? ` · ${b.rarity?.label || ''} ${TRAIT_LABEL[b.trait]}` : (b.rarity?.label && b.rarity.id !== 'common' ? ` · ${b.rarity.label}` : '');
+    const eyebrow = b.kind === 'founder' ? 'FOUNDER' : b.kind === 'legend' ? (b.office ? `${b.office.label.toUpperCase()} · CITY COUNCIL` : 'BASE BUILDER') : `BLOCKY #${b.id}${rare.toUpperCase()}`;
+    const ownerLbl = b.kind === 'founder' ? 'Founder' : b.kind === 'legend' ? 'Base Builder' : b.from ? who(b.from, 22) : 'City Crew';
+    showInspect({
+      eyebrow,
+      title: b.name,
+      sub: `${b.role?.label || 'Builder'} · ${Number(b.skill || 1).toFixed(1)}x skill`,
+      pfp: renderPfp(b, { size: 128, mark: false }),
+      rows: [
+        ['Status', v.status || 'Building'],
+        ['Blocks placed', Number(placed || 0).toLocaleString('en-US')],
+        ['Brought by', ownerLbl],
+      ],
+      gps: [v.group.position.x, v.group.position.z],
+      link: b.kind === 'blocky' ? { href: `/collection.html#${b.id}`, label: 'View NFT' } : null,
+    });
+  }
+
+  function inspectLotAt(wx, wz) {
+    const li = Math.round(wx / PITCH);
+    const lj = Math.round(wz / PITCH);
+    const key = `${li},${lj}`;
+    const node = GAME_NODES.find((n) => n.lot[0] === li && n.lot[1] === lj);
+    if (node) {
+      const cd = world.getCooldownRemaining(node.kind);
+      showInspect({
+        eyebrow: 'GAME NODE · INTERACTIVE',
+        title: node.full,
+        desc: node.desc,
+        rows: cd > 0 ? [['Cooldown', world.fmtCooldown(cd)]] : [['Status', 'Ready (Press E nearby)']],
+        gps: [node.enter[0], node.enter[1]],
+        primaryLbl: node.actionLbl,
+        onPrimary: () => world.handleNodeInteract(node),
+      });
+      return;
+    }
+    if (STOCKS_LOTS.has(key)) {
+      showInspect({
+        eyebrow: 'DISTRICT · BLOCKY STREET',
+        title: 'Blocky Street · Tokenized Stocks',
+        desc: 'Trade Coinbase Tokenized Stocks 24/7 & 1-tx Sector Baskets on Base.',
+        gps: [-36, 0],
+        primaryLbl: 'Trade Stocks',
+        onPrimary: () => onOpenAction?.('trade'),
+      });
+      return;
+    }
+    if (BASELIVE_LOTS.has(key)) {
+      showInspect({
+        eyebrow: 'DISTRICT · BASE LIVE',
+        title: 'Base Live District',
+        desc: 'Real-time Base Mainnet blocks & live transaction streams.',
+        gps: [-36, 28],
+        primaryLbl: 'Open Base Live',
+        onPrimary: () => onOpenAction?.('live'),
+      });
+      return;
+    }
+    const s = sim?.();
+    const p = s?.standing?.get(key);
+    if (p) {
+      const gx = p.lot ? p.lot[0] * PITCH : li * PITCH;
+      const gz = p.lot ? p.lot[1] * PITCH : lj * PITCH;
+      const poi = ALL_POIS.find((x) => x.lot[0] === li && x.lot[1] === lj);
+      if (p.brand) {
+        const proj = PROJECTS.find((x) => x.id === p.brand.id);
+        showInspect({
+          eyebrow: 'BASE AVENUE HQ',
+          title: p.brand.label || `${p.brand.name} HQ`,
+          desc: proj?.tagline || p.brand.tagline || 'Base Ecosystem Project Headquarters.',
+          rows: [['Grid', `(${li}, ${lj})`]],
+          gps: [gx, gz + 4],
+          primaryLbl: 'Open HQ & Stamp',
+          onPrimary: () => (proj ? world.openProjectDossier(proj) : onInteract?.(p)),
+          link: p.brand.url ? { href: p.brand.url, label: 'Website', ext: true } : null,
+        });
+        return;
+      }
+      if (p.whale) {
+        showInspect({
+          eyebrow: p.whale.tier ? p.whale.tier.toUpperCase() : 'WHALE LANDMARK',
+          title: p.name || 'Whale Building',
+          desc: p.whale.lostAt <= now() ? 'Went dark after whale sold — FOR SALE to the next whale.' : `Built for ${p.whale.name || who(p.whale.from, 22) || 'a Base whale'}.`,
+          rows: [['Owner', p.whale.name || (p.whale.from ? who(p.whale.from, 22) : '—')], ['Grid', `(${li}, ${lj})`]],
+          gps: [gx, gz + 4],
+        });
+        return;
+      }
+      const specialMap = {
+        square: { eye: 'CIVIC CORE', act: 'Open Hall of Fame', fn: () => onOpenRanks?.() },
+        exchange: { eye: 'TRADING FLOOR', act: 'Buy $BLOCKY', fn: () => onOpenAction?.('blocky') },
+        agenthub: { eye: 'AGENT HUB', act: 'Open x402 HQ', fn: () => onOpenAction?.('hq') },
+        launchpad: { eye: 'LAUNCHPAD', act: 'Launch Token', fn: () => onOpenAction?.('launch') },
+        stage: { eye: 'ENTERTAINMENT', act: 'Enter Cinema', fn: () => onOpenAction?.('cinema') },
+      };
+      const sp = specialMap[p.type];
+      showInspect({
+        eyebrow: sp?.eye || (p.kind === 'landmark' ? 'CITY LANDMARK' : 'CITY BUILDING'),
+        title: p.name || poi?.full || p.type,
+        desc: poi?.desc || `Built 24/7 by BaseCity Blockies at grid (${li}, ${lj}).`,
+        rows: [['Grid', `(${li}, ${lj})`], ...(p.h ? [['Height', `${Math.round(p.h)} blocks`]] : [])],
+        gps: poi?.enter || [gx, gz + 4],
+        primaryLbl: sp?.act || '',
+        onPrimary: sp?.fn || null,
+      });
+      return;
+    }
+    const site = s?.sites?.find((st) => st.p?.lot && st.p.lot[0] === li && st.p.lot[1] === lj);
+    if (site) {
+      showInspect({
+        eyebrow: 'UNDER CONSTRUCTION',
+        title: site.p.name || 'Construction Site',
+        desc: 'Blockies are actively placing blocks on this lot.',
+        rows: [['Grid', `(${li}, ${lj})`]],
+        gps: [li * PITCH, lj * PITCH + 4],
+      });
+      return;
+    }
+    if (isWater(li, lj)) {
+      showInspect({
+        eyebrow: 'WATERWAY',
+        title: 'Base River',
+        desc: 'Flows past the River Silicon Quarry.',
+        rows: [['Grid', `(${li}, ${lj})`]],
+        gps: [14, 0],
+      });
+      return;
+    }
+    closeInspect();
   }
 
   function syncUserPill() {
@@ -1600,6 +1781,8 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
     navGoal = null;
     navPath = [];
     gpsBeacon.visible = false;
+    closeInspect();
+    renderer.domElement.style.cursor = '';
     welcomeWrap.hidden = true;
     lockerWrap.hidden = true;
     fullMapWrap.hidden = true;
@@ -2301,6 +2484,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       if (!fullMapWrap.hidden) { fullMapWrap.hidden = true; return; }
       if (!tasksWrap.hidden) { tasksWrap.hidden = true; return; }
       if (document.querySelector('.gm-modal-wrap:not([hidden])')) { world.closeAll(); syncUserPill(); return; }
+      if (inspectEl && !inspectEl.hidden) { closeInspect(); return; }
       if (modalOpen()) return;
       exit();
       return;
@@ -2327,6 +2511,9 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
   addEventListener('keyup', (e) => keys.delete(e.code));
 
   const canvas = renderer.domElement;
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const groundHit = v3();
+  let hoverAt = 0;
   canvas.addEventListener('pointerdown', (e) => {
     if (!active || modalOpen()) return;
     dragging = true;
@@ -2334,11 +2521,24 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
     lastPtr = [e.clientX, e.clientY];
   });
   addEventListener('pointermove', (e) => {
-    if (!active || !dragging) return;
-    const dx = e.clientX - lastPtr[0], dy = e.clientY - lastPtr[1];
-    lastPtr = [e.clientX, e.clientY];
-    yaw -= dx * 0.006;
-    pitch = THREE.MathUtils.clamp(pitch + dy * 0.005, 0.12, 1.15);
+    if (!active) return;
+    if (dragging) {
+      const dx = e.clientX - lastPtr[0], dy = e.clientY - lastPtr[1];
+      lastPtr = [e.clientX, e.clientY];
+      yaw -= dx * 0.006;
+      pitch = THREE.MathUtils.clamp(pitch + dy * 0.005, 0.12, 1.15);
+      return;
+    }
+    if (modalOpen() || e.target !== canvas) { canvas.style.cursor = ''; return; }
+    const nowMs = performance.now();
+    if (nowMs - hoverAt < 110) return;
+    hoverAt = nowMs;
+    const ndc = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    clickRay.setFromCamera(ndc, cam);
+    const vMap = views?.();
+    const hitChar = vMap?.size && clickRay.intersectObjects([...vMap.values()].map((v) => v.hit), false)[0];
+    const hitObj = hitChar || street?.pickTicker?.(clickRay) || clickRay.intersectObjects(city.launchpadHits || [], false)[0] || clickRay.intersectObjects(city.billboards || [], false)[0] || clickRay.intersectObjects(city.solids.children || [], true)[0];
+    canvas.style.cursor = hitObj ? 'pointer' : '';
   });
   addEventListener('pointerup', (e) => {
     if (!active) return;
@@ -2347,22 +2547,96 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
     if (!wasTap || modalOpen() || e.target !== canvas) return;
     const ndc = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
     clickRay.setFromCamera(ndc, cam);
+
+    // 1. Clickable Characters (Founder, Base Builders, Blockies)
+    const vMap = views?.();
+    if (vMap?.size) {
+      const charHit = clickRay.intersectObjects([...vMap.values()].map((v) => v.hit), false)[0];
+      if (charHit?.object?.userData?.builder) {
+        inspectCharacter(charHit.object.userData.builder);
+        return;
+      }
+    }
+
+    // 2. Stock Towers on Blocky Street
     const hitStock = street?.pickTicker?.(clickRay);
     if (hitStock) {
-      onInteract?.({ type: 'stock-tower', ticker: hitStock });
+      const tw = street?.getTowers?.().find((t) => t.ticker === hitStock);
+      showInspect({
+        eyebrow: 'BLOCKY STREET · STOCK TOWER',
+        title: `${hitStock} Stock Tower`,
+        desc: 'Coinbase Tokenized Stock trading 24/7 on Base.',
+        rows: tw?.price ? [['Price', `$${Number(tw.price).toFixed(2)}`]] : [],
+        gps: tw ? [tw.x, tw.z] : [-36, 0],
+        primaryLbl: `Trade ${hitStock}`,
+        onPrimary: () => onInteract?.({ type: 'stock-tower', ticker: hitStock }),
+      });
       return;
     }
+
+    // 3. Launchpad Tower
     if (clickRay.intersectObjects(city.launchpadHits || [], false)[0]) {
       markTask('launchpad');
-      onInteract?.({ type: 'launchpad', id: 'launchpad' });
+      showInspect({
+        eyebrow: 'LAUNCHPAD TOWER',
+        title: 'BaseCity Launchpad · Quadra v3',
+        desc: 'Launch a new Base token paired with $BLOCKY or ETH and spawn a tower.',
+        gps: [-8, 28],
+        primaryLbl: 'Launch Token',
+        onPrimary: () => onInteract?.({ type: 'launchpad', id: 'launchpad' }),
+      });
       return;
     }
+
+    // 4. Billboards & Sponsors
     const board = clickRay.intersectObjects(city.billboards || [], false)[0]?.object.userData.sponsor;
-    if (board?.cinema) { onInteract?.({ type: 'stage' }); return; }
+    if (board?.cinema) {
+      showInspect({
+        eyebrow: 'ENTERTAINMENT',
+        title: 'BaseCity Cinema',
+        desc: 'Watch community clips, drop live reactions & save souvenir tickets.',
+        gps: [0, 12],
+        primaryLbl: 'Enter Cinema',
+        onPrimary: () => onInteract?.({ type: 'stage' }),
+      });
+      return;
+    }
     if (board?.id === 'usdc' || board?.id === 'morpho') {
       markTask('defi_bank');
-      onInteract?.({ brand: board });
+      showInspect({
+        eyebrow: 'BASE DEFI',
+        title: board.name || board.id.toUpperCase(),
+        desc: board.tagline || 'Base Mainnet DeFi terminal.',
+        gps: board.id === 'usdc' ? [-16, 28] : [8, 28],
+        primaryLbl: board.id === 'usdc' ? 'Open USDC Bank' : 'Open Morpho Vault',
+        onPrimary: () => onInteract?.({ brand: board }),
+      });
+      return;
     }
+    if (board?.name) {
+      const proj = PROJECTS.find((x) => x.id === board.id);
+      showInspect({
+        eyebrow: 'BILLBOARD · BASE PROJECT',
+        title: board.name,
+        desc: proj?.tagline || board.tagline || 'Featured project on BaseCity.',
+        primaryLbl: proj ? 'Open HQ & Stamp' : '',
+        onPrimary: proj ? () => world.openProjectDossier(proj) : null,
+        link: board.url ? { href: board.url, label: 'Website', ext: true } : null,
+      });
+      return;
+    }
+
+    // 5. Any City Building, Game Node, Plot, Construction Site, or River
+    const solidHit = clickRay.intersectObjects(city.solids.children || [], true)[0];
+    if (solidHit) {
+      inspectLotAt(solidHit.point.x, solidHit.point.z);
+      return;
+    }
+    if (clickRay.ray.intersectPlane(groundPlane, groundHit)) {
+      inspectLotAt(groundHit.x, groundHit.z);
+      return;
+    }
+    closeInspect();
   });
 
   if (exitBtn) exitBtn.onclick = exit;
