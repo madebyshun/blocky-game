@@ -43,10 +43,14 @@ export function computeDistricts(done, land = 0) {
   const used = new Set(given.values());
   const out = [];
   for (const r of regions.values()) {
-    if (r.lots.length < 2) continue;
+    // Keep map labels clean: only show larger clusters (4+ lots) plus Core City & Finance Hub
+    const isCore = r.a === 0 && r.b === 0;
+    const isFinance = r.a <= -2 && r.b >= -1 && r.b <= 2;
+    if (!isCore && !isFinance && r.lots.length < 4) continue;
     let name = given.get(r.key);
     if (!name) {
-      if (r.a === 0 && r.b === 0) name = 'Downtown';
+      if (isCore) name = 'Core City';
+      else if (isFinance) name = 'Finance Hub';
       else {
         const cat = Object.entries(r.count).sort((x, y) => y[1] - x[1])[0][0];
         const list = NAMES[cat];

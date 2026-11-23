@@ -4,13 +4,14 @@ import {client,useKv,kv} from './_store.js';
 import {workerSettings,controlMessage,workerGrantMessage} from '../src/worker-protocol.js';
 import {get,set,read,write,session,sessionOwner,owners,index,hash,prefix,seal,publicState} from './_worker-store.js';
 import {assertOwners,tick,log,blue} from './_worker-engine.js';
+import {tickCityTasks} from './city-tasks.js';
 export const config={maxDuration:60};
 export default async function handler(req,res){res.setHeader('Cache-Control','no-store');try{
  if(req.method==='GET'&&req.query?.cron==='1'){
   if(!process.env.CRON_SECRET||req.headers.authorization!==`Bearer ${process.env.CRON_SECRET}`)return res.status(401).json({error:'Unauthorized scheduler'});
   const list=await owners();if(!list.length)return res.status(200).json({processed:0});
   // Round-robin one worker per invocation keeps research within the function runtime budget.
-  const cursor=(await get(`${prefix}:cursor`))||0;await set(`${prefix}:cursor`,cursor+1);const state=await tick(list[cursor%list.length]);return res.status(200).json({processed:1,status:state?.enabled?'enabled':'paused'});
+  const cursor=(await get(`${prefix}:cursor`))||0;await set(`${prefix}:cursor`,cursor+1);const target=list[cursor%list.length];let state=await tick(target);const cityState=await tickCityTasks(target).catch(()=>null);if(cityState)state=cityState;return res.status(200).json({processed:1,status:state?.enabled?'enabled':'paused'});
  }
  if(req.method==='GET'){
   const owner=await sessionOwner(req.headers.authorization?.replace(/^Bearer /,''));if(!owner)return res.status(401).json({error:'Worker session expired (sessions last 1 hour): click Renew session to sign in again'});
@@ -32,7 +33,8 @@ export default async function handler(req,res){res.setHeader('Cache-Control','no
  }
  if(b.action==='run'){
   const owner=await sessionOwner(req.headers.authorization?.replace(/^Bearer /,''));if(!owner)return res.status(401).json({error:'Worker session expired (sessions last 1 hour): click Renew session to sign in again'});
-  return res.status(200).json({state:publicState(await tick(owner))});
+  let state=await tick(owner);const cityState=await tickCityTasks(owner).catch(()=>null);if(cityState)state=cityState;
+  return res.status(200).json({state:publicState(state)});
  }
  if(!/^0x[0-9a-f]{40}$/i.test(b.owner||'')||!Number.isFinite(Date.parse(b.issuedAt))||Math.abs(Date.now()-Date.parse(b.issuedAt))>600000)return res.status(400).json({error:'Invalid or expired control request'});
  b.owner=b.owner.toLowerCase();const message=controlMessage(b);

@@ -2,7 +2,7 @@
 // (portrait = the NFT image, links to OpenSea and Basescan once the contract is live).
 import { CONFIG } from './config.js';
 import { TRAIT_LABEL } from './sim.js';
-import { blockySvg } from './voxel-svg.js';
+import { downloadPfp } from './pfp.js';
 import { fetchColony } from './data.js';
 import { replay } from './replay.js';
 import { teamOrigin } from './ledger.js';
@@ -161,12 +161,12 @@ function open(b) {
   $('d-dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
   const site = CONFIG.siteUrl || location.origin;
   const text = `${b.name} is a ${b.rarity.label}${b.trait ? ` (${TRAIT_LABEL[b.trait]})` : ''} Blocky building ${CONFIG.cityName} on Base: ${fmt(blocks)} blocks placed so far.${CONFIG.xHandle ? ` @${CONFIG.xHandle}` : ''}`;
-  $('d-actions').innerHTML = `<button class="btn primary" type="button" data-act="png">⬇ PNG</button>
+  $('d-actions').innerHTML = `<button class="btn primary" type="button" data-act="png">Save 3D PNG</button>
     ${info.contract && here(b) && citizen ? `<a class="btn" href="${opensea(info.contract, b.id)}" target="_blank" rel="noopener">OpenSea ↗</a><a class="btn" href="${basescan(`nft/${info.contract}/${b.id}`)}" target="_blank" rel="noopener">Basescan ↗</a>` : ''}
-    <a class="btn" href="https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${site}/collection.html#${b.id}`)}" target="_blank" rel="noopener">Share on 𝕏</a>
+    <a class="btn" href="https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(`${site}/collection.html#${b.id}`)}" target="_blank" rel="noopener">Share on X</a>
     <a class="btn" href="/b/${b.id}">Full body ↗</a>
     <a class="btn" href="/claim.html${b.from ? `?address=${b.from}` : ''}">Claim page</a>`;
-  d.querySelector('[data-act="png"]').onclick = () => downloadSvgPng(blockySvg(b, { size: 1024 }), b.name);
+  d.querySelector('[data-act="png"]').onclick = () => downloadPfp(b, b.name);
   history.replaceState(null, '', `#${b.id}`);
   if (!d.open) d.showModal();
 }

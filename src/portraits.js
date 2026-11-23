@@ -1,12 +1,21 @@
-// Blocky portraits from the SVG renderer (the NFT image), drawn as they scroll into view so a page
-// of hundreds of Blockies stays smooth.
+// Blocky portraits rendered with the upgraded 3D WebGL voxel model (src/pfp.js, matching the city &
+// Base Builders page), with automatic fallback to blockySvg if WebGL is unavailable.
+import { renderPfp } from './pfp.js';
 import { blockySvg } from './voxel-svg.js';
 
-const urls = new Map();
-export function portraitUrl(b, { size = 256, label = false } = {}) {
+const svgUrls = new Map();
+function fallbackSvgUrl(b, { size = 256, label = false } = {}) {
   const key = `${b.id}|${b.seed ?? ''}|${size}|${label}`;
-  if (!urls.has(key)) urls.set(key, URL.createObjectURL(new Blob([blockySvg(b, { size, label })], { type: 'image/svg+xml' })));
-  return urls.get(key);
+  if (!svgUrls.has(key)) svgUrls.set(key, URL.createObjectURL(new Blob([blockySvg(b, { size, label })], { type: 'image/svg+xml' })));
+  return svgUrls.get(key);
+}
+
+export function portraitUrl(b, { size = 320, label = false } = {}) {
+  try {
+    return renderPfp(b, { size, mark: label });
+  } catch {
+    return fallbackSvgUrl(b, { size, label });
+  }
 }
 
 const queue = [];
@@ -16,9 +25,9 @@ function pump() {
   busy = true;
   const step = () => {
     const t0 = performance.now();
-    while (queue.length && performance.now() - t0 < 14) {
+    while (queue.length && performance.now() - t0 < 16) {
       const img = queue.shift();
-      if (img.isConnected) img.src = portraitUrl(img._blocky);
+      if (img.isConnected) img.src = portraitUrl(img._blocky, { size: 320, label: false });
     }
     if (queue.length) setTimeout(step, 0);
     else busy = false;

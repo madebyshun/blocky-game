@@ -9,11 +9,30 @@ import { catStatue } from './cats.js';
 // ---------- materials & merged-box kits ----------
 
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
-const BODY_MAT = new THREE.MeshLambertMaterial({ vertexColors: true });
+const VOXEL_TEX = (() => {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 16;
+  const g = cv.getContext('2d');
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const edge = x === 0 || y === 0 || x === 15 || y === 15;
+      const n = ((Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1 + 1) % 1;
+      const v = Math.round((edge ? 236 : 244) + n * 11);
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.fillRect(x, y, 1, 1);
+    }
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  return tex;
+})();
+const BODY_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, map: VOXEL_TEX });
 export const GLOW_MAT = new THREE.MeshLambertMaterial({ color: 0xa8d8ff, emissive: 0xffd27a, emissiveIntensity: 0.2 });
 const BLUE_GLOW = new THREE.MeshLambertMaterial({ color: 0x3d8bff, emissive: 0x0052ff, emissiveIntensity: 0.8 });
 const GREEN_GLOW = new THREE.MeshLambertMaterial({ color: 0x8be04e, emissive: 0x4caf00, emissiveIntensity: 0.6 });
-const WATER_MAT = new THREE.MeshLambertMaterial({ color: 0x3fa9e8, transparent: true, opacity: 0.88 });
+const WATER_MAT = new THREE.MeshLambertMaterial({ color: 0x3fa9e8, transparent: true, opacity: 0.85 });
 const FLAME_MAT = new THREE.MeshLambertMaterial({ color: 0xffb300, emissive: 0xff8c00, emissiveIntensity: 0.9 });
 
 export const C = {
@@ -1464,6 +1483,10 @@ const LANDMARK = {
     k.box(0.6, 1, 0.6, C.base, 1, 10.6, 0);
     for (const [x, z] of [[1.9, 0], [0.1, 0], [1, 0.9], [1, -0.9]]) k.box(0.4, 1.4, 0.4, C.base, x, 0.4, z);
     k.win(0.3, 0.3, 0.3, -1.7, 14.5, -0.1);
+    const lpHit = new THREE.Mesh(new THREE.BoxGeometry(6.4, 15, 6.4), new THREE.MeshBasicMaterial({ visible: false }));
+    lpHit.position.set(0, 7.5, 0);
+    lpHit.userData.launchpad = true;
+    k.extras.push(lpHit);
   },
   stadium(k) {
     k.box(6.4, 0.3, 6.4, 0x9aa3ad);
@@ -1713,7 +1736,7 @@ function brandPanel(k, b, kind, w, h, x, y, z, ry = 0) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), brandMaterial(b, kind));
   m.position.set(x, y, z);
   m.rotation.y = ry;
-  m.userData.sponsor = kind === 'free' ? AD_SLOT() : { name: b.name, url: b.url };
+  m.userData.sponsor = kind === 'free' ? AD_SLOT() : { id: b.id, name: b.name, url: b.url };
   k.extras.push(m);
 }
 const SIDE = Math.PI / 2; // a panel on the +x face
@@ -2161,11 +2184,12 @@ export function createCity(scene) {
   const root = new THREE.Group();
   scene.add(root);
 
-  const hemi = new THREE.HemisphereLight(0xdff1ff, 0x7a6a55, 1.8);
-  const sun = new THREE.DirectionalLight(0xfff4e0, 2.6);
+  const hemi = new THREE.HemisphereLight(0xdff1ff, 0x8e7c5e, 1.85);
+  const sun = new THREE.DirectionalLight(0xfff4e0, 2.65);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.bias = -0.0008;
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.02;
   scene.add(hemi, sun, sun.target);
   scene.fog = new THREE.Fog(0xd6efff, 120, 260); // distant countryside fades into haze
 
@@ -2182,6 +2206,10 @@ export function createCity(scene) {
   const rising = []; // groups animating out of the ground
   const animated = []; // objects with userData.animate(t, dt): rides, turbines, planes
   const billboards = []; // clickable billboard panels (userData.sponsor)
+  const launchpadHits = []; // clickable launchpad tower hitboxes (userData.launchpad)
+  const txPulses = []; // live on-chain transaction arcs
+  const txPulseGroup = new THREE.Group();
+  root.add(txPulseGroup);
   let developed = new Set();
   let roadSig = '';
   let snapshot = { land: 0, next: null, placed: 0, sites: [] };
@@ -2197,11 +2225,12 @@ export function createCity(scene) {
       old.group.traverse((o) => {
         const i = animated.indexOf(o); if (i >= 0) animated.splice(i, 1);
         const b = billboards.indexOf(o); if (b >= 0) billboards.splice(b, 1);
+        const l = launchpadHits.indexOf(o); if (l >= 0) launchpadHits.splice(l, 1);
       });
     }
     const [x, z] = lotPos(lot);
     group.position.set(x, 0, z);
-    group.traverse((o) => { if (o.userData.animate) animated.push(o); if (o.userData.sponsor) billboards.push(o); });
+    group.traverse((o) => { if (o.userData.animate) animated.push(o); if (o.userData.sponsor) billboards.push(o); if (o.userData.launchpad) launchpadHits.push(o); });
     lotsGroup.add(group);
     lots.set(key, { kind, k, group, sig });
     if (animate) { group.scale.set(1, 0.01, 1); rising.push({ group, t: 0, mode: 'grow' }); }
@@ -2544,7 +2573,7 @@ export function createCity(scene) {
   // phaseOverride / warm: a visitor's own light for cinematic shots (src/cinematic.js); the sky's
   // colours and the sun's direction for its sky dome
   const env = { daylight: 1, phase: 0, phaseOverride: null, warm: 0, skyTop: new THREE.Color(), skyBottom: new THREE.Color(), sunDir: new THREE.Vector3(0, 1, 0) };
-  const WARM_TOP = new THREE.Color('#6b78c8'), WARM_BOT = new THREE.Color('#ffb070'), WARM_SUN = new THREE.Color('#ffae5c');
+  const WARM_TOP = new THREE.Color('#4c68b8'), WARM_BOT = new THREE.Color('#ffbe78'), WARM_SUN = new THREE.Color('#ffb866');
   const sky = {
     dayTop: new THREE.Color('#5fb8ff'), dayBot: new THREE.Color('#d6efff'), nightTop: new THREE.Color('#0a1230'), nightBot: new THREE.Color('#2b3a6b'),
     stormTop: new THREE.Color('#4a5568'), stormBot: new THREE.Color('#8a94a6'),
@@ -2555,22 +2584,27 @@ export function createCity(scene) {
     const phase = env.phaseOverride ?? (now() / (CONFIG.dayLengthMin * 60000)) % 1;
     const s = Math.sin(phase * Math.PI * 2);
     const dl = THREE.MathUtils.smoothstep(s, -0.25, 0.3);
+    // Minecraft-style Golden Hour warmth naturally peaks near sunrise/sunset (s near 0)
+    const naturalWarm = Math.max(0, 1 - Math.abs(s) / 0.35) * 0.75;
+    const warm = Math.max(env.warm || 0, naturalWarm);
     env.daylight = dl; env.phase = phase;
     const H = land * PITCH + 4;
-    sun.position.set(Math.cos(phase * Math.PI * 2) * H * 1.5, 25 + Math.max(0, s) * 20, H * 0.6);
+    sun.position.set(Math.cos(phase * Math.PI * 2) * H * 1.5, 20 + Math.max(0, s) * 24, H * 0.65);
     const gloom = env.gloom || 0, flash = env.flash || 0; // weather (see weather.js)
-    sun.intensity = (0.25 + 2.4 * dl) * (1 - 0.65 * gloom) + flash * 2;
+    sun.intensity = (0.28 + 2.55 * dl) * (1 - 0.65 * gloom) + flash * 2;
     sun.color.setHSL(0.1, 0.6 - 0.3 * dl, 0.75 + 0.2 * dl);
-    if (env.warm) sun.color.lerp(WARM_SUN, env.warm * 0.6);
+    if (warm) sun.color.lerp(WARM_SUN, warm * 0.7);
     env.sunDir.copy(sun.position).normalize();
-    hemi.intensity = (0.55 + 1.3 * dl) * (1 - 0.35 * gloom) + flash * 3;
+    hemi.intensity = (0.52 + 1.25 * dl) * (1 - 0.35 * gloom) + flash * 3;
     hemi.color.setHSL(0.58, 0.6, 0.45 + 0.45 * dl);
-    GLOW_MAT.emissiveIntensity = 0.15 + 1.1 * (1 - dl);
+    GLOW_MAT.emissiveIntensity = 0.15 + 1.15 * (1 - dl);
+    GREEN_GLOW.emissiveIntensity = (0.4 + 0.8 * (1 - dl)) * GRID.power; // the GPU District's grid (NVDAc)
+    WATER_MAT.opacity = 0.84 + Math.sin(t * 1.8) * 0.04;
     GREEN_GLOW.emissiveIntensity = (0.4 + 0.8 * (1 - dl)) * GRID.power; // the GPU District's grid (NVDAc)
     pulse = Math.max(0, pulse - dt * 1.5);
     BLUE_GLOW.emissiveIntensity = 0.8 + pulse * 1.5;
     const top = env.skyTop.copy(sky.nightTop).lerp(sky.dayTop, dl).lerp(sky.stormTop, gloom * 0.8), bot = env.skyBottom.copy(sky.nightBot).lerp(sky.dayBot, dl).lerp(sky.stormBot, gloom * 0.8);
-    if (env.warm) { top.lerp(WARM_TOP, env.warm * 0.35 * dl); bot.lerp(WARM_BOT, env.warm * 0.6 * dl); }
+    if (warm) { top.lerp(WARM_TOP, warm * 0.4 * dl); bot.lerp(WARM_BOT, warm * 0.68 * dl); }
     if (flash > 0) { top.lerp(new THREE.Color('#e8ecff'), flash * 0.7); bot.lerp(new THREE.Color('#ffffff'), flash * 0.7); }
     scene.fog.color.copy(bot);
     skyAcc += dt;
@@ -2602,6 +2636,27 @@ export function createCity(scene) {
       site.hook.position.set(0, -drop, reach);
       site.cable.scale.set(0.04, drop, 0.04);
       site.cable.position.set(0, -drop / 2, reach);
+    }
+
+    for (let i = txPulses.length - 1; i >= 0; i--) {
+      const p = txPulses[i];
+      p.t += dt * 1.15;
+      if (p.t >= 1) {
+        txPulseGroup.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        p.mesh.material.dispose();
+        txPulses.splice(i, 1);
+        continue;
+      }
+      const u = p.t;
+      const inv = 1 - u;
+      p.mesh.position.set(
+        inv * inv * p.sx + 2 * inv * u * p.mx + u * u * p.ex,
+        inv * inv * p.sy + 2 * inv * u * p.my + u * u * p.ey,
+        inv * inv * p.sz + 2 * inv * u * p.mz + u * u * p.ez,
+      );
+      p.mesh.scale.setScalar(1 + Math.sin(u * Math.PI) * 1.2);
+      p.mesh.material.opacity = Math.sin(u * Math.PI);
     }
   }
 
@@ -2660,9 +2715,62 @@ export function createCity(scene) {
     return pts;
   }
 
+  function txPulse(tx = 0, tz = 0, colorHex = 0x0052ff) {
+    const sx = (Math.random() - 0.5) * 12, sy = 18 + Math.random() * 6, sz = (Math.random() - 0.5) * 12;
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.45, 0.45, 0.45),
+      new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 1, toneMapped: false }),
+    );
+    txPulseGroup.add(mesh);
+    txPulses.push({
+      mesh, t: 0,
+      sx, sy, sz,
+      mx: (sx + tx) * 0.5, my: Math.max(sy, 14) + 6, mz: (sz + tz) * 0.5,
+      ex: tx, ey: 1.5, ez: tz,
+    });
+  }
+
+  let launchedCount = 0;
+  function addLaunchedTower({ symbol = "TOKEN", name = "Launched Token" } = {}) {
+    const idx = launchedCount++;
+    const ring = Math.max(land + 1, 4);
+    const candidates = [
+      [0, 3], [1, 3], [-2, 3], [2, 3], [0, -3], [1, -3], [3, 0], [-3, 0],
+      [ring, -2], [ring, 2], [-ring, 2], [2, ring], [-2, ring],
+    ];
+    let lot = candidates.find(([i, j]) => !lots.has(`${i},${j}`) && !isWater(i, j));
+    if (!lot) lot = [((idx % 5) - 2) * 2, ring + Math.floor(idx / 5)];
+    const k = new Kit();
+    const h = 11 + (idx % 3) * 2;
+    k.box(5.8, 0.4, 5.8, 0x222938);
+    k.box(3.8, h, 3.8, C.white, 0, 0.4, 0);
+    k.box(4.0, 1.2, 4.0, C.base, 0, h - 1.5, 0);
+    k.win(0.9, 0.9, 0.9, 0, h + 0.5, 0);
+    k.box(0.2, 2.2, 0.2, C.dark, 0, h + 1.4, 0);
+    k.win(0.35, 0.35, 0.35, 0, h + 3.6, 0);
+    for (let y = 1.2; y < h - 2; y += 1.6) {
+      k.win(2.4, 0.55, 0.1, 0, y, 1.92);
+      k.win(2.4, 0.55, 0.1, 0, y, -1.92);
+    }
+    const group = k.build();
+    const [x, z] = lotPos(lot);
+    group.position.set(x, 0, z);
+    const lpHit = new THREE.Mesh(new THREE.BoxGeometry(5.8, h + 4, 5.8), new THREE.MeshBasicMaterial({ visible: false }));
+    lpHit.position.set(0, (h + 4) / 2, 0);
+    lpHit.userData.launchpad = true;
+    group.add(lpHit);
+    launchpadHits.push(lpHit);
+    lotsGroup.add(group);
+    lots.set(`launched:${symbol}:${idx}`, { kind: "built", k: `launched:${symbol}:${idx}`, group, sig: name });
+    group.scale.set(1, 0.01, 1);
+    rising.push({ group, t: 0, mode: "grow" });
+    txPulse(x, z, 0x2ee87a);
+    return { lot, h };
+  }
+
   return {
     setKeepClear(fn) { keepClear.push(fn); },
-    root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, officeSpot, riverPath, billboards,
+    root, env, graph, sync, update, depotSpot, siteSpot, chillSpot, officeSpot, riverPath, billboards, launchpadHits, txPulse, addLaunchedTower,
     setWaiting(set) { waiting = set; }, // src/chips.js: the next sync shows them dark
     solids: lotsGroup, // buildings, sites, trees: what a film camera must not go through
     feePulse: () => (pulse = 1),

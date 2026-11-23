@@ -6,6 +6,7 @@ import { linkTypedDataV4, MAX_LINKS, pairsFrom, onchainPairs } from './agent-lin
 import { IDENTITY } from './work-protocol.js';
 import { linkedAgentId } from './agent-id.js';
 import { sendTx, waitTx } from './wallet.js';
+import { DATA_SUFFIX } from './attribution.js';
 import { setFleet } from './blockyagent.js';
 import { esc } from './site.js';
 
@@ -25,7 +26,7 @@ const scan = async (owner) => { const r = await fetch('/api/agent-link', { metho
 // wallet_getCallsStatus returns, the chain does not). Wallets without EIP-5792: one tx per call.
 async function sendBatch1(provider, account, calls, before) {
   try {
-    await provider.request({ method: 'wallet_sendCalls', params: [{ version: '2.0.0', chainId: toHex(8453), from: account, atomicRequired: false, calls }] });
+    await provider.request({ method: 'wallet_sendCalls', params: [{ version: '2.0.0', chainId: toHex(8453), from: account, atomicRequired: false, calls, capabilities: { dataSuffix: { value: DATA_SUFFIX, optional: true } } }] });
   } catch (err) {
     if (err?.code === 4001 || !/sendCalls|not supported|unsupported|4200|does not exist|not available/i.test(String(err?.message || err?.code))) throw err;
     for (const c of calls) { const h = await sendTx(provider, { from: account, to: c.to, data: c.data }); await waitTx(h, provider); }
@@ -51,10 +52,10 @@ export function mountAgentLink(el, context) {
   function draw() {
     const list = blockies(), { account } = context(), shared = linkedAgentId(account) || '';
     const done = list.filter((n) => linked[n]).length;
-    el.innerHTML = `<div class="al-head"><b>🪪 Verify my Blockies as agents</b><span>${done}/${list.length} linked</span><button class="btn small" data-al="toggle">${open ? 'Close' : done < list.length ? 'Verify all' : 'Review'}</button></div>
+    el.innerHTML = `<div class="al-head"><b>Verify my Blockies as agents</b><span>${done}/${list.length} linked</span><button class="btn small" data-al="toggle">${open ? 'Close' : done < list.length ? 'Verify all' : 'Review'}</button></div>
     ${open ? `<p class="al-note">One signature links every Blocky below to an ERC-8004 agent you own: no gas, no transaction. Blue Agent shows the Blocky badge from it. A link ends by itself if either NFT leaves your wallet.</p>
     <label class="al-shared">Agent for all <input data-al-shared inputmode="numeric" placeholder="e.g. 1205445" value="${esc(shared)}"></label>
-    <div class="al-rows">${list.map((n) => `<label class="al-row"><span>Blocky #${n}</span><input data-al-n="${n}" inputmode="numeric" placeholder="same as above" value="${esc(linked[n] && linked[n] !== shared ? linked[n] : '')}">${linked[n] ? `<em>✓ #${esc(linked[n])}</em>` : ''}</label>`).join('')}</div>
+    <div class="al-rows">${list.map((n) => `<label class="al-row"><span>Blocky #${n}</span><input data-al-n="${n}" inputmode="numeric" placeholder="same as above" value="${esc(linked[n] && linked[n] !== shared ? linked[n] : '')}">${linked[n] ? `<em>#${esc(linked[n])}</em>` : ''}</label>`).join('')}</div>
     <div class="al-setup"><b>One-time setup for ${list.length} Blockies</b><span>1 · give each Blocky its own ERC-8004 agent (one wallet confirmation, a few cents of gas each) · 2 · switch every Blocky's agent on (one signature)</span>
     <div class="agent-acts"><button class="btn primary" data-al="create" ${busy || !account ? 'disabled' : ''}>Create an agent for each Blocky </button><button class="btn" data-al="activate" ${busy || !account ? 'disabled' : ''}>Switch all agents on</button></div></div>
     <p class="al-note">Already have agents? Link them below instead, with one signature.</p>
@@ -112,7 +113,7 @@ export function mountAgentLink(el, context) {
         if (!one.length) throw new Error('On-chain URIs need one agent per Blocky; the signature above already covers shared agents.');
         const calls = one.map((p) => ({ to: IDENTITY, data: encodeFunctionData({ abi: SET_URI, functionName: 'setAgentURI', args: [BigInt(p.agentId), cardUrl(p.blocky, p.agentId)] }), value: '0x0' }));
         try {
-          await provider.request({ method: 'wallet_sendCalls', params: [{ version: '2.0.0', chainId: toHex(8453), from: account, atomicRequired: false, calls }] });
+          await provider.request({ method: 'wallet_sendCalls', params: [{ version: '2.0.0', chainId: toHex(8453), from: account, atomicRequired: false, calls, capabilities: { dataSuffix: { value: DATA_SUFFIX, optional: true } } }] });
           msg = `Sent ${calls.length} URI update${calls.length === 1 ? '' : 's'} in one wallet request.`;
         } catch (err) {
           if (err?.code === 4001) throw err;

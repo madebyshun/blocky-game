@@ -4,7 +4,7 @@ import { CONFIG } from './config.js';
 
 const fmtN = (n) => (n >= 1e4 ? `${(n / 1e3).toFixed(n >= 1e5 ? 0 : 1)}K` : String(n));
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
-export const EMOJI = ['🍿', '🔥', '😂', '😍', '👏', '🫡']; // same list as api/cinema.js
+export const EMOJI = ['', '', '', '', '', '']; // same list as api/cinema.js
 const COLORS = ['#f4c542', '#e84393', '#5dade2', '#2ecc71', '#ff8c42', '#9b59b6', '#ffffff'];
 
 export function createCinemaRoom() {
@@ -15,10 +15,10 @@ export function createCinemaRoom() {
     return `<i style="--c:${c};--d:${((i * 37 + r * 11) % 20) / 10}s"></i>`;
   }).join('')}</div>`).join('');
   el.innerHTML = `<div class="cr-marquee"><span>${esc(CONFIG.cinema?.title || 'BASECITY CINEMA')}</span><small id="cr-now"></small></div>
-    <button type="button" class="cr-close" aria-label="Leave the cinema">✕</button>
+    <button type="button" class="cr-close" aria-label="Leave the cinema">Close</button>
     <div class="cr-stage"><div class="cr-curtain l"></div><div class="cr-screen" id="cr-screen"></div><div class="cr-curtain r"></div></div>
     <div class="cr-react" id="cr-react">${EMOJI.map((e) => `<button type="button" data-e="${e}">${e}<small>0</small></button>`).join('')}
-      <button type="button" class="cr-ticket-btn" id="cr-ticket-btn">🎟 Get your ticket</button></div>
+      <button type="button" class="cr-ticket-btn" id="cr-ticket-btn">Get your ticket</button></div>
     <div class="cr-list" id="cr-list"></div>
     <div class="cr-ticket" id="cr-ticket" hidden><div class="cr-tbox"><canvas id="cr-tcv" width="1200" height="630"></canvas>
       <div class="cr-tbtns"><button type="button" id="cr-share" class="primary">Share on X</button><button type="button" id="cr-save">Save image</button><button type="button" id="cr-tclose">Back to the film</button></div></div></div>
@@ -96,7 +96,7 @@ export function createCinemaRoom() {
     const it = reel[i];
     drawTicket(it); $('cr-ticket').hidden = false;
   }
-  const shareText = () => `🎟 Just watched ${reel[i]?.title || 'a premiere'} at the BaseCity Cinema 🍿\n\nA city on Base, built 24/7 by Blockies. Grab a seat:`;
+  const shareText = () => `Just watched ${reel[i]?.title || 'a premiere'} at the BaseCity Cinema \n\nA city on Base, built 24/7 by Blockies. Grab a seat:`;
 
   function play(n) {
     clearTimeout(timer);
@@ -115,7 +115,7 @@ export function createCinemaRoom() {
     else if (reel.length > 1) timer = setTimeout(() => play(i + 1), (it.secs || 8) * 1000);
   }
 
-  $('cr-list').innerHTML = reel.length > 1 ? reel.map((it, n) => `<button type="button" data-i="${n}">🎬 ${esc(it.caption || `Reel ${n + 1}`)}</button>`).join('') : '';
+  $('cr-list').innerHTML = reel.length > 1 ? reel.map((it, n) => `<button type="button" data-i="${n}">${esc(it.caption || `Reel ${n + 1}`)}</button>`).join('') : '';
   el.addEventListener('click', (e) => {
     if (e.target.closest('.cr-close')) return room.close();
     const b = e.target.closest('[data-i]'); if (b) return play(+b.dataset.i);
@@ -128,7 +128,7 @@ export function createCinemaRoom() {
       open(`https://x.com/intent/post?text=${encodeURIComponent(shareText())}&url=${encodeURIComponent(url)}`, '_blank', 'noopener');
     }
   });
-  addEventListener('keydown', (e) => { if (!el.hidden && e.key === 'Escape') room.close(); });
+  addEventListener('keydown', (e) => { if (!el.hidden && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); room.close(); } });
 
   const room = {
     get open() { return !el.hidden; },

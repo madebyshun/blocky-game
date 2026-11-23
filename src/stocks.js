@@ -12,6 +12,7 @@ import { nyseHours } from './nysehours.js';
 import { esc } from './names.js';
 import { browserWallets, smartWallet, connect } from './wallet.js';
 import { openBlocky10 } from './tradedock.js';
+import { fetchBaseStocks } from './swap-base.js';
 
 // Buying a stock from BaseCity comes later, in BaseCity's own popup (src/tradedock.js); nothing links out yet.
 // a click out to Quadra, counted by kind (api/_crew.js GO_KINDS): how many buys BaseCity starts
@@ -179,7 +180,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     for (const s of want) {
       if (ipoCranes.has(s.ticker)) continue;
       ipoCranes.set(s.ticker, makeCrane(s.ticker, s, i++));
-      log(`🔔 <b>IPO DAY:</b> ${esc(s.name || s.ticker)} just listed on Base. A crane is up on Blocky Street`);
+      log(`<b>IPO DAY:</b> ${esc(s.name || s.ticker)} just listed on Base. A crane is up on Blocky Street`);
     }
   }
   // ?ipodemo: a sample IPO, for clips and for seeing the crane when no stock listed today (never
@@ -203,7 +204,19 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
   const S = { stocks: null, week: null, nyse: nyseHours(), byTicker: new Map(), bellAt: -9, wasOpen: null, live: { n: 0, usd: 0, closedUsd: 0 }, ipos: null };
   async function load() {
     try {
-      const r = await fetch(`${feed}/stocks`);
+      const fast = await fetchBaseStocks();
+      if (fast?.length && !S.stocks) {
+        S.stocks = fast;
+        S.byTicker = new Map(fast.map((s) => [s.ticker, s]));
+        for (const tw of towers.values()) {
+          tw.price = S.byTicker.get(tw.t)?.nav ?? null;
+          if (tw.n === 0) buildTo(tw, 4);
+        }
+        drawAll();
+      }
+    } catch { /* ignore */ }
+    try {
+      const r = await fetch(`${feed}/stocks`, { signal: AbortSignal.timeout(12000) });
       if (!r.ok) return;
       const j = await r.json();
       S.stocks = j.stocks; S.week = j.week; S.weekend = j.weekend || null;
@@ -214,7 +227,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
         buildTo(tw, layersFor(tw.usd24));
       }
       drawAll();
-    } catch { /* the board says so */ }
+    } catch { /* keep fast-pass data */ }
   }
   // each Base block Base Live plays: its stock transfers drop onto their towers
   baseLive?.onBlock((b) => {
@@ -225,7 +238,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       const tw = towers.get(t);
       if (!tw) continue;
       for (let i = 0; i < Math.min(n, 4); i++) drop(tw, after);
-      if (v >= 100000) log(`📈 ${usd(v)} of ${t} just moved on Base${after ? ', with Wall Street closed' : ''}`);
+      if (v >= 100000) log(`${usd(v)} of ${t} just moved on Base${after ? ', with Wall Street closed' : ''}`);
     }
   });
 
@@ -244,7 +257,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       if (wk && Number.isFinite(wk.move)) {
         g.fillStyle = wk.move >= 0 ? '#16a34a' : '#dc2626'; g.font = `800 ${h * 0.21}px Inter, sans-serif`;
         g.fillText(`${wk.move >= 0 ? '▲' : '▼'} ${Math.abs(wk.move).toFixed(2)}% on Base this weekend`, w * 0.1, h * 0.74);
-      } else g.fillText(w24 ? `24h on Base · ${usd(w24.usd24)} · ${w24.n24.toLocaleString('en-US')} moves` : S.film ? "Coinbase's, on Base" : 'on Base · reading…', w * 0.1, h * 0.74);
+      } else g.fillText(w24 ? `24h on Base · ${usd(w24.usd24)} · ${w24.n24.toLocaleString('en-US')} moves` : s?.nav ? 'Coinbase B20 · live on Base' : S.film ? "Coinbase's, on Base" : 'on Base · reading…', w * 0.1, h * 0.74);
     });
   }
   function drawBoard() {
@@ -274,6 +287,9 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       } else if (S.film) { // a film (clips/streetfilm.js): no numbers it hasn't read
         g.font = `900 ${h * 0.1}px Inter, sans-serif`; g.fillText('Blocky Street never closes.', w * 0.05, h * 0.66);
         g.fillStyle = '#9aa3b2'; g.font = `600 ${h * 0.058}px Inter, sans-serif`; g.fillText("Coinbase's tokenized stocks on Base, built block by block", w * 0.05, h * 0.82);
+      } else if (S.stocks?.length) {
+        g.font = `900 ${h * 0.09}px Inter, sans-serif`; g.fillText(`${S.stocks.length} tokenized stocks live on Base`, w * 0.05, h * 0.65);
+        g.fillStyle = '#9aa3b2'; g.font = `600 ${h * 0.056}px Inter, sans-serif`; g.fillText('Coinbase B20 · 24/7 self-custody swaps on BaseCity', w * 0.05, h * 0.82);
       } else {
         g.font = `700 ${h * 0.08}px Inter, sans-serif`; g.fillText('Reading Base…', w * 0.05, h * 0.66);
       }
@@ -309,7 +325,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     if (slowAcc > (S.film ? 0 : 2)) {
       slowAcc = 0;
       const ny = S.film?.nyse ?? nyseHours();
-      if (S.wasOpen !== null && ny.open !== S.wasOpen) { S.bellAt = t; log(`${ny.open ? '🔔 Wall Street just opened. Blocky Street never closed.' : '🔔 Wall Street just closed. Blocky Street keeps building.'} <a href="#" class="st-bell-link">📣 Make the bell post</a>`); }
+      if (S.wasOpen !== null && ny.open !== S.wasOpen) { S.bellAt = t; log(`${ny.open ? 'Wall Street just opened. Blocky Street never closed.' : 'Wall Street just closed. Blocky Street keeps building.'} <a href="#" class="st-bell-link">Make the bell post</a>`); }
       if (ny.open !== S.nyse.open || ny.why !== S.nyse.why || ny.time !== S.nyse.time) { const flip = ny.open !== S.nyse.open; S.nyse = ny; if (flip) drawAll(); else drawBoard(); } // the towers read the weekend only while NYSE is shut
       S.wasOpen = ny.open;
     }
@@ -390,7 +406,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
         crew = j.crew; C.totals = j.totals || null; C.go = j.go || null;
       }
       const was = new Set(C.list.map((m) => m.a));
-      if (C.loaded) for (const m of crew) if (!was.has(m.a)) log(`👷 ${esc(m.label)} joined the Street Crew: ${m.blockies} Block${m.blockies > 1 ? 'ies' : 'y'} in ${esc(m.tickers[0])} hats`);
+      if (C.loaded) for (const m of crew) if (!was.has(m.a)) log(`${esc(m.label)} joined the Street Crew: ${m.blockies} Block${m.blockies > 1 ? 'ies' : 'y'} in ${esc(m.tickers[0])} hats`);
       C.list = crew; C.loaded = true;
       spawnCrew(); drawCrewLine();
     } catch { /* no crew yet */ }
@@ -454,7 +470,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
   const panelEl = document.createElement('div');
   panelEl.className = 'bl-panel st-panel'; panelEl.hidden = true;
   panelEl.innerHTML = `
-    <div class="bl-ph"><b>📈 Blocky Street</b><button class="bl-x" title="Close">✕</button></div>
+    <div class="bl-ph"><b>Blocky Street</b><button class="bl-x" title="Close">Close</button></div>
     <p class="bl-sub">Coinbase's tokenized stocks on Base, a tower each, built block by block from their real transfers. Wall Street closes at 4pm. Blocky Street doesn't. Tap a tower for its numbers.</p>
     <label>Your stocks, block by block</label>
     <form class="bl-form st-form"><input placeholder="0x… or name.base.eth" spellcheck="false" autocomplete="off"><button class="btn">Build</button></form>
@@ -462,12 +478,12 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     <div class="bl-out st-out" hidden></div>
     <p class="st-crew-line"></p>
     <div class="st-b10">
-      <label>Blocky 10: the city's basket</label>
+      <label>Stock Baskets (1-tx on Base)</label>
       <div class="st-b10-chips"></div>
-      <button class="btn primary st-b10-buy">🏙 Buy the city</button>
-      <p class="st-note st-b10-note">10% each, every stock straight into your own wallet: Quadra's Treasury Basket, one swap per stock. Not financial advice; not offered in the U.S.</p>
+      <button class="btn primary st-b10-buy">Open Stock Baskets</button>
+      <p class="st-note st-b10-note">1-tx multi-stock baskets & 2-way swaps via Aerodrome Slipstream & Uniswap V3 on Base. Self-custody; not offered in the U.S.</p>
     </div>
-    <button class="btn st-bell">📣 Bell post: today on Blocky Street</button>
+    <button class="btn st-bell">Bell post: today on Blocky Street</button>
     <p class="st-note">Read from Base: only Coinbase's own stock tokens count. Nothing is signed here.</p>`;
   document.body.appendChild(panelEl);
   const out = panelEl.querySelector('.st-out');
@@ -478,8 +494,8 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     const n = C.list.length, b = C.list.reduce((a, m) => a + m.blockies, 0), cit = C.list.filter((m) => m.citizen).length;
     const goN = C.go ? Object.values(C.go).reduce((a, v) => a + v, 0) : 0;
     crewLine.innerHTML = n
-      ? `👷 <b>Street Crew:</b> ${b} Block${b > 1 ? 'ies' : 'y'} from ${n} wallet${n > 1 ? 's' : ''}${cit ? `, ${cit} citizen${cit > 1 ? 's' : ''}` : ''}${C.totals?.usd ? `, holding ${usd(C.totals.usd)} of stocks` : ''}. Every $10 of stock you hold is a Blocky building the street; hold a day and it's a citizen.${goN ? ` <span class="muted">${goN} trip${goN > 1 ? 's' : ''} to Quadra from BaseCity so far.</span>` : ''}`
-      : `👷 <b>Street Crew:</b> every $10 of stock you hold is a Blocky building the street; hold a day and it's a citizen. Build your tower to join.`;
+      ? `<b>Street Crew:</b> ${b} Block${b > 1 ? 'ies' : 'y'} from ${n} wallet${n > 1 ? 's' : ''}${cit ? `, ${cit} citizen${cit > 1 ? 's' : ''}` : ''}${C.totals?.usd ? `, holding ${usd(C.totals.usd)} of stocks` : ''}. Every $10 of stock you hold is a Blocky building the street; hold a day and it's a citizen.${goN ? ` <span class="muted">${goN} trip${goN > 1 ? 's' : ''} to Quadra from BaseCity so far.</span>` : ''}`
+      : `<b>Street Crew:</b> every $10 of stock you hold is a Blocky building the street; hold a day and it's a citizen. Build your tower to join.`;
   }
   drawCrewLine();
 
@@ -489,13 +505,14 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
   panelEl.querySelector('.st-b10-chips').innerHTML = B10.map((t) => `<span class="st-b10-chip"><i class="st-chip" style="background:#${colorOf(t).toString(16).padStart(6, '0')}"></i>${esc(t)}</span>`).join('');
   panelEl.querySelector('.st-b10').hidden = !B10.length;
   panelEl.querySelector('.st-b10-buy').onclick = async () => {
+    panelEl.hidden = true;
     openBlocky10();
   };
 
   // ---------- Bell post: the day on Blocky Street, as an image and a post for X (by hand, no keys here) ----------
   function bellText() {
     const ny = S.nyse, wk = S.week, t = C.totals;
-    const head = ny.open ? '🔔 Wall Street is open.' : '🔔 Wall Street is closed. Blocky Street isn\'t.';
+    const head = ny.open ? 'Wall Street is open.' : 'Wall Street is closed. Blocky Street isn\'t.';
     const lines = [];
     if (wk?.usd24 != null && wk.dayHours >= 24) lines.push(`${usd(wk.usd24)} of Coinbase's tokenized stocks moved on Base in 24h`);
     if (wk?.closedShare != null) lines.push(`${Math.round(wk.closedShare * 100)}% of the week's stock volume moved while NYSE was shut`);
@@ -509,7 +526,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     say('<p class="muted">Making the bell post…</p>');
     await new Promise((res) => setTimeout(res, 1600));
     const img = baseLive?.shareImage ? await baseLive.shareImage({ kicker: S.nyse.open ? 'OPENING BELL · BLOCKY STREET' : 'AFTER HOURS · BLOCKY STREET', title: head, lines: lines.slice(0, 3) }) : null;
-    const text = `${head}\n\n${lines.length ? `${lines.map((l) => `• ${l}`).join('\n')}\n\n` : ''}Coinbase's stocks on Base, built block by block in BaseCity 📈\n${(CONFIG.siteUrl || 'https://basecity.space').replace(/\/$/, '')}/?street`;
+    const text = `${head}\n\n${lines.length ? `${lines.map((l) => `• ${l}`).join('\n')}\n\n` : ''}Coinbase's stocks on Base, built block by block in BaseCity \n${(CONFIG.siteUrl || 'https://basecity.space').replace(/\/$/, '')}/?street`;
     say(`${img ? `<img class="bl-shot" src="${img}" alt="">` : ''}<p class="st-b10-list">${esc(text).replace(/\n/g, '<br>')}</p><div class="bl-btns">${img ? `<a class="btn" download="blocky-street-bell.png" href="${img}">Save image</a>` : ''}<a class="btn primary" target="_blank" rel="noopener" href="https://x.com/intent/post?text=${encodeURIComponent(text)}">Post on X</a></div>`);
   };
   // a crew Blocky tapped: whose it is
@@ -517,7 +534,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     const ms = Date.now() - m.since, days = Math.floor(ms / 864e5);
     const held = days >= 1 ? `${days} day${days > 1 ? 's' : ''}` : `${Math.max(1, Math.floor(ms / 36e5))} h`;
     panelEl.hidden = false; card.hidden = true;
-    say(`<p>👷 <b>${esc(m.label)}</b> ${m.citizen ? 'is a <b>citizen</b> of Blocky Street' : 'is on the Street Crew'}: ${m.blockies} Block${m.blockies > 1 ? 'ies' : 'y'}, holding ${m.tickers.map((t) => `$${esc(t)}`).join(' ')} for ${held}.</p>${m.citizen ? '' : '<p class="muted">Held a day, the crew are citizens for good.</p>'}<a class="st-more" target="_blank" rel="noopener" href="https://basescan.org/address/${esc(m.a)}">Wallet on Basescan</a>`);
+    say(`<p><b>${esc(m.label)}</b> ${m.citizen ? 'is a <b>citizen</b> of Blocky Street' : 'is on the Street Crew'}: ${m.blockies} Block${m.blockies > 1 ? 'ies' : 'y'}, holding ${m.tickers.map((t) => `$${esc(t)}`).join(' ')} for ${held}.</p>${m.citizen ? '' : '<p class="muted">Held a day, the crew are citizens for good.</p>'}<a class="st-more" target="_blank" rel="noopener" href="https://basescan.org/address/${esc(m.a)}">Wallet on Basescan</a>`);
   }
   async function showMine(who) {
     const r = await fetch(`${feed}/stocks?wallet=${encodeURIComponent(who)}`);
@@ -532,7 +549,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     }
     buildMine(label, j.holdings);
     if (j.crew?.joined || j.crew?.left) loadCrew();
-    const crewMsg = j.crew?.blockies ? `<p>👷 ${j.crew.joined ? 'Joined the Street Crew' : 'On the Street Crew'}: <b>${j.crew.blockies} Block${j.crew.blockies > 1 ? 'ies' : 'y'}</b> building the street${Date.now() - j.crew.since >= 864e5 ? ', citizens for good' : ', citizens after a day of holding'}.</p>` : '<p class="muted">Hold $10 or more of these stocks and your Blockies join the Street Crew.</p>';
+    const crewMsg = j.crew?.blockies ? `<p>${j.crew.joined ? 'Joined the Street Crew' : 'On the Street Crew'}: <b>${j.crew.blockies} Block${j.crew.blockies > 1 ? 'ies' : 'y'}</b> building the street${Date.now() - j.crew.since >= 864e5 ? ', citizens for good' : ', citizens after a day of holding'}.</p>` : '<p class="muted">Hold $10 or more of these stocks and your Blockies join the Street Crew.</p>';
     goTo?.(new THREE.Vector3(cx, 2, cz + 1.5));
     const total = j.holdings.reduce((a, h) => a + (h.usd || 0), 0);
     const pct = (h) => (total > 0 && h.usd ? `${Math.round((h.usd / total) * 100)}%` : '');
@@ -542,7 +559,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     const lines = j.holdings.slice(0, 4).map((h) => `${h.ticker} ${pct(h)}`.trim());
     if (j.holdings.length > 4) lines.push(`+ ${j.holdings.length - 4} more`);
     const img = baseLive?.shareImage ? await baseLive.shareImage({ kicker: 'MY STOCKS IN BASECITY', title: `${label}, built block by block`, lines }) : null;
-    const text = `My stocks on Base, built block by block in BaseCity 📈\n${j.holdings.slice(0, 4).map((h) => `$${h.ticker}`).join(' ')}\n\nWall Street closes at 4pm. Blocky Street doesn't.\n${(CONFIG.siteUrl || 'https://basecity.space').replace(/\/$/, '')}/?street`;
+    const text = `My stocks on Base, built block by block in BaseCity \n${j.holdings.slice(0, 4).map((h) => `$${h.ticker}`).join(' ')}\n\nWall Street closes at 4pm. Blocky Street doesn't.\n${(CONFIG.siteUrl || 'https://basecity.space').replace(/\/$/, '')}/?street`;
     say(`<p><b>${esc(label)}</b>'s tower: ${j.holdings.length} stock${j.holdings.length > 1 ? 's' : ''} on Base.</p>${crewMsg}${rows}${img ? `<img class="bl-shot" src="${img}" alt=""><div class="bl-btns"><a class="btn" download="basecity-my-stocks.png" href="${img}">Save image</a><a class="btn primary" target="_blank" rel="noopener" href="https://x.com/intent/post?text=${encodeURIComponent(text)}">Share on X</a></div>` : ''}`);
   }
   const form = panelEl.querySelector('.st-form');
@@ -572,7 +589,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     const ny = S.nyse, hex = `#${colorOf(t).toString(16).padStart(6, '0')}`;
     const row = (k, v) => `<div class="st-row"><span>${k}</span><b>${v}</b></div>`;
     card.innerHTML = `
-      <div class="bl-ph"><i class="st-chip" style="background:${hex}"></i><b>${esc(t)}</b><span class="st-name">${esc(s?.name || '')}</span><button class="bl-x" title="Close">✕</button></div>
+      <div class="bl-ph"><i class="st-chip" style="background:${hex}"></i><b>${esc(t)}</b><span class="st-name">${esc(s?.name || '')}</span><button class="bl-x" title="Close">Close</button></div>
       <p class="bl-sub">Coinbase's tokenized ${esc(t)} on Base. Every block on its tower is a real transfer${ny.open ? '' : '; the glowing ones moved while Wall Street was closed'}.</p>
       ${row('Reference price (Chainlink NAV)', s?.nav ? `$${s.nav.toFixed(2)}` : '—')}
       ${row('Moved on Base, 24 h', Number.isFinite(w?.usd24) ? `${usd(w.usd24)} · ${w.n24.toLocaleString('en-US')} transfers` : '—')}
@@ -580,11 +597,13 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
       ${wk && Number.isFinite(wk.move) ? row("This weekend on Base vs Friday's close", `<span style="color:${wk.move >= 0 ? '#16a34a' : '#dc2626'}">${wk.move >= 0 ? '▲' : '▼'} ${Math.abs(wk.move).toFixed(2)}%</span>${wk.call ? ` · Blue's call: ${esc(wk.call)}` : ''}`) : ''}
       ${row('Wall Street', ny.open ? `open · ${ny.time}` : `closed (${ny.why}) · ${ny.time}`)}
       ${s?.paused?.length ? '<p class="bl-err">Coinbase has paused some features of this stock right now.</p>' : ''}
+      <button type="button" class="btn primary st-buy" id="st-card-trade">Trade ${esc(t)} on Base</button>
       <div class="st-links">
         <a target="_blank" rel="noopener" href="https://blueagent.dev/markets/weekend">Weekend calls (Blue Agent)</a>
-        ${s ? `<a target="_blank" rel="noopener" href="https://basescan.org/token/${s.address}">Basescan ↗</a>` : ''}
+        ${s ? `<a target="_blank" rel="noopener" href="https://basescan.org/token/${s.address}">Basescan</a>` : ''}
       </div>
-      <p class="st-note">Swaps go through Relay on Quadra, signed in your own wallet. Tokenized stocks aren't offered in the U.S. Not financial advice.</p>`;
+      <p class="st-note">Direct self-custody Base swaps via Aerodrome Slipstream & Uniswap V3. Tokenized stocks aren't offered in the U.S. Not financial advice.</p>`;
+    card.querySelector('#st-card-trade').onclick = () => { card.hidden = true; openBlocky10('trade', t); };
     card.querySelector('.bl-x').onclick = () => (card.hidden = true);
     card.hidden = false; panelEl.hidden = true;
   }
@@ -594,8 +613,8 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     const hex = `#${colorOf(t).toString(16).padStart(6, '0')}`;
     const seen = s?.firstSeenAt ? new Date(s.firstSeenAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric' }) : 'just now';
     card.innerHTML = `
-      <div class="bl-ph"><i class="st-chip" style="background:${hex}"></i><b>${esc(t)}</b><span class="st-name">${esc(s?.name || '')}</span><button class="bl-x" title="Close">✕</button></div>
-      <p class="bl-sub">🔔 <b>IPO Day.</b> Coinbase listed ${esc(s?.name || t)} on Base and BaseCity had never seen it: the crane is up on Blocky Street, and every transfer from today builds its tower, block by block.</p>
+      <div class="bl-ph"><i class="st-chip" style="background:${hex}"></i><b>${esc(t)}</b><span class="st-name">${esc(s?.name || '')}</span><button class="bl-x" title="Close">Close</button></div>
+      <p class="bl-sub"><b>IPO Day.</b> Coinbase listed ${esc(s?.name || t)} on Base and BaseCity had never seen it: the crane is up on Blocky Street, and every transfer from today builds its tower, block by block.</p>
       <div class="st-row"><span>First seen in BaseCity</span><b>${esc(seen)}</b></div>
       ${s?.nav ? `<div class="st-row"><span>Reference price (Chainlink NAV)</span><b>$${s.nav.toFixed(2)}</b></div>` : ''}
       ${s?.address ? `<a class="st-more" target="_blank" rel="noopener" href="https://basescan.org/token/${esc(s.address)}">${esc(t)} on Basescan ↗</a>` : ''}
@@ -630,6 +649,18 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     },
     togglePanel() { panelEl.hidden = !panelEl.hidden; if (!panelEl.hidden) card.hidden = true; },
     closePanel() { panelEl.hidden = true; },
+    getTowers() {
+      return [...towers.values()].map((tw) => ({
+        ticker: tw.t,
+        x: cx + tw.g.position.x,
+        z: cz + tw.g.position.z,
+        price: tw.price,
+      }));
+    },
+    pickTicker(ray) {
+      if (!group.visible) return null;
+      return ray.intersectObjects(hits, false)[0]?.object.userData.ticker || null;
+    },
     get center() { return center; },
     get week() { return S.week; },
     get live() { return S.live; },

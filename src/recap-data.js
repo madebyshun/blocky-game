@@ -51,9 +51,9 @@ export function recapOf(state, n, now = Date.now()) {
   // the milestones, as plain text lines
   // (whale builds, then Base projects' HQs, then the city's landmarks, then land)
   s.lines = [
-    ...s.whales.map((p) => `${p.build === 'fountain' ? '⛲' : '🏙️'} ${p.whale.tier || 'Whale Fountain'} for ${who(p.whale.from, 20)} (${usd(p.whale.usd)})`),
-    ...[...s.landmarks].sort((a, b) => Boolean(b.brand) - Boolean(a.brand)).map((p) => `🏛️ ${p.name}`),
-    ...s.land.map((p) => `🌍 ${p.name}`),
+    ...s.whales.map((p) => `${p.build === 'fountain' ? '' : ''} ${p.whale.tier || 'Whale Fountain'} for ${who(p.whale.from, 20)} (${usd(p.whale.usd)})`),
+    ...[...s.landmarks].sort((a, b) => Boolean(b.brand) - Boolean(a.brand)).map((p) => `${p.name}`),
+    ...s.land.map((p) => `${p.name}`),
   ];
   return s;
 }
@@ -100,9 +100,9 @@ export function weeklyOf(state, n, now = Date.now()) {
     bought: state?.boughtUsd ?? 0,
   };
   s.lines = [
-    ...s.whales.map((p) => `${p.build === 'fountain' ? '⛲' : '🏙️'} ${p.whale.tier || 'Whale Fountain'} for ${who(p.whale.from, 20)} (${usd(p.whale.usd)})`),
-    ...[...s.landmarks].sort((a, b) => Boolean(b.brand) - Boolean(a.brand)).map((p) => `🏛️ ${p.name}`),
-    ...s.land.map((p) => `🌍 ${p.name}`),
+    ...s.whales.map((p) => `${p.build === 'fountain' ? '' : ''} ${p.whale.tier || 'Whale Fountain'} for ${who(p.whale.from, 20)} (${usd(p.whale.usd)})`),
+    ...[...s.landmarks].sort((a, b) => Boolean(b.brand) - Boolean(a.brand)).map((p) => `${p.name}`),
+    ...s.land.map((p) => `${p.name}`),
   ];
   return s;
 }
@@ -110,14 +110,14 @@ export function weeklyOf(state, n, now = Date.now()) {
 // the post for X: a week, with the days it covers
 export function weeklyPost(s, link) {
   const when = new Date(s.t0).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return `${CONFIG.cityName}: Week ${s.n}${s.live ? ' so far' : ''} 🏙 (from ${when})\n\n`
-    + `🧱 ${fmt(s.inCity)} Blockies in the city (${plus(s.net)} this week)\n`
-    + `🏢 ${fmt(s.everBuilt)} buildings built (${plus(s.builtToday)} this week)\n`
-    + `🧱 ${fmt(s.blocks)} blocks placed this week\n`
-    + (s.landmarks.length ? `🏛️ ${s.landmarks.map((p) => p.name).join(', ')}\n` : '')
-    + (s.whales.length ? `🐋 ${s.whales.length} whale build${s.whales.length > 1 ? 's' : ''}\n` : '')
-    + (s.legendary || s.rare ? `✨ ${[s.legendary && `${s.legendary} Legendary`, s.rare && `${s.rare} Rare`].filter(Boolean).join(', ')} arrived\n` : '')
-    + `🚶 ${fmt(s.left.length)} walked out\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
+  return `${CONFIG.cityName}: Week ${s.n}${s.live ? ' so far' : ''} (from ${when})\n\n`
+    + `${fmt(s.inCity)} Blockies in the city (${plus(s.net)} this week)\n`
+    + `${fmt(s.everBuilt)} buildings built (${plus(s.builtToday)} this week)\n`
+    + `${fmt(s.blocks)} blocks placed this week\n`
+    + (s.landmarks.length ? `${s.landmarks.map((p) => p.name).join(', ')}\n` : '')
+    + (s.whales.length ? `${s.whales.length} whale build${s.whales.length > 1 ? 's' : ''}\n` : '')
+    + (s.legendary || s.rare ? `${[s.legendary && `${s.legendary} Legendary`, s.rare && `${s.rare} Rare`].filter(Boolean).join(', ')} arrived\n` : '')
+    + `${fmt(s.left.length)} walked out\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
 }
 
 // what the city's buildings did today, for the stat under Buildings: grew, and/or rebuilt bigger
@@ -128,12 +128,12 @@ export const starLabel = (b) => (b.trait ? TRAIT_LABEL[b.trait] : b.rarity.label
 
 // the post for X
 export function recapPost(s, link) {
-  return `${CONFIG.cityName}: Day ${s.n} recap${s.live ? ' (so far)' : ''} 🏙\n\n`
-    + `🧱 ${fmt(s.inCity)} Blockies in the city (${plus(s.net)})\n`
-    + `🏢 ${fmt(s.everBuilt)} buildings built (${plus(s.builtToday)} today${s.rebuilt ? `, ${rebuiltNote(s)}` : ''})\n`
-    + `🧱 ${fmt(s.blocks)} blocks placed today\n`
-    + (s.landmarks.length ? `🏛️ ${s.landmarks.map((p) => p.name).join(', ')}\n` : '')
-    + (s.whales.length ? `🐋 ${s.whales.length} whale build${s.whales.length > 1 ? 's' : ''}\n` : '')
-    + (s.legendary || s.rare ? `✨ ${[s.legendary && `${s.legendary} Legendary`, s.rare && `${s.rare} Rare`].filter(Boolean).join(', ')} arrived\n` : '')
-    + `🚶 ${fmt(s.left.length)} walked out\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
+  return `${CONFIG.cityName}: Day ${s.n} recap${s.live ? ' (so far)' : ''} \n\n`
+    + `${fmt(s.inCity)} Blockies in the city (${plus(s.net)})\n`
+    + `${fmt(s.everBuilt)} buildings built (${plus(s.builtToday)} today${s.rebuilt ? `, ${rebuiltNote(s)}` : ''})\n`
+    + `${fmt(s.blocks)} blocks placed today\n`
+    + (s.landmarks.length ? `${s.landmarks.map((p) => p.name).join(', ')}\n` : '')
+    + (s.whales.length ? `${s.whales.length} whale build${s.whales.length > 1 ? 's' : ''}\n` : '')
+    + (s.legendary || s.rare ? `${[s.legendary && `${s.legendary} Legendary`, s.rare && `${s.rare} Rare`].filter(Boolean).join(', ')} arrived\n` : '')
+    + `${fmt(s.left.length)} walked out\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
 }

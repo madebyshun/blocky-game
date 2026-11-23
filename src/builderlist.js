@@ -8,7 +8,7 @@ export function createBuilderList({ crew, here, onPick }) {
   const el = document.createElement('aside');
   el.className = 'directory panel';
   el.hidden = true;
-  el.innerHTML = `<div class="dir-head"><h3>👷 Base Builders <small id="bl-count"></small></h3><button type="button" class="dir-close" aria-label="Close">✕</button></div>
+  el.innerHTML = `<div class="dir-head"><h3>Base Builders <small id="bl-count"></small></h3><button type="button" class="dir-close" aria-label="Close">Close</button></div>
     <input id="bl-q" type="search" placeholder="Search a name, an office…" autocomplete="off" />
     <div class="dir-list" id="bl-list"></div>`;
   document.body.appendChild(el);

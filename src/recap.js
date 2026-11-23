@@ -33,7 +33,7 @@ function render(s, days) {
       <div class="rc-row">
         <div class="rc-list"><h3>Milestones</h3>${lines.length ? lines.slice(0, 3).map((l) => `<div>${l}</div>`).join('') + (lines.length > 3 ? `<div class="muted">+${lines.length - 3} more</div>` : '') : '<div class="muted">The crew kept building homes and shops</div>'}</div>
         <div class="rc-stars"><h3>Stars of the day</h3><div class="pics">${s.stars.length ? s.stars.map((b) => `<figure><img src="${portraitUrl(b, { size: 160 })}" alt="${esc(b.name)}" /><figcaption>${esc(b.name)}<small>${esc(starLabel(b))}</small></figcaption></figure>`).join('') : '<div class="muted">No rare arrivals today</div>'}</div>
-          ${s.mvp ? `<div class="mvp">🏆 Hardest worker: <b>${esc(s.mvp[0].name)}</b> · ${fmt(s.mvp[1])} blocks${s.mvp[0].from ? ` · ${esc(who(s.mvp[0].from, 20))}` : ''}</div>` : ''}
+          ${s.mvp ? `<div class="mvp">Hardest worker: <b>${esc(s.mvp[0].name)}</b> · ${fmt(s.mvp[1])} blocks${s.mvp[0].from ? ` · ${esc(who(s.mvp[0].from, 20))}` : ''}</div>` : ''}
         </div>
       </div>
       <div class="rc-foot">${esc((CONFIG.siteUrl || location.origin).replace(/^https?:\/\//, ''))}${CONFIG.xHandle ? ` · @${esc(CONFIG.xHandle)}` : ''}</div>
@@ -63,7 +63,7 @@ function render(s, days) {
     open($('share').href, '_blank', 'noopener'); // couldn't share a file: the post with its link
   };
   $('share').href = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
-  $('copy').onclick = async () => { try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Copied ✓'; } catch { /* no clipboard */ } };
+  $('copy').onclick = async () => { try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Copied '; } catch { /* no clipboard */ } };
 }
 
 (async () => {

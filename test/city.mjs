@@ -20,7 +20,8 @@ const d5 = at(5), d15 = at(15), d30 = at(30);
 assert.equal(d5.blocked || d15.blocked || d30.blocked, false, 'the crew ran out of work');
 assert.ok(d30.done > d15.done && d15.done > d5.done, 'projects keep finishing');
 assert.ok(d30.rebuilt > 20, `only ${d30.rebuilt} rebuilds in 30 days`);
-assert.equal(d30.standing, d15.standing, 'rebuilds replace buildings, the lot count holds');
+const cleared = sim.events.filter((e) => (e.kind === 'baselive' || e.kind === 'stocks') && e.at > t0 + 15 * DAY).reduce((n, e) => n + e.gone.length, 0);
+assert.equal(d30.standing + cleared, d15.standing, 'rebuilds replace buildings, the lot count holds');
 assert.ok(sim.next.rebuilds, 'the next project is a rebuild');
 // rebuilds never shrink a lot, and downtown gets denser
 for (const p of sim.done.filter((x) => x.rebuilds)) {

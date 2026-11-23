@@ -18,7 +18,7 @@ import { createBaseLive } from './baselive.js';
 import { createBaseLivePanel } from './baselivepanel.js';
 import { createBlockyStreet } from './stocks.js';
 import { createSky } from './sky.js';
-import { createWeather, WEATHER } from './weather.js';
+import { createWeather, WEATHER, SEASONS } from './weather.js';
 import { computeDistricts } from './districts.js';
 import { makeBlocky, cityCrew, CitySim, PITCH, TRAIT_LABEL, hash, needFor, LANDMARKS, whaleTier, builtCount } from './sim.js';
 import { fetchColony } from './data.js';
@@ -27,11 +27,17 @@ import { createMetro } from './metro.js';
 import { now } from './time.js';
 import { addNames, who, whoHtml, esc } from './names.js';
 import { createCinematic } from './cinematic.js';
+import { createPlayMode } from './play.js';
 import { watchLive } from './live.js';
 import { openBlocky10, closeBlocky10 } from './tradedock.js';
 import { createWorkHQ } from './workhq.js';
 import { createIpoDay } from './ipoday.js';
 import { createFindMe } from './findme.js';
+import { createLaunchpadUI } from './launchpad-ui.js';
+import { createDefiUI } from './defi-ui.js';
+import { createRanksModal } from './ranks.js';
+import { browserWallets, smartWallet, connect, restoreWallet, forgetWallet, rejected } from './wallet.js';
+import { privyConfigured, loginWithPrivyOAuth, sendPrivyEmailCode, verifyPrivyEmailCode, shouldResumePlayAfterPrivy, consumeLastPrivyError } from './privy.js';
 
 const $ = (id) => document.getElementById(id);
 const usd = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -43,7 +49,7 @@ const money = (v) => (v >= 1000 ? `$${v / 1000}k` : `$${v}`);
 // "$1k+ fountain, $2.5k+ tower or $5k+ skyscraper" (CONFIG.whaleTiers)
 const whaleTiersText = () => (CONFIG.whaleTiers || []).map((t) => `<em>${money(t.usd)}+</em> ${t.build}`).join(', ').replace(/, ([^,]*)$/, ' or $1');
 let price = CONFIG.usdPerBlocky; // USD of $BLOCKY per Blocky (the API's)
-const badge = (b) => (b.kind === 'legend' ? '★ ' : b.rarity && b.rarity.id !== 'common' && b.rarity.id !== 'uncommon' ? '✨ ' : '');
+const badge = (b) => (b.kind === 'legend' ? '' : b.rarity && b.rarity.id !== 'common' && b.rarity.id !== 'uncommon' ? '' : '');
 const rareText = (b) => (b.trait ? `${b.rarity.label} · ${TRAIT_LABEL[b.trait]}` : '');
 function dur(ms) {
   const m = Math.max(1, Math.round(ms / 60000));
@@ -74,17 +80,23 @@ $('leaders-title').textContent = `Top ${plural}`;
   if (typeof ResizeObserver === 'function') new ResizeObserver(place).observe(progress);
   addEventListener('resize', place);
 }
-if (CONFIG.buyUrl) { $('buy').hidden = false; $('buy').href = CONFIG.buyUrl; $('buy').textContent = `Buy ${CONFIG.ticker}`; }
+if (CONFIG.buyUrl || CONFIG.tokenAddress) { $('buy').hidden = false; $('buy').href = '#trade-blocky'; $('buy').removeAttribute('target'); $('buy').textContent = `Buy ${CONFIG.ticker}`; $('buy').onclick = (e) => { e.preventDefault(); openBlocky10('blocky'); }; }
 if (CONFIG.chartUrl) { $('chart').hidden = false; $('chart').href = CONFIG.chartUrl; }
-if (CONFIG.tokenAddress) {
-  const ca = $('ca'), a = CONFIG.tokenAddress;
-  const label = `CA ${a.slice(0, 6)}…${a.slice(-4)} ⧉`;
-  ca.hidden = false;
-  ca.textContent = label;
-  ca.onclick = async () => {
-    try { await navigator.clipboard.writeText(a); ca.textContent = 'Copied ✓'; } catch { ca.textContent = a; }
-    setTimeout(() => (ca.textContent = label), 1500);
-  };
+{
+  const bc = CONFIG.flywheel?.basecityToken || CONFIG.tokenAddress;
+  if (bc) {
+    const ca = $('ca');
+    const sym = CONFIG.flywheel?.basecityToken ? '$BASECITY' : CONFIG.ticker;
+    const label = `${sym} CA ${bc.slice(0, 6)}…${bc.slice(-4)}`;
+    ca.hidden = false;
+    ca.textContent = label;
+    ca.onclick = async () => {
+      try { await navigator.clipboard.writeText(bc); ca.textContent = `Copied ${sym} CA`; } catch { ca.textContent = bc; }
+      setTimeout(() => (ca.textContent = label), 1500);
+    };
+  }
+  const pb = $('powered-blocky-btn');
+  if (pb) pb.onclick = () => openBlocky10('blocky');
 }
 
 const CAPTIONS = [
@@ -113,6 +125,9 @@ setInterval(rotateCaption, 4500);
 const canvas = $('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -196,7 +211,7 @@ const STREAM = location.pathname.replace(/\/+$/, '') === '/live' || new URLSearc
 // music (src/music.js): on by default. Browsers only play sound after a tap or key, so it starts on the
 // visitor's first one; whoever turns it off keeps it off on their next visits.
 const music = createMusic({ keepPlaying: STREAM });
-const syncMusic = () => { $('music-btn').innerHTML = music.on ? '🔊<span> Music: on</span>' : '🔇<span> Music: off</span>'; $('music-btn').classList.toggle('on', music.on); };
+const syncMusic = () => { $('music-btn').innerHTML = music.on ? '<span> Music: on</span>' : '<span> Music: off</span>'; $('music-btn').classList.toggle('on', music.on); };
 const GESTURES = ['pointerup', 'touchend', 'click', 'keydown']; // pointerdown isn't a gesture on phones
 const firstGesture = (e) => {
   if (e.target?.closest?.('#music-btn') || e.key === 'm' || e.key === 'M') return; // those toggle it themselves
@@ -257,6 +272,23 @@ const findMe = createFindMe({
     select(v, true); // before syncViews, so the view cap keeps it
     syncViews();
   },
+  getWhaleBuilding: (addr) => {
+    if (!sim) return null;
+    const a = addr.toLowerCase();
+    for (const p of sim.standing.values()) {
+      if (p.whale && p.whale.from?.toLowerCase() === a) return p;
+    }
+    return null;
+  },
+  onFlyBuilding: (p) => { findMe.close(); flyTo(p); },
+  getBlockyStats: (id) => {
+    const b = byId.get(id);
+    return b && sim ? { blocksPlaced: sim.blocksBy(b, now()) } : null;
+  },
+  captureFrame: () => {
+    renderer.render(scene, camera);
+    return renderer.domElement.toDataURL('image/png');
+  },
 });
 $('dir-btn').onclick = () => { builderList.close(); findMe.close(); directory.toggle(); };
 $('bld-btn').onclick = () => { directory.close(); findMe.close(); builderList.toggle(); };
@@ -271,7 +303,10 @@ $('photo-exit').onclick = () => setPhoto(false);
 addEventListener('keydown', (e) => {
   if (e.target.closest?.('input, textarea')) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return; // Cmd/Ctrl+C, R, P: copy, reload, print, not our shortcuts
+  if (play?.active) return;
   if (cine.active) { if (e.key === 'Escape' || e.key === 'f' || e.key === 'F') cine.exit(); return; }
+  if (e.key === 'g' || e.key === 'G') { play.enter(selected?.b ?? null); return; }
+  if (e.key === 'h' || e.key === 'H') { toggleHud(); return; }
   if (e.key === 'r' || e.key === 'R') setRotate(!rotatePref);
   if (e.key === 'm' || e.key === 'M') setMusic(!music.on);
   if (e.key === 'b' || e.key === 'B') directory.toggle();
@@ -284,20 +319,47 @@ if (qs.has('photo')) setPhoto(true);
 
 const city = createCity(scene);
 const traffic = createTraffic(city);
-baseLive = createBaseLive(city, { camera, renderer, scene, controls, open: () => !!sim?.blOpen && city.land >= 9, log: (html) => log(html), blockiesOf: (a) => crew.filter((b) => b.from === a).length });
-// 🟦 Base Live: fly to the district (the Dashboard view: panels hidden, every LIVE card shown)
+baseLive = createBaseLive(city, { camera, renderer, scene, controls, open: () => !!sim?.blOpen && city.land >= 6, log: (html) => log(html), blockiesOf: (a) => crew.filter((b) => b.from === a).length });
+// Base Live: fly to the district (the Dashboard view: panels hidden, every LIVE card shown)
 const goToBaseLive = (close = false) => {
   const c = baseLive.center;
   following = false; goHome = false; controls.autoRotate = false;
   const tall = innerWidth < innerHeight; // phones: a little wider, centred
   focus = { x: c.x + (close ? 4 : 0), y: close ? 2 : tall ? 3 : 5, z: c.z, zoom: wideZoom() * (close ? 4.6 : tall ? 2.2 : 3.5), t: 0 };
 };
-const baseLivePanel = createBaseLivePanel({ baseLive, goTo: goToBaseLive, dashboard: () => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); } });
+const baseLivePanel = createBaseLivePanel({ baseLive, goTo: goToBaseLive, dashboard: () => { goToBaseLive(); baseLive.setDash(true); } });
 $('baselive-btn').onclick = () => { directory.close(); builderList.close(); street?.closePanel(); baseLivePanel.toggle(); };
-if (qs.has('baselive')) setTimeout(() => { goToBaseLive(); baseLive.setDash(true); setPhoto(true); }, 2500); // ?baselive: straight into the Dashboard view
-// 📈 Blocky Street: Coinbase's stocks on Base, a tower each, built by their transfers (src/stocks.js)
-const street = createBlockyStreet(city, { baseLive, open: () => !!sim?.stOpen && city.land >= 9, log: (html) => log(html), goTo: (c) => { following = false; goHome = false; controls.autoRotate = false; focus = { x: c.x, y: 3, z: c.z, zoom: wideZoom() * 4.2, t: 0 }; } });
-const workHQ = createWorkHQ(city, { log: (html) => log(html), from: () => street.center });
+if (qs.has('baselive')) setTimeout(() => { goToBaseLive(); baseLive.setDash(true); }, 2500); // ?baselive: straight into the Dashboard view
+// Blocky Street: Coinbase's stocks on Base, a tower each, built by their transfers (src/stocks.js)
+const street = createBlockyStreet(city, { baseLive, open: () => !!sim?.stOpen && city.land >= 6, log: (html) => log(html), goTo: (c) => { following = false; goHome = false; controls.autoRotate = false; focus = { x: c.x, y: 3, z: c.z, zoom: wideZoom() * 4.2, t: 0 }; } });
+const workHQ = createWorkHQ(city, { log: (html) => log(html), from: () => street.center, crew: () => crew, onOpenTasks: (tab) => play.openTasks(tab) });
+const launchpadUI = createLaunchpadUI({
+  onLaunched: ({ name, symbol, quote }) => {
+    const tower = city.addLaunchedTower({ name, symbol });
+    weather.celebrate();
+    log(`<b>$${esc(symbol)}</b> (${esc(name)}) launched via Quadra v3 (${esc(quote || 'ETH')})`, now());
+    toast('TOKEN LAUNCHED', `$${symbol}`, `${name} · new tower built in BaseCity`);
+    flyTo({ lot: tower.lot, h: tower.h });
+  },
+  onFlyTo: () => flyTo({ lot: [-1, 3], h: 14 }),
+});
+const defiUI = createDefiUI({
+  onAction: ({ building, mode, symbol, amount, to }) => {
+    const lot = building === 'morpho' ? [1, 3] : [-2, 3];
+    const color = building === 'morpho' ? 0x2470ff : 0x2ee87a;
+    city.txPulse(lot[0] * PITCH, lot[1] * PITCH, color);
+    weather.celebrate();
+    if (building === 'morpho') {
+      const verb = mode === 'withdraw' ? 'withdrew' : 'deposited';
+      log(`Morpho Vault: ${verb} <b>${esc(amount)} USDC</b> on Base`, now());
+      toast('MORPHO VAULT', `${amount} USDC`, `${mode === 'withdraw' ? 'Withdrawn from' : 'Deposited into'} Steakhouse USDC Vault`);
+    } else {
+      log(`USDC Bank: sent <b>${esc(amount)} ${esc(symbol)}</b> to ${esc(to)}`, now());
+      toast('USDC BANK', `${amount} ${symbol}`, `Sent to ${to} on Base`);
+    }
+  },
+  onFlyTo: (tab) => flyTo({ lot: tab === 'morpho' ? [1, 3] : [-2, 3], h: 10 }),
+});
 const goToStreet = () => {
   const c = street.center;
   following = false; goHome = false; controls.autoRotate = false;
@@ -331,18 +393,183 @@ ipoBtn.onclick = () => { directory.close(); builderList.close(); baseLivePanel.c
   const nav = $('citynav');
   const mark = (k) => nav.querySelectorAll('.cn-item[data-go]').forEach((b) => b.classList.toggle('on', b.dataset.go === k));
   nav.addEventListener('click', (e) => {
+    const modeBtn = e.target.closest('.cn-mode');
+    if (modeBtn) {
+      if (modeBtn.dataset.mode === 'play') { play.enter(); }
+      else { play.exit(); }
+      return;
+    }
     const b = e.target.closest('.cn-item');
     if (!b) return;
-    if (b.dataset.go === 'b10') { workHQ.close(); openBlocky10(); return; }
-    if (b.dataset.go === 'hq') { closeBlocky10(); workHQ.open(); return; }
-    closeBlocky10(); workHQ.close();
-    if (b.dataset.go === 'city') { directory.close(); builderList.close(); baseLivePanel.close(); street?.closePanel(); street?.closeCard(); mark('city'); }
-    if (b.dataset.go === 'stocks') { $('street-btn').click(); mark('stocks'); }
+    if (b.dataset.go === 'b10') { workHQ.close(); defiUI.close(); launchpadUI.close(); openBlocky10(); return; }
+    if (b.dataset.go === 'hq') { closeBlocky10(); defiUI.close(); launchpadUI.close(); workHQ.open(); return; }
+    if (b.dataset.go === 'defi') { workHQ.close(); closeBlocky10(); launchpadUI.close(); ranksModal.close(); defiUI.open('usdc'); return; }
+    if (b.dataset.go === 'launch') { workHQ.close(); closeBlocky10(); defiUI.close(); ranksModal.close(); launchpadUI.open(); return; }
+    if (b.dataset.go === 'ranks') { workHQ.close(); closeBlocky10(); defiUI.close(); launchpadUI.close(); ranksModal.open(); return; }
+    closeBlocky10(); workHQ.close(); defiUI.close(); launchpadUI.close(); ranksModal.close();
+    if (b.dataset.go === 'city') { directory.close(); builderList.close(); baseLivePanel.close(); baseLive?.setDash(false); street?.closePanel(); street?.closeCard(); following = false; goHome = true; controls.autoRotate = false; focus = { x: 0, y: 0, z: 0, zoom: wideZoom(), t: 0 }; mark('city'); }
+    if (b.dataset.go === 'stocks') { baseLive?.setDash(false); $('street-btn').click(); mark('stocks'); }
     if (b.dataset.go === 'live') { $('baselive-btn').click(); mark('live'); }
   });
-  if (qs.has('b10')) setTimeout(openBlocky10, 2000); // ?b10: straight to Blocky 10
-  if (qs.has('hq')) setTimeout(() => workHQ.open(), 2000); // ?hq: straight to x402 HQ
+  if (qs.has('b10')) setTimeout(() => openBlocky10(qs.get('b10') || 'trade'), 1200); // ?b10=blocky|trade|basket
+  if (qs.has('hq')) setTimeout(() => workHQ.open(qs.get('hq') || 'overview'), 1200); // ?hq=worker|overview
 } // ?street: straight to Blocky Street
+
+// Top-bar City Wallet button & modal (connect once on Base to enter BaseCity, Play, Tasks & Stock Baskets)
+{
+  const wBtn = $('city-wallet-btn');
+  let cityAddr = null;
+  let cityWalletName = '';
+  const wWrap = document.createElement('div');
+  wWrap.className = 'td-wrap';
+  wWrap.hidden = true;
+  wWrap.innerHTML = `
+    <div class="td cw-modal" role="dialog" aria-modal="true" aria-label="Connect Base Wallet">
+      <div class="td-head">
+        <div class="td-title"><b>BASE WALLET</b><span>Connect once to enter BaseCity, trade & work tasks</span></div>
+        <button type="button" class="td-x" id="cw-close">Close</button>
+      </div>
+      <div id="cw-body" style="margin-top:12px"></div>
+    </div>`;
+  document.body.appendChild(wWrap);
+
+  const syncBtn = () => {
+    if (!wBtn) return;
+    wBtn.classList.toggle('connected', Boolean(cityAddr));
+    wBtn.querySelector('span').textContent = cityAddr ? `${cityAddr.slice(0, 6)}…${cityAddr.slice(-4)}` : 'Connect Wallet';
+  };
+
+  const renderWalletModal = (showSwitch = false) => {
+    const body = wWrap.querySelector('#cw-body');
+    if (cityAddr && !showSwitch) {
+      const owned = crew.filter((b) => b.kind === 'blocky' && !Number.isFinite(b.leftAt) && b.from?.toLowerCase() === cityAddr.toLowerCase()).length;
+      body.innerHTML = `
+        <div class="cw-info">
+          <div><span>Wallet</span><b>${esc(cityAddr.slice(0, 6))}…${esc(cityAddr.slice(-4))}</b></div>
+          <div><span>Network</span><b>Base Mainnet</b></div>
+          <div><span>Your Blockies</span><b>${owned}</b></div>
+        </div>
+        <div class="td-actions" style="margin-top:12px">
+          <button type="button" class="btn td-go" id="cw-enter-play">Enter City (Play)</button>
+          <button type="button" class="btn td-copy" id="cw-copy">Copy</button>
+          <button type="button" class="btn td-copy" id="cw-switch">Switch</button>
+          <button type="button" class="btn td-copy" id="cw-disc">Disconnect</button>
+        </div>`;
+      body.querySelector('#cw-enter-play').onclick = () => { wWrap.hidden = true; play.enter(); };
+      body.querySelector('#cw-copy').onclick = async (e) => {
+        const btn = e.currentTarget;
+        try { await navigator.clipboard.writeText(cityAddr); btn.textContent = 'Copied'; } catch { btn.textContent = 'Failed'; }
+        toast('ADDRESS COPIED', `${cityAddr.slice(0, 6)}…${cityAddr.slice(-4)}`, 'Base Mainnet wallet address');
+        setTimeout(() => { if (btn.isConnected) btn.textContent = 'Copy'; }, 1500);
+      };
+      body.querySelector('#cw-switch').onclick = () => renderWalletModal(true);
+      body.querySelector('#cw-disc').onclick = () => {
+        forgetWallet(); cityAddr = null; cityWalletName = ''; syncBtn();
+        window.dispatchEvent(new CustomEvent('basecity:wallet-changed', { detail: { address: null } }));
+        renderWalletModal(true);
+      };
+      return;
+    }
+    const list = browserWallets();
+    body.innerHTML = `
+      <div class="wcard">
+        <div class="wcard-email">
+          <input id="cw-email-in" type="email" placeholder="Continue with Gmail or Email..." />
+          <button type="button" class="wcard-email-btn" id="cw-email-send">Continue</button>
+        </div>
+        <div class="wcard-email" id="cw-otp-row" hidden>
+          <input id="cw-otp-in" type="text" inputmode="numeric" maxlength="6" placeholder="Enter 6-digit code from inbox" />
+          <button type="button" class="wcard-email-btn" id="cw-otp-verify">Verify</button>
+        </div>
+        <div class="wcard-socials">
+          <button type="button" class="wcard-sbtn" data-cw-privy="google"><i class="wcard-mono">G</i><span>Google</span></button>
+          <button type="button" class="wcard-sbtn" data-cw-privy="twitter"><i class="wcard-mono">X</i><span>X (Twitter)</span></button>
+        </div>
+        <div class="wcard-div">or connect wallet</div>
+        <div class="wcard-wlist">
+          <button type="button" class="wcard-wrow smart" data-cws="1"><span>Base / Coinbase Smart Wallet</span><span class="wcard-tag">Passkey</span></button>
+          ${list.map((w, i) => `<button type="button" class="wcard-wrow" data-cwi="${i}"><span>${esc(w.name)}</span><span class="wcard-tag">Detected</span></button>`).join('')}
+        </div>
+        <div id="cw-msg" class="lp-msg" hidden></div>
+        <div class="wcard-foot">Instant Base wallet via Privy · Self-custody</div>
+      </div>`;
+    const msg = body.querySelector('#cw-msg');
+    const showMsg = (text, err = false) => { msg.hidden = false; msg.className = err ? 'lp-msg err' : 'lp-msg'; msg.textContent = text; };
+    const onConnected = (addr, name) => {
+      cityAddr = addr;
+      cityWalletName = name;
+      syncBtn();
+      toast('WALLET CONNECTED', `${addr.slice(0, 6)}…${addr.slice(-4)}`, `${name} · Base Mainnet`);
+      renderWalletModal(false);
+    };
+    body.querySelectorAll('[data-cw-privy]').forEach((b) => {
+      b.onclick = async () => {
+        if (!privyConfigured()) { showMsg('Add VITE_PRIVY_APP_ID to .env and restart Vite to enable social login.', true); return; }
+        try { showMsg('Redirecting to Privy...'); await loginWithPrivyOAuth(b.dataset.cwPrivy, { returnToPlay: false }); } catch (err) { showMsg(err.message || 'Privy login failed', true); }
+      };
+    });
+    body.querySelector('#cw-email-send')?.addEventListener('click', async () => {
+      const email = body.querySelector('#cw-email-in')?.value || '';
+      if (!privyConfigured()) { showMsg('Add VITE_PRIVY_APP_ID to .env and restart Vite to enable email login.', true); return; }
+      try {
+        showMsg('Sending 6-digit code...');
+        await sendPrivyEmailCode(email);
+        const row = body.querySelector('#cw-otp-row');
+        if (row) { row.hidden = false; row.querySelector('input')?.focus(); }
+        showMsg('Code sent! Check your Gmail/Email inbox.');
+      } catch (err) { showMsg(err.message || 'Could not send code', true); }
+    });
+    body.querySelector('#cw-otp-verify')?.addEventListener('click', async () => {
+      const email = body.querySelector('#cw-email-in')?.value || '';
+      const otp = body.querySelector('#cw-otp-in')?.value || '';
+      try {
+        showMsg('Verifying code & creating Base wallet...');
+        const res = await verifyPrivyEmailCode(email, otp);
+        if (res?.address) onConnected(res.address, res.name || 'Privy');
+      } catch (err) { showMsg(err.message || 'Invalid code', true); }
+    });
+    body.querySelectorAll('[data-cwi]').forEach((b) => {
+      b.onclick = async () => {
+        const w = list[Number(b.dataset.cwi)];
+        if (!w) return;
+        try {
+          const addr = await connect(w.provider, w);
+          onConnected(addr, w.name);
+        } catch (err) {
+          if (!rejected(err)) { msg.hidden = false; msg.className = 'lp-msg err'; msg.textContent = err.message || 'Connection failed'; }
+        }
+      };
+    });
+    body.querySelector('[data-cws]')?.addEventListener('click', async () => {
+      try {
+        const p = await smartWallet(CONFIG.cityName || 'BaseCity', `${location.origin}/favicon.svg`);
+        const addr = await connect(p, { name: 'Smart Wallet' });
+        onConnected(addr, 'Smart Wallet');
+      } catch (err) {
+        if (!rejected(err)) { msg.hidden = false; msg.className = 'lp-msg err'; msg.textContent = err.message || 'Connection failed'; }
+      }
+    });
+  };
+
+  if (wBtn) {
+    wBtn.onclick = () => { wWrap.hidden = false; renderWalletModal(false); };
+  }
+  wWrap.querySelector('#cw-close').onclick = () => { wWrap.hidden = true; };
+  wWrap.addEventListener('click', (e) => { if (e.target === wWrap) wWrap.hidden = true; });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !wWrap.hidden) wWrap.hidden = true; });
+  restoreWallet().then((saved) => {
+    if (saved?.address) { cityAddr = saved.address; cityWalletName = saved.name || 'Wallet'; syncBtn(); }
+    else {
+      const perr = consumeLastPrivyError();
+      if (perr) toast('PRIVY LOGIN ERROR', 'Auth failed', perr.slice(0, 90));
+    }
+  });
+  window.addEventListener('basecity:wallet-changed', (e) => {
+    cityAddr = e.detail?.address || null;
+    cityWalletName = e.detail?.name || '';
+    syncBtn();
+  });
+}
 const metro = createMetro(city);
 const agents = createAgents(city);
 const cats = createCats(city);
@@ -360,12 +587,27 @@ loadVote();
 setInterval(loadVote, 5 * 60e3);
 const sky = createSky(city, camera);
 const weather = createWeather(city);
+{
+  const order = ['auto', 'spring', 'summer', 'autumn', 'winter'];
+  const btn = $('season-btn');
+  if (btn) {
+    btn.onclick = () => {
+      const cur = weather.season || 'auto';
+      const next = order[(order.indexOf(cur) + 1) % order.length];
+      weather.setSeason(next);
+      const s = SEASONS[next] || SEASONS.auto;
+      btn.innerHTML = `${s.icon}<span> Season: ${s.label}</span>`;
+      btn.classList.toggle('on', next !== 'auto');
+    };
+  }
+}
 let market = null;
 const airship = createAirship();
 airship.visible = false;
 city.root.add(airship);
 
 function resize() {
+  if (play?.active) return play.resize();
   if (cine.active) return cine.resize();
   const w = innerWidth, h = innerHeight, aspect = w / h;
   const H = Math.max(2, city.land) * PITCH + 4; // isometric square of half-width H: ~2.9H wide, ~1.9H tall
@@ -491,12 +733,14 @@ function applyState(s, first) {
     if (loggedBuys.has(key)) continue;
     loggedBuys.add(key);
     if (first) continue;
+    const target = city.built.length ? city.built[Math.floor(Math.random() * city.built.length)] : null;
+    city.txPulse(target ? target.x : 0, target ? target.z : 0, b.kind === 'sell' ? 0xff4d6d : b.usd >= CONFIG.whaleUsd ? 0xffd23f : 0x0052ff);
     if (b.kind === 'sell') {
-      log(`💸 ${whoHtml(b.from)} sold ${usd(b.usd)}${b.left ? ` → ${b.left} ${b.left > 1 ? plural : CONFIG.citizen} left the city` : ''}`, b.at);
+      log(`${whoHtml(b.from)} sold ${usd(b.usd)}${b.left ? ` → ${b.left} ${b.left > 1 ? plural : CONFIG.citizen} left the city` : ''}`, b.at);
       continue;
     }
     const what = b.blockies ? ` → +${b.blockies} ${b.blockies > 1 ? plural : CONFIG.citizen}` : minted >= supply ? ' → waiting for a place in the city' : ' → adds up to the next one';
-    log(`🛒 ${whoHtml(b.from)} bought ${usd(b.usd)}${what}`, b.at);
+    log(`${whoHtml(b.from)} bought ${usd(b.usd)}${what}`, b.at);
     if (rung < 8) music.chime({ blockies: b.blockies || 0, whale: b.usd >= CONFIG.whaleUsd, order: rung++ }); // every buy is a note
     if (b.usd >= CONFIG.whaleUsd) {
       weather.celebrate(); setTimeout(() => weather.celebrate(), 900); setTimeout(() => weather.celebrate(), 1800);
@@ -546,7 +790,7 @@ function applyState(s, first) {
     if (leaving.length) {
       changed = true;
       const nums = leaving.length > 1 ? `${leaving.length} ${plural}` : leaving[0].name;
-      log(`👋 ${nums} left the city: ${leaving.length > 1 ? 'their wallets' : 'its wallet'} sold ${CONFIG.ticker}`, now(), leaving[0].id);
+      log(`${nums} left the city: ${leaving.length > 1 ? 'their wallets' : 'its wallet'} sold ${CONFIG.ticker}`, now(), leaving[0].id);
       news.unshift(`<b>MOVING OUT:</b> ${nums} left ${CONFIG.cityName} after ${leaving.length > 1 ? 'their wallets' : 'its wallet'} sold ${CONFIG.ticker}. Their places go to the next buyers`);
     }
     if (changed) { minted = countMinted(); sim.setCrew(crew, whales); syncViews(); }
@@ -571,9 +815,9 @@ function land(batch) {
   const first = arrived[0], last = arrived[arrived.length - 1];
   const nums = arrived.length > 1 ? `#${first.id}–#${last.id}` : `#${first.id}`;
   if (arrived.length === 1) {
-    toast(best ? `✨ ${best.rarity.label.toUpperCase()} ${CONFIG.citizen.toUpperCase()}!` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`, first.name, `${best ? `${TRAIT_LABEL[best.trait]} · ` : ''}${first.role.label}${first.from ? ` · brought by ${whoHtml(first.from)}` : ''}`);
+    toast(best ? `${best.rarity.label.toUpperCase()} ${CONFIG.citizen.toUpperCase()}!` : `NEW ${CONFIG.citizen.toUpperCase()} JOINED`, first.name, `${best ? `${TRAIT_LABEL[best.trait]} · ` : ''}${first.role.label}${first.from ? ` · brought by ${whoHtml(first.from)}` : ''}`);
   } else {
-    toast(`+${arrived.length} ${plural.toUpperCase()} ARRIVED`, `${CONFIG.citizen} ${nums}`, best ? `incl. ✨ ${best.rarity.label} ${TRAIT_LABEL[best.trait]} (${best.name})` : first.from ? `brought by ${whoHtml(first.from)}` : '');
+    toast(`+${arrived.length} ${plural.toUpperCase()} ARRIVED`, `${CONFIG.citizen} ${nums}`, best ? `incl. ${best.rarity.label} ${TRAIT_LABEL[best.trait]} (${best.name})` : first.from ? `brought by ${whoHtml(first.from)}` : '');
   }
   if (STREAM) featureArrival((best || first).id);
   if (best && best.rarity.id !== 'uncommon') {
@@ -581,7 +825,7 @@ function land(batch) {
     news.unshift(`<b>RARE ${CONFIG.citizen.toUpperCase()}:</b> ${best.name} arrived with ${TRAIT_LABEL[best.trait]} (${best.rarity.label}, ${+(best.rarity.chance * 100).toFixed(1)}% chance)`);
   }
   const owners = [...new Set(arrived.map((b) => b.from))];
-  log(`👷 ${arrived.length > 1 ? `${plural} ${nums} joined` : `${first.name} joined`}${owners.length === 1 && owners[0] ? `, brought by ${whoHtml(owners[0])}` : ''}`, now(), first.id);
+  log(`${arrived.length > 1 ? `${plural} ${nums} joined` : `${first.name} joined`}${owners.length === 1 && owners[0] ? `, brought by ${whoHtml(owners[0])}` : ''}`, now(), first.id);
   stepCity(true);
   nextUnlockText();
   renderHud();
@@ -639,23 +883,23 @@ function log(html, when = now(), id) {
   while (ul.children.length > 7) ul.lastChild.remove();
 }
 
-const logLine = (p) => (p.kind === 'expand' ? `🌍 Land expanded to ${size(p.level)}`
-  : p.kind === 'landmark' ? `🏛️ ${p.name} built`
-  : p.kind === 'wonder' ? `${p.build === 'fountain' ? '⛲' : '🏙️'} ${p.whale.tier || 'Whale Fountain'} built for ${whoHtml(p.whale.from) || 'a whale'}${p.takesOver ? `, taking over ${p.takesOver}` : ''}`
-  : p.kind === 'metro' ? `🚇 ${p.name} opened`
-  : p.restores ? `🏗️ ${p.name} rebuilt on the ruins of ${p.rebuilds}`
-  : p.rebuilds ? `🏗️ ${p.name} completed, replacing ${p.rebuilds}`
-  : `🏗️ ${p.name} completed`);
+const logLine = (p) => (p.kind === 'expand' ? `Land expanded to ${size(p.level)}`
+  : p.kind === 'landmark' ? `${p.name} built`
+  : p.kind === 'wonder' ? `${p.build === 'fountain' ? '' : ''} ${p.whale.tier || 'Whale Fountain'} built for ${whoHtml(p.whale.from) || 'a whale'}${p.takesOver ? `, taking over ${p.takesOver}` : ''}`
+  : p.kind === 'metro' ? `${p.name} opened`
+  : p.restores ? `${p.name} rebuilt on the ruins of ${p.rebuilds}`
+  : p.rebuilds ? `${p.name} completed, replacing ${p.rebuilds}`
+  : `${p.name} completed`);
 // what departures did to the city (CitySim.depart)
 const eventLine = (e) => (e.kind === 'stocks'
-  ? `📈 Blocky Street opened next to Base Live: Coinbase's stocks on Base, built block by block${e.gone.length ? `, where ${e.gone.map((p) => p.name).join(' and ')} stood` : ''}`
+  ? `Blocky Street opened next to Base Live: Coinbase's stocks on Base, built block by block${e.gone.length ? `, where ${e.gone.map((p) => p.name).join(' and ')} stood` : ''}`
   : e.kind === 'baselive'
-  ? `🟦 Base Live opened on the west side: Base, block by block${e.gone.length ? `, where ${e.gone.map((p) => p.name).join(' and ')} stood` : ''}`
+  ? `Base Live opened on the west side: Base, block by block${e.gone.length ? `, where ${e.gone.map((p) => p.name).join(' and ')} stood` : ''}`
   : e.kind === 'unnamed'
-  ? `🌑 ${e.p.name} went dark: ${whoHtml(e.p.whale.from)} sold. FOR SALE to the next whale`
+  ? `${e.p.name} went dark: ${whoHtml(e.p.whale.from)} sold. FOR SALE to the next whale`
   : e.kind === 'ruin'
-  ? `🏚️ ${e.p.name} abandoned: ${fmt(e.n)} ${plural} left at once`
-  : `🧱 ${e.n ? `${fmt(e.n)} ${e.n > 1 ? plural : CONFIG.citizen} walked off` : 'Builders walked off'} ${e.p.name}: −${fmt(e.blocks)} blocks`);
+  ? `${e.p.name} abandoned: ${fmt(e.n)} ${plural} left at once`
+  : `${e.n ? `${fmt(e.n)} ${e.n > 1 ? plural : CONFIG.citizen} walked off` : 'Builders walked off'} ${e.p.name}: −${fmt(e.blocks)} blocks`);
 
 function renderHud() {
   if (!sim) return;
@@ -685,7 +929,7 @@ function renderHud() {
     $('site-eta').textContent = `${lost}${a.restores ? `Rebuilding the ruins of ${a.rebuilds} · ` : a.rebuilds ? `Rebuilding ${a.rebuilds} · ` : ''}${sim.eta != null ? `~${dur(sim.eta)} left · ${sim.sites?.length > 1 ? `${sim.sites.length} sites at once · ` : ''}crew speed ${Math.round(sim.rate)} blocks/h` : ''}`;
   }
   const day = Math.floor((now() - cityStart) / 86400000) + 1;
-  $('clock').textContent = `Day ${day} · ${city.env.daylight < 0.5 ? '🌙 Night shift' : '☀️ Day shift'}`;
+  $('clock').textContent = `Day ${day} · ${city.env.daylight < 0.5 ? 'Night shift' : 'Day shift'}`;
   const w = WEATHER[weather.kind], wEl = $('weather');
   wEl.hidden = false;
   wEl.textContent = `${w.icon} ${w.label}${market ? ` · ${CONFIG.ticker} ${market.change24h >= 0 ? '+' : ''}${market.change24h.toFixed(1)}% 24h` : ''}`;
@@ -707,7 +951,7 @@ function topBuilders(n) {
 let leadersMore = false; // the board shows 5, or 20 after "Show more"
 function renderLeaders() {
   $('leaders').innerHTML = topBuilders(leadersMore ? 20 : 5)
-    .map(([b, blocks], i) => `<li data-id="${b.id}"${b.from ? ` title="${esc(b.name)} · brought by ${whoHtml(b.from, 42)}"` : ''}><span><span class="rank">${i + 1}</span>${badge(b)}${b.name} <span class="muted">· ${b.kind === 'blocky' ? (b.from ? owner(b.from) : `#${b.id}`) : b.office ? b.office.label : b.role.label}</span></span><b>${fmt(blocks)} 🧱</b></li>`)
+    .map(([b, blocks], i) => `<li data-id="${b.id}"${b.from ? ` title="${esc(b.name)} · brought by ${whoHtml(b.from, 42)}"` : ''}><span><span class="rank">${i + 1}</span>${badge(b)}${b.name} <span class="muted">· ${b.kind === 'blocky' ? (b.from ? owner(b.from) : `#${b.id}`) : b.office ? b.office.label : b.role.label}</span></span><b>${fmt(blocks)} </b></li>`)
     .join('');
 }
 
@@ -730,7 +974,7 @@ function renderCard() {
   if (!selected) return;
   const b = selected.b, ts = now(), placed = sim.blocksBy(b, ts);
   const rare = b.trait ? ` · ${rareText(b).toUpperCase()}` : '';
-  $('card-eyebrow').textContent = `${b.kind === 'founder' ? 'FOUNDER' : b.kind === 'legend' ? `★ ${b.office ? `${b.office.label.toUpperCase()} · CITY COUNCIL` : 'BASE BUILDER'}` : `${CONFIG.citizen.toUpperCase()} #${b.id} OF ${fmt(supply)}`}${rare}`;
+  $('card-eyebrow').textContent = `${b.kind === 'founder' ? 'FOUNDER' : b.kind === 'legend' ? `${b.office ? `${b.office.label.toUpperCase()} · CITY COUNCIL` : 'BASE BUILDER'}` : `${CONFIG.citizen.toUpperCase()} #${b.id} OF ${fmt(supply)}`}${rare}`;
   $('card-name').textContent = b.name;
   $('card-role').textContent = [b.role.label, `${b.skill.toFixed(1)}× skill`].join(' · ');
   $('card-status').textContent = selected.status;
@@ -782,6 +1026,58 @@ const cine = createCinematic({
 });
 $('cine-btn').onclick = () => cine.enter(selected?.b.id ?? null);
 
+// ---------- compact HUD toggle + Walk-around Playable MVP (src/play.js) ----------
+let hudMin = false;
+try { hudMin = localStorage.getItem('basecity:hudMin') === '1'; } catch { /* ignore */ }
+const syncHud = () => {
+  document.body.classList.toggle('hud-min', hudMin);
+  $('hud-btn').innerHTML = `<span> ${hudMin ? 'Show UI' : 'Panel'}</span>`;
+  $('hud-btn').classList.toggle('on', hudMin);
+};
+function toggleHud() {
+  hudMin = !hudMin;
+  try { localStorage.setItem('basecity:hudMin', hudMin ? '1' : '0'); } catch { /* ignore */ }
+  syncHud();
+}
+$('hud-btn').onclick = toggleHud;
+syncHud();
+
+const ranksModal = createRanksModal({ sim: () => sim, crew: () => crew });
+const play = createPlayMode({
+  scene, renderer, city, controls, street,
+  sim: () => sim,
+  crew: () => crew,
+  toast,
+  onOpenRanks: () => ranksModal.open(),
+  onOpenAction: (action, arg = '') => {
+    if (action === 'trade') { openBlocky10('trade', arg); return; }
+    if (action === 'blocky') { openBlocky10('blocky'); return; }
+    if (action === 'basket') { openBlocky10('basket'); return; }
+    if (action === 'hq') { workHQ.open(arg || 'overview'); return; }
+    if (action === 'tasks') { play.openTasks(arg || 'board'); return; }
+    if (action === 'usdc' || action === 'morpho') { defiUI.open(action); return; }
+    if (action === 'launch') { launchpadUI.open(); return; }
+    if (action === 'ranks') { ranksModal.open(); return; }
+    if (action === 'cinema') { cinemaRoom.show(); return; }
+    if (action === 'live') { baseLivePanel.toggle(); return; }
+  },
+  onInteract: (p) => {
+    if (p.type === 'stock-tower' && p.ticker) { openBlocky10('trade', p.ticker); return; }
+    if (p.type === 'exchange') { openBlocky10('blocky'); return; }
+    if (p.type === 'square') { ranksModal.open(); return; }
+    if (p.type === 'stage') { cinemaRoom.show(); return; }
+    if (p.type === 'agenthub' || p.id === 'x402') { workHQ.open(); return; }
+    if (p.type === 'launchpad' || p.id === 'launchpad') { launchpadUI.open(); return; }
+    if (p.brand?.id === 'usdc' || p.brand?.id === 'morpho') { defiUI.open(p.brand.id); return; }
+    if (p.type === 'stocks-district') { openBlocky10('trade'); return; }
+    if (p.brand?.url) { open(p.brand.url, '_blank', 'noopener'); return; }
+    toast(p.kind === 'landmark' ? 'LANDMARK' : 'BUILDING', p.name || p.type, p.whale?.name ? `Whale: ${p.whale.name}` : 'Built 24/7 by Blockies');
+  },
+  onExit: () => { renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); resize(); },
+});
+$('play-btn').onclick = () => play.enter();
+if ($('sim-enter-game')) $('sim-enter-game').onclick = () => play.enter();
+
 // ---------- the livestream (/live) ----------
 
 let featuredAt = -Infinity;
@@ -827,7 +1123,7 @@ $('share').onclick = () => {
   const url = CONFIG.siteUrl || location.origin;
   const text = `${CONFIG.cityName}: ${fmt(builtCount(sim))} buildings built on ${size(sim.land)} land, built 24/7 by ${fmt(minted)} of ${fmt(supply)} ${plural} and ${CONFIG.legends?.length || 0} Base builders. Every ${money(price)} of ${CONFIG.ticker} you buy brings a ${CONFIG.citizen}, an NFT you claim.`
     + (CONFIG.tokenAddress ? `\n\nCA: ${CONFIG.tokenAddress}` : '')
-    + `\n\n🏙 ${url}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`; // not X's "via": it shows in the reader's language
+    + `\n\n${url}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`; // not X's "via": it shows in the reader's language
   open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
 };
 
@@ -837,15 +1133,18 @@ const ray = new THREE.Raycaster();
 let downAt = null;
 canvas.addEventListener('pointerdown', (e) => (downAt = [e.clientX, e.clientY]));
 canvas.addEventListener('pointerup', (e) => {
+  if (play?.active) return;
   if (cine.active) return cine.poke(); // taps bring the cinematic controls back
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
   const p = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(p, camera);
   const hits = ray.intersectObjects([...views.values()].map((v) => v.hit), false);
   if (hits[0]) return select(hits[0].object.userData.builder);
+  if (ray.intersectObjects(city.launchpadHits, false)[0]) { select(null); launchpadUI.open(); return; }
   if (street.pick(ray)) return; // a Blocky Street tower: its card
   const board = ray.intersectObjects(city.billboards, false)[0]?.object.userData.sponsor;
   if (board?.cinema) { select(null); cinemaRoom.show(); return; }
+  if (board?.id === 'usdc' || board?.id === 'morpho') { select(null); defiUI.open(board.id); return; }
   if (board?.url) { open(board.url, '_blank', 'noopener'); return; }
   select(null);
 });
@@ -870,19 +1169,19 @@ function stepCity(animate) {
   for (const e of effects) {
     log(eventLine(e), e.at);
     if (e.kind === 'unnamed') {
-      toast('🌑 WENT DARK', e.p.name, `its whale sold. FOR SALE to the next ${e.p.whale.tier || 'whale'} buyer`);
+      toast('WENT DARK', e.p.name, `its whale sold. FOR SALE to the next ${e.p.whale.tier || 'whale'} buyer`);
       news.unshift(`<b>FOR SALE:</b> ${e.p.name} went dark after ${whoHtml(e.p.whale.from)} sold. The next whale of its size takes it over`);
     }
     if (e.kind !== 'ruin') continue;
-    toast('🏚️ ABANDONED', e.p.name, `${fmt(e.n)} ${plural} left at once. The crew rebuilds it next`);
+    toast('ABANDONED', e.p.name, `${fmt(e.n)} ${plural} left at once. The crew rebuilds it next`);
     news.unshift(`<b>GHOST TOWN?</b> ${e.p.name} stands abandoned after ${fmt(e.n)} ${plural} left ${CONFIG.cityName} at once. Crews will rebuild it first`);
   }
   for (const p of finished) {
     log(logLine(p));
     if (p.kind === 'expand') toast('LAND EXPANDED', size(p.level), `${plural} reclaimed a new ring of land`);
     if (p.kind === 'landmark') toast('LANDMARK BUILT', p.name);
-    if (p.kind === 'metro') toast('🚇 METRO OPENED', p.name, 'Trains now loop the ring road');
-    if (p.kind === 'wonder') { toast(p.build === 'fountain' ? '⛲ WONDER BUILT' : '🏙️ WHALE TOWER BUILT', p.whale.tier || 'Whale Fountain', `named after ${whoHtml(p.whale.from) || 'a whale'}`); weather.celebrate(); }
+    if (p.kind === 'metro') toast('METRO OPENED', p.name, 'Trains now loop the ring road');
+    if (p.kind === 'wonder') { toast(p.build === 'fountain' ? 'WONDER BUILT' : 'WHALE TOWER BUILT', p.whale.tier || 'Whale Fountain', `named after ${whoHtml(p.whale.from) || 'a whale'}`); weather.celebrate(); }
   }
 }
 
@@ -942,9 +1241,9 @@ function updateChips() {
   const level = CONFIG.chips.tiers.indexOf(chips.tier);
   setGpuTier(t >= CHIPS_FROM ? chips.tier[1] : '', level);
   if (chipLevel >= 0 && level > chipLevel) { // a GPU upgrade
-    toast('⚡ GPU UPGRADE', chips.tier[1], `the Power Plant's new GPU, after ${fmt(chips.made)} chips made`);
+    toast('GPU UPGRADE', chips.tier[1], `the Power Plant's new GPU, after ${fmt(chips.made)} chips made`);
     weather.celebrate();
-    log(`⚡ The GPU District upgraded to a ${chips.tier[1]}: ${fmt(chips.made)} chips made by the Chip Fab`, t);
+    log(`The GPU District upgraded to a ${chips.tier[1]}: ${fmt(chips.made)} chips made by the Chip Fab`, t);
   }
   if (chipWaiting === 0 && chips.waiting.length) log(`⏳ Chip shortage: ${chips.waiting[0].name} is waiting for chips`, t);
   chipLevel = level; chipWaiting = chips.waiting.length;
@@ -1120,6 +1419,11 @@ function frame() {
   if (slowAcc > 1) { slowAcc = 0; renderLeaders(); updateChips(); renderCard(); renderHud(); renderStream(); nextUnlockText(); traffic.setBusy(baseLive.busy); music.setMood(city.env.daylight, city.env.gloom || 0); }
 
   if (window.__film) { requestAnimationFrame(frame); window.__film(t, dt); return; } // ?film: a scripted short film drives the camera
+  if (play.active) {
+    requestAnimationFrame(frame);
+    play.update(t, dt);
+    return;
+  }
   if (cine.active) { // the film camera takes over
     requestAnimationFrame(frame); // first: a shot that throws must never stop the loop (a black screen)
     try { cine.frame(t, dt); } catch (e) { console.error('[cinematic]', e); cine.skip?.(); }
@@ -1173,7 +1477,8 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   refreshTicker();
   welcomeBack();
   requestAnimationFrame(frame);
-  if (STREAM) startStream();
+  if (shouldResumePlayAfterPrivy()) play.enter();
+  else if (STREAM) startStream();
   else if (qs.get('film')) filmCast(qs.get('film'));
   else if (qs.get('shot')) { // ?shot=jetcam: straight into the film camera on that shot (for recording)
     const id = qs.get('shot');

@@ -6,11 +6,11 @@
 // Shared by the API (who may sell what, at what price) and the pages (cards, fleet table, x402 HQ).
 
 export const GUILDS = {
-  market: { label: 'Market', icon: '📈', color: '#16a34a', roles: ['research'] },
-  security: { label: 'Security', icon: '🛡', color: '#dc2626', roles: ['contracts'] },
-  builder: { label: 'Builder', icon: '🏗', color: '#2563eb', roles: ['frontend'] },
-  agents: { label: 'Agents', icon: '🤖', color: '#7c3aed', roles: ['community'] },
-  creative: { label: 'Creative', icon: '🎨', color: '#db2777', roles: ['designer'] },
+  market: { label: 'Market', icon: '', color: '#16a34a', roles: ['research'] },
+  security: { label: 'Security', icon: '', color: '#dc2626', roles: ['contracts'] },
+  builder: { label: 'Builder', icon: '', color: '#2563eb', roles: ['frontend'] },
+  agents: { label: 'Agents', icon: '', color: '#7c3aed', roles: ['community'] },
+  creative: { label: 'Creative', icon: '', color: '#db2777', roles: ['designer'] },
 };
 const ROLE_LABELS = { 'Smart Contract Dev': 'contracts', 'Frontend Dev': 'frontend', Designer: 'designer', Community: 'community', Researcher: 'research', Founder: 'founder' };
 

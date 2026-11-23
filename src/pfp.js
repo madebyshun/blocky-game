@@ -10,6 +10,7 @@ const TIER_BG = { blocky: '#0ea5e9', base: '#0052ff', whale: '#f59e0b', founder:
 
 const RARITY_BG = { uncommon: '#16a34a', rare: '#7c3aed', legendary: '#f59e0b' };
 export function pfpColor(b) {
+  if (b.custom) return '#1e3a8a';
   if (b.legend?.bg) return b.legend.bg;
   if (RARITY_BG[b.rarity?.id]) return RARITY_BG[b.rarity.id];
   if (b.legendIdx >= 0) return PALETTE[b.legendIdx % PALETTE.length];
@@ -22,11 +23,14 @@ function setup() {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
   renderer.setClearColor(0x000000, 0);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.06;
   scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x8796ad, 2.3));
-  const key = new THREE.DirectionalLight(0xfff4e6, 2.2);
+  scene.add(new THREE.HemisphereLight(0xfff9f0, 0x8f8270, 2.1));
+  const key = new THREE.DirectionalLight(0xfff1dc, 2.2);
   key.position.set(2.5, 3.5, 4);
-  const rim = new THREE.DirectionalLight(0xbfd4ff, 1.1);
+  const rim = new THREE.DirectionalLight(0xbfd4ff, 1.15);
   rim.position.set(-3, 2, -2);
   scene.add(key, rim);
   camera = new THREE.PerspectiveCamera(20, 1, 0.1, 50);
@@ -37,7 +41,8 @@ const cache = new Map();
 // Returns a PNG data URL. `mark` adds a small BaseCity tag in the corner. `full`: head to toe instead of
 // from the chest up; `transparent`: no background.
 export function renderPfp(b, { size = 1024, mark = true, full = false, transparent = false } = {}) {
-  const key = `${b.id}|${b.legendIdx ?? -1}|${size}|${mark}|${full}|${transparent}`;
+  const cKey = b.custom ? JSON.stringify(b.custom) : '';
+  const key = `${b.id}|${b.legendIdx ?? -1}|${cKey}|${size}|${mark}|${full}|${transparent}`;
   if (cache.has(key)) return cache.get(key);
   if (!renderer) setup();
   renderer.setSize(size, size, false);

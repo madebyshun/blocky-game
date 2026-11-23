@@ -27,6 +27,8 @@ if (reserve?.count > 0 && reserve.wallet) {
 }
 function contracts(nft) {
   const rows = [[`${CONFIG.ticker} token`, link(basescan(`token/${CONFIG.tokenAddress}`), CONFIG.tokenAddress)]];
+  if (CONFIG.flywheel?.basecityToken) rows.push(['$BASECITY token', link(basescan(`token/${CONFIG.flywheel.basecityToken}`), CONFIG.flywheel.basecityToken)]);
+  if (CONFIG.flywheel?.contract) rows.push(['BaseCityFlywheel vault', link(basescan(`address/${CONFIG.flywheel.contract}`), CONFIG.flywheel.contract)]);
   rows.push([`${CONFIG.nft.name} (${CONFIG.nft.symbol})`, nft ? `${link(basescan(`address/${nft}`), nft)} · ${link(opensea(nft), 'OpenSea')}` : '<small>deploying soon</small>']);
   rows.push(['Treasury (royalties)', link(basescan(`address/${CONFIG.nft.treasury}`), CONFIG.nft.treasury)]);
   $('contracts').innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');

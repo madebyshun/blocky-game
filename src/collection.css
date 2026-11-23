@@ -12,7 +12,7 @@
 .empty { color: var(--muted); font-weight: 600; grid-column: 1 / -1; }
 .side { display: grid; gap: 14px; position: sticky; top: 76px; }
 .box { padding: 16px; }
-.box h2 { margin: 0 0 10px; font: 400 22px/1.1 'Lilita One', Inter, sans-serif; letter-spacing: 0.01em; }
+.box h2 { margin: 0 0 10px; font: 400 22px/1.1 'Silkscreen', Inter, sans-serif; letter-spacing: 0.01em; }
 .box .small { margin: 10px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; }
 .holders { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; counter-reset: h; }
 .holders li { counter-increment: h; }

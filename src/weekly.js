@@ -49,7 +49,7 @@ function render(s, weeks) {
   const text = weeklyPost(s, `${location.origin}${CONFIG.siteUrl ? '' : ''}/weekly?week=${s.n}`);
   $('share').href = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
   $('copy').textContent = 'Copy the post';
-  $('copy').onclick = async () => { try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Copied ✓'; } catch { /* no clipboard */ } };
+  $('copy').onclick = async () => { try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Copied '; } catch { /* no clipboard */ } };
   $('save').onclick = async () => {
     const blob = await toBlob($('card'), { pixelRatio: 2, backgroundColor: '#050b22' });
     const a = document.createElement('a');

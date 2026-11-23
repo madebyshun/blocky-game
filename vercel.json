@@ -14,6 +14,14 @@
       "destination": "/agents.html"
     },
     {
+      "source": "/docs",
+      "destination": "/docs.html"
+    },
+    {
+      "source": "/flywheel",
+      "destination": "/flywheel.html"
+    },
+    {
       "source": "/metrics",
       "destination": "/metrics.html"
     },

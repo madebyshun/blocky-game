@@ -1,9 +1,11 @@
-// Owner tool: deploy the BaseCity Blockies contract from a browser wallet, then print the settings
-// the site needs (NFT_CONTRACT, CLAIM_SIGNER_KEY) and how to verify it on Basescan.
-import { encodeDeployData, encodeAbiParameters, getAddress, isAddress } from 'viem';
+// Owner tool: deploy BaseCityBlockies (NFT) or BaseCityFlywheel (auto-push rewards + buyback burn)
+// from a browser wallet, then print env settings and Basescan verification details.
+import { encodeDeployData, encodeAbiParameters, encodeFunctionData, getAddress, isAddress } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import artifact from '../contracts/out/BaseCityBlockies.json';
 import inputUrl from '../contracts/out/BaseCityBlockies.input.json?url';
+import fwArtifact from '../contracts/out/BaseCityFlywheel.json';
+import fwInputUrl from '../contracts/out/BaseCityFlywheel.input.json?url';
 import { CONFIG } from './config.js';
 import { browserWallets, onWallets, connect, sendTx, waitTx, rejected } from './wallet.js';
 import { mountSite, esc, basescan } from './site.js';
@@ -17,7 +19,15 @@ $('supply').value = String(CONFIG.supply);
 $('base').value = `${site}/api/nft/`;
 $('curi').value = `${site}/api/nft/collection`;
 
-let provider = null, account = null, key = null;
+const FACTORY_SET_RECIPIENT_ABI = [{
+  type: 'function',
+  name: 'setCreatorRecipient',
+  stateMutability: 'nonpayable',
+  inputs: [{ name: 'token', type: 'address' }, { name: 'recipient', type: 'address' }],
+  outputs: [],
+}];
+
+let provider = null, account = null, key = null, fwKey = null;
 function wallets() {
   const box = $('wallets');
   box.innerHTML = '';
@@ -27,14 +37,18 @@ function wallets() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'btn';
-    b.textContent = account && provider === w.provider ? `✓ ${w.name}` : `Connect ${w.name}`;
+    b.textContent = account && provider === w.provider ? `Connected: ${w.name}` : `Connect ${w.name}`;
     b.onclick = async () => {
       try {
         account = getAddress(await connect(w.provider));
         provider = w.provider;
         if (!$('owner').value) $('owner').value = account;
+        if ($('fw-owner') && !$('fw-owner').value) $('fw-owner').value = account;
+        if ($('fw-op') && !$('fw-op').value) $('fw-op').value = account;
         $('me').textContent = `Connected: ${account}`;
         $('go').disabled = false;
+        if ($('fw-go')) $('fw-go').disabled = false;
+        if ($('fw-route-existing') && CONFIG.flywheel?.contract) $('fw-route-existing').disabled = false;
         wallets();
       } catch (e) { if (!rejected(e)) $('me').textContent = e.message; }
     };
@@ -51,7 +65,17 @@ $('gen').onclick = () => {
   $('signer').value = privateKeyToAccount(key).address;
 };
 
+if ($('fw-gen')) {
+  $('fw-gen').onclick = () => {
+    fwKey = generatePrivateKey();
+    $('fw-key').value = fwKey;
+    $('fw-keybox').hidden = false;
+    $('fw-op').value = privateKeyToAccount(fwKey).address;
+  };
+}
+
 const show = (html, tone = '') => { const o = $('out'); o.hidden = false; o.className = `note ${tone}`; o.innerHTML = html; };
+const showFw = (html, tone = '') => { const o = $('fw-out'); o.hidden = false; o.className = `note ${tone}`; o.innerHTML = html; };
 
 $('form').onsubmit = async (e) => {
   e.preventDefault();
@@ -66,7 +90,7 @@ $('form').onsubmit = async (e) => {
     $('go').disabled = true;
     show('Confirm the deployment in your wallet…');
     const hash = await sendTx(provider, { from: account, data: encodeDeployData({ abi: artifact.abi, bytecode: artifact.bytecode, args }) });
-    show(`Deploying… <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">transaction ↗</a>`);
+    show(`Deploying… <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">transaction</a>`);
     const done = await waitTx(hash, provider, 300000);
     if (!done.ok) throw new Error(done.ok === false ? 'The deployment failed' : 'Still pending: check Basescan');
     const addr = getAddress(done.receipt.contractAddress);
@@ -74,7 +98,7 @@ $('form').onsubmit = async (e) => {
     show(`<b>Deployed: <a href="${basescan(`address/${addr}`)}" target="_blank" rel="noopener">${addr}</a></b>
       <ol class="steps">
         <li>In Vercel → Settings → Environment Variables add <code>NFT_CONTRACT=${addr}</code>${key ? ` and <code>CLAIM_SIGNER_KEY</code> (the key above)` : ' and <code>CLAIM_SIGNER_KEY</code> (the signer\'s private key)'}, plus <code>SITE_URL=${esc(site)}</code>, then redeploy. Claims open.</li>
-        <li>Verify on Basescan: <a href="https://basescan.org/verifyContract?a=${addr}" target="_blank" rel="noopener">verify ↗</a>, type "Solidity (Standard-Json-Input)", compiler <code>${esc(artifact.compiler)}</code>, MIT license, upload <a href="${inputUrl}" download="BaseCityBlockies.input.json">the input JSON</a>. Constructor arguments: <code>${encoded}</code></li>
+        <li>Verify on Basescan: <a href="https://basescan.org/verifyContract?a=${addr}" target="_blank" rel="noopener">verify</a>, type "Solidity (Standard-Json-Input)", compiler <code>${esc(artifact.compiler)}</code>, MIT license, upload <a href="${inputUrl}" download="BaseCityBlockies.input.json">the input JSON</a>. Constructor arguments: <code>${encoded}</code></li>
         <li>Optional: put the address in <code>src/config.js</code> → <code>nft.contract</code> too.</li>
       </ol>`, 'ok');
   } catch (err) {
@@ -82,3 +106,75 @@ $('form').onsubmit = async (e) => {
     show(rejected(err) ? 'Cancelled.' : esc(err.shortMessage || err.message), rejected(err) ? '' : 'bad');
   }
 };
+
+if ($('fw-form')) {
+  $('fw-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const ownerAddr = $('fw-owner').value.trim();
+    const opAddr = $('fw-op').value.trim();
+    if (!isAddress(ownerAddr, { strict: false })) return showFw('Owner: not a valid 0x address', 'bad');
+    if (!isAddress(opAddr, { strict: false })) return showFw('Operator: not a valid 0x address', 'bad');
+    const args = [getAddress(ownerAddr), getAddress(opAddr)];
+    const ctor = fwArtifact.abi.find((x) => x.type === 'constructor');
+    try {
+      $('fw-go').disabled = true;
+      showFw('Confirm BaseCityFlywheel deployment in your wallet…');
+      const hash = await sendTx(provider, { from: account, data: encodeDeployData({ abi: fwArtifact.abi, bytecode: fwArtifact.bytecode, args }) });
+      showFw(`Deploying BaseCityFlywheel… <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">transaction</a>`);
+      const done = await waitTx(hash, provider, 300000);
+      if (!done.ok) throw new Error(done.ok === false ? 'Flywheel deployment failed' : 'Still pending: check Basescan');
+      const addr = getAddress(done.receipt.contractAddress);
+      const encoded = encodeAbiParameters(ctor.inputs, args).slice(2);
+      const bcToken = CONFIG.flywheel?.basecityToken || '0xB2000000000000000000003577e92f1D4122a1D1';
+      const factory = CONFIG.flywheel?.factory || '0x006Da367654a487bb277fe25ff54f0fE0f741377';
+      showFw(`<b>Deployed BaseCityFlywheel: <a href="${basescan(`address/${addr}`)}" target="_blank" rel="noopener">${addr}</a></b>
+        <ol class="steps">
+          <li>Put <code>${addr}</code> into <code>src/config.js</code> → <code>flywheel.contract</code> (and env <code>FLYWHEEL_CONTRACT=${addr}</code>${fwKey ? ' + <code>FLYWHEEL_OPERATOR_KEY</code> above' : ''}).</li>
+          <li>Verify on Basescan: <a href="https://basescan.org/verifyContract?a=${addr}" target="_blank" rel="noopener">verify</a>, compiler <code>${esc(fwArtifact.compiler)}</code>, MIT license, upload <a href="${fwInputUrl}" download="BaseCityFlywheel.input.json">BaseCityFlywheel.input.json</a>. Constructor args: <code>${encoded}</code></li>
+          <li>Route 80% LP fees from <code>$BASECITY/$BLOCKY</code> (connect creator wallet <code>${esc(CONFIG.flywheel?.creator || '')}</code>): <button type="button" class="btn" id="fw-route">Route $BASECITY LP fees to Flywheel</button> <span id="fw-route-msg"></span></li>
+        </ol>`, 'ok');
+      const routeBtn = $('fw-route');
+      if (routeBtn) {
+        routeBtn.onclick = async () => {
+          const rMsg = $('fw-route-msg');
+          try {
+            routeBtn.disabled = true;
+            rMsg.textContent = 'Confirm setCreatorRecipient in wallet…';
+            const data = encodeFunctionData({ abi: FACTORY_SET_RECIPIENT_ABI, functionName: 'setCreatorRecipient', args: [getAddress(bcToken), addr] });
+            const rHash = await sendTx(provider, { from: account, to: getAddress(factory), data });
+            const rDone = await waitTx(rHash, provider, 180000);
+            if (!rDone.ok) throw new Error('setCreatorRecipient reverted (check connected wallet is creator)');
+            rMsg.innerHTML = `Routed. <a href="${basescan(`tx/${rHash}`)}" target="_blank" rel="noopener">tx</a>`;
+          } catch (err) {
+            routeBtn.disabled = false;
+            rMsg.textContent = rejected(err) ? 'Cancelled.' : (err.shortMessage || err.message);
+          }
+        };
+      }
+    } catch (err) {
+      $('fw-go').disabled = false;
+      showFw(rejected(err) ? 'Cancelled.' : esc(err.shortMessage || err.message), rejected(err) ? '' : 'bad');
+    }
+  };
+}
+
+if ($('fw-route-existing') && CONFIG.flywheel?.contract) {
+  $('fw-route-existing').onclick = async () => {
+    const btn = $('fw-route-existing');
+    const fwAddr = getAddress(CONFIG.flywheel.contract);
+    const bcToken = getAddress(CONFIG.flywheel.basecityToken || '0xB2000000000000000000003577e92f1D4122a1D1');
+    const factory = getAddress(CONFIG.flywheel.factory || '0x006Da367654a487bb277fe25ff54f0fE0f741377');
+    try {
+      btn.disabled = true;
+      showFw(`Confirm routing 80% LP fees of <code>${bcToken}</code> to Flywheel <code>${fwAddr}</code> in MetaMask…`);
+      const data = encodeFunctionData({ abi: FACTORY_SET_RECIPIENT_ABI, functionName: 'setCreatorRecipient', args: [bcToken, fwAddr] });
+      const rHash = await sendTx(provider, { from: account, to: factory, data });
+      const rDone = await waitTx(rHash, provider, 180000);
+      if (!rDone.ok) throw new Error('setCreatorRecipient reverted (ensure connected wallet is creator 0xe7d6...4530)');
+      showFw(`Routed 80% LP fees of <b>$BASECITY/$BLOCKY</b> to Flywheel <code>${fwAddr}</code>. <a href="${basescan(`tx/${rHash}`)}" target="_blank" rel="noopener">View tx on Basescan</a>`, 'ok');
+    } catch (err) {
+      btn.disabled = false;
+      showFw(rejected(err) ? 'Cancelled.' : esc(err.shortMessage || err.message), rejected(err) ? '' : 'bad');
+    }
+  };
+}

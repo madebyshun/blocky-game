@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>BaseCity Flywheel ($BASECITY / $BLOCKY) · BaseCity</title>
+    <meta name="description" content="Live onchain telemetry for the BaseCity Flywheel ($BASECITY / $BLOCKY): 45% Auto-Push to BCB NFT Holders, 35% Buyback & Burn, and 20% City Treasury." />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/src/site.css" />
+    <link rel="stylesheet" href="/src/claim.css" />
+    <link rel="stylesheet" href="/src/agents-page.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>BaseCity Flywheel</h1>
+      <p class="lede">Live onchain fee routing for <b>$BASECITY / $BLOCKY</b> on Base: 80% of Uniswap v4 LP fees flow into the verified <code>BaseCityFlywheel</code> contract and split <b>45% Auto-Push to BCB NFT Holders</b>, <b>35% Buyback &amp; Burn</b>, and <b>20% City Treasury</b>.</p>
+      <div class="actions">
+        <a class="btn primary" href="/?b10=blocky">Buy $BLOCKY</a>
+        <a class="btn" href="/collection.html">BaseCity Blockies NFT</a>
+        <a class="btn" href="/metrics">Blockies at Work Metrics</a>
+      </div>
+    </header>
+    <main class="wrap claim ag" id="page-content">
+      <section class="panel" id="mx-fw-panel">
+        <div class="ag-h">
+          <h3>BaseCity Flywheel ($BASECITY / $BLOCKY)</h3>
+          <span id="mx-fw-status">45% BCB Holders · 35% Buyback &amp; Burn · 20% Treasury</span>
+        </div>
+        <div class="ag-sum" id="mx-fw-sum"><div><b>…</b><span>loading flywheel stats</span></div></div>
+        <div class="fw-diagram-wrap" id="mx-fw-diagram" aria-label="BaseCity Flywheel Architecture Diagram"></div>
+        <div class="ag-table-wrap">
+          <table class="ag-table">
+            <thead>
+              <tr><th>Epoch</th><th>Type</th><th>Token</th><th>Amount</th><th>Details</th></tr>
+            </thead>
+            <tbody id="mx-fw-rows"></tbody>
+          </table>
+        </div>
+        <p class="ag-note" id="mx-fw-links"></p>
+      </section>
+      <p class="ag-note"><a href="/metrics">View Blockies at Work &amp; x402 Metrics &rarr;</a> · <a href="/docs">Read BaseCity Docs &rarr;</a></p>
+    </main>
+    <script type="module" src="/src/flywheel-page.js"></script>
+  </body>
+</html>

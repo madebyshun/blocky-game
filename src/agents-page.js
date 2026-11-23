@@ -4,7 +4,7 @@
 import { getAddress } from 'viem';
 import { CONFIG } from './config.js';
 import { mountSite, esc, fmt } from './site.js';
-import { browserWallets, onWallets, smartWallet, connect, rejected } from './wallet.js';
+import { browserWallets, onWallets, smartWallet, connect, restoreWallet, rejected } from './wallet.js';
 import { mountAgentLink } from './agent-link-ui.js';
 import { mountWorkerConsole } from './worker-console.js';
 import { mountWorkBoard } from './work-board.js';
@@ -48,7 +48,12 @@ async function load() {
   // each Blocky's specialization, from the same NFT traits the server reads (src/skills.js)
   profiles = Object.fromEntries(rows.map((b) => { const k = makeBlocky(b.n, b.at, null, b.seed); const e = agents[b.n] || {}; return [b.n, { ...profileOf(b.n, { Role: k.role.label, Rarity: k.rarity.label, Trait: k.trait ? TRAIT_LABEL[k.trait] : 'None' }, (e.soldCalls || 0) + (e.jobsPaid || 0)), mult: e.priceMult || 1 }]; }));
   $('ag-connect').hidden = true; $('ag-main').hidden = false; say('');
-  if (!blockies.length) { $('ag-sum').innerHTML = `<p class="ag-note">This wallet has no claimed Blockies yet. <a href="/claim">Claim them first →</a></p>`; return; }
+  if (!blockies.length) {
+    $('ag-sum').innerHTML = `<p class="ag-note">This wallet has no claimed Blockies yet. <a href="/claim">Claim them first →</a></p>`;
+    worker ||= mountWorkerConsole($('ag-worker'), () => ({ account, provider, tokenId: null }), () => {});
+    worker.refresh();
+    return;
+  }
   render();
 }
 
@@ -61,8 +66,8 @@ function render() {
   // setup: three steps, done ones ticked; the whole box folds away once all three are done
   const steps = [[own === blockies.length, `Give each Blocky its own ERC-8004 agent (${own}/${blockies.length})`], [on === blockies.length, `Put every Blocky on duty (${on}/${blockies.length})`], [null, 'Start the worker below, so your Blockies pick up Blue Agent jobs']];
   const doneAll = steps[0][0] && steps[1][0];
-  $('ag-steps').textContent = doneAll ? 'done ✓' : `${steps.filter((s) => s[0]).length}/2 done`;
-  $('ag-steplist').innerHTML = steps.map(([d, t]) => `<li class="${d ? 'done' : ''}">${d ? '✓ ' : ''}${esc(t)}</li>`).join('');
+  $('ag-steps').textContent = doneAll ? 'done ' : `${steps.filter((s) => s[0]).length}/2 done`;
+  $('ag-steplist').innerHTML = steps.map(([d, t]) => `<li class="${d ? 'done' : ''}">${d ? '' : ''}${esc(t)}</li>`).join('');
   $('ag-setup').classList.toggle('folded', doneAll);
   linkPanel ||= mountAgentLink($('ag-link'), () => ({ account, provider, blockies }));
   linkPanel.refresh();
@@ -73,7 +78,7 @@ function render() {
   board.refresh();
 
   const by = {}; for (const n of blockies) { const g = profiles[n]?.guild || 'market'; by[g] = (by[g] || 0) + 1; }
-  $('ag-guilds').innerHTML = Object.entries(by).map(([g, c]) => `<span style="border-color:${GUILDS[g]?.color || '#0052ff'}">${GUILDS[g]?.icon || '👑'} ${esc(GUILDS[g]?.label || 'All')} · ${c}</span>`).join('');
+  $('ag-guilds').innerHTML = Object.entries(by).map(([g, c]) => `<span style="border-color:${GUILDS[g]?.color || '#0052ff'}">${GUILDS[g]?.icon || ''} ${esc(GUILDS[g]?.label || 'All')} · ${c}</span>`).join('');
   drawFleet();
 }
 $('ag-payout-set').addEventListener('click', async () => {
@@ -94,7 +99,7 @@ function drawFleet() {
   $('ag-fleet').innerHTML = list.map((n) => {
     const l = links[n], a = agents[n];
     const id = l?.agentId;
-    const p = profiles[n], g = GUILDS[p?.guild] || { icon: '👑', label: 'All' };
+    const p = profiles[n], g = GUILDS[p?.guild] || { icon: '', label: 'All' };
     return `<tr><td><a href="/b/${n}">Blocky #${n}</a></td><td title="${esc(p?.role || '')} · ${esc(p?.rarity || '')}${p?.trait ? ` · ${esc(p.trait)}` : ''}">${g.icon} ${esc(g.label)}</td><td class="ag-skills">${(p?.skills || []).map((k) => `<span title="${esc(SKILLS[k].task)}">${esc(k)} $${(priceUnits(k, p, p.mult) / 1e6).toFixed(3).replace(/0$/, '')}</span>`).join('')}</td><td>${p?.level || 1}</td><td>${id ? `#${esc(id)}${l.via === 'owner-signature' ? ' <small>shared</small>' : ''}` : '<small>none</small>'}</td><td>${a ? '<span class="ag-on">● on duty</span>' : '<small>off</small>'}</td><td>${fmt(a?.soldCalls || 0)}</td><td>${usd(a?.soldUsdc || 0)}</td><td class="ag-acts">${id ? `<a href="/api/agent-card?blocky=${n}" target="_blank" rel="noopener">Card</a><a href="https://app.blueagent.dev/exchange/agent/${esc(id)}#hire" target="_blank" rel="noopener">Hire ↗</a>` : ''}</td></tr>`;
   }).join('') || '<tr><td colspan="9">No Blocky matches.</td></tr>';
 }
@@ -104,3 +109,10 @@ document.addEventListener('basecity-agents-changed', () => account && load());
 json('/api/x402').then((c) => { $('ag-svc').innerHTML = (c.tools || []).map((t) => `<li><b>${esc(t.id)}</b><span>${esc(t.task)}</span><em>${usd(t.priceUsd)}</em></li>`).join(''); });
 renderWallets();
 onWallets(renderWallets);
+restoreWallet().then((w) => {
+  if (!w || account) return;
+  provider = w.provider;
+  account = getAddress(w.address);
+  provider.on?.('accountsChanged', (a) => { if (a?.[0]) { account = getAddress(a[0]); load(); } });
+  load();
+});

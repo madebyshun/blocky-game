@@ -33,8 +33,8 @@ function card(b, rank, status, here, stats) {
       <h2></h2>
       <div class="title"></div>
       <div class="status${here ? ' here' : ''}"></div>
-      ${stats ? `<div class="mini"><span>⏱ ${fmt(stats.hours)}h</span><span>🧱 ${fmt(stats.blocks)}</span><span>${stats.share.toFixed(1)}%</span></div>` : ''}
-      <div class="row"><button class="btn primary dl">⬇ PFP</button><button class="btn open">Profile</button>${b.legend?.x ? '<a class="btn x" target="_blank" rel="noopener">𝕏</a>' : ''}</div>
+      ${stats ? `<div class="mini"><span>${fmt(stats.hours)}h</span><span>${fmt(stats.blocks)} blocks</span><span>${stats.share.toFixed(1)}%</span></div>` : ''}
+      <div class="row"><button class="btn primary dl">Save PFP</button><button class="btn open">Profile</button>${b.legend?.x ? '<a class="btn x" target="_blank" rel="noopener">X</a>' : ''}</div>
     </div>`;
   el.querySelector('h2').textContent = b.name;
   el.querySelector('.title').textContent = b.office ? `${b.office.label} · ${b.role.label}` : b.role.label;
@@ -92,7 +92,7 @@ function openProfile(b, status, here, stats) {
   const cards = order.map((b, i) => {
     const here = b.arrivedAt <= now;
     const status = b.kind === 'founder' ? `Built ${CONFIG.cityName} from empty land` : here ? `Building ${CONFIG.cityName} since ${day(b.arrivedAt)}` : `Joins on ${day(b.arrivedAt)}`;
-    return card(b, b.kind === 'founder' ? 'Founder' : `★ ${i}`, status, here, statsOf(b, sim));
+    return card(b, b.kind === 'founder' ? 'Founder' : `#${i}`, status, here, statsOf(b, sim));
   });
   for (const c of cards) $('grid').appendChild(c.el);
   const linked = cards.find((c) => location.hash && c.el.id === location.hash.slice(1));

@@ -4,13 +4,22 @@ import { PITCH } from './sim.js';
 
 // The city's weather follows $BLOCKY's 24h price change: storms when it dumps, sun when it pumps,
 // fireworks on a bull run. Big buys get a fireworks burst over the Statue of Blockerty.
+// Also supports seasonal overlays (Spring petals, Summer golden glow, Autumn leaves, Winter snow).
 
 export const WEATHER = {
-  storm: { icon: '⛈️', label: 'Storm', gloom: 0.85, rain: 1, lightning: true },
-  rain: { icon: '🌧️', label: 'Rain', gloom: 0.55, rain: 0.55 },
-  cloudy: { icon: '⛅', label: 'Cloudy', gloom: 0.28, rain: 0 },
-  sunny: { icon: '☀️', label: 'Sunny', gloom: 0, rain: 0 },
-  bull: { icon: '🎆', label: 'Bull run', gloom: 0, rain: 0, fireworks: true },
+  storm: { icon: '', label: 'Storm', gloom: 0.85, rain: 1, lightning: true },
+  rain: { icon: '', label: 'Rain', gloom: 0.55, rain: 0.55 },
+  cloudy: { icon: '', label: 'Cloudy', gloom: 0.28, rain: 0 },
+  sunny: { icon: '', label: 'Sunny', gloom: 0, rain: 0 },
+  bull: { icon: '', label: 'Bull run', gloom: 0, rain: 0, fireworks: true },
+};
+
+export const SEASONS = {
+  auto: { icon: '', label: 'Auto', warm: 0, colors: null, speed: 0 },
+  spring: { icon: '', label: 'Spring', warm: 0.2, colors: [0xffb7d5, 0xffd6e7, 0xffffff], speed: 2.8 },
+  summer: { icon: '', label: 'Summer', warm: 0.55, colors: null, speed: 0 },
+  autumn: { icon: '', label: 'Autumn', warm: 0.72, colors: [0xe67e22, 0xd35400, 0xf1c40f, 0xc0392b], speed: 3.4 },
+  winter: { icon: '', label: 'Winter', warm: 0, colors: [0xffffff, 0xdceeff, 0xe8f4ff], speed: 3.8 },
 };
 
 const forced = new URLSearchParams(location.search).get('weather'); // ?weather=storm for testing/recording
@@ -33,6 +42,7 @@ export function createWeather(city) {
   env.gloom = 0;
   env.flash = 0;
   let kind = 'sunny';
+  let season = 'auto';
 
   // rain: thin falling streaks over the whole land
   const RAIN = 900;
@@ -41,6 +51,19 @@ export function createWeather(city) {
   rain.count = 0;
   const drops = Array.from({ length: RAIN }, () => new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 26, Math.random() * 2 - 1));
   city.root.add(rain);
+
+  // seasonal particles (petals / autumn leaves / snow)
+  const FLAKES = 420;
+  const flakeMesh = new THREE.InstancedMesh(UNIT, new THREE.MeshBasicMaterial({ color: 0xffffff }), FLAKES);
+  flakeMesh.frustumCulled = false;
+  flakeMesh.count = 0;
+  const flakes = Array.from({ length: FLAKES }, (_, i) => ({
+    x: Math.random() * 2 - 1,
+    y: Math.random() * 24,
+    z: Math.random() * 2 - 1,
+    phase: i * 0.7,
+  }));
+  city.root.add(flakeMesh);
 
   // fireworks: voxel sparks with gravity
   const SPARKS = 600;
@@ -65,15 +88,19 @@ export function createWeather(city) {
 
   let boltIn = 3, popIn = 0;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), dropScale = new THREE.Vector3(0.04, 0.7, 0.04);
+  const flakeScale = new THREE.Vector3(0.16, 0.08, 0.16);
 
   function update(t, dt) {
     const w = WEATHER[kind];
-    env.gloom += (w.gloom - env.gloom) * Math.min(1, dt * 0.8);
+    const sInfo = SEASONS[season] || SEASONS.auto;
+    const targetGloom = season === 'winter' ? Math.max(w.gloom, 0.16) : w.gloom;
+    env.gloom += (targetGloom - env.gloom) * Math.min(1, dt * 0.8);
+    env.warm = sInfo.warm;
     env.flash = Math.max(0, env.flash - dt * 5);
     const H = Math.max(2, city.land) * PITCH + 4;
 
     // rain
-    const want = Math.floor(RAIN * (w.rain || 0));
+    const want = season === 'winter' ? 0 : Math.floor(RAIN * (w.rain || 0));
     rain.count += Math.sign(want - rain.count) * Math.min(Math.abs(want - rain.count), Math.ceil(RAIN * dt));
     for (let i = 0; i < rain.count; i++) {
       const d = drops[i];
@@ -83,6 +110,25 @@ export function createWeather(city) {
       rain.setMatrixAt(i, m4);
     }
     rain.instanceMatrix.needsUpdate = true;
+
+    // seasonal petals / leaves / snow
+    if (sInfo.colors) {
+      flakeMesh.count = FLAKES;
+      for (let i = 0; i < FLAKES; i++) {
+        const f = flakes[i];
+        f.y -= dt * sInfo.speed;
+        if (f.y < 0) f.y += 24;
+        const driftX = Math.sin(t * 1.4 + f.phase) * 0.8;
+        const driftZ = Math.cos(t * 1.1 + f.phase) * 0.8;
+        m4.compose(sc.set(f.x * H + driftX, f.y, f.z * H + driftZ), q, flakeScale);
+        flakeMesh.setMatrixAt(i, m4);
+        flakeMesh.setColorAt(i, color.setHex(sInfo.colors[i % sInfo.colors.length]));
+      }
+      flakeMesh.instanceMatrix.needsUpdate = true;
+      if (flakeMesh.instanceColor) flakeMesh.instanceColor.needsUpdate = true;
+    } else {
+      flakeMesh.count = 0;
+    }
 
     // lightning
     if (w.lightning && (boltIn -= dt) <= 0) { env.flash = 1; boltIn = 3 + Math.random() * 5; }
@@ -115,6 +161,8 @@ export function createWeather(city) {
     update,
     celebrate,
     setMarket(m) { kind = weatherFor(m?.change24h); },
+    setSeason(s) { if (SEASONS[s]) season = s; },
+    get season() { return season; },
     get kind() { return kind; },
   };
 }

@@ -1,6 +1,8 @@
-// Wallets for the claim page: browser wallets that announce themselves (EIP-6963: MetaMask, Rabby,
-// Coinbase Wallet extension, ...) and Coinbase Smart Wallet / the Base App through the Coinbase
-// Wallet SDK (loaded only when picked). Everything happens on Base.
+// Wallets for BaseCity: browser wallets that announce themselves (EIP-6963: MetaMask, Rabby,
+// Coinbase Wallet extension, ...), Privy Social/Email Embedded Wallets (X, Google, Gmail OTP),
+// and Coinbase Smart Wallet / the Base App. Persists the active wallet across pages.
+import { withBuilderCode } from './attribution.js';
+import { privyConfigured, handlePrivyOAuthCallback, restorePrivySession, logoutPrivy } from './privy.js';
 
 const BASE = {
   chainId: '0x2105',
@@ -10,20 +12,24 @@ const BASE = {
   blockExplorerUrls: ['https://basescan.org'],
 };
 
+const STORE_KEY = 'basecity:wallet:v1';
 const found = new Map(); // uuid -> { info, provider }
 const listeners = new Set();
-window.addEventListener('eip6963:announceProvider', (e) => {
-  const d = e.detail;
-  if (!d?.info?.uuid || !d.provider) return;
-  found.set(d.info.uuid, d);
-  listeners.forEach((fn) => fn());
-});
-window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('eip6963:announceProvider', (e) => {
+    const d = e.detail;
+    if (!d?.info?.uuid || !d.provider) return;
+    found.set(d.info.uuid, d);
+    listeners.forEach((fn) => fn());
+  });
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+}
 
 // the browser wallets found so far (plus window.ethereum when nothing announced itself)
 export function browserWallets() {
   const list = [...found.values()].map((d) => ({ id: d.info.uuid, name: d.info.name, icon: d.info.icon, rdns: d.info.rdns, provider: d.provider }));
-  if (!list.length && window.ethereum) list.push({ id: 'injected', name: 'Browser wallet', icon: null, provider: window.ethereum });
+  if (!list.length && typeof window !== 'undefined' && window.ethereum) list.push({ id: 'injected', name: 'Browser wallet', icon: null, rdns: '', provider: window.ethereum });
   return list;
 }
 export const onWallets = (fn) => listeners.add(fn);
@@ -44,16 +50,96 @@ export async function toBase(provider) {
   }
 }
 
-export async function connect(provider) {
+function saveWalletSession(provider, address, meta = null) {
+  try {
+    const match = browserWallets().find((w) => w.provider === provider);
+    const rec = {
+      address,
+      id: meta?.id || match?.id || '',
+      rdns: meta?.rdns || match?.rdns || '',
+      name: meta?.name || match?.name || 'Wallet',
+    };
+    localStorage.setItem(STORE_KEY, JSON.stringify(rec));
+  } catch { /* ignore storage errors */ }
+}
+
+export function forgetWallet() {
+  try { localStorage.removeItem(STORE_KEY); } catch { /* ignore */ }
+  logoutPrivy().catch(() => {});
+}
+
+export async function connect(provider, meta = null) {
   const [address] = await provider.request({ method: 'eth_requestAccounts' });
   if (!address) throw new Error('No account');
   await toBase(provider).catch(() => {}); // asked again before sending
+  saveWalletSession(provider, address, meta);
   return address;
+}
+
+// Silently restores the previously connected wallet on page load (Privy OAuth/session or EIP-6963).
+let restoreInFlight = null;
+export async function restoreWallet() {
+  if (typeof window === 'undefined') return null;
+  if (restoreInFlight) return restoreInFlight;
+  restoreInFlight = (async () => {
+    if (privyConfigured()) {
+      try {
+        const oauth = await handlePrivyOAuthCallback();
+        if (oauth?.address && oauth?.provider) {
+          saveWalletSession(oauth.provider, oauth.address, { id: 'privy', rdns: 'io.privy', name: oauth.name });
+          return oauth;
+        }
+        const existing = await restorePrivySession();
+        if (existing?.address && existing?.provider) {
+          saveWalletSession(existing.provider, existing.address, { id: 'privy', rdns: 'io.privy', name: existing.name });
+          return existing;
+        }
+      } catch (err) {
+        console.warn('[BaseCity wallet restore Privy error]', err);
+      }
+    }
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch { return null; }
+    if (!saved?.address) return null;
+
+    const findMatch = () => {
+      const list = browserWallets();
+      return (
+        (saved.rdns && list.find((w) => w.rdns === saved.rdns)) ||
+        (saved.name && list.find((w) => w.name === saved.name)) ||
+        (saved.id && list.find((w) => w.id === saved.id)) ||
+        list[0] ||
+        null
+      );
+    };
+
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    let pick = findMatch();
+    if (!pick) {
+      await new Promise((r) => setTimeout(r, 250));
+      pick = findMatch();
+    }
+    if (!pick?.provider) return null;
+    try {
+      const accounts = await pick.provider.request({ method: 'eth_accounts' });
+      if (!accounts?.length) return null;
+      const exact = accounts.find((a) => a.toLowerCase() === saved.address.toLowerCase()) || accounts[0];
+      saveWalletSession(pick.provider, exact, pick);
+      return { provider: pick.provider, address: exact, name: pick.name || saved.name || 'Wallet' };
+    } catch {
+      return null;
+    }
+  })();
+  try {
+    return await restoreInFlight;
+  } finally {
+    restoreInFlight = null;
+  }
 }
 
 export async function sendTx(provider, tx) {
   await toBase(provider);
-  return provider.request({ method: 'eth_sendTransaction', params: [tx] });
+  return provider.request({ method: 'eth_sendTransaction', params: [withBuilderCode(tx)] });
 }
 
 async function rpc(method, params) {

@@ -276,11 +276,9 @@ export const CONFIG = {
   // Base Live (src/baselive.js): Base's own blocks, on a block of 3x4 lots on the west side (mostly the
   // city's woods there). From `from` nothing else is built on them; the two buildings that stood there
   // came down that day (CitySim.openBaseLive), so everything the city built before is unchanged.
-  baseLive: { lots: [[-9, 2], [-8, 2], [-7, 2], [-9, 3], [-8, 3], [-7, 3], [-9, 4], [-8, 4], [-7, 4], [-9, 5], [-8, 5], [-7, 5]], from: '2026-10-27T00:00:00Z' },
-  // Blocky Street (src/stocks.js): Coinbase's tokenized stocks on Base, a tower each, built block by block
-  // from their real transfers; the 12 lots north of Base Live, taken the same way from `from` on
-  // (CitySim.openDistrict), so everything the city built before is unchanged
-  stocks: { lots: [[-9, -2], [-8, -2], [-7, -2], [-9, -1], [-8, -1], [-7, -1], [-9, 0], [-8, 0], [-7, 0], [-9, 1], [-8, 1], [-7, 1]], from: '2026-11-12T05:00:00Z',
+  // Compact Layout v2: Base Live & Blocky Street pulled closer to Civic Core (-6..-4) for tighter navigation.
+  baseLive: { lots: [[-6, 2], [-5, 2], [-4, 2], [-6, 3], [-5, 3], [-4, 3], [-6, 4], [-5, 4], [-4, 4], [-6, 5], [-5, 5], [-4, 5]], from: '2026-10-27T00:00:00Z' },
+  stocks: { lots: [[-6, -2], [-5, -2], [-4, -2], [-6, -1], [-5, -1], [-4, -1], [-6, 0], [-5, 0], [-4, 0], [-6, 1], [-5, 1], [-4, 1]], from: '2026-11-12T05:00:00Z',
     // the stocks most traded on Base (24 h DEX volume, Nov 12 2026); COIN has no Coinbase token on Base
     towers: ['SNDK', 'MSTR', 'SPCX', 'META', 'NVDA', 'AMZN', 'TSLA', 'MSFT'],
     // Blocky 10: the city's basket, 10% each: Blocky Street's 8 towers plus Apple and Alphabet.
@@ -292,15 +290,24 @@ export const CONFIG = {
       [0, 2], [-1, 2], [1, 2], [-2, 2], [0, 3], [1, 3], [-2, 3], [-3, 3], // 1-8
       [3, 3], [-1, 4], [0, 4], [3, 4], [-2, 4], [4, 2], [4, 3], [-3, 1], // 9-16
     ],
-    // plots cleared from the city's woods, numbered after `plots` (17, ...): the woods stand there until
-    // the HQ breaks ground, so adding one never changes what the city already built
-    woods: [[4, 1], [4, 0], [3, -1], [0, -3], [0, 10], [-1, 10], [-2, 10], [3, 10]], // 17-20, then 21-24 on the 21x21 ring
+    // Compact Layout v2: plots 21-24 pulled in from z=10 to the South Ecosystem Ring (z=5, clear of river at x=1)
+    woods: [[4, 1], [4, 0], [3, -1], [0, -3], [0, 5], [-1, 5], [-2, 5], [3, 5]], // 17-20, then 21-24 on z=5
   },
 
   // An elevated metro loop over the ring road, built as one project once the Blocky count reaches `at`
   // and the land is at least `land` rings out (6: 13x13 lots), so it circles a real city, not a few
   // blocks downtown. It grows with the land and its train stops at a station on every side.
   metro: { at: 1000, land: 6, label: 'BaseCity Metro', cost: 700 },
+
+  // $BASECITY / $BLOCKY flywheel (auto-push rewards to BaseCity Blockies NFT holders + buyback burn).
+  flywheel: {
+    basecityToken: '0xB2000000000000000000003577e92f1D4122a1D1',
+    creator: '0xe7d67Cf1108fA1c4836Ff1B178C3f37D56844530',
+    factory: '0x006Da367654a487bb277fe25ff54f0fE0f741377',
+    contract: '0x273c3c49106Dd52Ac9b20D4FDDfcB8C6104dfA3B',
+    operator: '0x7d5db0838c5a3ceaa458c32f9c711f3f0e3b586d',
+    split: { holders: 45, buyback: 35, treasury: 20 },
+  },
 };
 
 // How long a Blocky is held before it's a citizen, in words: "6 hours", "a day", "3 days".

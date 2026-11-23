@@ -5,7 +5,7 @@
 .card .pic img { width: 100%; height: 100%; display: block; }
 .card .pic .rank { position: absolute; top: 8px; left: 8px; background: rgba(10, 14, 24, 0.6); padding: 3px 8px; border-radius: 99px; font-weight: 800; font-size: 12px; }
 .card .body { padding: 12px 14px 14px; display: grid; gap: 4px; flex: 1; }
-.card h2 { margin: 0; font: 400 22px/1.1 'Lilita One', Inter, sans-serif; letter-spacing: 0.01em; overflow-wrap: anywhere; }
+.card h2 { margin: 0; font: 400 22px/1.1 'Silkscreen', Inter, sans-serif; letter-spacing: 0.01em; overflow-wrap: anywhere; }
 .card .title { color: var(--accent); font-weight: 800; font-size: 13px; }
 .card .status { color: var(--muted); font-size: 13px; font-weight: 600; }
 .card .status.here { color: var(--up); }
@@ -25,7 +25,7 @@
 .profile-grid { display: grid; grid-template-columns: 300px 1fr; gap: 0; }
 .profile-grid img { width: 100%; height: auto; display: block; }
 .profile-grid > div { padding: 18px 20px; display: grid; align-content: start; gap: 4px; }
-.profile h2 { margin: 0; font: 400 30px/1.1 'Lilita One', Inter, sans-serif; }
+.profile h2 { margin: 0; font: 400 30px/1.1 'Silkscreen', Inter, sans-serif; }
 .profile .title { color: var(--accent); font-weight: 800; }
 .profile .status { color: var(--muted); font-weight: 600; font-size: 14px; }
 .profile .status.here { color: var(--up); }

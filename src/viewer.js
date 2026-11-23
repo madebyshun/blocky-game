@@ -77,7 +77,7 @@ function show(key) {
   stage.blocky = b;
   $('acts').hidden = false;
   if (isBuilder(b)) {
-    $('over').innerHTML = `<span class="tag builder">${b.kind === 'founder' ? 'Founder' : '★ Base Builder'}</span>`;
+    $('over').innerHTML = `<span class="tag builder">${b.kind === 'founder' ? 'Founder' : 'Base Builder'}</span>`;
     const now = Date.now();
     const rows = [
       ['Role', b.kind === 'founder' ? 'Founder' : 'Base Builder'],
@@ -154,8 +154,8 @@ function controls() {
     const link = `${CONFIG.siteUrl || location.origin}/b/${isBuilder(current) ? slug(current) : current.id}`;
     const who = current.legend?.x ? `@${current.legend.x.replace(/^@/, '')}` : current.name;
     const text = isBuilder(current)
-      ? `${who} is a voxel Base Builder in ${CONFIG.cityName}${current.office ? `, and its ${current.office.label}` : ''} 🧱\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`
-      : `Meet ${current.name}: a ${current.rarity.label}${current.trait ? ` (${TRAIT_LABEL[current.trait]})` : ''} Blocky building ${CONFIG.cityName} on Base 🧱\n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
+      ? `${who} is a voxel Base Builder in ${CONFIG.cityName}${current.office ? `, and its ${current.office.label}` : ''} \n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`
+      : `Meet ${current.name}: a ${current.rarity.label}${current.trait ? ` (${TRAIT_LABEL[current.trait]})` : ''} Blocky building ${CONFIG.cityName} on Base \n\n${link}${CONFIG.xHandle ? ` · @${CONFIG.xHandle}` : ''}`;
     open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
 }

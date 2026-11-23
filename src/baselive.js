@@ -369,11 +369,11 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
 
   const W = (x, y, z) => [x, y, z]; // card anchors in district coordinates (placed every frame)
   const C = {
-    tower: card('tower', W(0, 20.8, -9), '⛓', 'Base · blocks'),
+    tower: card('tower', W(0, 20.8, -9), '', 'Base · blocks'),
     bank: card('bank', W(-12, 7.5, 3), '$', 'USDC Bank', '#2775ca'),
-    port: card('port', W(-23, 1.5, -2), '⚓', 'Bridge Port', '#1d2430'),
+    port: card('port', W(-23, 1.5, -2), '', 'Bridge Port', '#1d2430'),
     dex: card('dex', W(12, 8, 3), '⇄', 'DEX Market', '#0f9d58'),
-    reg: card('reg', W(17, 7, -9), '✦', 'Basenames', '#0052ff'),
+    reg: card('reg', W(17, 7, -9), '', 'Basenames', '#0052ff'),
     plaza: card('plaza', W(0, 6.8, 2), '▦', 'Base today', '#7c4dff'),
   };
 
@@ -444,15 +444,15 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
       S.live.names++;
       S.names.unshift({ name, t: b.t }); S.names.length = Math.min(S.names.length, 6);
       firework(new THREE.Vector3(SPOTS.registry[0], 9 + Math.random() * 3, SPOTS.registry[1]), [0x5c9bff, 0xffc83d, 0xff6a3d, 0x7cf2c0][Math.floor(Math.random() * 4)]);
-      popLabel(`🎆 <b>${esc(name)}</b>`, new THREE.Vector3(SPOTS.registry[0] + 4, 17, SPOTS.registry[1] + 2).applyMatrix4(group.matrix), { secs: 5, rise: 4, cls: 'bl-name' });
-      log?.(`🎆 <b>${esc(name)}</b> just registered on Base`);
+      popLabel(`<b>${esc(name)}</b>`, new THREE.Vector3(SPOTS.registry[0] + 4, 17, SPOTS.registry[1] + 2).applyMatrix4(group.matrix), { secs: 5, rise: 4, cls: 'bl-name' });
+      log?.(`<b>${esc(name)}</b> just registered on Base`);
     }
     renderCards();
   }
   function whale(x) {
-    send(boat(GOLD, 1.9), [basinIn()], 9, { label: followLabel(`🐋 <b>${usd(x.usd)}</b> USDC`, 'bl-whale'), keep: 10 });
+    send(boat(GOLD, 1.9), [basinIn()], 9, { label: followLabel(`<b>${usd(x.usd)}</b> USDC`, 'bl-whale'), keep: 10 });
     pulse(SPOTS.bank[0], SPOTS.bank[1], GOLD);
-    log?.(`🐋 Whale on Base: <b>${usd(x.usd)} USDC</b> just moved <a href="https://basescan.org/tx/${x.tx}" target="_blank" rel="noopener">↗</a>`);
+    log?.(`Whale on Base: <b>${usd(x.usd)} USDC</b> just moved <a href="https://basescan.org/tx/${x.tx}" target="_blank" rel="noopener">↗</a>`);
   }
 
   // seconds between blocks, measured (2 s until Denim, 0.2 s since Nov 5 2026)
@@ -570,7 +570,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     if (!r.ok) throw new Error(j.error || 'Could not read that transaction');
     const name = (a) => (a && j.names?.[a]) || shortAddr(a || '');
     const what = j.usdc[0] ? `${usd(j.usdc[0].usd)} USDC` : j.eth ? `${eth(j.eth)} ETH` : `${int(j.logs)} events`;
-    const lbl = followLabel(`🚗 <b>Your tx</b> · ${esc(what)}<br><small>${esc(name(j.from))} → ${esc(j.to ? name(j.to) : 'new contract')}</small>`, 'bl-mine');
+    const lbl = followLabel(`<b>Your tx</b> · ${esc(what)}<br><small>${esc(name(j.from))} → ${esc(j.to ? name(j.to) : 'new contract')}</small>`, 'bl-mine');
     const car = truck(ORANGE, 1.5);
     send(car, [ROUTES.inbound, ROUTES.portBank, ROUTES.bankTower], 14, { label: lbl, keep: 20 });
     return { ...j, what, fromName: name(j.from), toName: j.to ? name(j.to) : 'a new contract' };

@@ -1,0 +1,7 @@
+node_modules
+contracts/node_modules
+dist
+clips
+docs/posters
+docs/deliveries
+.git

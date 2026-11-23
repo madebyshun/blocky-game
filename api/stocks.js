@@ -82,6 +82,19 @@ let last = null;
 export default async function handler(req, res) {
   // ?wallet=0x…|name.base.eth: that wallet's Coinbase stocks (Blocky Street's "your stocks, block by block")
   const q = req.query ?? Object.fromEntries(new URL(req.url, 'http://x').searchParams);
+  // ?list: fast Coinbase tokenized stock list (contracts + NAV) without waiting for 168h log scans
+  if (q.list !== undefined) {
+    try {
+      const list = await stockList();
+      res.setHeader('cache-control', 'public, s-maxage=300, stale-while-revalidate=600');
+      return res.status(200).json({
+        stocks: list.map(({ symbol, ticker, name, address, nav, navAt, multiplier, decimals, paused }) => ({ symbol, ticker, name, address, nav, navAt, multiplier, decimals, paused })),
+      });
+    } catch (e) {
+      res.setHeader('cache-control', 'no-store');
+      return res.status(502).json({ error: String(e.message || e) });
+    }
+  }
   // ?go=block|basket|city: a click out to Quadra (sent with sendBeacon, so a POST works too)
   if (q.go !== undefined) {
     if (GO_KINDS.includes(String(q.go))) { try { await goCount(String(q.go)); } catch { /* not counted */ } }

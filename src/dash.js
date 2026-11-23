@@ -27,7 +27,7 @@ function render(rec) {
   $('dm-src').textContent = d.source || '';
   const link = `${SITE}/dash.html?id=${rec.id}`;
   $('dm-share').href = `https://x.com/intent/post?text=${encodeURIComponent(`${d.title}: ${d.hero.value} ${d.hero.label}\n\nas a dashboard by @${CONFIG.xHandle || 'blockyonbase'}\n${link}`)}`;
-  $('dm-copy').onclick = async () => { try { await navigator.clipboard.writeText(link); $('dm-copy').textContent = 'Copied ✓'; } catch { prompt('Link', link); } };
+  $('dm-copy').onclick = async () => { try { await navigator.clipboard.writeText(link); $('dm-copy').textContent = 'Copied '; } catch { prompt('Link', link); } };
   history.replaceState(null, '', `?id=${rec.id}`);
 }
 

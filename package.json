@@ -14,6 +14,7 @@
     "@coinbase/wallet-sdk": "^4.4.0",
     "@coinbase/x402": "^2.1.0",
     "@opensea/sdk": "12.11.3",
+    "@privy-io/js-sdk-core": "^0.80.0",
     "@resvg/resvg-js": "^2.6.2",
     "buffer": "^6.0.3",
     "events": "^3.3.0",

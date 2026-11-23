@@ -111,7 +111,7 @@ async function vote(choice) {
     busy = false;
     await load();
     const label = state.round.choices.find((c) => c.id === choice)?.label || choice;
-    say(`Voted ✓ ${fmt(j.counted)} ${j.counted === 1 ? 'vote' : 'votes'} for <b>${esc(label)}</b>. ${CONFIG.xHandle ? `<a href="https://x.com/intent/tweet?text=${encodeURIComponent(`I voted for ${label} as the next build in ${CONFIG.cityName} 🏙 Holders of BaseCity Blockies pick what the city builds next. @${CONFIG.xHandle}\n${CONFIG.siteUrl || location.origin}/vote.html`)}" target="_blank" rel="noopener">Share on 𝕏 ↗</a>` : ''}`, 'ok');
+    say(`Voted ${fmt(j.counted)} ${j.counted === 1 ? 'vote' : 'votes'} for <b>${esc(label)}</b>. ${CONFIG.xHandle ? `<a href="https://x.com/intent/tweet?text=${encodeURIComponent(`I voted for ${label} as the next build in ${CONFIG.cityName} Holders of BaseCity Blockies pick what the city builds next. @${CONFIG.xHandle}\n${CONFIG.siteUrl || location.origin}/vote.html`)}" target="_blank" rel="noopener">Share on 𝕏 ↗</a>` : ''}`, 'ok');
   } catch (e) {
     busy = false;
     render();

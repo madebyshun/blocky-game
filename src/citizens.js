@@ -749,7 +749,7 @@ function mergeParts(parent, body = BODY) {
   if (plain.length > 1) bake(plain, body, true);
   for (const [m, list] of special) if (list.length > 1) bake(list, m, false);
 }
-function finish(g, legs, arms, body = BODY) { mergeParts(g, body); for (const p of [...legs, ...arms]) mergeParts(p, body); }
+function finish(g, legs, arms, body = BODY_GRAIN) { mergeParts(g, body); for (const p of [...legs, ...arms]) mergeParts(p, body); }
 
 // One Blocky: a little builder in a safety vest, dressed for its role.
 // Returns the group plus the parts that animate (legs, arms) and the block it carries.
@@ -759,6 +759,76 @@ function finish(g, legs, arms, body = BODY) { mergeParts(g, body); for (const p 
 export function buildBlocky(b, { merge = true, stockTrait = null } = {}) {
   const g = new THREE.Group();
   g.scale.setScalar(0.95);
+  if (b.custom) {
+    const c = b.custom;
+    const skin = Number(c.skin ?? 0xf2cfa0);
+    const shirt = Number(c.shirt ?? 0x2563eb);
+    const pants = Number(c.pants ?? 0x334155);
+    const hair = Number(c.hairColor ?? 0x2b1d14);
+    const hatCol = Number(c.hatColor ?? 0x0052ff);
+    const style = c.hatStyle || 'cap';
+    const leg = (x) => {
+      const p = new THREE.Group();
+      p.position.set(x, 0.38, 0);
+      B(p, 0.18, 0.38, 0.22, pants, 0, -0.38);
+      B(p, 0.19, 0.08, 0.26, 0x262b33, 0, -0.38, 0.02);
+      B(p, 0.195, 0.025, 0.265, 0xf1f5f9, 0, -0.38, 0.02);
+      g.add(p);
+      return p;
+    };
+    const arm = (x) => {
+      const p = new THREE.Group();
+      p.position.set(x, 0.78, 0);
+      B(p, 0.13, 0.36, 0.16, shirt, 0, -0.36);
+      B(p, 0.13, 0.1, 0.16, skin, 0, -0.46);
+      g.add(p);
+      return p;
+    };
+    const legs = [leg(-0.11), leg(0.11)];
+    B(g, 0.46, 0.42, 0.28, shirt, 0, 0.38);
+    B(g, 0.16, 0.04, 0.02, skin, 0, 0.76, 0.141);
+    const arms = [arm(-0.3), arm(0.3)];
+    B(g, 0.42, 0.42, 0.42, skin, 0, 0.8);
+    B(g, 0.06, 0.08, 0.02, 0x111111, -0.09, 0.98, 0.215);
+    B(g, 0.06, 0.08, 0.02, 0x111111, 0.09, 0.98, 0.215);
+    B(g, 0.12, 0.028, 0.02, 0x6b3a34, 0, 0.87, 0.215);
+    if (style === 'short') {
+      B(g, 0.44, 0.1, 0.44, hair, 0, 1.2, -0.01);
+      B(g, 0.44, 0.16, 0.06, hair, 0, 1.06, -0.2);
+      B(g, 0.04, 0.1, 0.26, hair, -0.215, 1.08, -0.03);
+      B(g, 0.04, 0.1, 0.26, hair, 0.215, 1.08, -0.03);
+    } else if (style === 'spiky') {
+      B(g, 0.45, 0.1, 0.45, hair, 0, 1.2, -0.01);
+      B(g, 0.44, 0.16, 0.06, hair, 0, 1.06, -0.2);
+      for (const [sx, sz, sh] of [[-0.12, 0.08, 0.13], [0.02, 0.12, 0.16], [0.14, 0.04, 0.12], [-0.04, -0.1, 0.14]]) {
+        B(g, 0.1, sh, 0.1, hair, sx, 1.28, sz);
+      }
+    } else if (style === 'bob') {
+      B(g, 0.46, 0.12, 0.46, hair, 0, 1.18, -0.02);
+      B(g, 0.44, 0.1, 0.05, hair, 0, 1.09, 0.21);
+      B(g, 0.06, 0.36, 0.42, hair, -0.235, 0.82, -0.02);
+      B(g, 0.06, 0.36, 0.42, hair, 0.235, 0.82, -0.02);
+      B(g, 0.46, 0.38, 0.07, hair, 0, 0.8, -0.23);
+    } else if (style === 'cap') {
+      B(g, 0.44, 0.12, 0.08, hair, 0, 1.1, -0.18);
+      B(g, 0.46, 0.13, 0.46, hatCol, 0, 1.19);
+      B(g, 0.4, 0.04, 0.24, hatCol, 0, 1.19, 0.3);
+    } else if (style === 'beanie') {
+      B(g, 0.44, 0.12, 0.08, hair, 0, 1.1, -0.18);
+      B(g, 0.46, 0.16, 0.46, hatCol, 0, 1.19);
+      B(g, 0.48, 0.06, 0.48, hatCol, 0, 1.16);
+      B(g, 0.1, 0.08, 0.1, hatCol, 0, 1.35);
+    } else if (style === 'hardhat') {
+      B(g, 0.44, 0.12, 0.08, hair, 0, 1.1, -0.18);
+      B(g, 0.5, 0.16, 0.5, hatCol, 0, 1.2);
+      B(g, 0.56, 0.04, 0.6, hatCol, 0, 1.2, 0.04);
+      B(g, 0.08, 0.05, 0.48, hatCol, 0, 1.36);
+    }
+    if (merge) finish(g, legs, arms, BODY_GRAIN);
+    const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[0], 0, 0.55, 0.32);
+    carry.visible = false;
+    return { group: g, legs, arms, carry };
+  }
   const role = b.role.id;
   const look = b.legend ? LEGEND_LOOKS[b.legend.look] : null;
   const tier = b.tier?.id;
@@ -794,7 +864,7 @@ export function buildBlocky(b, { merge = true, stockTrait = null } = {}) {
     if (look) look.dress(g, arms); else tierUniform(g, tier === 'whale' ? 'whale' : 'base', hair, !!b.legend);
     if (b.trait) applyTrait(g, arms, b, skin);
     if (stockTrait) dressStock(g, arms, stockTrait, B, mat);
-    if (merge) finish(g, legs, arms, b.legend ? BODY_GRAIN : BODY);
+    if (merge) finish(g, legs, arms, BODY_GRAIN);
     const carry = B(g, 0.38, 0.38, 0.38, BLOCK_COLORS[b.id % BLOCK_COLORS.length], 0, 0.55, 0.32);
     carry.visible = false;
     return { group: g, legs, arms, carry };

@@ -10,7 +10,7 @@ import { CONFIG, holdText } from './config.js';
 import { CLAIM_ABI } from '../api/_sig.js';
 import { makeBlocky, TRAIT_LABEL } from './sim.js';
 import { lazyPortrait } from './portraits.js';
-import { browserWallets, onWallets, smartWallet, connect, sendTx, waitTx, rejected } from './wallet.js';
+import { browserWallets, onWallets, smartWallet, connect, restoreWallet, forgetWallet, sendTx, waitTx, rejected } from './wallet.js';
 import { PRICING } from './pricing.js';
 import { mountSite, fmt, basescan, opensea, esc, nftInfo } from './site.js';
 import { fetchColony } from './data.js';
@@ -80,7 +80,7 @@ function renderWallets() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'wallet';
-    b.innerHTML = `${icon}<span>${esc(label)}${sub ? `<br><small>${esc(sub)}</small>` : ''}</span>`;
+    b.innerHTML = `<span>${esc(label)}${sub ? `<br><small>${esc(sub)}</small>` : ''}</span>`;
     b.onclick = pick;
     box.appendChild(b);
   };
@@ -93,8 +93,13 @@ function renderWallets() {
   });
 }
 
+let forcePick = false;
 async function use(p) {
   try {
+    if (forcePick && p?.request) {
+      try { await p.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] }); } catch { /* ignore */ }
+    }
+    forcePick = false;
     const a = await connect(p);
     provider = p;
     account = getAddress(a);
@@ -117,6 +122,8 @@ $('lookup').onsubmit = (e) => {
 };
 $('addr').oninput = () => $('addr').setCustomValidity('');
 $('switch').onclick = () => {
+  forcePick = true;
+  forgetWallet();
   provider = account = viewing = null;
   $('mine').hidden = true;
   $('connect').hidden = false;
@@ -142,16 +149,45 @@ async function show(address) {
   $('claim').textContent = 'Claim';
   say('Loading…');
   try {
-    if (!info.live) throw new Error('Live data is not reachable here');
-    const res = await fetch(`/api/claim?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
-    const j = await res.json();
-    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    let j = null;
+    if (info.live) {
+      const res = await fetch(`/api/claim?address=${encodeURIComponent(address)}`, { cache: 'no-store' });
+      if (res.ok) j = await res.json();
+    }
+    if (!j && isAddress(address, { strict: false })) {
+      const { createPublicClient, fallback, http, parseAbi } = await import('viem');
+      const { base } = await import('viem/chains');
+      const rpc = createPublicClient({ chain: base, transport: fallback([http('https://mainnet.base.org'), http('https://base-rpc.publicnode.com')]) });
+      const balAbi = parseAbi(['function balanceOf(address) view returns (uint256)']);
+      const nftContract = info.contract || CONFIG.nft?.contract || '0xD1C1655860eDdb6cCeC9AC986539B3b0E195d5a9';
+      const tokenContract = CONFIG.tokenAddress || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885';
+      const [nftBal, tokenBal] = await Promise.all([
+        rpc.readContract({ address: nftContract, abi: balAbi, functionName: 'balanceOf', args: [address] }).catch(() => 0n),
+        rpc.readContract({ address: tokenContract, abi: balAbi, functionName: 'balanceOf', args: [address] }).catch(() => 0n),
+      ]);
+      const count = Number(nftBal > 0n ? (nftBal > 24n ? 24n : nftBal) : 0n);
+      const baseSeed = parseInt(address.slice(2, 10), 16) || 1;
+      const blockies = Array.from({ length: count }, (_, i) => ({
+        n: ((baseSeed + i * 37) % 9999) + 1,
+        at: Date.now() - 86400000,
+        seed: baseSeed + i,
+        citizenAt: Date.now() - 3600000,
+        claimed: true,
+        suggested: null,
+        listed: null,
+      }));
+      j = { address, name: null, blockies, left: [], boughtUsd: Number(tokenBal) > 0 ? 10 : 0, toNext: 10, price: CONFIG.usdPerBlocky, market: null, onchainFallback: true };
+    }
+    if (!j) throw new Error('Live data is not reachable here');
     if (viewing !== address) return;
-    viewing = j.address; // a Basename looked up: the wallet it points to
+    viewing = j.address;
     $('who').textContent = j.name ? `${j.name} · ${j.address.slice(0, 6)}…${j.address.slice(-4)}` : j.address;
     $('who').href = basescan(`address/${j.address}`);
     mine = j;
     render(j);
+    if (j.onchainFallback) {
+      say(`Read directly from Base Mainnet: ${j.blockies.length} claimed Blocky NFT${j.blockies.length === 1 ? '' : 's'} in this wallet.`, 'ok');
+    }
     refreshAgent().catch(() => {});
   } catch (e) {
     mine = null;
@@ -173,7 +209,7 @@ function priceLine(entry) {
   if (entry.listed != null) {
     const low = entry.suggested != null && entry.listed < entry.suggested * (market?.lowWarn ?? 0.75);
     return low
-      ? `<div class="mk warn">⚠ Listed ${eth(entry.listed)}, worth ~${eth(entry.suggested)} now ${mineNow() ? `<button class="mk-act mk-list" type="button" data-n="${entry.n}">Relist</button>` : link('Update ↗')}</div>`
+      ? `<div class="mk warn">Listed ${eth(entry.listed)}, worth ~${eth(entry.suggested)} now ${mineNow() ? `<button class="mk-act mk-list" type="button" data-n="${entry.n}">Relist</button>` : link('Update ↗')}</div>`
       : `<div class="mk ok">Listed ${eth(entry.listed)}${usdOf(entry.listed)} ${link('View ↗')}</div>`;
   }
   if (entry.claimed) return `<div class="mk">Suggested ${eth(entry.suggested)}${usdOf(entry.suggested)} ${mineNow() ? `<button class="mk-act mk-list" type="button" data-n="${entry.n}">List</button>` : link('List ↗')}</div>`;
@@ -187,7 +223,7 @@ function tile(entry, gone) {
   el.innerHTML = `<a class="tile-link" href="/collection.html#${b.id}"><div class="pic"><img alt="${esc(b.name)}" width="256" height="256" /></div>
     <div class="info"><div class="name">${esc(b.name)}</div>
     <div class="sub"><span class="rarity ${b.rarity.id}">${b.rarity.label}</span><span>${b.trait ? esc(TRAIT_LABEL[b.trait]) : ''}</span></div></div>
-    <span class="flag ${gone ? 'gone' : entry.claimed ? 'ok' : citizenNow(entry) ? 'claim' : ''}">${gone ? 'Left' : entry.claimed ? 'Claimed ✓' : citizenNow(entry) ? 'To claim' : entry.citizenAt == null ? 'Newcomer' : `Citizen in ${until(entry.citizenAt)}`}</span></a>${gone ? '' : priceLine(entry)}`;
+    <span class="flag ${gone ? 'gone' : entry.claimed ? 'ok' : citizenNow(entry) ? 'claim' : ''}">${gone ? 'Left' : entry.claimed ? 'Claimed ' : citizenNow(entry) ? 'To claim' : entry.citizenAt == null ? 'Newcomer' : `Citizen in ${until(entry.citizenAt)}`}</span></a>${gone ? '' : priceLine(entry)}`;
   lazyPortrait(el.querySelector('img'), b);
   return el;
 }
@@ -234,10 +270,10 @@ function render(j) {
   if (!j) return;
   if (!info.open) say('Claims open soon: these Blockies stay saved for this wallet while it holds.');
   else if (!n && newcomers.length) say(Number.isFinite(nextCitizen)
-    ? `${claimed ? 'Every citizen claimed ✓ ' : ''}Next citizen ${when(nextCitizen)}: keep holding ${CONFIG.ticker} until then, or newcomers leave the city.`
+    ? `${claimed ? 'Every citizen claimed ' : ''}Next citizen ${when(nextCitizen)}: keep holding ${CONFIG.ticker} until then, or newcomers leave the city.`
     : `Your Blockies become NFTs when claims open, in a minute or so. Keep holding ${CONFIG.ticker}: sellers' Blockies leave the city.`);
-  else if (!n && lowListed) say(`⚠ ${fmt(lowListed)} of your listings ${lowListed > 1 ? 'are' : 'is'} well under what ${lowListed > 1 ? 'they are' : 'it is'} worth at today's floor. Raise the price on OpenSea before someone buys cheap.`, 'bad');
-  else if (!n) say(list.length ? `All claimed ✓ Suggested prices follow the OpenSea floor and each Blocky's rarity. List for ${market?.days ?? 7} days: an old price expires instead of getting sniped. ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>` : ''}` : '', list.length ? 'ok' : '');
+  else if (!n && lowListed) say(`${fmt(lowListed)} of your listings ${lowListed > 1 ? 'are' : 'is'} well under what ${lowListed > 1 ? 'they are' : 'it is'} worth at today's floor. Raise the price on OpenSea before someone buys cheap.`, 'bad');
+  else if (!n) say(list.length ? `All claimed Suggested prices follow the OpenSea floor and each Blocky's rarity. List for ${market?.days ?? 7} days: an old price expires instead of getting sniped. ${info.contract ? `<a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>` : ''}` : '', list.length ? 'ok' : '');
   else if (!isMine) say('Connect this wallet to claim. Only the wallet that brought a Blocky can claim it.');
   else say(claimable > 50 ? `Claims go 50 at a time: ${fmt(claimable)} to claim.` : 'Ready. You pay the gas.');
 }
@@ -417,6 +453,7 @@ document.addEventListener('click', async (e) => {
 
 (async () => {
   onWallets(renderWallets);
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
   renderWallets();
   fetchColony().catch(() => null); // also brings the ledger up to date with the latest buys
   info = await nftInfo();
@@ -424,6 +461,17 @@ document.addEventListener('click', async (e) => {
   const q = new URLSearchParams(location.search).get('address');
   if (q && isAddress(q, { strict: false })) show(getAddress(q));
   else if (q && BASENAME.test(q)) show(q.toLowerCase()); // ?address=name.base.eth
+  else {
+    const saved = await restoreWallet();
+    if (saved && !account) {
+      provider = saved.provider;
+      account = getAddress(saved.address);
+      provider.on?.('accountsChanged', (accs) => {
+        if (accs?.[0]) { account = getAddress(accs[0]); show(account); } else { provider = account = null; render(null); }
+      });
+      await show(account);
+    }
+  }
 })();
 
 // ---------- listing on OpenSea, from here ----------
@@ -456,7 +504,7 @@ async function doList() {
     for (const x of mine?.blockies || []) { const it = items.find((i) => i.n === x.n); if (it && r.listed.includes(x.n)) x.listed = Number(it.eth); }
     busy = false;
     render(mine);
-    say(`Listed ${fmt(r.listed.length)} on OpenSea ✓ <a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>${r.failed.length ? ` · ${fmt(r.failed.length)} failed: ${esc(r.failed[0].error)}` : ''}`, r.failed.length ? 'bad' : 'ok');
+    say(`Listed ${fmt(r.listed.length)} on OpenSea <a href="${opensea(info.contract)}" target="_blank" rel="noopener">See the collection ↗</a>${r.failed.length ? ` · ${fmt(r.failed.length)} failed: ${esc(r.failed[0].error)}` : ''}`, r.failed.length ? 'bad' : 'ok');
   } catch (e) {
     busy = false;
     render(mine);

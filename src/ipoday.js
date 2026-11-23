@@ -49,7 +49,7 @@ export function createIpoDay({ feed = '/api', log = () => {}, goTo = () => {} } 
   el.className = 'bl-panel ipo-panel';
   el.hidden = true;
   el.innerHTML = `
-    <div class="bl-ph"><b>🔔 IPO Day</b><button class="bl-x" title="Close">✕</button></div>
+    <div class="bl-ph"><b>IPO Day</b><button class="bl-x" title="Close">Close</button></div>
     <p class="bl-sub">A stock Coinbase listed on Base that BaseCity had never seen gets an empty lot and a crane the day it lands, and Blocky Street builds it live from its first real transfers.</p>
     <div class="ipo-list"></div>
     <p class="st-note">Read from Coinbase's public list (api.coinbase.com). Tokenized stocks aren't offered in the U.S. Not financial advice.</p>`;
@@ -70,7 +70,7 @@ export function createIpoDay({ feed = '/api', log = () => {}, goTo = () => {} } 
       return `<div class="ipo-row${live ? ' live' : ''}">
         <span class="ipo-tick">${esc(s.ticker)}</span>
         <span class="ipo-name">${esc(s.name || '')}</span>
-        <b>${live ? `🚧 crane up · ${left} h left` : when}</b>
+        <b>${live ? `crane up · ${left} h left` : when}</b>
         ${ago != null && ago < 24 * 30 ? `<small>seen ${ago < 1 ? 'just now' : `${ago} h ago`}</small>` : ''}
       </div>`;
     };
@@ -96,7 +96,7 @@ export function createIpoDay({ feed = '/api', log = () => {}, goTo = () => {} } 
       for (const t of announced) {
         if (prev.has(t)) continue;
         const s = S.rows.find((x) => x.ticker === t);
-        log(`🔔 <b>IPO DAY:</b> ${esc(s?.name || t)} just listed on Base. Blocky Street is breaking ground`);
+        log(`<b>IPO DAY:</b> ${esc(s?.name || t)} just listed on Base. Blocky Street is breaking ground`);
       }
       draw();
     } catch { /* the panel says it is reading */ }

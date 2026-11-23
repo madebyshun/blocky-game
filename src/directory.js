@@ -14,7 +14,7 @@ export function createDirectory({ sim, districts, minted, who, onPick, note = ()
   const el = document.createElement('aside');
   el.className = 'directory panel';
   el.hidden = true;
-  el.innerHTML = `<div class="dir-head"><h3>🏙 City directory <small id="dir-count"></small></h3><button type="button" class="dir-close" aria-label="Close">✕</button></div>
+  el.innerHTML = `<div class="dir-head"><h3>City directory <small id="dir-count"></small></h3><button type="button" class="dir-close" aria-label="Close">Close</button></div>
     <input id="dir-q" type="search" placeholder="Search a building, a district…" autocomplete="off" />
     <div class="dir-list" id="dir-list"></div>`;
   document.body.appendChild(el);
@@ -30,7 +30,7 @@ export function createDirectory({ sim, districts, minted, who, onPick, note = ()
     const building = new Set(sites.map((x) => x.p.type));
     for (const x of sites) {
       const pct = Math.min(99, Math.floor((x.placed / x.p.cost) * 100));
-      out.push({ group: 'site', name: x.p.name, sub: `🏗 ${pct}% built`, lot: x.p.lot, h: x.p.h || 2 });
+      out.push({ group: 'site', name: x.p.name, sub: `${pct}% built`, lot: x.p.lot, h: x.p.h || 2 });
     }
     const standing = new Set();
     for (const p of S.standing.values()) {
@@ -40,7 +40,7 @@ export function createDirectory({ sim, districts, minted, who, onPick, note = ()
       const n = note(p);
       if (p.kind === 'landmark') out.push({ group: p.brand ? 'avenue' : 'landmark', name: p.name, sub: n || (p.brand ? `Plot ${p.brand.plot} · ${p.brand.tagline || ''}` : names.get(regionOf(p.lot)) || ''), lot: p.lot, h: p.h });
       else if (p.kind === 'wonder') out.push({ group: 'whale', name: p.name, sub: p.whale?.lostAt < Infinity ? 'gone dark: for sale to the next whale' : `named after ${who(p.whale?.from) || 'a whale'}`, html: true, lot: p.lot, h: p.h });
-      else out.push({ type: p.type, group: `d:${regionOf(p.lot)}`, district: names.get(regionOf(p.lot)) || 'The outskirts', name: p.name, sub: ruin ? '🏚 abandoned' : n, lot: p.lot, h: p.h });
+      else out.push({ type: p.type, group: `d:${regionOf(p.lot)}`, district: names.get(regionOf(p.lot)) || 'The outskirts', name: p.name, sub: ruin ? 'abandoned' : n, lot: p.lot, h: p.h });
     }
     // Base Avenue plots still waiting for their HQ
     for (const l of LANDMARKS) {
@@ -62,11 +62,11 @@ export function createDirectory({ sim, districts, minted, who, onPick, note = ()
     const districtGroups = new Map();
     for (const it of items) if (it.group.startsWith('d:') && hit(it)) { const k = it.district; districtGroups.set(k, [...(districtGroups.get(k) || []), it]); }
     const parts = [
-      section('🏗 Under construction', by('site')),
-      section('🏛 Base Avenue', by('avenue').sort((a, b) => (a.soon - b.soon) || byName(a, b))),
+      section('Under construction', by('site')),
+      section('Base Avenue', by('avenue').sort((a, b) => (a.soon - b.soon) || byName(a, b))),
       section('⭐ Landmarks', by('landmark').sort(byName)),
-      section('🐋 Whale towers', by('whale').sort(byName)),
-      ...[...districtGroups.entries()].sort((a, b) => b[1].length - a[1].length).map(([name, list]) => section(`🏘 ${esc(name)}`, list.sort(byName), false)),
+      section('Whale towers', by('whale').sort(byName)),
+      ...[...districtGroups.entries()].sort((a, b) => b[1].length - a[1].length).map(([name, list]) => section(`${esc(name)}`, list.sort(byName), false)),
     ];
     $('dir-list').innerHTML = parts.join('') || `<p class="dir-empty">${q ? 'Nothing by that name.' : 'Nothing built yet.'}</p>`;
     $('dir-count').textContent = `${fmt(items.filter((it) => !it.soon && it.group !== 'site').length)} buildings`;

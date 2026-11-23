@@ -1,6 +1,6 @@
 /* The claim page (shared styles: site.css). */
 .claim { display: grid; gap: 16px; margin-top: 18px; }
-.claim h2 { margin: 0 0 12px; font: 400 24px/1.1 'Lilita One', Inter, sans-serif; letter-spacing: 0.01em; }
+.claim h2 { margin: 0 0 12px; font: 400 24px/1.1 'Silkscreen', Inter, sans-serif; letter-spacing: 0.01em; }
 .connect, .mine, .rules { padding: 18px; }
 .wallets { display: flex; flex-wrap: wrap; gap: 10px; }
 .wallet { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px 10px 10px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: var(--text); font: 800 15px Inter, system-ui, sans-serif; cursor: pointer; }

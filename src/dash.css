@@ -1,6 +1,6 @@
 /* dash.html: the dashboard maker. The board reuses the bento's look (src/basebento.css). */
 .dm-make { max-width: 760px; margin: 10px auto 26px; }
-.dm-make h1 { font: 400 40px/1.1 'Lilita One', Inter, sans-serif; margin: 0 0 6px; }
+.dm-make h1 { font: 400 40px/1.1 'Silkscreen', Inter, sans-serif; margin: 0 0 6px; }
 .dm-sub { color: var(--soft); margin: 0 0 14px; }
 #dm-form { display: grid; gap: 10px; }
 #dm-form input, #dm-form textarea { width: 100%; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font: 500 15px Inter, sans-serif; }
@@ -19,7 +19,7 @@
 .dm .c-closer { grid-area: closer; justify-content: space-between; }
 .dm .c-title { grid-area: title; }
 .dm-gallery { margin-top: 34px; }
-.dm-gallery h2 { font: 400 26px 'Lilita One', Inter, sans-serif; }
+.dm-gallery h2 { font: 400 26px 'Silkscreen', Inter, sans-serif; }
 .dm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
 .dm-list a { display: block; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; text-decoration: none; }
 .dm-list a b { display: block; } .dm-list a span { color: var(--muted); font-size: 13px; }

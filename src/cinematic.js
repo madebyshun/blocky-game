@@ -20,10 +20,10 @@ const FORMATS = [
   { label: '9:16', ratio: 9 / 16, name: 'story' },
 ];
 const LIGHTS = [
-  { label: '☀️ Live', phase: null, warm: 0 },
-  { label: '🌅 Golden hour', phase: 0.485, warm: 1 },
-  { label: '🌙 Night', phase: 0.78, warm: 0 },
-  { label: '🌤 Noon', phase: 0.25, warm: 0 },
+  { label: 'Live', phase: null, warm: 0 },
+  { label: 'Golden hour', phase: 0.485, warm: 1 },
+  { label: 'Night', phase: 0.78, warm: 0 },
+  { label: 'Noon', phase: 0.25, warm: 0 },
 ];
 const CLIPS = [10, 30, 60]; // clip lengths, in seconds
 const ease = (u) => u * u * (3 - 2 * u);
@@ -59,8 +59,8 @@ function shots(city, sim) {
     return true;
   };
   const siteUp = (s) => Math.min(1, s.site.placed / (s.site.p.cost || 1)) * shownH(s.site.p.h || 2); // how high it stands
-  const siteCaption = (label) => (s) => [`📹 ${label}`, `${s.site.p.name} · ${Math.min(99, Math.floor((s.site.placed / s.site.p.cost) * 100))}% built`];
-  const workerCaption = (label) => (s, v) => [v.b.name, `📹 ${label} · ${v.status}`];
+  const siteCaption = (label) => (s) => [`${label}`, `${s.site.p.name} · ${Math.min(99, Math.floor((s.site.placed / s.site.p.cost) * 100))}% built`];
+  const workerCaption = (label) => (s, v) => [v.b.name, `${label} · ${v.status}`];
   const sway = (u) => Math.sin(u * Math.PI * 2) * 0.06; // a fixed camera's slow pan
   return [
     { id: 'sitecam', label: 'Site cam', dur: 12, cam: true, caption: siteCaption('Site cam'), // up a pole down the street, looking at the site's front
@@ -100,7 +100,7 @@ function shots(city, sim) {
         o.look.set(s.c.x, 0, s.c.z);
         o.pivot = null; o.fov = 48; o.focus = false;
       } },
-    { id: 'vancam', label: 'DGUY van cam', dur: 16, cam: true, caption: () => ['📹 DGUY van cam', '$DGUY out for delivery in your area'], // on the roof of a Delivery Guy van, touring the city
+    { id: 'vancam', label: 'DGUY van cam', dur: 16, cam: true, caption: () => ['DGUY van cam', '$DGUY out for delivery in your area'], // on the roof of a Delivery Guy van, touring the city
       start: (s) => {
         const vans = (city.vans || []).filter((v) => v.mesh.visible);
         if (!vans.length) return false;
@@ -116,7 +116,7 @@ function shots(city, sim) {
         o.look.copy(m.position).addScaledVector(s.fwd, 10).setY(0.9);
         o.pivot = null; o.fov = 58; o.focus = false;
       } },
-    { id: 'jetcam', label: 'Jet cam', dur: 16, cam: true, caption: () => ['🚀 Jet cam', 'from the Launch Pad, over BaseCity'], // a jet car up the ramp, off its lip and over the city
+    { id: 'jetcam', label: 'Jet cam', dur: 16, cam: true, caption: () => ['Jet cam', 'from the Launch Pad, over BaseCity'], // a jet car up the ramp, off its lip and over the city
       start: (s) => {
         const cars = city.jetcars || [];
         if (!cars.length) return false;
@@ -373,10 +373,10 @@ export function createCinematic({ renderer, scene, city, controls, views, select
       <button type="button" data-act="next" title="Next shot">▶</button>
       <button type="button" data-act="light" title="Light"></button>
       <button type="button" data-act="format" title="Frame"></button>
-      <button type="button" data-act="photo" title="Save a photo">📸 Photo</button>
+      <button type="button" data-act="photo" title="Save a photo">Photo</button>
       <button type="button" data-act="len" title="Clip length"></button>
       <button type="button" data-act="rec" title="Record a clip, with the music">⏺ Record</button>
-      <button type="button" data-act="exit" title="Exit (Esc)">✕</button>
+      <button type="button" data-act="exit" title="Exit (Esc)">Close</button>
     </div>`);
   const overlay = el('canvas', 'cine-overlay');
   const recPill = el('button', 'cine-rec');
@@ -670,11 +670,11 @@ export function createCinematic({ renderer, scene, city, controls, views, select
     recorder.start(250);
     ui.hidden = true;
     recPill.hidden = false;
-    recPill.textContent = `● REC ${secs}s${sound.length ? ' ♪' : ''} · tap to stop`;
+    recPill.textContent = `● REC ${secs}s${sound.length ? ' ' : ''} · tap to stop`;
     st.rec.tick = setInterval(() => {
       if (!st.rec) return;
       st.rec.left -= 1;
-      recPill.textContent = `● REC ${st.rec.left}s${sound.length ? ' ♪' : ''} · tap to stop`;
+      recPill.textContent = `● REC ${st.rec.left}s${sound.length ? ' ' : ''} · tap to stop`;
       if (st.rec.left <= 0 && recorder.state === 'recording') recorder.stop();
     }, 1000);
   }
