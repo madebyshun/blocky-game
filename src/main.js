@@ -413,6 +413,7 @@ ipoBtn.onclick = () => { directory.close(); builderList.close(); baseLivePanel.c
   });
   if (qs.has('b10')) setTimeout(() => openBlocky10(qs.get('b10') || 'trade'), 1200); // ?b10=blocky|trade|basket
   if (qs.has('hq')) setTimeout(() => workHQ.open(qs.get('hq') || 'overview'), 1200); // ?hq=worker|overview
+  if (qs.has('launch')) setTimeout(() => launchpadUI.open(qs.get('launch') === 'market' ? 'market' : 'launch'), 1200); // ?launch=launch|market
 } // ?street: straight to Blocky Street
 
 // Top-bar City Wallet button & modal (connect once on Base to enter BaseCity, Play, Tasks & Stock Baskets)
@@ -1477,7 +1478,7 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   refreshTicker();
   welcomeBack();
   requestAnimationFrame(frame);
-  if (shouldResumePlayAfterPrivy()) play.enter();
+  if (shouldResumePlayAfterPrivy() || qs.has('play')) play.enter();
   else if (STREAM) startStream();
   else if (qs.get('film')) filmCast(qs.get('film'));
   else if (qs.get('shot')) { // ?shot=jetcam: straight into the film camera on that shot (for recording)

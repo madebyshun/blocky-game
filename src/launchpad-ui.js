@@ -85,10 +85,20 @@ const LAUNCH_V3_ABI = [
 ];
 
 const BASE_CRYPTO_QUOTES = [
+  { group: 'crypto', label: 'TOSHI · Toshi', symbol: 'TOSHI', address: '0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4', decimals: 18, defaultAmt: '10000', usdHint: 0.0004 },
   { group: 'crypto', label: 'USDC · USD Coin', symbol: 'USDC', address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6, defaultAmt: '5', usdHint: 1 },
   { group: 'crypto', label: 'cbBTC · Coinbase Wrapped BTC', symbol: 'cbBTC', address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf', decimals: 8, defaultAmt: '0.0001', usdHint: 90000 },
-  { group: 'crypto', label: 'AERO · Aerodrome', symbol: 'AERO', address: '0x940181a94A35A4569E4529A3CDfB74e38FD98631', decimals: 18, defaultAmt: '5', usdHint: 1.2 },
+  { group: 'crypto', label: 'cbETH · Coinbase Wrapped Staked ETH', symbol: 'cbETH', address: '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22', decimals: 18, defaultAmt: '0.002', usdHint: 3000 },
+  { group: 'crypto', label: 'AERO · Aerodrome Finance', symbol: 'AERO', address: '0x940181a94A35A4569E4529A3CDfB74e38FD98631', decimals: 18, defaultAmt: '5', usdHint: 1.2 },
   { group: 'crypto', label: 'VIRTUAL · Virtuals Protocol', symbol: 'VIRTUAL', address: '0x0b3e328455c4059EEb9e3f84b5543F74E24e7E1b', decimals: 18, defaultAmt: '5', usdHint: 1.5 },
+  { group: 'crypto', label: 'VVV · Venice Token', symbol: 'VVV', address: '0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf', decimals: 18, defaultAmt: '2', usdHint: 3 },
+  { group: 'crypto', label: 'CLANKER · tokenbot', symbol: 'CLANKER', address: '0x1bc0c42215582d5A085795f4baDbaC3ff36d1Bcb', decimals: 18, defaultAmt: '0.2', usdHint: 40 },
+  { group: 'crypto', label: 'BNKR · BankrCoin', symbol: 'BNKR', address: '0x22aF33FE49fD1Fa80c7149773dDe5890D3c76F3b', decimals: 18, defaultAmt: '10000', usdHint: 0.0005 },
+  { group: 'crypto', label: 'MORPHO · Morpho', symbol: 'MORPHO', address: '0xBAa5CC21fd487B8Fcc2F632f3F4E8D37262a0842', decimals: 18, defaultAmt: '3', usdHint: 1.8 },
+  { group: 'crypto', label: 'EURC · EURC', symbol: 'EURC', address: '0x60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42', decimals: 6, defaultAmt: '5', usdHint: 1.08 },
+  { group: 'crypto', label: 'DEGEN · Degen', symbol: 'DEGEN', address: '0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed', decimals: 18, defaultAmt: '1000', usdHint: 0.005 },
+  { group: 'crypto', label: 'ZORA · Zora', symbol: 'ZORA', address: '0x1111111111166b7FE7bd91427724B487980aFc69', decimals: 18, defaultAmt: '500', usdHint: 0.01 },
+  { group: 'crypto', label: 'BRETT · Brett', symbol: 'BRETT', address: '0x532f27101965dd16442E59d40670FaF5eBB142E4', decimals: 18, defaultAmt: '100', usdHint: 0.05 },
   { group: 'crypto', label: 'QUADRA · Quadra', symbol: 'QUADRA', address: '0xb200000000000000000000d096efba9896ab0816', decimals: 18, defaultAmt: '100', usdHint: 0.05 },
 ];
 
@@ -449,7 +459,16 @@ export function createLaunchpadUI({ onLaunched, onFlyTo } = {}) {
       enBtn.onclick = async () => {
         try {
           enBtn.disabled = true;
-          const tick = calcStartTick(15000, q.usdHint || 1, q.decimals || 18);
+          let liveUsd = q.usdHint || 1;
+          try {
+            const dr = await fetch(`https://api.dexscreener.com/tokens/v1/base/${q.address}`);
+            if (dr.ok) {
+              const dj = await dr.json();
+              const top = Array.isArray(dj) ? dj.sort((a, b) => Number(b.liquidity?.usd || 0) - Number(a.liquidity?.usd || 0))[0] : null;
+              if (Number(top?.priceUsd) > 0) liveUsd = Number(top.priceUsd);
+            }
+          } catch { /* fallback to usdHint */ }
+          const tick = calcStartTick(15000, liveUsd, q.decimals || 18);
           setMsg(`Confirm enabling <b>${esc(q.symbol)}</b> pair in wallet...`);
           const data = encodeFunctionData({
             abi: LAUNCH_V3_ABI,
