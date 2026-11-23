@@ -1631,36 +1631,45 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
 
   const snapRoad = (v) => Math.round((v - PITCH / 2) / PITCH) * PITCH + PITCH / 2;
 
+  // Rounded-corner box check: bevels sharp 90-deg lot corners so turning left/right glides smoothly onto cross-streets
+  function inRoundedBox(dx, dz, hw, hd, r = 0.62) {
+    if (dx >= hw || dz >= hd) return false;
+    const cx = Math.max(0, dx - (hw - r));
+    const cz = Math.max(0, dz - (hd - r));
+    return (cx * cx + cz * cz) < (r * r);
+  }
+
   function hitsSolidBox(x, z, checkMode = mode) {
     const s = sim?.();
     const ci = Math.round(x / PITCH);
     const cj = Math.round(z / PITCH);
     const isCar = checkMode === 'car';
-    const pad = isCar ? 0.46 : 0.38;
+    const pad = isCar ? 0.36 : 0.36;
+    const bevel = isCar ? 0.68 : 0.45;
     for (let di = -1; di <= 1; di++) {
       for (let dj = -1; dj <= 1; dj++) {
         const i = ci + di, j = cj + dj;
         const dx = Math.abs(x - i * PITCH), dz = Math.abs(z - j * PITCH);
         if (dx > 3.55 || dz > 3.55) continue;
-        if (isWater(i, j) && dx < 3.05 && dz < 3.05) return true;
+        if (isWater(i, j) && inRoundedBox(dx, dz, 3.02, 3.02, bevel)) return true;
         const key = `${i},${j}`;
         if ((s?.blOpen && BASELIVE_LOTS.has(key)) || (s?.stOpen && STOCKS_LOTS.has(key))) {
-          if (isCar && dx < 3.12 && dz < 3.12) return true;
+          if (isCar && inRoundedBox(dx, dz, 3.04, 3.04, bevel)) return true;
           continue;
         }
         const p = s?.standing?.get(key);
         if (p) {
           if (isCar) {
-            // Keep cars cleanly on asphalt roads (skip only Town Square) so they never snag on park trees or poles
-            if (p.type !== 'square' && dx < 3.16 && dz < 3.16) return true;
+            // Keep cars cleanly on asphalt roads (skip only Town Square) with beveled corners for smooth turns
+            if (p.type !== 'square' && inRoundedBox(dx, dz, 3.06, 3.06, bevel)) return true;
           } else if (!OPEN_LOTS.has(p.type)) {
-            const hw = Math.min(3.26, ((p.w || 5.4) / 2) + pad);
-            const hd = Math.min(3.26, ((p.d || 5.4) / 2) + pad);
-            if (dx < hw && dz < hd) return true;
+            const hw = Math.min(3.22, ((p.w || 5.4) / 2) + pad);
+            const hd = Math.min(3.22, ((p.d || 5.4) / 2) + pad);
+            if (inRoundedBox(dx, dz, hw, hd, bevel)) return true;
           }
         }
         if (s?.sites?.some((st) => st.p?.lot && st.p.lot[0] === i && st.p.lot[1] === j)) {
-          if (dx < 3.26 && dz < 3.26) return true;
+          if (inRoundedBox(dx, dz, 3.16, 3.16, bevel)) return true;
         }
       }
     }
@@ -2136,10 +2145,28 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       const nx = THREE.MathUtils.clamp(pos.x + mx * speedCur * dt, -lim, lim);
       const nz = THREE.MathUtils.clamp(pos.z + mz * speedCur * dt, -lim, lim);
 
-      const movedX = canMoveTo(pos.x, pos.z, nx, pos.z);
+      let movedX = canMoveTo(pos.x, pos.z, nx, pos.z);
       if (movedX) pos.x = nx;
-      const movedZ = canMoveTo(pos.x, pos.z, pos.x, nz);
+      let movedZ = canMoveTo(pos.x, pos.z, pos.x, nz);
       if (movedZ) pos.z = nz;
+      // Smooth corner-slide assist: when turning left/right slightly early near a building corner, glide smoothly onto the cross-street
+      const slideStep = speedCur * dt * 0.9;
+      if (!movedX && Math.abs(mx) > 0.25) {
+        const rz = snapRoad(pos.z);
+        const dzRoad = rz - pos.z;
+        if (Math.abs(dzRoad) > 0.04 && Math.abs(dzRoad) < 1.85) {
+          const sz = pos.z + Math.sign(dzRoad) * Math.min(Math.abs(dzRoad), slideStep);
+          if (canMoveTo(pos.x, pos.z, pos.x, sz)) { pos.z = sz; movedZ = true; }
+        }
+      }
+      if (!movedZ && Math.abs(mz) > 0.25) {
+        const rx = snapRoad(pos.x);
+        const dxRoad = rx - pos.x;
+        if (Math.abs(dxRoad) > 0.04 && Math.abs(dxRoad) < 1.85) {
+          const sx = pos.x + Math.sign(dxRoad) * Math.min(Math.abs(dxRoad), slideStep);
+          if (canMoveTo(pos.x, pos.z, sx, pos.z)) { pos.x = sx; movedX = true; }
+        }
+      }
       if (!movedX && !movedZ) {
         pushOutIfStuck(false);
         if (navGoal) {

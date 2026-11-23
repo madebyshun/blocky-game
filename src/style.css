@@ -422,7 +422,7 @@ body.photo .directory, body.cine .directory, body.photo .dir-btn, body.cine .dir
 .bl-cta { color: #9aa6b8; margin-top: 12px; margin-bottom: 0; }
 .bl-cta a { color: #7db1ff; font-weight: 700; text-decoration: none; }
 .bl-cta a:hover { text-decoration: underline; }
-body.cine .bl-layer, body.cine .bl-panel { display: none; }
+body.cine .bl-layer, body.cine .bl-panel, body.play .bl-layer { display: none !important; }
 @media (max-width: 700px) { /* phones: each card shows its one headline number */
   .bl-card { min-width: 0; max-width: 170px; font-size: 11px; padding: 6px 9px; border-radius: 11px; }
   .bl-head { margin-bottom: 2px; gap: 6px; } .bl-head b { font-size: 11.5px; } .bl-ico { width: 22px; height: 22px; font-size: 12px; }

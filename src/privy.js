@@ -10,9 +10,13 @@ let msgListener = null;
 let oauthCallbackPromise = null;
 let lastPrivyError = '';
 
+function cleanEnv(val) {
+  return String(val || '').trim().replace(/^['"]+|['"]+$/g, '').trim();
+}
+
 function getPrivyConfig() {
-  const appId = (import.meta.env?.VITE_PRIVY_APP_ID || '').trim();
-  const clientId = (import.meta.env?.VITE_PRIVY_CLIENT_ID || '').trim();
+  const appId = cleanEnv(import.meta.env?.VITE_PRIVY_APP_ID);
+  const clientId = cleanEnv(import.meta.env?.VITE_PRIVY_CLIENT_ID);
   return { appId, clientId };
 }
 
@@ -40,6 +44,9 @@ async function ensurePrivy() {
   const { appId, clientId } = getPrivyConfig();
   if (!appId) {
     throw new Error('Privy is not configured yet. Add VITE_PRIVY_APP_ID to .env and restart Vite.');
+  }
+  if (clientId && !clientId.startsWith('client-')) {
+    throw new Error('Invalid VITE_PRIVY_CLIENT_ID format (must start with "client-", copied from Privy Dashboard -> Settings -> Clients).');
   }
   if (privyClient) return privyClient;
   if (initPromise) return initPromise;
