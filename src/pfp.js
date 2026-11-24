@@ -18,7 +18,7 @@ export function pfpColor(b) {
   return TIER_BG[b.tier?.id] || PALETTE[Math.floor(hash(b.id, 21) * PALETTE.length)];
 }
 
-let renderer, scene, camera;
+let renderer, scene, camera, fill, keyLight, rimLight;
 function setup() {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
@@ -27,12 +27,12 @@ function setup() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.06;
   scene = new THREE.Scene();
-  scene.add(new THREE.HemisphereLight(0xfff9f0, 0x8f8270, 2.1));
-  const key = new THREE.DirectionalLight(0xfff1dc, 2.2);
-  key.position.set(2.5, 3.5, 4);
-  const rim = new THREE.DirectionalLight(0xbfd4ff, 1.15);
-  rim.position.set(-3, 2, -2);
-  scene.add(key, rim);
+  fill = new THREE.HemisphereLight(0xfff9f0, 0x8f8270, 2.1);
+  keyLight = new THREE.DirectionalLight(0xfff1dc, 2.2);
+  keyLight.position.set(2.5, 3.5, 4);
+  rimLight = new THREE.DirectionalLight(0xbfd4ff, 1.15);
+  rimLight.position.set(-3, 2, -2);
+  scene.add(fill, keyLight, rimLight);
   camera = new THREE.PerspectiveCamera(20, 1, 0.1, 50);
 }
 
@@ -40,23 +40,29 @@ const cache = new Map();
 
 // Returns a PNG data URL. `mark` adds a small BaseCity tag in the corner. `full`: head to toe instead of
 // from the chest up; `transparent`: no background.
-export function renderPfp(b, { size = 1024, mark = true, full = false, transparent = false } = {}) {
+export function renderPfp(b, { size = 1024, mark = true, full = false, transparent = false, studio = false, fixed = false } = {}) {
   const cKey = b.custom ? JSON.stringify(b.custom) : '';
-  const key = `${b.id}|${b.legendIdx ?? -1}|${cKey}|${size}|${mark}|${full}|${transparent}`;
+  const key = `${b.id}|${b.legendIdx ?? -1}|${cKey}|${size}|${mark}|${full}|${transparent}|${studio}|${fixed}`;
   if (cache.has(key)) return cache.get(key);
   if (!renderer) setup();
   renderer.setSize(size, size, false);
+  // Studio portraits use more directional light to make voxel edges and accessories legible.
+  fill.intensity = studio ? 1.55 : 2.1;
+  keyLight.intensity = studio ? 2.65 : 2.2;
+  rimLight.intensity = studio ? 1.55 : 1.15;
 
   const { group } = buildBlocky(b);
   group.scale.setScalar(1);
-  group.rotation.y = 0.42;
+  group.rotation.y = studio ? 0.25 : 0.42;
   scene.add(group);
-  // frame from the chest (or the feet) up to the top of whatever the Blocky wears
-  const box = new THREE.Box3().setFromObject(group);
-  const top = box.max.y + 0.06, bottom = full ? box.min.y - 0.04 : 0.34;
-  const span = (top - bottom) * (full ? 1.16 : 1.12), cy = (top + bottom) / 2 + 0.02;
+  // frame from the chest (or the feet) up to the top of whatever the Blocky wears (or fixed bounds when swapping gear)
+  const box = fixed ? null : new THREE.Box3().setFromObject(group);
+  const top = fixed ? 1.66 : box.max.y + 0.06;
+  const bottom = fixed ? (full ? -0.04 : 0.34) : (full ? box.min.y - 0.04 : 0.34);
+  const span = Math.max((top - bottom) * (full ? 1.16 : 1.12), studio && box ? (box.max.x - box.min.x) * 1.22 : 0);
+  const cy = (top + bottom) / 2 + 0.02;
   const dist = span / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  camera.position.set(0, cy + dist * 0.12, dist);
+  camera.position.set(0, cy + dist * (studio ? 0.045 : 0.12), dist);
   camera.lookAt(0, cy, 0);
   renderer.render(scene, camera);
   scene.remove(group);
@@ -97,9 +103,9 @@ export function paintBackground(g, b, w, h = w) {
   g.globalAlpha = 1;
 }
 
-export function downloadPfp(b, name) {
+export function downloadPfp(b, name, options) {
   const a = document.createElement('a');
-  a.href = renderPfp(b, { size: 1024 });
+  a.href = renderPfp(b, { size: 1024, ...options });
   a.download = `basecity-${(name || b.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.png`;
   document.body.appendChild(a);
   a.click();

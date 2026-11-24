@@ -13,6 +13,17 @@ import { BASE_USDC, fetchBaseStocks, getWalletStockBalances, getTokenBalanceRaw,
 import { fetchCityTasks } from './city-tasks.js';
 import { toBase } from './wallet.js';
 import { itemSprite, itemIcon } from './items.js';
+import { renderPfp } from './pfp.js';
+
+export const OG_MEME_ITEMS = [
+  { id: 'none', name: 'None (Default)', token: 'Default', skill: 'Standard Builder', type: 'none', desc: 'Standard BaseCity Default Builder with no OG Meme skill equipped.', badge: 'DEFAULT', color: '#94a3b8' },
+  { id: 'toshi', name: 'Toshi Hood', token: '$TOSHI', skill: 'Meow Yield', type: 'passive', desc: '+20% Silicon & AI Chips yield at River Quarry and Chip Fab.', badge: '+20% YIELD', color: '#1f6fff' },
+  { id: 'degen', name: 'Degen Top Hat', token: '$DEGEN', skill: 'Tipping Aura', type: 'passive', desc: '+25% Citizen XP on all actions & rank progression.', badge: '+25% XP', color: '#8b5cf6' },
+  { id: 'doginme', name: 'doginme Gear', token: '$DOGINME', skill: 'Got That Dog', type: 'active', cdMs: 90000, durMs: 20000, desc: 'Active (Key 7 / 20s · 90s CD): +35% Move Speed & -1.0s Quarry cooldown.', badge: 'ACTIVE · SPD', color: '#ef4444' },
+  { id: 'ayb', name: 'AYB 8-Bit Visor', token: '$AYB', skill: 'All Your Silicon', type: 'active', cdMs: 120000, desc: 'Active (Key 7 / 120s CD): Next Quarry mine or Chip Fab craft costs 0 Energy & gives 2x yield.', badge: 'ACTIVE · 2X', color: '#f59e0b' },
+  { id: 'baes', name: 'BAES Arcade Cap', token: '$BAES', skill: '8-Bit Overclock', type: 'passive', desc: '-2 Energy cost per Quarry mine & -20% Solar Grid cooldown (5m -> 4m).', badge: '-2 EN · -20% CD', color: '#e11d48' },
+  { id: 'kibble', name: 'Kibble Cat Beanie', token: '$KIBBLE', skill: 'Cozy Regen', type: 'passive', desc: '+3 Energy/min passive regen & +15 Max Energy cap.', badge: '+3 EN/M · +15 CAP', color: '#6178a8' },
+];
 
 const BLOCKY_ADDR = CONFIG.tokenAddress || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885';
 const BASECITY_ADDR = CONFIG.flywheel?.basecityToken || '0xB2000000000000000000003577e92f1D4122a1D1';
@@ -169,6 +180,9 @@ function defaultState() {
     consumables: { 'gm-espresso': 2, 'overclock-core': 1, 'warp-beacon': 1 },
     espressoUntil: 0,
     overclockReady: false,
+    memeSkillUntil: 0,
+    memeSkillCdAt: 0,
+    aybChargeReady: false,
     plot: {
       claimed: false,
       name: 'My BaseCity HQ',
@@ -257,11 +271,12 @@ function makeBillboardLabel(text) {
   return tex;
 }
 
-export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenTier, onOpenAction, onTravelTo, onTeleportTo, onOpenLocker, onStateChange }) {
+export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenTier, getMemeItem, getCustomAvatar, onEquipMemeItem, onOpenAction, onTravelTo, onTeleportTo, onOpenLocker, onStateChange }) {
   let state = defaultState();
   let stateKey = 'basecity:rpg:visitor';
   let walletStocks = [];
   let balances = { usdc: 0, eth: 0, blocky: 0, basecity: 0 };
+  let phoneWallet = null;
   let buffs = computeStockBuffs([]);
   let plotBuffs = computePlotBuffs({});
   let liveNewsCache = null;
@@ -405,9 +420,29 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
     onStateChange?.();
   }
 
+  function currentMemeId() {
+    return getMemeItem?.() || 'none';
+  }
+
+  function currentMemeDef() {
+    const id = currentMemeId();
+    return OG_MEME_ITEMS.find((x) => x.id === id) || OG_MEME_ITEMS[0];
+  }
+
+  function memeSkillActive() {
+    return currentMemeId() === 'doginme' && (state.memeSkillUntil || 0) > Date.now();
+  }
+
+  function memeSkillCdRemaining() {
+    const def = currentMemeDef();
+    if (def.type !== 'active' || !def.cdMs) return 0;
+    return Math.max(0, def.cdMs - (Date.now() - (state.memeSkillCdAt || 0)));
+  }
+
   function addXp(baseAmt) {
     const prevLv = levelFromXp(state.xp).level;
-    const gain = Math.max(1, Math.round(baseAmt * (1 + plotBuffs.xpBonus)));
+    const degenMult = currentMemeId() === 'degen' ? 1.25 : 1;
+    const gain = Math.max(1, Math.round(baseAmt * (1 + plotBuffs.xpBonus) * degenMult));
     state.xp = (Number(state.xp) || 0) + gain;
     const nextLv = levelFromXp(state.xp).level;
     if (nextLv > prevLv) {
@@ -449,13 +484,15 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
   }
 
   function maxEnergyCap() {
-    return 100 + ((state.tools.batteryLv - 1) * 40) + buffs.bonusEnergy + plotBuffs.maxEnergyBonus;
+    const kibbleCap = currentMemeId() === 'kibble' ? 15 : 0;
+    return 100 + ((state.tools.batteryLv - 1) * 40) + buffs.bonusEnergy + plotBuffs.maxEnergyBonus + kibbleCap;
   }
 
   function rechargeEnergy() {
     const cap = maxEnergyCap();
     state.maxEnergy = cap;
-    const ratePerMin = 2 + plotBuffs.energyRegenBonus;
+    const kibbleRegen = currentMemeId() === 'kibble' ? 3 : 0;
+    const ratePerMin = 2 + plotBuffs.energyRegenBonus + kibbleRegen;
     const elapsedMin = Math.max(0, (Date.now() - (state.lastEnergyAt || Date.now())) / 60000);
     if (elapsedMin >= 1 && state.energy < cap) {
       const gain = Math.floor(elapsedMin * ratePerMin);
@@ -577,6 +614,7 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
     const { account } = getWallet();
     loadState(account);
     if (!account) {
+      phoneWallet = null;
       walletStocks = [];
       balances = { usdc: 0, eth: 0, blocky: 0, basecity: 0 };
       buffs = computeStockBuffs([]);
@@ -586,11 +624,13 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
       const [remoteRes, allStocks, usdc, eth, blocky, basecity] = await Promise.all([
         fetch(`/api/rpg-state?address=${encodeURIComponent(account)}`, { cache: 'no-store', signal: AbortSignal.timeout(5000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetchBaseStocks().catch(() => []),
-        getTokenBalanceRaw(BASE_USDC, account, 6).catch(() => ({ balance: 0 })),
-        getNativeEthBalance(account).catch(() => ({ balance: 0 })),
-        getTokenBalanceRaw(BLOCKY_ADDR, account, 18).catch(() => ({ balance: 0 })),
-        getTokenBalanceRaw(BASECITY_ADDR, account, 18).catch(() => ({ balance: 0 })),
+        getTokenBalanceRaw(BASE_USDC, account, 6).catch(() => ({ unavailable: true })),
+        getNativeEthBalance(account).catch(() => ({ unavailable: true })),
+        getTokenBalanceRaw(BLOCKY_ADDR, account, 18).catch(() => ({ unavailable: true })),
+        getTokenBalanceRaw(BASECITY_ADDR, account, 18).catch(() => ({ unavailable: true })),
       ]);
+
+      if (getWallet().account !== account) return;
 
       // Merge remote cloud save (preserves USDC receipts & higher progression across devices)
       if (remoteRes?.state && typeof remoteRes.state === 'object') {
@@ -619,7 +659,14 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
         lastSyncedAt = Date.now();
       }
 
-      walletStocks = allStocks.length ? await getWalletStockBalances(allStocks, account).catch(() => []) : [];
+      const holdings = allStocks.length ? await getWalletStockBalances(allStocks, account).catch(() => []) : [];
+      if (getWallet().account !== account) return;
+      walletStocks = holdings;
+      phoneWallet = {
+        account, stocks: holdings,
+        ...Object.fromEntries(Object.entries({ usdc, eth, blocky, basecity }).map(([key, value]) =>
+          [key, value?.unavailable ? null : value?.balance ?? null])),
+      };
       balances = {
         usdc: Number(usdc?.balance || 0),
         eth: Number(eth?.balance || 0),
@@ -650,6 +697,7 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
       </div>
       <div class="lp-seg" style="margin-top:12px" id="gmu-tabs">
         <button type="button" class="lp-seg-btn on" data-utab="overview">${itemIcon('coin-usdc', 15)} Portfolio</button>
+        <button type="button" class="lp-seg-btn" data-utab="og_skills">OG Skills</button>
         <button type="button" class="lp-seg-btn" data-utab="stocks_perks">${itemIcon('stock-cert', 15)} Stocks &amp; Perks</button>
         <button type="button" class="lp-seg-btn" data-utab="inventory">${itemIcon('chips', 15)} Craft</button>
         <button type="button" class="lp-seg-btn" data-utab="passport">${itemIcon('stamp-lit', 15)} Passport</button>
@@ -676,7 +724,9 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
     if (userTab === 'overview') {
       const stocksUsd = walletStocks.reduce((sum, s) => sum + (Number(s.balance || 0) * Number(s.nav || 0)), 0);
       const buffIcon = (lbl) => (lbl.includes('AI') || lbl.includes('Yield') || lbl.includes('Silicon') ? 'buff-ai' : lbl.includes('Speed') ? 'buff-speed' : 'buff-cap');
-      const allBuffLabels = [...buffs.labels, ...plotBuffs.labels];
+      const memeDef = currentMemeDef();
+      const memeBuffLabel = memeDef.id !== 'none' ? [`OG ${memeDef.token}: ${memeDef.skill} (${memeDef.badge})`] : [];
+      const allBuffLabels = [...memeBuffLabel, ...buffs.labels, ...plotBuffs.labels];
       const walletBarHtml = account
         ? `<div class="gmu-wallet-bar">
             <div class="gmu-w-info">
@@ -729,6 +779,71 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
       body.querySelector('#gmu-go-trade').onclick = () => { userWrap.hidden = true; onOpenAction?.('trade'); };
       body.querySelector('#gmu-go-char').onclick = () => { const prev = userBack; userWrap.hidden = true; onOpenLocker?.(() => openUser('overview', prev)); };
       body.querySelector('#gmu-go-plot').onclick = () => { const prev = userBack; userWrap.hidden = true; openPlotStudio(() => openUser('overview', prev)); };
+      return;
+    }
+
+    if (userTab === 'og_skills') {
+      const memeDef = currentMemeDef();
+      const cdMs = memeSkillCdRemaining();
+      const activeOn = memeSkillActive();
+      const aybReady = currentMemeId() === 'ayb' && state.aybChargeReady;
+      const avatarCfg = getCustomAvatar?.() || { name: 'Default Builder', skin: 0xf2cfa0, hatStyle: 'cap', hatColor: 0x0052ff, hairColor: 0x2b1d14, shirt: 0x2563eb, pants: 0x1e293b, memeItem: memeDef.id };
+      const triggerLabel = memeDef.type !== 'active'
+        ? 'PASSIVE SKILL ALWAYS ON'
+        : activeOn
+          ? `ACTIVE (${Math.ceil((state.memeSkillUntil - Date.now()) / 1000)}s)`
+          : aybReady
+            ? '2X CHARGE ARMED'
+            : cdMs > 0
+              ? `COOLDOWN ${fmtCooldown(cdMs)}`
+              : 'Trigger Active Skill (Key 7)';
+      body.innerHTML = `
+        <div class="og-hero">
+          <div class="og-hero-pfp"><img id="og-pfp-img" alt="${esc(memeDef.name)}" /></div>
+          <div class="og-hero-meta">
+            <div class="og-hero-top">
+              <b>${esc(memeDef.name)}</b>
+              <span class="og-pill" style="border-color:${esc(memeDef.color)};color:${esc(memeDef.color)}">${esc(memeDef.token)} · ${esc(memeDef.badge)}</span>
+            </div>
+            <div class="og-skill-line">Skill: <b>${esc(memeDef.skill)}</b> — ${esc(memeDef.desc)}</div>
+            <div class="og-hero-acts">
+              <button type="button" class="btn primary small-pill" id="og-trigger-btn" ${memeDef.type !== 'active' || activeOn || aybReady || cdMs > 0 ? 'disabled' : ''}>${esc(triggerLabel)}</button>
+              <button type="button" class="btn small-pill" id="og-open-locker">Customize Gear (C)</button>
+            </div>
+          </div>
+        </div>
+        <div class="gm-sec-title">OG BASE MEME GEAR &amp; USER SKILLS (EQUIP LIVE ON DEFAULT BUILDER)</div>
+        <div class="og-grid">${OG_MEME_ITEMS.map((item) => {
+          const eq = item.id === memeDef.id;
+          return `<div class="og-card${eq ? ' on' : ''}">
+            <div class="og-card-top">
+              <div>
+                <b>${esc(item.name)}</b>
+                <small style="color:${esc(item.color)}">${esc(item.token)} · ${esc(item.skill)}</small>
+              </div>
+              <span class="og-badge">${esc(item.badge)}</span>
+            </div>
+            <p>${esc(item.desc)}</p>
+            <button type="button" class="gm-poi-open" data-equip-meme="${esc(item.id)}" ${eq ? 'disabled' : ''}>${eq ? 'Equipped' : 'Equip Gear & Skill'}</button>
+          </div>`;
+        }).join('')}</div>
+        <p class="gm-meme-note">Equipping an OG Meme item updates your 3D Default Builder immediately in BaseCity and activates its skill in River Quarry, Chip Fab, Solar Grid, and movement.</p>`;
+      const img = body.querySelector('#og-pfp-img');
+      if (img) img.src = renderPfp({ id: 'default-builder', kind: 'default', name: avatarCfg.name || 'Default Builder', skin: avatarCfg.skin, shirt: avatarCfg.shirt, role: { id: 'default', hat: avatarCfg.hatColor }, custom: { ...avatarCfg, memeItem: memeDef.id } }, { size: 160, mark: false, full: true, fixed: true });
+      body.querySelector('#og-trigger-btn')?.addEventListener('click', () => {
+        if (triggerMemeSkill()) renderUserModal();
+      });
+      body.querySelector('#og-open-locker')?.addEventListener('click', () => {
+        const prev = userBack; userWrap.hidden = true; onOpenLocker?.(() => openUser('og_skills', prev));
+      });
+      body.querySelectorAll('[data-equip-meme]').forEach((btn) => {
+        btn.onclick = () => {
+          onEquipMemeItem?.(btn.dataset.equipMeme);
+          rechargeEnergy();
+          saveState();
+          renderUserModal();
+        };
+      });
       return;
     }
 
@@ -787,9 +902,13 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
 
     if (userTab === 'inventory') {
       const refineSi = lv.level >= 10 ? 8 : 10;
-      const canRefine = state.silicon >= refineSi && state.energy >= 10;
+      const aybFree = currentMemeId() === 'ayb' && state.aybChargeReady;
+      const refineEn = aybFree ? 0 : 10;
+      const canRefine = state.silicon >= refineSi && state.energy >= refineEn;
       const ocMult = state.overclockReady ? 2 : 1;
-      const totalYieldMult = buffs.chipMult * (1 + plotBuffs.yieldBonus) * ocMult;
+      const toshiMult = currentMemeId() === 'toshi' ? 1.2 : 1;
+      const aybMult = aybFree ? 2 : 1;
+      const totalYieldMult = buffs.chipMult * (1 + plotBuffs.yieldBonus) * ocMult * toshiMult * aybMult;
       const chipOut = Math.max(1, Math.round(4 * totalYieldMult));
       const pickId = `pickaxe-${Math.min(3, Math.max(1, state.tools.pickaxeLv || 1))}`;
       const consumablesList = SHOP_CATALOG.filter((x) => x.consumable);
@@ -802,11 +921,11 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
           <div class="gmu-kpi mc-kpi">${itemSprite(pickId, 34)}<div><span>Pickaxe</span><b>Lv.${state.tools.pickaxeLv}</b></div></div>
         </div>
         <div class="gmu-box">
-          <div class="gmu-box-h"><b>CHIP FAB REFINERY</b><span>Yield x${totalYieldMult.toFixed(2)}${lv.level >= 10 ? ' · LV.10 -15% COST' : ''}${state.overclockReady ? ' · OVERCLOCK 2X' : ''}</span></div>
+          <div class="gmu-box-h"><b>CHIP FAB REFINERY</b><span>Yield x${totalYieldMult.toFixed(2)}${lv.level >= 10 ? ' · LV.10 -15% COST' : ''}${state.overclockReady ? ' · OVERCLOCK 2X' : ''}${aybFree ? ' · AYB 2X (0 EN)' : ''}</span></div>
           <div class="mc-recipe">
             <div class="mc-ing">${itemSprite('silicon', 36)}<span>${refineSi} Silicon</span></div>
             <b class="mc-op">+</b>
-            <div class="mc-ing">${itemSprite('energy', 36)}<span>10 Energy</span></div>
+            <div class="mc-ing">${itemSprite('energy', 36)}<span>${refineEn} Energy</span></div>
             <b class="mc-op">-></b>
             <div class="mc-ing out">${itemSprite('chips', 36)}<span>+${chipOut} AI Chips</span></div>
           </div>
@@ -831,11 +950,12 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
           }).join('')}</div>
         </div>`;
       body.querySelector('#gmu-refine')?.addEventListener('click', () => {
-        if (state.silicon < refineSi || state.energy < 10) return;
+        if (state.silicon < refineSi || state.energy < refineEn) return;
         state.silicon -= refineSi;
-        state.energy -= 10;
+        state.energy -= refineEn;
         state.chips += chipOut;
         if (state.overclockReady) state.overclockReady = false;
+        if (aybFree) state.aybChargeReady = false;
         const xpGain = addXp(14);
         bumpDaily('craft', 1);
         saveState();
@@ -1481,7 +1601,7 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
     const c = dossierWrap.querySelector('#gmd-content');
     const hasNative = ['usdc', 'morpho', 'x402', 'uniswap', 'aero', 'gpu'].includes(project.id);
     c.innerHTML = `
-      <div class="gml-banner" style="border-left-color:${esc(project.color || '#0052ff')}">
+      <div class="gml-banner">
         <small>BASE AVENUE HQ · ${isNew ? 'NEW STAMP UNLOCKED' : 'PASSPORT STAMPED'}</small>
         <b>${esc(project.label || `${project.name} HQ`)}</b>
         <button type="button" class="td-x" id="gmd-exit">Step Outside</button>
@@ -1508,8 +1628,14 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
 
   function getCooldownRemaining(kind) {
     const nowMs = Date.now();
-    if (kind === 'mine-silicon') return Math.max(0, QUARRY_CD_MS - (nowMs - (state.lastMineAt || 0)));
-    if (kind === 'mine-energy') return Math.max(0, SOLAR_CD_MS - (nowMs - (state.lastSolarAt || 0)));
+    if (kind === 'mine-silicon') {
+      const cd = memeSkillActive() ? Math.max(1500, QUARRY_CD_MS - 1000) : QUARRY_CD_MS;
+      return Math.max(0, cd - (nowMs - (state.lastMineAt || 0)));
+    }
+    if (kind === 'mine-energy') {
+      const cd = currentMemeId() === 'baes' ? Math.round(SOLAR_CD_MS * 0.8) : SOLAR_CD_MS;
+      return Math.max(0, cd - (nowMs - (state.lastSolarAt || 0)));
+    }
     return 0;
   }
 
@@ -1528,21 +1654,26 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
         toast?.('QUARRY COOLING', `Ready in ${(cd / 1000).toFixed(1)}s`, 'Mining drills recharging');
         return;
       }
-      const cost = state.tools.pickaxeLv >= 3 ? 8 : 10;
+      const aybFree = currentMemeId() === 'ayb' && state.aybChargeReady;
+      const baesDiscount = currentMemeId() === 'baes' ? 2 : 0;
+      const cost = aybFree ? 0 : Math.max(4, (state.tools.pickaxeLv >= 3 ? 8 : 10) - baesDiscount);
       if (state.energy < cost) {
         toast?.('LOW ENERGY', 'Drink gm Espresso (4) or Solar Grid', `Need ${cost} Energy (${state.energy}/${state.maxEnergy})`);
         return;
       }
       const baseYield = state.tools.pickaxeLv === 3 ? 14 : state.tools.pickaxeLv === 2 ? 9 : 5;
-      const mult = buffs.chipMult * (1 + plotBuffs.yieldBonus + plotBuffs.siliconBonus);
+      const toshiMult = currentMemeId() === 'toshi' ? 1.2 : 1;
+      const aybMult = aybFree ? 2 : 1;
+      const mult = buffs.chipMult * (1 + plotBuffs.yieldBonus + plotBuffs.siliconBonus) * toshiMult * aybMult;
       const gain = Math.max(1, Math.round(baseYield * mult));
       state.energy -= cost;
       state.silicon += gain;
       state.lastMineAt = Date.now();
+      if (aybFree) state.aybChargeReady = false;
       const xpGain = addXp(6);
       bumpDaily('mine', 1);
       saveState();
-      toast?.('SILICON MINED', `+${gain} Silicon · +${xpGain} XP`, `Total: ${state.silicon} Si · Energy ${state.energy}/${state.maxEnergy}`);
+      toast?.('SILICON MINED', `+${gain} Silicon · +${xpGain} XP`, `Total: ${state.silicon} Si · Energy ${state.energy}/${state.maxEnergy}${aybFree ? ' · AYB 2x!' : ''}`);
       return;
     }
     if (node.kind === 'mine-energy') {
@@ -1643,9 +1774,46 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
     return false;
   }
 
+  function triggerMemeSkill() {
+    const def = currentMemeDef();
+    if (def.type !== 'active') {
+      toast?.(def.skill.toUpperCase(), `${def.name} (${def.token})`, def.type === 'passive' ? 'Passive skill is already active' : 'Equip an OG Meme gear item in OG Skills or Locker (C)');
+      return false;
+    }
+    if (memeSkillActive()) {
+      const secs = Math.ceil(((state.memeSkillUntil || 0) - Date.now()) / 1000);
+      toast?.('SKILL ACTIVE', def.skill, `${secs}s remaining`);
+      return false;
+    }
+    if (def.id === 'ayb' && state.aybChargeReady) {
+      toast?.('2X CHARGE ARMED', def.skill, 'Next Quarry mine or Chip Fab craft is 0 EN & 2x');
+      return false;
+    }
+    const cd = memeSkillCdRemaining();
+    if (cd > 0) {
+      toast?.('SKILL COOLING', def.skill, `Ready in ${fmtCooldown(cd)}`);
+      return false;
+    }
+    state.memeSkillCdAt = Date.now();
+    if (def.id === 'doginme') {
+      state.memeSkillUntil = Date.now() + (def.durMs || 20000);
+      saveState();
+      toast?.('GOT THAT DOG!', '+35% Speed · -1.0s Quarry CD', 'Active for 20s');
+      return true;
+    }
+    if (def.id === 'ayb') {
+      state.aybChargeReady = true;
+      saveState();
+      toast?.('ALL YOUR SILICON', '0 EN & 2x Yield Armed', 'Next River Quarry mine or Chip Fab craft');
+      return true;
+    }
+    return false;
+  }
+
   function getHotbarState() {
     const pickLv = Math.min(3, Math.max(1, state.tools.pickaxeLv || 1));
     const espressoSecs = Math.max(0, Math.ceil(((state.espressoUntil || 0) - Date.now()) / 1000));
+    const memeDef = currentMemeDef();
     return {
       pickaxeLv: pickLv,
       pickaxeId: `pickaxe-${pickLv}`,
@@ -1654,6 +1822,10 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
       warp: Number(state.consumables?.['warp-beacon'] || 0),
       espressoSecs,
       overclockReady: Boolean(state.overclockReady),
+      meme: memeDef,
+      memeActiveSecs: memeSkillActive() ? Math.max(0, Math.ceil(((state.memeSkillUntil || 0) - Date.now()) / 1000)) : 0,
+      memeCdSecs: Math.ceil(memeSkillCdRemaining() / 1000),
+      aybReady: currentMemeId() === 'ayb' && Boolean(state.aybChargeReady),
     };
   }
 
@@ -1682,6 +1854,9 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
   function getHudSummary() {
     rechargeEnergy();
     const espressoOn = (state.espressoUntil || 0) > Date.now();
+    const dogOn = memeSkillActive();
+    const memeDef = currentMemeDef();
+    const memeLabel = memeDef.id !== 'none' ? [`OG ${memeDef.token}: ${memeDef.skill}`] : [];
     return {
       usdc: balances.usdc,
       stocksCount: walletStocks.length,
@@ -1689,10 +1864,10 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
       chips: state.chips,
       energy: state.energy,
       maxEnergy: state.maxEnergy,
-      speedMult: buffs.speedMult * (espressoOn ? 1.25 : 1),
+      speedMult: buffs.speedMult * (espressoOn ? 1.25 : 1) * (dogOn ? 1.35 : 1),
       espressoOn,
       overclockReady: Boolean(state.overclockReady),
-      buffLabels: [...buffs.labels, ...plotBuffs.labels],
+      buffLabels: [...memeLabel, ...buffs.labels, ...plotBuffs.labels],
       passportCount: state.passport.length,
       passportTotal: PROJECTS.length,
       quarryCd: getCooldownRemaining('mine-silicon'),
@@ -1711,6 +1886,7 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
     openProjectDossier,
     handleNodeInteract,
     useConsumable,
+    triggerMemeSkill,
     claimDailyMission,
     getHotbarState,
     getProgressionSummary,
@@ -1722,5 +1898,14 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
     updatePads,
     closeAll,
     getHudSummary,
+    getPhoneWallet() { return phoneWallet?.account === getWallet().account ? phoneWallet : { stocks: [] }; },
+    getPhoneMissions() {
+      ensureDaily();
+      return dailyMissionsForDate(state.daily.date).map((mission) => ({
+        ...mission,
+        progress: Number(state.daily.progress[mission.id] || 0),
+        claimed: state.daily.claimed.includes(mission.id),
+      }));
+    },
   };
 }

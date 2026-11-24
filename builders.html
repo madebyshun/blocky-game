@@ -30,26 +30,34 @@
   <body>
     <header class="top">
       <h1>The Base Builders</h1>
-      <p class="lede">Real Base builders build BaseCity 24/7, side by side with the Blockies that <span id="ticker">$BLOCKY</span> buys bring. Download any voxel PFP and wear it.</p>
+      <p class="lede">Meet the builders shaping BaseCity. Browse their voxel portraits, see their contributions, and download a PFP.</p>
       <div class="actions">
         <span class="count" id="count"></span>
+        <label class="builder-search"><span>Find a builder</span><input id="builder-search" type="search" autocomplete="off" placeholder="Name or role" /></label>
       </div>
     </header>
     <main id="grid" class="grid" aria-live="polite"></main>
-    <dialog id="profile" class="profile">
+    <p id="builder-empty" class="wrap" hidden>No builders match your search.</p>
+    <dialog id="profile" class="profile" aria-labelledby="builder-name">
       <button class="close" aria-label="Close">×</button>
       <div class="profile-grid">
-        <img width="512" height="512" alt="" />
+        <figure class="portrait">
+          <img width="512" height="512" alt="" />
+          <figcaption role="group" aria-label="Character view">
+            <button type="button" data-view="portrait" aria-pressed="true">Portrait</button>
+            <button type="button" data-view="full" aria-pressed="false">Full body</button>
+          </figcaption>
+        </figure>
         <div>
-          <h2></h2>
+          <h2 id="builder-name"></h2>
           <div class="title"></div>
           <div class="status"></div>
           <dl></dl>
           <div class="row"><button class="btn primary dl">⬇ Download PFP</button><button class="btn share">Share on 𝕏</button></div>
+          <a class="btn view-3d">Open 3D viewer</a>
         </div>
       </div>
     </dialog>
-    <p class="wrap count">Voxel PFPs are free to use: download one and wear it.</p>
     <script type="module" src="/src/builders.js"></script>
   </body>
 </html>

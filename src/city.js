@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CONFIG } from './config.js';
-import { hash, PITCH, isWater, isReserve, LANDMARKS, AVENUE, CATALOG, BASELIVE_LOTS, STOCKS_LOTS } from './sim.js';
+import { hash, PITCH, GPU_FRONTAGE, STREET_WIDTH, STREET_LOT_SCALE, isWater, isReserve, LANDMARKS, AVENUE, CATALOG, BASELIVE_LOTS, STOCKS_LOTS } from './sim.js';
 import { now } from './time.js';
 import { makeService, makeDrone } from './fleet.js';
 import { catStatue } from './cats.js';
@@ -32,7 +32,34 @@ const BODY_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, map: VOXEL_
 export const GLOW_MAT = new THREE.MeshLambertMaterial({ color: 0xa8d8ff, emissive: 0xffd27a, emissiveIntensity: 0.2 });
 const BLUE_GLOW = new THREE.MeshLambertMaterial({ color: 0x3d8bff, emissive: 0x0052ff, emissiveIntensity: 0.8 });
 const GREEN_GLOW = new THREE.MeshLambertMaterial({ color: 0x8be04e, emissive: 0x4caf00, emissiveIntensity: 0.6 });
-const WATER_MAT = new THREE.MeshLambertMaterial({ color: 0x3fa9e8, transparent: true, opacity: 0.85 });
+const waterTime = { value: 0 };
+const windTime = { value: 0 };
+const WATER_MAT = new THREE.MeshPhongMaterial({ color: 0x238fc0, specular: 0x8acadc, shininess: 38, transparent: true, opacity: 0.91 });
+WATER_MAT.onBeforeCompile = (shader) => {
+  shader.uniforms.cityWaterTime = waterTime;
+  shader.vertexShader = 'varying vec2 riverPosition;\n' + shader.vertexShader.replace('#include <begin_vertex>',
+    '#include <begin_vertex>\nriverPosition = (modelMatrix * vec4(position, 1.0)).xz;');
+  shader.fragmentShader = 'uniform float cityWaterTime;\nvarying vec2 riverPosition;\n' +
+    shader.fragmentShader.replace('#include <color_fragment>', `
+      #include <color_fragment>
+      float drift = sin(riverPosition.x * 2.8 + riverPosition.y * 0.8 - cityWaterTime * 1.7);
+      float ripple = sin(riverPosition.y * 3.1 + drift * 0.75 - cityWaterTime * 2.5);
+      float glint = smoothstep(0.88, 1.0, ripple) * smoothstep(-0.3, 0.95, drift);
+      diffuseColor.rgb *= 0.88 + ripple * 0.09;
+      diffuseColor.rgb += vec3(0.17, 0.32, 0.34) * glint;
+    `);
+};
+const LEAF_MAT = new THREE.MeshLambertMaterial({ vertexColors: true, map: VOXEL_TEX });
+LEAF_MAT.onBeforeCompile = (shader) => {
+  shader.uniforms.cityWind = windTime;
+  shader.vertexShader = 'uniform float cityWind;\n' + shader.vertexShader.replace('#include <begin_vertex>', `
+    #include <begin_vertex>
+    vec3 windPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+    float strength = clamp(position.y * 0.35, 0.15, 1.0);
+    transformed.x += sin(cityWind * 1.35 + windPosition.x * 0.32 + windPosition.z * 0.19) * 0.11 * strength;
+    transformed.z += cos(cityWind * 1.1 + windPosition.z * 0.33) * 0.06 * strength;
+  `);
+};
 const FLAME_MAT = new THREE.MeshLambertMaterial({ color: 0xffb300, emissive: 0xff8c00, emissiveIntensity: 0.9 });
 
 export const C = {
@@ -52,7 +79,7 @@ function colored(geo, color) {
 
 // Collects boxes (bottom at y) and merges them: one body mesh + glow meshes + animated extras.
 class Kit {
-  constructor() { this.lists = { body: [], glow: [], blue: [], green: [], water: [], flame: [] }; this.extras = []; }
+  constructor() { this.lists = { body: [], leaves: [], glow: [], blue: [], green: [], water: [], flame: [] }; this.extras = []; }
   add(list, w, h, d, x, y, z, color) {
     const g = UNIT.clone(); g.scale(w, h, d); g.translate(x, y + h / 2, z);
     this.lists[list].push(color === undefined ? g : colored(g, color));
@@ -78,7 +105,7 @@ class Kit {
   flame(w, h, d, x, y, z) { this.add('flame', w, h, d, x, y, z); }
   build() {
     const g = new THREE.Group();
-    const mats = { body: BODY_MAT, glow: GLOW_MAT, blue: BLUE_GLOW, green: GREEN_GLOW, water: WATER_MAT, flame: FLAME_MAT };
+    const mats = { body: BODY_MAT, leaves: LEAF_MAT, glow: GLOW_MAT, blue: BLUE_GLOW, green: GREEN_GLOW, water: WATER_MAT, flame: FLAME_MAT };
     for (const [name, list] of Object.entries(this.lists)) {
       if (!list.length) continue;
       const m = new THREE.Mesh(mergeGeometries(list), mats[name]);
@@ -115,14 +142,20 @@ function tree(k, x, z, seed, y = Y) {
   const tall = hash(seed, 9) < 0.3;
   const h = (tall ? 1.6 : 0.9) + hash(seed, 1) * 0.8;
   k.box(0.3, h, 0.3, C.trunk, x, y, z);
+  k.box(0.1, h * 0.74, 0.02, 0x9c7652, x + 0.07, y, z + 0.15);
   const leaf = C.leaf[Math.floor(hash(seed, 2) * C.leaf.length)];
-  if (tall) { // pine
-    k.box(1.3, 0.7, 1.3, leaf, x, y + h - 0.3, z);
-    k.box(0.9, 0.7, 0.9, leaf, x, y + h + 0.4, z);
-    k.box(0.5, 0.6, 0.5, leaf, x, y + h + 1.1, z);
+  const canopy = (w, height, d, ox, oy, oz, tint = leaf) =>
+    k.add('leaves', w, height, d, x + ox, y + h + oy, z + oz, tint);
+  if (tall) {
+    canopy(1.42, 0.54, 1.36, 0, -0.32, 0, mix(leaf, 0x163c27, 0.22));
+    canopy(1.06, 0.55, 1.02, 0.07, 0.19, 0);
+    canopy(0.74, 0.55, 0.75, 0.02, 0.71, -0.04, mix(leaf, 0xd2efa1, 0.16));
+    canopy(0.36, 0.39, 0.35, 0, 1.23, 0, mix(leaf, 0xd2efa1, 0.28));
   } else {
-    k.box(1.3, 0.9, 1.3, leaf, x, y + h - 0.1, z);
-    k.box(0.8, 0.5, 0.8, leaf, x, y + h + 0.8, z);
+    canopy(1.2, 0.81, 1.15, 0, -0.12, 0);
+    canopy(0.7, 0.58, 0.86, -0.44, 0.02, 0.1, mix(leaf, 0x163c27, 0.2));
+    canopy(0.74, 0.58, 0.74, 0.44, 0.16, -0.14, mix(leaf, 0xd2efa1, 0.18));
+    canopy(0.76, 0.52, 0.78, 0.05, 0.65, 0.06, mix(leaf, 0xd2efa1, 0.25));
   }
 }
 function bush(k, x, z, seed, y = Y) { k.box(0.6, 0.45, 0.6, C.leaf[Math.floor(hash(seed, 3) * 4)], x, y, z); }
@@ -1953,11 +1986,16 @@ const HQ = {
   // its roof (its fans spin with the grid), cooling stacks, and a screen with NVDAc live
   gpu(k, b) {
     const hall = 0x16191e, card = 0x2b2f36, green = [0x76b900, 0xb9c4cc, 0xd4af37, 0xb06cff][GRID.level || 0] ?? 0x76b900; // the shroud: its GPU tier
+    const entranceX = GPU_FRONTAGE.entranceX / STREET_LOT_SCALE;
     sidewalk(k, 0x9aa3ad);
+    k.box(0.95, 0.028, 0.48, 0xd6e7ef, entranceX, Y, 1.8);
+    for (const x of [entranceX - 0.67, entranceX + 0.67]) {
+      k.green(0.07, 1.25, 0.07, x, Y, 1.61);
+    }
     k.box(5.4, 2.6, 4.2, hall, 0, Y, -0.6);
     for (const y of [0.5, 1.2, 1.9]) { k.green(5.0, 0.08, 0.05, 0, Y + y, 1.53); k.green(0.05, 0.08, 3.8, 2.73, Y + y, -0.6); }
     k.box(1.2, 1.3, 0.08, C.dark, -1.6, Y, 1.55); // the door
-    brandPanel(k, b, 'name', 3.0, 0.62, 0.9, Y + 0.85, 1.56);
+    brandPanel(k, { ...b, name: 'POWER PLANT' }, 'name', 3.0, 0.62, 0.9, Y + 0.85, 1.56);
     // the GPU: a card lying across the roof, three fans facing up
     const top = Y + 2.6;
     k.box(4.8, 0.55, 2.4, card, 0, top + 0.3, -0.6);
@@ -1981,10 +2019,10 @@ const HQ = {
     brandPanel(k, b, 'logo', 0.9, 0.9, 2.46, top + 0.45, -0.6, SIDE);
     for (const x of [-2.4, 2.4]) { k.box(0.7, 3.4, 0.7, 0x5d6670, x, Y, -2.6); k.green(0.74, 0.1, 0.74, x, Y + 3.0, -2.6); } // cooling stacks
     // the screen by the door: NVDAc live, and the grid's power
-    k.box(0.16, 1.6, 0.16, C.dark, -1.95, Y, 2.55);
-    k.box(2.0, 1.05, 0.1, C.dark, -1.95, Y + 1.55, 2.5);
+    k.box(0.16, 1.6, 0.16, C.dark, -0.25, Y, 1.77);
+    k.box(2.0, 1.05, 0.1, C.dark, -0.25, Y + 1.55, 1.72);
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.86, 0.93), GPU_MAT);
-    screen.position.set(-1.95, Y + 2.07, 2.56);
+    screen.position.set(-0.25, Y + 2.07, 1.78);
     k.extras.push(screen);
     brandPanel(k, b, 'logo', 0.7, 0.7, -1.6, Y + 1.85, 1.56); // over the door
   },
@@ -2109,7 +2147,7 @@ export function reserveLot(k, i, j) {
 // How tall a building is drawn. The sim's height (p.h) only prices it (src/sim.js); drawn at full
 // height, skyscrapers and whale towers hid the streets behind them, so anything over SHOWN_LOW
 // floors grows at SHOWN_RATE per floor instead. The ranking stays: taller in the sim, taller here.
-const SHOWN_LOW = 6, SHOWN_RATE = 0.4;
+const SHOWN_LOW = 4, SHOWN_RATE = 0.32;
 export const shownH = (h) => (h > SHOWN_LOW ? Math.round(SHOWN_LOW + (h - SHOWN_LOW) * SHOWN_RATE) : h);
 const asShown = (p) => (p.h > SHOWN_LOW ? { ...p, h: shownH(p.h) } : p);
 
@@ -2120,6 +2158,13 @@ export const buildingGroup = (p0) => kitFor((k) => {
   if (p.kind === 'landmark') return p.brand ? brandHq(k, p) : LANDMARK[p.type](k);
   if (p.kind === 'wonder') return p.build === 'tower' || p.build === 'skyscraper' ? whaleTower(k, p) : wonder(k, p);
   DESIGN[p.type](k, p);
+  if (p.type === 'shop' || p.type === 'cafe' || p.type === 'devhub') {
+    const front = p.type === 'cafe' ? p.d / 2 - 0.5 : p.d / 2;
+    const accent = mix(p.color, 0x142643, 0.42);
+    const awningY = Y + Math.min(1.7, p.h * 0.78);
+    k.box(Math.min(1.28, p.w * 0.4), 0.09, 0.32, accent, 0, awningY, front + 0.05);
+    k.win(0.38, 0.035, 0.12, 0, awningY - 0.025, front + 0.14);
+  }
   if (ROOF_BOARD[p.type] !== undefined && hash(p.k, 77) < 0.12) { // a few rooftops only: the ad space is for sale
     billboard(k, 0, Y + p.h + ROOF_BOARD[p.type], -p.d / 2 + 0.35, Math.min(p.w - 0.4, 3.4), Math.min(p.w - 0.4, 3.4) * 0.4, 1 + p.k, 0.45);
   }
@@ -2216,6 +2261,7 @@ export function createCity(scene) {
   let drawn = 1; // builders drawn in the city (set by main.js)
   let counts = {}; // finished buildings by type (service vehicles read it)
   let built = []; // finished lots: { x, z, h, type } (the AI agent drones fly between them)
+  let powerPlant = null;
   const graph = { nodes: new Map(), adj: new Map(), version: 0 };
 
   function setLot(key, lot, kind, k, group, animate, sig = '') {
@@ -2230,21 +2276,27 @@ export function createCity(scene) {
     }
     const [x, z] = lotPos(lot);
     group.position.set(x, 0, z);
+    group.scale.x *= STREET_LOT_SCALE;
+    group.scale.z *= STREET_LOT_SCALE;
     group.traverse((o) => { if (o.userData.animate) animated.push(o); if (o.userData.sponsor) billboards.push(o); if (o.userData.launchpad) launchpadHits.push(o); });
     lotsGroup.add(group);
     lots.set(key, { kind, k, group, sig });
-    if (animate) { group.scale.set(1, 0.01, 1); rising.push({ group, t: 0, mode: 'grow' }); }
+    if (animate) { group.scale.y = 0.01; rising.push({ group, t: 0, mode: 'grow' }); }
   }
 
   // a concrete road bridge where a paved street crosses the river: it spans between two junctions,
   // and its railings stop where the junctions begin (the junctions get their own deck and railings)
   const RAIL = 0xd5d8dc, DECK = 0xb0b6bd;
+  const roadSpan = PITCH - STREET_WIDTH;
+  const deckWidth = STREET_WIDTH + 0.6;
+  const railOffset = STREET_WIDTH / 2 + 0.2;
+
   function roadBridge(k, x, z, along) {
-    const span = PITCH - 2, ax = along === 'x';
-    k.box(ax ? span + 0.6 : 2.6, 0.3, ax ? 2.6 : span + 0.6, DECK, x, -0.15, z);
-    k.box(ax ? span : 2, 0.05, ax ? 2 : span, C.road, x, 0.15, z);
+    const span = roadSpan, ax = along === 'x';
+    k.box(ax ? span + 0.6 : deckWidth, 0.3, ax ? deckWidth : span + 0.6, DECK, x, -0.15, z);
+    k.box(ax ? span : STREET_WIDTH, 0.05, ax ? STREET_WIDTH : span, C.road, x, 0.15, z);
     for (let s = -2; s <= 2; s += 2) k.box(ax ? 0.9 : 0.12, 0.02, ax ? 0.12 : 0.9, 0xf4f4f0, x + (ax ? s : 0), 0.2, z + (ax ? 0 : s));
-    for (const o of [-1.2, 1.2]) k.box(ax ? span : 0.2, 0.3, ax ? 0.2 : span, RAIL, x + (ax ? 0 : o), 0.15, z + (ax ? o : 0));
+    for (const o of [-railOffset, railOffset]) k.box(ax ? span : 0.2, 0.3, ax ? 0.2 : span, RAIL, x + (ax ? 0 : o), 0.15, z + (ax ? o : 0));
     for (const s of [-2.5, 2.5]) k.box(ax ? 0.6 : 1.6, 0.6, ax ? 1.6 : 0.6, 0x9aa3ad, x + (ax ? s : 0), -0.75, z + (ax ? 0 : s));
   }
 
@@ -2403,29 +2455,30 @@ export function createCity(scene) {
     };
     const carried = new Set();
     for (const [i, j, dir, onBridge] of segs) {
-      if (dir === 'h') {
-        const x = i * PITCH, z = j * PITCH + 4;
-        if (onBridge) { roadBridge(k, x, z, 'x'); carried.add(`h${i},${j}`); }
-        else {
-          k.box(PITCH - 2, 0.05, 2, C.road, x, 0, z);
-          for (let s = -2; s <= 2; s += 2) k.box(0.9, 0.02, 0.12, 0xf4f4f0, x + s, 0.05, z);
-        }
-        link([i - 1, j], [i, j]);
+      const alongX = dir === 'h';
+      const x = i * PITCH + (alongX ? 0 : PITCH / 2);
+      const z = j * PITCH + (alongX ? PITCH / 2 : 0);
+      if (onBridge) {
+        roadBridge(k, x, z, alongX ? 'x' : 'z');
+        carried.add(`${dir}${i},${j}`);
       } else {
-        const x = i * PITCH + 4, z = j * PITCH;
-        if (onBridge) { roadBridge(k, x, z, 'z'); carried.add(`v${i},${j}`); }
-        else {
-          k.box(2, 0.05, PITCH - 2, C.road, x, 0, z);
-          for (let s = -2; s <= 2; s += 2) k.box(0.12, 0.02, 0.9, 0xf4f4f0, x, 0.05, z + s);
+        const mark = (length, width, along, across, color = 0xf4f4f0) =>
+          k.box(alongX ? length : width, 0.012, alongX ? width : length, color,
+            x + (alongX ? along : across), 0.05, z + (alongX ? across : along));
+        k.box(alongX ? roadSpan : STREET_WIDTH, 0.05, alongX ? STREET_WIDTH : roadSpan, C.road, x, 0, z);
+        mark(0.9, 0.08, 0, 0);
+        for (const side of [-1, 1]) {
+          mark(roadSpan, 0.06, 0, side * (STREET_WIDTH / 2 - 0.08), 0x8a949e);
+          for (const stripe of [-0.9, -0.45, 0, 0.45, 0.9]) mark(0.38, 0.2, side * (roadSpan / 2 - 0.43), stripe);
         }
-        link([i, j - 1], [i, j]);
       }
+      link(alongX ? [i - 1, j] : [i, j - 1], [i, j]);
     }
     // every other river crossing keeps a wooden footbridge, stopping short of any road junction
     const foot = [];
     for (let i = -L; i <= L; i++) for (let j = -L; j < L; j++) if (isWater(i, j) && isWater(i, j + 1) && !carried.has(`h${i},${j}`)) foot.push([i, j, 'h']);
     for (let i = -L; i < L; i++) for (let j = -L; j <= L; j++) if (isWater(i, j) && isWater(i + 1, j) && !carried.has(`v${i},${j}`)) foot.push([i, j, 'v']);
-    const cut = (i, j) => (graph.nodes.has(`${i},${j}`) ? 1.2 : 0);
+    const cut = (i, j) => (graph.nodes.has(`${i},${j}`) ? railOffset : 0);
     for (const [i, j, d] of foot) {
       if (d === 'h') bridge(k, i * PITCH, j * PITCH + 4, 'x', cut(i - 1, j), cut(i, j));
       else bridge(k, i * PITCH + 4, j * PITCH, 'z', cut(i, j - 1), cut(i, j));
@@ -2437,15 +2490,21 @@ export function createCity(scene) {
       const [i, j] = key.split(',').map(Number);
       const wet = [[i, j], [i + 1, j], [i, j + 1], [i + 1, j + 1]].map(([a, b]) => isWater(a, b));
       const y = wet.every(Boolean) ? 0.15 : 0;
-      if (wet.some(Boolean)) k.box(2.6, 0.3, 2.6, DECK, x, y - 0.3, z);
-      k.box(2, 0.05, 2, C.road, x, y, z);
+      if (wet.some(Boolean)) k.box(deckWidth, 0.3, deckWidth, DECK, x, y - 0.3, z);
+      k.box(STREET_WIDTH, 0.05, STREET_WIDTH, C.road, x, y, z);
       for (const [seg, a, b, dx, dz] of [
         [`h${i},${j}`, [i, j], [i, j + 1], -1, 0], [`h${i + 1},${j}`, [i + 1, j], [i + 1, j + 1], 1, 0],
         [`v${i},${j}`, [i, j], [i + 1, j], 0, -1], [`v${i},${j + 1}`, [i, j + 1], [i + 1, j + 1], 0, 1],
       ]) {
-        if (!open.has(seg) && isWater(...a) && isWater(...b)) k.box(dx ? 0.2 : 2.6, 0.3, dx ? 2.6 : 0.2, RAIL, x + dx * 1.2, y, z + dz * 1.2);
+        if (!open.has(seg) && isWater(...a) && isWater(...b)) k.box(dx ? 0.2 : deckWidth, 0.3, dx ? deckWidth : 0.2, RAIL, x + dx * railOffset, y, z + dz * railOffset);
       }
-      if ((i + j) % 2 === 0) { k.box(0.12, 2, 0.12, C.dark, x + 1.15, y, z + 1.15); k.win(0.35, 0.25, 0.35, x + 1.15, y + 2, z + 1.15); }
+      if ((i + j) % 2 === 0 && !wet.some(Boolean)) {
+        const lx = x + railOffset + 0.1, lz = z + railOffset + 0.1;
+        k.box(0.28, 0.19, 0.28, 0x7b8996, lx, y + 0.12, lz);
+        k.box(0.11, 2.05, 0.11, C.dark, lx, y + 0.2, lz);
+        k.box(0.48, 0.11, 0.26, C.dark, lx - 0.15, y + 2.21, lz);
+        k.win(0.29, 0.045, 0.21, lx - 0.21, y + 2.17, lz);
+      }
     }
     roadGroup.add(k.build());
   }
@@ -2542,6 +2601,7 @@ export function createCity(scene) {
       if (cur?.kind === kind && cur.k === p.k && cur.sig === sig) continue;
       sites.delete(p.k);
       const group = kind === 'ruin' ? ruinGroup(p) : dark ? darken(buildingGroup({ ...p, dark })) : off ? offline(buildingGroup(p), shownH(p.h)) : buildingGroup(p);
+      group.userData.streetBuilding = kind === 'built';
       setLot(key, p.lot, kind, p.k, group, animate && kind === 'built' && cur?.k !== p.k, sig);
     }
     // Base Live's block (src/baselive.js draws it as one): its lots stay clear of woods and buildings
@@ -2565,6 +2625,7 @@ export function createCity(scene) {
       sites.delete(k);
     }
     for (const x of now) updateSite(x.p, x.placed);
+    powerPlant = built.find((b) => b.type === GPU_FRONTAGE.type) || null;
     buildRoads();
     snapshot = { land: sim.land, next: sim.next, placed: sim.placed, sites: now };
   }
@@ -2599,7 +2660,8 @@ export function createCity(scene) {
     hemi.color.setHSL(0.58, 0.6, 0.45 + 0.45 * dl);
     GLOW_MAT.emissiveIntensity = 0.15 + 1.15 * (1 - dl);
     GREEN_GLOW.emissiveIntensity = (0.4 + 0.8 * (1 - dl)) * GRID.power; // the GPU District's grid (NVDAc)
-    WATER_MAT.opacity = 0.84 + Math.sin(t * 1.8) * 0.04;
+    waterTime.value = t;
+    windTime.value = t;
     GREEN_GLOW.emissiveIntensity = (0.4 + 0.8 * (1 - dl)) * GRID.power; // the GPU District's grid (NVDAc)
     pulse = Math.max(0, pulse - dt * 1.5);
     BLUE_GLOW.emissiveIntensity = 0.8 + pulse * 1.5;
@@ -2762,7 +2824,8 @@ export function createCity(scene) {
     launchpadHits.push(lpHit);
     lotsGroup.add(group);
     lots.set(`launched:${symbol}:${idx}`, { kind: "built", k: `launched:${symbol}:${idx}`, group, sig: name });
-    group.scale.set(1, 0.01, 1);
+    group.scale.set(STREET_LOT_SCALE, 0.01, STREET_LOT_SCALE);
+    group.userData.streetBuilding = true;
     rising.push({ group, t: 0, mode: "grow" });
     txPulse(x, z, 0x2ee87a);
     return { lot, h };
@@ -2777,6 +2840,7 @@ export function createCity(scene) {
     get land() { return land; },
     get counts() { return counts; },
     get built() { return built; },
+    get powerPlant() { return powerPlant; },
     get siteVersion() { return siteVersion; },
     // A site has room for a crew of about 12 (20 along the border or the metro): the share of the drawn
     // builders on it at any time. The others walk around town and take turns (see BuilderView).

@@ -1,3 +1,4 @@
+import { createStreetAudio } from './street-audio.js';
 // BaseCity Game Mode (GTA / Minecraft-inspired third-person voxel explorer):
 // - Over-the-shoulder smooth camera with dynamic sprint/drive FOV
 // - Walk & tuned Drive modes (Boat removed due to small river network)
@@ -11,7 +12,7 @@ import { createPublicClient, fallback, http, parseAbi } from 'viem';
 import { base } from 'viem/chains';
 import { buildBlocky } from './citizens.js';
 import { CONFIG } from './config.js';
-import { makeBlocky, PITCH, isWater, BASELIVE_LOTS, STOCKS_LOTS, TRAIT_LABEL } from './sim.js';
+import { makeBlocky, PITCH, GPU_FRONTAGE, STREET_LOT_HALF, STREET_LOT_SCALE, isWater, BASELIVE_LOTS, STOCKS_LOTS, TRAIT_LABEL } from './sim.js';
 import { renderPfp } from './pfp.js';
 import { browserWallets, smartWallet, connect, restoreWallet, forgetWallet, rejected } from './wallet.js';
 import { privyConfigured, loginWithPrivyOAuth, sendPrivyEmailCode, verifyPrivyEmailCode } from './privy.js';
@@ -22,7 +23,7 @@ import { fetchStockIntel, publishStockIntel, unlockStockIntel, renderStockIntelH
 import { fetchBaseStocks, getWalletStockBalances } from './swap-base.js';
 import { openBlocky10 } from './tradedock.js';
 import { PROJECTS } from './projects.js';
-import { createGameWorld, GAME_NODES } from './game-world.js';
+import { createGameWorld, GAME_NODES, OG_MEME_ITEMS } from './game-world.js';
 import { itemSprite, itemIcon, poiSpriteId, rarityGemId } from './items.js';
 
 const v3 = () => new THREE.Vector3();
@@ -162,6 +163,21 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
   const shopBtn = document.getElementById('play-shop-btn');
   const ctaBtn = document.getElementById('play-cta');
   const guideBtn = document.getElementById('play-guide-btn');
+  const soundBtn = document.getElementById('play-sound');
+  const streetAudio = createStreetAudio();
+  let stride = 0;
+  function syncSoundButton() {
+    if (!soundBtn) return;
+    soundBtn.textContent = streetAudio.enabled ? 'Sound on' : 'Sound off';
+    soundBtn.setAttribute('aria-pressed', String(streetAudio.enabled));
+  }
+  if (soundBtn) soundBtn.onclick = () => { streetAudio.toggle(); syncSoundButton(); };
+  syncSoundButton();
+  const unlockStreetAudio = () => { if (active) streetAudio.unlock(); };
+  document.addEventListener('pointerdown', unlockStreetAudio, { passive: true });
+  document.addEventListener('keydown', unlockStreetAudio);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) streetAudio.drive(0, false); });
+
 
   // 3D Golden GPS Beacon Pillar (lights up destination when setting route on Map)
   const gpsBeacon = new THREE.Mesh(
@@ -175,12 +191,34 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
   let trackerEl = null;
   let trackerCollapsed = false;
 
+  const DEFAULT_AVATAR_KEY = 'basecity:default_avatar:v1';
+  const BASE_CUSTOM = { name: 'Default Builder', skin: 0xf2cfa0, hatStyle: 'cap', hatColor: 0x0052ff, hairColor: 0x2b1d14, shirt: 0x2563eb, pants: 0x334155, memeItem: 'none' };
+  function loadDefaultAvatar() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DEFAULT_AVATAR_KEY) || 'null');
+      if (saved && typeof saved === 'object') return { ...BASE_CUSTOM, ...saved };
+    } catch { /* ignore */ }
+    return { ...BASE_CUSTOM };
+  }
+  let customAvatar = loadDefaultAvatar();
+  let draftAvatar = { ...customAvatar };
+
   const world = createGameWorld({
     city,
     toast,
     getWallet: () => ({ account: walletAccount, provider: walletProvider }),
     getBlocky: () => activeBlocky,
     getCitizenTier: () => getCitizenTier(),
+    getMemeItem: () => customAvatar.memeItem || 'none',
+    getCustomAvatar: () => customAvatar,
+    onEquipMemeItem: (id) => {
+      const valid = OG_MEME_ITEMS.some((x) => x.id === id) ? id : 'none';
+      saveDefaultAvatar({ ...customAvatar, memeItem: valid });
+      draftAvatar = { ...customAvatar };
+      spawnAvatar(makeDefaultBuilder());
+      const def = OG_MEME_ITEMS.find((x) => x.id === valid) || OG_MEME_ITEMS[0];
+      toast?.('OG SKILL EQUIPPED', `${def.name} (${def.token})`, `${def.skill} · ${def.badge}`);
+    },
     onOpenAction: (act, arg) => {
       if (String(act).startsWith('node:')) {
         const nid = act.slice(5);
@@ -219,6 +257,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       if (slot === 'espresso') { world.useConsumable('gm-espresso'); return; }
       if (slot === 'overclock') { world.useConsumable('overclock-core'); return; }
       if (slot === 'warp') { world.useConsumable('warp-beacon'); return; }
+      if (slot === 'meme') { world.triggerMemeSkill(); return; }
       if (slot === 'shop') { world.openShop('consumables'); }
     });
   }
@@ -247,6 +286,11 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
         <i class="mc-hkey">6</i>
         ${itemIcon('warp-beacon', 28)}
         <b class="mc-hcnt">x${hb.warp}</b>
+      </button>
+      <button type="button" class="mc-hslot${hb.memeActiveSecs > 0 || hb.aybReady ? ' active' : ''}${hb.meme?.id === 'none' ? ' empty' : ''}" data-hslot="meme" title="${esc(hb.meme?.name || 'OG Skill')} (Key 7): ${esc(hb.meme?.desc || '')}">
+        <i class="mc-hkey">7</i>
+        <span style="font-size:10px;font-weight:800;letter-spacing:0.3px;color:${esc(hb.meme?.color || '#94a3b8')}">${esc(hb.meme?.id === 'none' ? 'OG' : hb.meme?.token?.replace('$', '') || 'OG')}</span>
+        <b class="mc-hcnt">${hb.meme?.type === 'active' ? (hb.memeActiveSecs > 0 ? `${hb.memeActiveSecs}s` : hb.aybReady ? '2X' : hb.memeCdSecs > 0 ? `${hb.memeCdSecs}s` : 'READY') : (hb.meme?.id === 'none' ? 'NONE' : 'PASSIVE')}</b>
       </button>
       <button type="button" class="mc-hslot" data-hslot="shop" title="BaseCity Supply Shop (Key B): Restock Consumables & Tools">
         <i class="mc-hkey">B</i>
@@ -439,7 +483,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
         title: p.name || poi?.full || p.type,
         desc: poi?.desc || `Built 24/7 by BaseCity Blockies at grid (${li}, ${lj}).`,
         rows: [['Grid', `(${li}, ${lj})`], ...(p.h ? [['Height', `${Math.round(p.h)} blocks`]] : [])],
-        gps: poi?.enter || [gx, gz + 4],
+        gps: p.type === GPU_FRONTAGE.type ? [gx + GPU_FRONTAGE.entranceX, gz + GPU_FRONTAGE.roadZ] : poi?.enter || [gx, gz + 4],
         primaryLbl: sp?.act || '',
         onPrimary: sp?.fn || null,
       });
@@ -661,7 +705,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
   let padsObj = null;
   let mode = 'walk';
   let yaw = 0;
-  let pitch = 0.34;
+  let pitch = 0.57;
   let vy = 0;
   let speedCur = 0;
   let grounded = true;
@@ -671,6 +715,34 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
   let rayAcc = 0;
   let armScale = 1;
   let armScaleWant = 1;
+  let cameraHeight = 1.45;
+  const fadedMeshes = [];
+  let fadedBuilding = null;
+
+  function fadeBuilding(building) {
+    if (building === fadedBuilding) return;
+    for (const { mesh, original, faded, shadow } of fadedMeshes) {
+      mesh.material = original;
+      mesh.castShadow = shadow;
+      for (const material of faded) material.dispose();
+    }
+    fadedMeshes.length = 0;
+    fadedBuilding = building;
+    building?.traverse((mesh) => {
+      if (!mesh.isMesh || !mesh.material) return;
+      const original = mesh.material;
+      const faded = (Array.isArray(original) ? original : [original]).map((material) => {
+        const copy = material.clone();
+        copy.transparent = true;
+        copy.opacity *= 0.22;
+        copy.depthWrite = false;
+        return copy;
+      });
+      fadedMeshes.push({ mesh, original, faded, shadow: mesh.castShadow });
+      mesh.material = Array.isArray(original) ? faded : faded[0];
+      mesh.castShadow = false;
+    });
+  }
   let prevDpr = null;
   let navGoal = null;
   let navPath = [];
@@ -683,7 +755,6 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
   let lockerBack = null;
   let lockerTab = 'customize';
 
-  const DEFAULT_AVATAR_KEY = 'basecity:default_avatar:v1';
   const SKIN_SWATCHES = [0xf8d9c0, 0xf2cfa0, 0xdca574, 0xb97c52, 0x8d5524, 0x5c3822];
   const HAT_STYLES = [
     ['cap', 'Cap'],
@@ -698,18 +769,6 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
   const HAIR_SWATCHES = [0x1b1b1b, 0x2b1d14, 0x6b4423, 0xd9a441, 0xc0392b, 0x9aa3ad, 0x0052ff];
   const SHIRT_SWATCHES = [0x2563eb, 0x1e293b, 0xf1f5f9, 0x16a34a, 0xdc2626, 0xf59e0b, 0x7c3aed];
   const PANTS_SWATCHES = [0x334155, 0x1e293b, 0x1d4ed8, 0x57534e, 0x0f172a, 0x64748b];
-  const BASE_CUSTOM = { name: 'Default Builder', skin: 0xf2cfa0, hatStyle: 'cap', hatColor: 0x0052ff, hairColor: 0x2b1d14, shirt: 0x2563eb, pants: 0x334155 };
-
-  function loadDefaultAvatar() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(DEFAULT_AVATAR_KEY) || 'null');
-      if (saved && typeof saved === 'object') return { ...BASE_CUSTOM, ...saved };
-    } catch { /* ignore */ }
-    return { ...BASE_CUSTOM };
-  }
-
-  let customAvatar = loadDefaultAvatar();
-  let draftAvatar = { ...customAvatar };
 
   function saveDefaultAvatar(cfg) {
     customAvatar = { ...BASE_CUSTOM, ...cfg, name: String(cfg.name || 'Default Builder').trim().slice(0, 20) || 'Default Builder' };
@@ -734,6 +793,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
         hairColor: c.hairColor,
         hatStyle: c.hatStyle,
         hatColor: c.hatColor,
+        memeItem: c.memeItem || 'none',
       },
     };
   }
@@ -1318,38 +1378,61 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       const isHairStyle = ['short', 'spiky', 'bob'].includes(draftAvatar.hatStyle);
       const headColorKey = isHairStyle ? 'hairColor' : 'hatColor';
       const headPalette = isHairStyle ? HAIR_SWATCHES : HAT_SWATCHES;
+      const activeMeme = OG_MEME_ITEMS.find((m) => m.id === (draftAvatar.memeItem || 'none')) || OG_MEME_ITEMS[0];
       const swatchRow = (key, colors) => `<div class="gm-swatches">${colors.map((c) => `<button type="button" class="gm-swatch${Number(draftAvatar[key]) === c ? ' on' : ''}" data-ckey="${key}" data-cval="${c}" style="background:${hexCss(c)}" aria-label="${hexCss(c)}"></button>`).join('')}</div>`;
       bodyEl.innerHTML = `${tabsHtml}
         <div class="gm-cust-grid">
-          <div class="gm-cust-prev">
-            <img src="${renderPfp(previewBlocky, { size: 320, mark: false, full: true })}" alt="${esc(draftAvatar.name)}" />
-            <b>${esc(draftAvatar.name || 'Default Builder')}</b>
-            <span>Basic Voxel Builder · Free for all players</span>
+          <div class="gm-cust-left">
+            <div class="gm-cust-prev">
+              <img src="${renderPfp(previewBlocky, { size: 320, mark: false, full: true, fixed: true })}" alt="${esc(draftAvatar.name)}" />
+              <b>${esc(draftAvatar.name || 'Default Builder')}</b>
+              <span>Basic Voxel Builder · Free for all players</span>
+            </div>
+            <div class="gm-cust-skill-box">
+              <div class="gm-cust-skill-head">
+                <small style="color:${esc(activeMeme.color)}">${esc(activeMeme.token)}</small>
+                <span class="og-badge">${esc(activeMeme.badge)}</span>
+              </div>
+              <b>${esc(activeMeme.skill)}</b>
+              <p>${esc(activeMeme.desc)}</p>
+            </div>
           </div>
           <div class="gm-cust-ctrl">
-            <div class="gm-cust-sec">
+            <div class="gm-cust-row">
               <label for="gm-cust-name">Builder Name</label>
-              <input id="gm-cust-name" class="rk-search" type="text" maxlength="20" value="${esc(draftAvatar.name)}" placeholder="Default Builder" />
+              <input id="gm-cust-name" class="gm-cust-name" type="text" maxlength="20" value="${esc(draftAvatar.name)}" placeholder="Default Builder" />
             </div>
-            <div class="gm-cust-sec">
-              <label>Skin Tone</label>
-              ${swatchRow('skin', SKIN_SWATCHES)}
-            </div>
-            <div class="gm-cust-sec">
+            <div class="gm-cust-row">
               <label>Hat &amp; Hair Style</label>
               <div class="gm-pills">${HAT_STYLES.map(([id, lbl]) => `<button type="button" class="gm-pill${draftAvatar.hatStyle === id ? ' on' : ''}" data-hstyle="${id}">${lbl}</button>`).join('')}</div>
             </div>
-            ${draftAvatar.hatStyle !== 'none' ? `<div class="gm-cust-sec">
-              <label>${isHairStyle ? 'Hair Color' : 'Hat Color'}</label>
-              ${swatchRow(headColorKey, headPalette)}
-            </div>` : ''}
-            <div class="gm-cust-sec">
-              <label>Shirt Color</label>
-              ${swatchRow('shirt', SHIRT_SWATCHES)}
+            <div class="gm-cust-colors">
+              <div class="gm-cust-row">
+                <label>Skin Tone</label>
+                ${swatchRow('skin', SKIN_SWATCHES)}
+              </div>
+              ${draftAvatar.hatStyle !== 'none' ? `<div class="gm-cust-row">
+                <label>${isHairStyle ? 'Hair Color' : 'Hat Color'}</label>
+                ${swatchRow(headColorKey, headPalette)}
+              </div>` : '<div></div>'}
+              <div class="gm-cust-row">
+                <label>Shirt Color</label>
+                ${swatchRow('shirt', SHIRT_SWATCHES)}
+              </div>
+              <div class="gm-cust-row">
+                <label>Pants Color</label>
+                ${swatchRow('pants', PANTS_SWATCHES)}
+              </div>
             </div>
-            <div class="gm-cust-sec">
-              <label>Pants Color</label>
-              ${swatchRow('pants', PANTS_SWATCHES)}
+            <div class="gm-cust-row">
+              <label>OG Base Meme Gear &amp; User Skill</label>
+              <div class="gm-meme-grid">${OG_MEME_ITEMS.map((m) => {
+                const on = (draftAvatar.memeItem || 'none') === m.id;
+                return `<button type="button" class="gm-meme-opt${on ? ' on' : ''}" data-mstyle="${m.id}" style="${on ? `border-color:${esc(m.color)}` : ''}">
+                  <span class="gm-meme-top"><b>${esc(m.id === 'none' ? 'None' : m.name)}</b><small style="color:${esc(m.color)}">${esc(m.token)}</small></span>
+                  <span class="gm-meme-stat">${esc(m.badge)}</span>
+                </button>`;
+              }).join('')}</div>
             </div>
             <div class="gm-cust-acts">
               <button type="button" class="btn" id="gm-cust-rand">Randomize</button>
@@ -1371,6 +1454,9 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       });
       bodyEl.querySelectorAll('[data-hstyle]').forEach((btn) => {
         btn.onclick = () => { draftAvatar.hatStyle = btn.dataset.hstyle; renderLocker(); };
+      });
+      bodyEl.querySelectorAll('[data-mstyle]').forEach((btn) => {
+        btn.onclick = () => { draftAvatar.memeItem = btn.dataset.mstyle; renderLocker(); };
       });
       bodyEl.querySelector('#gm-cust-rand')?.addEventListener('click', () => {
         const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -1719,6 +1805,8 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
     if (active) return;
     active = true;
     mode = 'walk';
+    stride = 0;
+    streetAudio.unlock();
     speedCur = 0;
     navGoal = null;
     navPath = [];
@@ -1733,11 +1821,13 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
     vy = 0;
     grounded = true;
     yaw = 0;
-    pitch = 0.34;
+    pitch = 0.57;
     nearAcc = 1;
     mapAcc = 1;
     rayAcc = 1;
     armScale = 1;
+    armScaleWant = 1;
+    cameraHeight = 1.45;
 
     if (!padsObj) {
       padsObj = makeInteractionPads();
@@ -1778,6 +1868,8 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
   function exit() {
     if (!active) return;
     active = false;
+    streetAudio.drive(0, false);
+    fadeBuilding(null);
     navGoal = null;
     navPath = [];
     gpsBeacon.visible = false;
@@ -1827,32 +1919,33 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
     const ci = Math.round(x / PITCH);
     const cj = Math.round(z / PITCH);
     const isCar = checkMode === 'car';
-    const pad = isCar ? 0.36 : 0.36;
+    const pad = 0.36;
     const bevel = isCar ? 0.68 : 0.45;
     for (let di = -1; di <= 1; di++) {
       for (let dj = -1; dj <= 1; dj++) {
         const i = ci + di, j = cj + dj;
         const dx = Math.abs(x - i * PITCH), dz = Math.abs(z - j * PITCH);
         if (dx > 3.55 || dz > 3.55) continue;
-        if (isWater(i, j) && inRoundedBox(dx, dz, 3.02, 3.02, bevel)) return true;
+        if (isWater(i, j) && inRoundedBox(dx, dz, STREET_LOT_HALF + 0.02, STREET_LOT_HALF + 0.02, bevel)) return true;
         const key = `${i},${j}`;
         if ((s?.blOpen && BASELIVE_LOTS.has(key)) || (s?.stOpen && STOCKS_LOTS.has(key))) {
-          if (isCar && inRoundedBox(dx, dz, 3.04, 3.04, bevel)) return true;
+          if (isCar && inRoundedBox(dx, dz, STREET_LOT_HALF + 0.04, STREET_LOT_HALF + 0.04, bevel)) return true;
           continue;
         }
         const p = s?.standing?.get(key);
         if (p) {
           if (isCar) {
-            // Keep cars cleanly on asphalt roads (skip only Town Square) with beveled corners for smooth turns
-            if (p.type !== 'square' && inRoundedBox(dx, dz, 3.06, 3.06, bevel)) return true;
-          } else if (!OPEN_LOTS.has(p.type)) {
-            const hw = Math.min(3.22, ((p.w || 5.4) / 2) + pad);
-            const hd = Math.min(3.22, ((p.d || 5.4) / 2) + pad);
+            // Cars stay on asphalt. Rounded corners leave room to turn at junctions.
+            const edge = STREET_LOT_HALF + 0.06;
+            if (p.type !== 'square' && inRoundedBox(dx, dz, edge, edge, bevel)) return true;
+          } else if (!OPEN_LOTS.has(p.type) && p.type !== GPU_FRONTAGE.type) {
+            const hw = Math.min(STREET_LOT_HALF + 0.22, ((p.w || 5.4) / 2) * STREET_LOT_SCALE + pad);
+            const hd = Math.min(STREET_LOT_HALF + 0.22, ((p.d || 5.4) / 2) * STREET_LOT_SCALE + pad);
             if (inRoundedBox(dx, dz, hw, hd, bevel)) return true;
           }
         }
         if (s?.sites?.some((st) => st.p?.lot && st.p.lot[0] === i && st.p.lot[1] === j)) {
-          if (inRoundedBox(dx, dz, 3.16, 3.16, bevel)) return true;
+          if (inRoundedBox(dx, dz, STREET_LOT_HALF + 0.16, STREET_LOT_HALF + 0.16, bevel)) return true;
         }
       }
     }
@@ -2194,6 +2287,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
         : nearLot.type === 'launchpad' ? 'Enter Launchpad Tower'
         : nearLot.brand?.id === 'usdc' ? 'Enter USDC Bank'
         : nearLot.brand?.id === 'morpho' ? 'Enter Morpho Vault'
+        : nearLot.type === GPU_FRONTAGE.type ? 'Enter Power Plant'
         : nearLot.brand ? `Enter ${nearLot.brand.name} HQ (Passport)`
         : nearLot.type === 'stocks-district' ? 'Enter Blocky Street Trade'
         : `Inspect ${nearLot.name || nearLot.type}`;
@@ -2320,6 +2414,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       speedEl.querySelector('b').textContent = String(Math.round(speedCur * 6.2));
     }
 
+    const startX = pos.x, startZ = pos.z;
     if (moving && speedCur > 0.05) {
       const len = Math.hypot(mx, mz) || 1;
       mx /= len; mz /= len;
@@ -2373,6 +2468,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       carMesh.rotation.z *= Math.max(0, 1 - dt * 8);
     }
 
+    const wasGrounded = grounded;
     if (!locked && keys.has('Space') && grounded && mode === 'walk') {
       vy = 5.6;
       grounded = false;
@@ -2383,19 +2479,30 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       if (pos.y <= 0) { pos.y = 0; vy = 0; grounded = true; }
     }
 
-    const inLot = Math.abs(pos.x - Math.round(pos.x / PITCH) * PITCH) < 3.2
-      && Math.abs(pos.z - Math.round(pos.z / PITCH) * PITCH) < 3.2;
+    const inLot = Math.abs(pos.x - Math.round(pos.x / PITCH) * PITCH) < STREET_LOT_HALF
+      && Math.abs(pos.z - Math.round(pos.z / PITCH) * PITCH) < STREET_LOT_HALF;
     const groundY = inLot ? 0.15 : 0;
+    const travel = Math.hypot(pos.x - startX, pos.z - startZ);
+    const walking = mode === 'walk' && grounded && travel > 0.001;
+    const surface = inLot ? 'pavement' : 'road';
+    if (walking) {
+      const lastStep = Math.floor(stride / Math.PI);
+      stride = (stride + travel * (sprint ? 3.3 : 4.6));
+      if (Math.floor(stride / Math.PI) !== lastStep) streetAudio.step(surface);
+      stride %= Math.PI * 2;
+    } else stride = 0;
+    if (mode === 'walk' && grounded && !wasGrounded) streetAudio.step(surface, true);
+    streetAudio.drive(travel / Math.max(dt, 0.001), mode === 'car' && !locked && !document.hidden);
+
     const seatY = mode === 'walk' ? Math.max(groundY, pos.y + groundY) : groundY + 0.32;
-    avatar.group.position.set(pos.x, seatY, pos.z);
+    avatar.group.position.set(pos.x, seatY + (walking ? Math.abs(Math.sin(stride)) * 0.065 : 0), pos.z);
 
     if (carMesh && mode === 'car') {
       carMesh.position.set(pos.x, groundY, pos.z);
       carMesh.rotation.y = avatar.group.rotation.y;
     }
 
-    const ph = t * (sprint ? 15 : 10);
-    const sw = mode === 'walk' && moving && grounded ? Math.sin(ph) * 0.65 : 0;
+    const sw = walking ? Math.sin(stride) * 0.65 : 0;
     avatar.legs[0].rotation.x = sw;
     avatar.legs[1].rotation.x = -sw;
     if (emoteWaveT > 0) {
@@ -2424,13 +2531,16 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
     } else if (gpsBeacon.visible) {
       gpsBeacon.visible = false;
     }
-    const wantFov = locked ? 52 : (mode === 'car' && speedCur > 6 ? 66 : sprint && moving ? 64 : 60);
+    const wantFov = mode === 'car' ? 62 : 60;
     if (Math.abs(cam.fov - wantFov) > 0.05) {
-      cam.fov += (wantFov - cam.fov) * Math.min(1, dt * 7);
+      cam.fov += (wantFov - cam.fov) * (1 - Math.exp(-dt * 4));
       cam.updateProjectionMatrix();
     }
     const dist = mode === 'walk' ? 7.2 : 9.2;
-    camTarget.set(pos.x, avatar.group.position.y + 1.45, pos.z);
+    // Follow ground height gently without inheriting the model's stride or jump animation.
+    const desiredHeight = groundY + (mode === 'car' ? 1.77 : 1.45);
+    cameraHeight += (desiredHeight - cameraHeight) * (1 - Math.exp(-dt * 3.5));
+    camTarget.set(pos.x, cameraHeight, pos.z);
     camWant.set(
       camTarget.x + Math.sin(yaw) * Math.cos(pitch) * dist,
       camTarget.y + Math.sin(pitch) * dist + 0.6,
@@ -2444,16 +2554,21 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       const armLen = armDir.length() || 1;
       ray.set(camTarget, armDir.divideScalar(armLen));
       ray.far = armLen;
-      const hit = ray.intersectObject(city.solids, true)[0];
-      armScaleWant = hit && hit.distance > 0.6 && hit.distance < armLen ? Math.max(0.45, (hit.distance - 0.45) / armLen) : 1;
+      const hits = ray.intersectObject(city.solids, true).filter((hit) => hit.distance > 0.6);
+      const hit = hits[0];
+      let occluder = hit?.object;
+      while (occluder && occluder.parent !== city.solids) occluder = occluder.parent;
+      const canFade = mode === 'walk' && occluder?.userData.streetBuilding;
+      fadeBuilding(canFade ? occluder : null);
+      armScaleWant = !canFade && hit && hit.distance < armLen ? Math.max(0.45, (hit.distance - 0.45) / armLen) : 1;
     }
     // Smoothly damp camera arm zoom so passing trees or poles never causes screen shake
-    const armRate = armScaleWant < armScale ? 10 : 4.5;
+    const armRate = armScaleWant < armScale ? 8 : 2.5;
     armScale += (armScaleWant - armScale) * Math.min(1, dt * armRate);
     if (armScale < 0.995) camWant.lerpVectors(camTarget, camWant, armScale);
 
     cam.position.lerp(camWant, 1 - Math.exp(-dt * 10));
-    lookAt.set(pos.x, avatar.group.position.y + 1.25, pos.z);
+    lookAt.set(pos.x, cameraHeight - 0.2, pos.z);
     cam.lookAt(lookAt);
 
     nearAcc += dt;
@@ -2466,7 +2581,8 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       mapAcc = 0;
       drawRadar(mapCtx, mapCanvas, false);
       if (!fullMapWrap.hidden) drawRadar(fullMapCtx, fullMapCanvas, true);
-      if (Math.floor(t) !== Math.floor(t - 0.1) && world.getHudSummary().espressoOn) {
+      const hbNow = world.getHotbarState();
+      if (Math.floor(t) !== Math.floor(t - 0.1) && (world.getHudSummary().espressoOn || hbNow.memeActiveSecs > 0 || hbNow.memeCdSecs > 0)) {
         syncUserPill();
         renderHotbar();
       }
@@ -2507,6 +2623,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
     if (e.code === 'Digit4') world.useConsumable('gm-espresso');
     if (e.code === 'Digit5') world.useConsumable('overclock-core');
     if (e.code === 'Digit6') world.useConsumable('warp-beacon');
+    if (e.code === 'Digit7') world.triggerMemeSkill();
   });
   addEventListener('keyup', (e) => keys.delete(e.code));
 
@@ -2565,8 +2682,8 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
       showInspect({
         eyebrow: 'BLOCKY STREET · STOCK TOWER',
         title: `${hitStock} Stock Tower`,
-        desc: 'Coinbase Tokenized Stock trading 24/7 on Base.',
-        rows: tw?.price ? [['Price', `$${Number(tw.price).toFixed(2)}`]] : [],
+        desc: 'Coinbase tokenized stock on Base.',
+        rows: tw?.price ? [['Reference price', `$${Number(tw.price).toFixed(2)}`]] : [],
         gps: tw ? [tw.x, tw.z] : [-36, 0],
         primaryLbl: `Trade ${hitStock}`,
         onPrimary: () => onInteract?.({ type: 'stock-tower', ticker: hitStock }),
@@ -2619,6 +2736,8 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
         eyebrow: 'BILLBOARD · BASE PROJECT',
         title: board.name,
         desc: proj?.tagline || board.tagline || 'Featured project on BaseCity.',
+        gps: board.id === 'gpu' && city.powerPlant
+          ? [city.powerPlant.x + GPU_FRONTAGE.entranceX, city.powerPlant.z + GPU_FRONTAGE.roadZ] : null,
         primaryLbl: proj ? 'Open HQ & Stamp' : '',
         onPrimary: proj ? () => world.openProjectDossier(proj) : null,
         link: board.url ? { href: board.url, label: 'Website', ext: true } : null,

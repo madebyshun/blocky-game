@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { buildBlocky } from './citizens.js';
+import { GPU_FRONTAGE, STREET_LOT_SCALE } from './sim.js';
 
 // The GPU District (a meme, @blockyonbase style): once the Power Plant on Base Avenue stands (the 'gpu'
 // HQ, src/city.js), a guest in a leather jacket walks around it and holds his GPU up at the door. Just
 // for looks: he doesn't build, isn't a Base Builder or a Blocky, and every visitor sees their own.
 
-const PLANT = 'hq-gpu';
 // a loop on the sidewalk around the plant (lot coordinates), and where he stops: [x, z, hold, presents]
 const ROUTE = [[0.3, 3.0, 4.5, true], [2.9, 3.0, 0.6], [2.9, -2.9, 1.5], [-2.9, -2.9, 1.5], [-2.9, 3.0, 0.6]];
 
@@ -25,7 +25,7 @@ export function createGpuDistrict(city) {
   return {
     get here() { return !!guest; },
     update(t, dt) {
-      const plant = city.built.find((b) => b.type === PLANT);
+      const plant = city.built.find((b) => b.type === GPU_FRONTAGE.type);
       if (!plant) { if (guest) { group.remove(guest.g); guest = null; } return; }
       if (!guest || at.x !== plant.x || at.z !== plant.z) { if (guest) group.remove(guest.g); spawn(plant); }
       const s = guest, [tx, tz, hold, presents] = ROUTE[s.i];
@@ -47,7 +47,7 @@ export function createGpuDistrict(city) {
         } else s.arms[1].rotation.x += (-0.4 - s.arms[1].rotation.x) * Math.min(1, dt * 5);
         if (s.wait <= 0) { s.i = (s.i + 1) % ROUTE.length; s.wait = ROUTE[s.i][2]; }
       }
-      s.g.position.set(at.x + s.x, 0.15, at.z + s.z);
+      s.g.position.set(at.x + s.x * STREET_LOT_SCALE, 0.15, at.z + s.z * STREET_LOT_SCALE);
     },
   };
 }

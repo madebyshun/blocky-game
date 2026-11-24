@@ -8,7 +8,6 @@ import { OFFICE_RANK } from './sim.js';
 
 const $ = (id) => document.getElementById(id);
 mountSite('builders');
-$('ticker').textContent = CONFIG.ticker;
 $('profile').querySelector('.close').onclick = () => $('profile').close();
 $('profile').addEventListener('click', (e) => { if (e.target === $('profile')) $('profile').close(); });
 $('profile').addEventListener('close', () => history.replaceState(null, '', location.pathname + location.search));
@@ -23,12 +22,12 @@ function statsOf(b, sim) {
   return { hours: (now - b.arrivedAt) / 3600000, blocks, share: total ? (blocks / total) * 100 : 0, skill: b.skill, joined: b.arrivedAt };
 }
 
-function card(b, rank, status, here, stats) {
+function card(b, status, here, stats) {
   const el = document.createElement('article');
   el.className = 'card';
   el.id = slug(b.name);
   el.innerHTML = `
-    <div class="pic"><img alt="Voxel PFP of ${b.name}" width="512" height="512" /><span class="rank">${rank}</span></div>
+    <button class="pic" type="button"><img alt="" width="384" height="384" /></button>
     <div class="body">
       <h2></h2>
       <div class="title"></div>
@@ -37,10 +36,11 @@ function card(b, rank, status, here, stats) {
       <div class="row"><button class="btn primary dl">Save PFP</button><button class="btn open">Profile</button>${b.legend?.x ? '<a class="btn x" target="_blank" rel="noopener">X</a>' : ''}</div>
     </div>`;
   el.querySelector('h2').textContent = b.name;
+  el.querySelector('.pic').setAttribute('aria-label', `View ${b.name}`);
   el.querySelector('.title').textContent = b.office ? `${b.office.label} · ${b.role.label}` : b.role.label;
   el.querySelector('.status').textContent = status;
   if (b.legend?.x) el.querySelector('.x').href = `https://x.com/${b.legend.x.replace(/^@/, '')}`;
-  el.querySelector('.dl').onclick = () => downloadPfp(b, b.name);
+  el.querySelector('.dl').onclick = () => downloadPfp(b, b.name, { studio: true });
   const open = () => openProfile(b, status, here, stats);
   el.querySelector('.open').onclick = open;
   el.querySelector('.pic').onclick = open;
@@ -50,8 +50,18 @@ function card(b, rank, status, here, stats) {
 // the profile: big PFP, every stat, download, share
 function openProfile(b, status, here, stats) {
   const d = $('profile');
-  d.querySelector('img').src = renderPfp(b, { size: 1024 });
-  d.querySelector('img').alt = `Voxel PFP of ${b.name}`;
+  let full = false;
+  const views = d.querySelectorAll('[data-view]');
+  function setView(value) {
+    full = value;
+    d.querySelector('img').src = renderPfp(b, { size: 640, studio: true, full });
+    for (const button of views) button.setAttribute('aria-pressed', String((button.dataset.view === 'full') === full));
+    d.querySelector('.dl').textContent = full ? 'Download full body' : 'Download PFP';
+  }
+  for (const button of views) button.onclick = () => setView(button.dataset.view === 'full');
+  setView(false);
+  d.querySelector('img').alt = `Voxel character of ${b.name}`;
+  d.querySelector('.view-3d').href = `/blocky.html?n=${encodeURIComponent(slug(b.name))}`;
   d.querySelector('h2').textContent = b.name;
   d.querySelector('.title').textContent = b.office ? `${b.office.label} · ${b.role.label}` : b.role.label;
   const st = d.querySelector('.status');
@@ -66,7 +76,7 @@ function openProfile(b, status, here, stats) {
     ['Building since', day(stats.joined)],
   ] : [['Joins', day(b.arrivedAt)]];
   d.querySelector('dl').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
-  d.querySelector('.dl').onclick = () => downloadPfp(b, b.name);
+  d.querySelector('.dl').onclick = () => downloadPfp(b, full ? `${b.name}-full` : b.name, { studio: true, full });
   d.querySelector('.share').onclick = () => {
     const who = b.legend?.x ? `@${b.legend.x.replace(/^@/, '')}` : b.name;
     const text = stats
@@ -89,17 +99,38 @@ function openProfile(b, status, here, stats) {
   // the founder first, then the City Council by rank (Mayor, Governor, ...), then everyone else
   const rank = (b) => (b.kind === 'founder' ? -1 : b.office ? OFFICE_RANK.indexOf(b.office.id) : 999);
   const order = team.slice().sort((a, b) => rank(a) - rank(b));
-  const cards = order.map((b, i) => {
+  const cards = order.map((b) => {
     const here = b.arrivedAt <= now;
     const status = b.kind === 'founder' ? `Built ${CONFIG.cityName} from empty land` : here ? `Building ${CONFIG.cityName} since ${day(b.arrivedAt)}` : `Joins on ${day(b.arrivedAt)}`;
-    return card(b, b.kind === 'founder' ? 'Founder' : `#${i}`, status, here, statsOf(b, sim));
+    return card(b, status, here, statsOf(b, sim));
   });
   for (const c of cards) $('grid').appendChild(c.el);
   const linked = cards.find((c) => location.hash && c.el.id === location.hash.slice(1));
   if (linked) linked.el.querySelector('.open').click();
-  // render the PFPs one at a time so the page stays responsive
-  for (const c of cards) {
-    c.img.src = renderPfp(c.b, { size: 512 });
-    await new Promise((r) => setTimeout(r, 0));
+  const search = $('builder-search');
+  search.addEventListener('input', () => {
+    const query = search.value.trim().toLowerCase();
+    let matches = 0;
+    for (const { el, b } of cards) {
+      el.hidden = ![b.name, b.role.label, b.office?.label, b.legend?.x].some((value) => value?.toLowerCase().includes(query));
+      if (!el.hidden) matches++;
+    }
+    $('builder-empty').hidden = matches > 0;
+  });
+
+  const portraits = new Map(cards.map((c) => [c.img, c.b]));
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      for (const { target, isIntersecting } of entries) {
+        if (!isIntersecting) continue;
+        observer.unobserve(target);
+        requestAnimationFrame(() => {
+          target.src = renderPfp(portraits.get(target), { size: 384, mark: false, studio: true });
+        });
+      }
+    }, { rootMargin: '160px' });
+    for (const { img } of cards) observer.observe(img);
+  } else {
+    for (const { img, b } of cards) img.src = renderPfp(b, { size: 384, mark: false, studio: true });
   }
 })();

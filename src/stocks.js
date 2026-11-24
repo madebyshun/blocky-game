@@ -650,6 +650,7 @@ export function createBlockyStreet(city, { baseLive, open = () => true, log = ()
     togglePanel() { panelEl.hidden = !panelEl.hidden; if (!panelEl.hidden) card.hidden = true; },
     closePanel() { panelEl.hidden = true; },
     getTowers() {
+      if (!group.visible) return [];
       return [...towers.values()].map((tw) => ({
         ticker: tw.t,
         x: cx + tw.g.position.x,

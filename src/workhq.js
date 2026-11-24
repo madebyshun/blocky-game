@@ -145,7 +145,7 @@ export function createWorkHQ(city, { log = () => {}, from = () => null, crew = (
           <div class="gm-sec-title">GUILDS (7 DAYS)</div>
           <div class="whq-guilds-v2">${Object.entries(GUILDS).map(([id, g]) => {
             const r = (d.guilds || []).find((x) => x.guild === id);
-            return `<div class="whq-gcard" style="border-left-color:${g.color}"><b>${esc(g.label)}</b><span>${r ? `${usd(r.earnedUsd)} · ${r.calls} paid` : 'No paid calls yet'}</span></div>`;
+            return `<div class="whq-gcard"><b style="color:${g.color}">${esc(g.label)}</b><span>${r ? `${usd(r.earnedUsd)} · ${r.calls} paid` : 'No paid calls yet'}</span></div>`;
           }).join('')}</div>
         </div>
         <div>

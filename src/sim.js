@@ -107,7 +107,12 @@ export const sitesFor = (pop) => Math.max(1, Math.min(CONFIG.sites?.max ?? 1, 1 
 
 // ---------- land: a square grid of lots with a river ----------
 
-export const PITCH = 8; // 6 lot + 2 road
+export const PITCH = 8; // stable lot centers used by saves, roads and GPS
+export const STREET_WIDTH = 3;
+export const STREET_LOT_HALF = (PITCH - STREET_WIDTH) / 2;
+export const STREET_LOT_SCALE = STREET_LOT_HALF / 3.2; // existing sidewalks measure 6.4 across
+export const GPU_FRONTAGE = { type: 'hq-gpu', entranceX: -1.6 * STREET_LOT_SCALE, roadZ: PITCH / 2 };
+
 export const ring = (i, j) => Math.max(Math.abs(i), Math.abs(j));
 
 export const riverCol = (j) => Math.round(1.6 + Math.sin(j * 0.5 + 0.8) * 1.2);

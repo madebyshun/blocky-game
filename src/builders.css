@@ -38,3 +38,28 @@
   .profile-grid { grid-template-columns: 1fr; }
   .profile-grid img { max-width: 320px; margin: 0 auto; }
 }
+
+.builder-search { display: grid; gap: 5px; text-align: left; font-weight: 700; color: var(--soft); }
+.builder-search input { width: min(280px, 75vw); padding: 10px 12px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.card { border-radius: 12px; }
+.card .pic { border: 0; display: block; padding: 0; width: 100%; overflow: hidden; background: #101c32; }
+.card .pic img { transition: transform 220ms ease; }
+.card .pic:hover img { transform: scale(1.035); }
+.card .pic:focus-visible { outline: 2px solid #80aaff; outline-offset: -3px; }
+.card .mini { flex-wrap: wrap; column-gap: 10px; row-gap: 2px; }
+.profile { max-height: calc(100dvh - 32px); }
+.profile-grid { grid-template-columns: minmax(0, 46%) minmax(0, 1fr); }
+.profile-grid > div { padding: 24px 20px; }
+.portrait { margin: 0; background: #101c32; }
+.portrait figcaption { display: flex; justify-content: center; gap: 6px; padding: 9px; }
+.portrait button { padding: 7px 11px; border: 1px solid var(--line); border-radius: 6px; color: var(--soft); background: var(--panel); cursor: pointer; font: inherit; font-size: 13px; }
+.portrait button[aria-pressed="true"] { background: var(--base); border-color: var(--base); color: white; }
+@media (max-width: 640px) {
+  .profile-grid { grid-template-columns: minmax(0, 1fr); }
+  .profile-grid img { max-width: min(320px, 50dvh); }
+}
+@media (max-width: 450px) {
+  .card .row { flex-wrap: wrap; }
+  .card .row .btn { flex-basis: 40%; }
+}
+@media (prefers-reduced-motion: reduce) { .card .pic img { transition: none; } }

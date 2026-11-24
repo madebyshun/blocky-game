@@ -999,7 +999,7 @@ function renderCard() {
   $('card-nft').hidden = b.kind !== 'blocky';
   $('card-nft').href = `/collection.html#${b.id}`;
   const img = $('card-pfp');
-  if (img.dataset.id !== String(b.id)) { img.dataset.id = b.id; img.src = renderPfp(b, { size: 256, mark: false }); img.alt = `Voxel PFP of ${b.name}`; }
+  if (img.dataset.id !== String(b.id)) { img.dataset.id = b.id; img.src = renderPfp(b, { size: 256, mark: false, studio: b.kind !== 'blocky' }); img.alt = `Voxel PFP of ${b.name}`; }
 }
 
 function select(v, follow = false) {
@@ -1011,7 +1011,7 @@ function select(v, follow = false) {
 }
 $('card-close').onclick = () => select(null);
 $('card-follow').onclick = () => { following = !following; renderCard(); };
-$('card-pfp-dl').onclick = () => selected && downloadPfp(selected.b);
+$('card-pfp-dl').onclick = () => selected && downloadPfp(selected.b, selected.b.name, { studio: selected.b.kind !== 'blocky' });
 $('card-film').onclick = () => selected && cine.enter(selected.b.id);
 
 // ---------- cinematic mode: a film camera, photos and clips (src/cinematic.js) ----------

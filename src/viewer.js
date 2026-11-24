@@ -132,7 +132,7 @@ function controls() {
     if (e.key === 'ArrowLeft') $('prev').click();
     if (e.key === 'ArrowRight') $('next').click();
   });
-  const dl = { body: () => renderPfp(current, { size: 2048, mark: true, full: true }), clear: () => renderPfp(current, { size: 2048, mark: false, full: true, transparent: true }), pfp: () => renderPfp(current, { size: 1024 }) };
+  const dl = { body: () => renderPfp(current, { size: 2048, mark: true, full: true, studio: isBuilder(current) }), clear: () => renderPfp(current, { size: 2048, mark: false, full: true, transparent: true }), pfp: () => renderPfp(current, { size: 1024, studio: isBuilder(current) }) };
   $('acts').onclick = async (e) => {
     const a = e.target.closest('[data-dl]')?.dataset.dl;
     if (!a || !current) return;
