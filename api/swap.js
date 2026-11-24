@@ -9,8 +9,30 @@ function parseBody(req) {
   try { return JSON.parse(req.body || '{}'); } catch { return {}; }
 }
 
+// Only BaseCity's own pages may use this relay (it spends our quota with three aggregators), with a size cap and a
+// per-IP rate limit. Calls with no browser Origin (scripts, curl) are refused.
+export const deps = { now: () => Date.now() };
+const HOSTS = [/^(www\.)?basecity\.space$/, /^localhost$/, /^127\.0\.0\.1$/, /^blocky-game[a-z0-9-]*\.vercel\.app$/];
+export function originAllowed(req) {
+  const o = String(req.headers?.origin || req.headers?.referer || '');
+  if (!o) return false;
+  try { const h = new URL(o).hostname; return HOSTS.some((re) => re.test(h)); } catch { return false; }
+}
+const hits = new Map();
+export function rateLimited(ip, now) {
+  const w = hits.get(ip)?.filter((t) => now - t < 60000) || [];
+  w.push(now); hits.set(ip, w);
+  if (hits.size > 5000) for (const [k, v] of hits) if (!v.some((t) => now - t < 60000)) hits.delete(k);
+  return w.length > 90;
+}
+const MAX_BODY = 20000;
+
 export default async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
+  if (!originAllowed(req)) return res.status(403).json({ error: 'The swap relay only serves BaseCity pages.' });
+  const ip = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+  if (rateLimited(ip, deps.now())) return res.status(429).json({ error: 'Too many swap requests. Try again in a minute.' });
+  if (req.method === 'POST' && JSON.stringify(parseBody(req)).length > MAX_BODY) return res.status(413).json({ error: 'Request too large.' });
   try {
     const u = new URL(req.url, 'http://x');
     const dex = u.searchParams.get('dex') || 'kyber';

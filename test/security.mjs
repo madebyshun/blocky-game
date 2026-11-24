@@ -155,4 +155,14 @@ const src = fs.readFileSync(new URL('../src/game-world.js', import.meta.url), 'u
 const shop = Object.fromEntries([...src.matchAll(/\{ id: '([^']+)'[^\n]*?usdcPrice: ([0-9.]+)/g)].map((m) => [m[1], Number(m[2])]).filter(([, p]) => p > 0));
 assert.deepEqual(USDC_PRICES, shop, 'src/shop-prices.js matches SHOP_CATALOG');
 
+// ---- swap relay: only BaseCity pages, size cap, rate limit ----
+const swap = await import('../api/swap.js');
+const web = { origin: 'https://www.basecity.space', 'x-forwarded-for': '9.9.9.9' };
+assert.equal((await call(swap.default, { method: 'GET', headers: {} })).status, 403, 'no Origin: refused');
+assert.equal((await call(swap.default, { method: 'GET', headers: { origin: 'https://evil.example', 'x-forwarded-for': '1.1.1.1' } })).status, 403, 'foreign Origin: refused');
+assert.equal((await call(swap.default, { method: 'GET', headers: { origin: 'https://www.basecity.space.evil.example' } })).status, 403, 'look-alike host: refused');
+assert.equal((await call(swap.default, { body: { pad: 'x'.repeat(30000) }, headers: web })).status, 413, 'oversized body');
+let last = 0; for (let i = 0; i < 100; i++) last = (await call(swap.default, { body: { pad: 'x'.repeat(30000) }, headers: { ...web, 'x-forwarded-for': '8.8.8.8' } })).status;
+assert.equal(last, 429, 'rate limited per IP');
+
 console.log('security ok');
