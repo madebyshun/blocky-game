@@ -308,14 +308,17 @@ addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return; // Cmd/Ctrl+C, R, P: copy, reload, print, not our shortcuts
   if (play?.active) return;
   if (cine.active) { if (e.key === 'Escape' || e.key === 'f' || e.key === 'F') cine.exit(); return; }
-  if (e.key === 'g' || e.key === 'G') { play.enter(selected?.b ?? null); return; }
+  if (e.key === 'g' || e.key === 'G') { enterGame(selected?.b ?? null); return; }
   if (e.key === 'h' || e.key === 'H') { toggleHud(); return; }
   if (e.key === 'r' || e.key === 'R') setRotate(!rotatePref);
   if (e.key === 'm' || e.key === 'M') setMusic(!music.on);
   if (e.key === 'b' || e.key === 'B') directory.toggle();
   if (e.key === 'p' || e.key === 'P') setPhoto(!photo);
   if (e.key === 'f' || e.key === 'F') cine.enter(selected?.b.id ?? null); // F: film
-  if (e.key === 'Escape' && photo) setPhoto(false);
+  if (e.key === 'Escape') {
+    if (photo) setPhoto(false);
+    baseLive?.setDash(false);
+  }
 });
 syncRotate();
 if (qs.has('photo')) setPhoto(true);
@@ -332,7 +335,7 @@ const goToBaseLive = (close = false) => {
 };
 const baseLivePanel = createBaseLivePanel({ baseLive, goTo: goToBaseLive, dashboard: () => { goToBaseLive(); baseLive.setDash(true); } });
 $('baselive-btn').onclick = () => { directory.close(); builderList.close(); street?.closePanel(); baseLivePanel.toggle(); };
-if (qs.has('baselive')) setTimeout(() => { goToBaseLive(); baseLive.setDash(true); }, 2500); // ?baselive: straight into the Dashboard view
+if (qs.has('baselive') && !qs.has('play')) setTimeout(() => { goToBaseLive(); baseLive.setDash(true); }, 2500); // ?baselive: straight into the Dashboard view
 // Blocky Street: Coinbase's stocks on Base, a tower each, built by their transfers (src/stocks.js)
 const street = createBlockyStreet(city, { baseLive, open: () => !!sim?.stOpen && city.land >= 6, log: (html) => log(html), goTo: (c) => { following = false; goHome = false; controls.autoRotate = false; focus = { x: c.x, y: 3, z: c.z, zoom: wideZoom() * 4.2, t: 0 }; } });
 const workHQ = createWorkHQ(city, { log: (html) => log(html), from: () => street.center, crew: () => crew, onOpenTasks: (tab) => play.openTasks(tab) });
@@ -364,6 +367,7 @@ const defiUI = createDefiUI({
   onFlyTo: (tab) => flyTo({ lot: tab === 'morpho' ? [1, 3] : [-2, 3], h: 10 }),
 });
 const goToStreet = () => {
+  baseLive.setDash(false);
   const c = street.center;
   following = false; goHome = false; controls.autoRotate = false;
   focus = { x: c.x, y: 4, z: c.z, zoom: wideZoom() * (innerWidth < innerHeight ? 2.4 : 3.6), t: 0 };
@@ -1080,8 +1084,12 @@ const play = createPlayMode({
   },
   onExit: () => { renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); resize(); },
 });
-$('play-btn').onclick = () => play.enter();
-if ($('sim-enter-game')) $('sim-enter-game').onclick = () => play.enter();
+function enterGame(blocky = null) {
+  baseLive.setDash(false);
+  play.enter(blocky);
+}
+$('play-btn').onclick = () => enterGame();
+if ($('sim-enter-game')) $('sim-enter-game').onclick = () => enterGame();
 
 // ---------- the livestream (/live) ----------
 
@@ -1482,7 +1490,7 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--side-top'
   refreshTicker();
   welcomeBack();
   requestAnimationFrame(frame);
-  if (shouldResumePlayAfterPrivy() || qs.has('play')) play.enter();
+  if (shouldResumePlayAfterPrivy() || qs.has('play')) enterGame();
   else if (STREAM) startStream();
   else if (qs.get('film')) filmCast(qs.get('film'));
   else if (qs.get('shot')) { // ?shot=jetcam: straight into the film camera on that shot (for recording)

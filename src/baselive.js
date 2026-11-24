@@ -328,7 +328,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   }
 
   // ---------- LIVE cards (DOM, pinned over the buildings) and pop-up labels ----------
-  const layer = document.createElement('div'); layer.className = 'bl-layer'; document.body.appendChild(layer);
+  const layer = document.createElement('div'); layer.className = 'bl-layer'; layer.style.display = 'none'; document.body.appendChild(layer);
   const cards = [];
   function card(id, at, icon, title, accent = '#0052ff', mini = false) {
     const el = document.createElement('div');
@@ -661,7 +661,7 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
   function placeCards(show) {
     const list = [];
     for (const c of cards) {
-      const p = show && (dash || c.id === 'tower') && toScreen(V.copy(c.at).applyMatrix4(group.matrix).applyMatrix4(city.root.matrixWorld)); // outside the Dashboard view: just the chain
+      const p = (show || (vis && c === mineCard)) && toScreen(V.copy(c.at).applyMatrix4(group.matrix).applyMatrix4(city.root.matrixWorld));
       if (!p) { c.el.style.display = 'none'; continue; }
       c.el.style.display = '';
       if (!c.size || Math.random() < 0.05) c.size = [c.el.offsetWidth, c.el.offsetHeight + 14];
@@ -698,12 +698,12 @@ export function createBaseLive(city, { camera, renderer, scene, controls, open =
     halo.rotation.z = t * 0.6; halo.position.y = 17.2 + Math.sin(t * 2) * 0.2;
     logo.rotation.y = t * 0.8;
     stepMovers(dt); stepSparks(dt); stepRings(dt);
-    // the cards: in the Dashboard view, or when the camera is close to the district
+    // Show dashboard cards only on request. Keep the requested wallet plot visible up close.
     const zoomed = camera.zoom >= 1.5;
     const near = controls ? controls.target.distanceTo(V.copy(center).applyMatrix4(city.root.matrixWorld)) < 46 : false;
     vis = dash || (zoomed && near);
     layer.classList.toggle('dash', dash);
-    placeCards(vis);
+    placeCards(dash);
     for (let i = pops.length - 1; i >= 0; i--) {
       const p = pops[i];
       p.t += dt;
