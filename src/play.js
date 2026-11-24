@@ -19,7 +19,7 @@ import { privyConfigured, loginWithPrivyOAuth, sendPrivyEmailCode, verifyPrivyEm
 import { esc, who } from './names.js';
 import { now } from './time.js';
 import { fetchCityTasks, createCityTask, claimCityTask, unclaimCityTask, cancelCityTask, submitCityTask, submitBlueAgentJob, approveAndPayCityTask, formatTaskReward, renderTaskBoardHtml, renderPostTaskHtml } from './city-tasks.js';
-import { fetchStockIntel, publishStockIntel, unlockStockIntel, renderStockIntelHtml } from './stock-intel.js';
+import { fetchStockIntel, publishStockIntel, unlockStockIntel, removeStockIntel, renderStockIntelHtml } from './stock-intel.js';
 import { fetchBaseStocks, getWalletStockBalances } from './swap-base.js';
 import { openBlocky10 } from './tradedock.js';
 import { PROJECTS } from './projects.js';
@@ -1007,6 +1007,21 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
           renderTasksModal();
         };
       }
+      bodyEl.querySelectorAll('[data-si-remove]').forEach((btn) => {
+        btn.onclick = async () => {
+          const it = intelItems.find((x) => x.id === btn.dataset.siRemove);
+          if (!it || !window.confirm(`Take "${it.title}" off the Stock Intel desk? Sign with your wallet (no gas).`)) return;
+          btn.disabled = true;
+          try {
+            await removeStockIntel({ provider: walletProvider, account: walletAccount, id: it.id });
+            intelBusyMsg = 'Report taken down.';
+            intelItems = await fetchStockIntel(intelTicker);
+          } catch (err) {
+            intelBusyMsg = rejected(err) ? 'Cancelled.' : (err.shortMessage || err.message || 'Could not take it down.');
+          }
+          renderTasksModal();
+        };
+      });
       bodyEl.querySelectorAll('[data-si-unlock]').forEach((btn) => {
         btn.onclick = async () => {
           const it = intelItems.find((x) => x.id === btn.dataset.siUnlock);

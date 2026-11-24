@@ -3,7 +3,7 @@
 import { toHex } from 'viem';
 import { esc } from './names.js';
 import { payRequirement, chooseRequirement, providerSigner } from './x402.js';
-import { intelMessage } from './signed.js';
+import { intelMessage, intelRemoveMessage } from './signed.js';
 
 const LOCAL_KEY = 'basecity:stock-intel:v1';
 const UNLOCKED_KEY = 'basecity:stock-intel-unlocked:v1';
@@ -47,6 +47,19 @@ export async function fetchStockIntel(ticker = '') {
   } catch { /* fallback local */ }
   const all = readLocal();
   return ticker ? all.filter((x) => x.ticker === ticker) : all;
+}
+
+// The author takes their own report down: one wallet signature, no gas. The server checks it is the author's.
+export async function removeStockIntel({ provider, account, id }) {
+  if (!provider || !account) throw new Error('Connect your Base wallet first.');
+  const b = { id, author: account, issuedAt: new Date().toISOString() };
+  const signature = await provider.request({ method: 'personal_sign', params: [toHex(intelRemoveMessage(b, b.issuedAt)), account] });
+  const r = await fetch('/api/stock-intel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'remove', ...b, signature }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok && r.status !== 404) throw new Error(j.error || 'Could not remove this report.');
+  writeLocal(readLocal().filter((x) => x.id !== id));
+  try { const m = readUnlocked(); m[id] = undefined; localStorage.setItem(UNLOCKED_KEY, JSON.stringify(m)); } catch { /* ignore */ }
+  return true;
 }
 
 export async function publishStockIntel({ provider, account, blockyName, ticker, stance, title, preview, fullReport, priceUsdc }) {
@@ -202,6 +215,7 @@ export function renderStockIntelHtml({ items, selectedTicker, account, showForm,
               </div>
               <span class="tm-bounty">$${Number(it.priceUsdc).toFixed(2)}</span>
             </div>
+            ${me && it.author === me ? `<button type="button" class="btn small-pill" style="margin-top:6px" data-si-remove="${esc(it.id)}">Remove my report</button>` : ''}
             <p class="tm-brief">${esc(it.preview)}</p>
             ${full
               ? `<div class="si-unlocked"><div class="gm-sec-title">UNLOCKED ALPHA</div><p>${esc(full)}</p></div>`
