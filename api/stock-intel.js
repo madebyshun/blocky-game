@@ -80,7 +80,10 @@ export default async function handler(req, res) {
       // the nonce; 3) it settles the transfer on Base. The report is released only after the money has moved.
       const verified = await verifyX402Payment(payment, reqObj);
       if (!verified.ok) return res.status(402).json({ x402Version: 2, error: verified.error, accepts: [reqObj] });
-      const pp = { ...payment, resource: payment.resource || { url: reqObj.resource }, extensions: payment.extensions || {} };
+      // x402 v2 wants resource as an object; browsers send a plain string, so always rebuild it.
+      const res0 = payment.resource;
+      const resource = res0 && typeof res0 === 'object' && res0.url ? res0 : { url: typeof res0 === 'string' && res0 ? res0 : reqObj.resource };
+      const pp = { ...payment, resource, extensions: payment.extensions || {} };
       let settled;
       try {
         const v = await deps.facilitator('verify', { x402Version: 2, paymentPayload: pp, paymentRequirements: reqObj });

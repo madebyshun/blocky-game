@@ -108,9 +108,10 @@ assert.equal((await unlock(await payHeader(buyer, author.address.toLowerCase(), 
 assert.equal((await unlock(await payHeader(author, author.address.toLowerCase(), 500000))).status, 409, 'the author cannot pay themselves');
 // the facilitator settles: the report is released and the earnings count
 let calls = [];
-intel.deps.facilitator = async (path) => { calls.push(path); return path === 'verify' ? { isValid: true } : { success: true, transaction: '0x' + 'd'.repeat(64) }; };
+let seenRes; intel.deps.facilitator = async (path, body) => { calls.push(path); seenRes = body.paymentPayload.resource; return path === 'verify' ? { isValid: true } : { success: true, transaction: '0x' + 'd'.repeat(64) }; };
 r = await unlock(await payHeader(buyer, author.address.toLowerCase(), 500000));
 assert.equal(r.status, 200); assert.deepEqual(calls, ['verify', 'settle'], 'verify then settle, in that order');
+assert.equal(typeof seenRes, 'object'); assert.ok(seenRes.url, 'x402 v2 resource is an object with a url');
 assert.ok(r.body.item.fullReport.includes('full paid thesis')); assert.equal(r.body.paid.tx, '0x' + 'd'.repeat(64));
 assert.equal((await call(intel.default, { method: 'GET' })).body.stats.totalUsdc, 0.5);
 // a settle that fails after a valid verify releases nothing
