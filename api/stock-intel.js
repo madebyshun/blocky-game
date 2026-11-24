@@ -6,6 +6,10 @@
 import { getAddress, isAddress } from 'viem';
 import { kv, useKv, KEY_BASE } from './_store.js';
 import { buildRequirement, decodePaymentHeader, verifyX402Payment, send402 } from './_x402.js';
+import { facilitatorCall } from './_facilitator.js';
+import { checkSigned } from './_sigauth.js';
+import { intelMessage } from '../src/signed.js';
+export const deps = { facilitator: facilitatorCall };
 
 const INTEL_KEY = `${KEY_BASE}:stock-intel:v1`;
 let memIntel = [];
@@ -48,7 +52,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET' && !id) {
       const filtered = tickerFilter ? list.filter((x) => x.ticker === tickerFilter) : list;
       return res.status(200).json({
-        items: filtered.map(({ fullReport, ...pub }) => pub),
+        items: filtered.map(({ fullReport, payments, ...pub }) => pub),
         stats: {
           total: list.length,
           totalUnlocks: list.reduce((a, x) => a + (x.unlocks || 0), 0),
@@ -61,11 +65,6 @@ export default async function handler(req, res) {
       const item = list.find((x) => x.id === id);
       if (!item) return res.status(404).json({ error: 'Intel report not found.' });
 
-      const viewer = String(req.query?.viewer || u.searchParams.get('viewer') || '').toLowerCase();
-      if (viewer && viewer === item.author) {
-        return res.status(200).json({ unlocked: true, item });
-      }
-
       const reqObj = buildRequirement({
         payTo: item.author,
         amountUsdc: item.priceUsdc,
@@ -75,18 +74,35 @@ export default async function handler(req, res) {
 
       const payment = decodePaymentHeader(req);
       if (!payment) return send402(res, reqObj);
+      if (String(payment.payload?.authorization?.from || '').toLowerCase() === item.author) return res.status(409).json({ error: 'This is your own report: you do not pay yourself.' });
 
+      // 1) the signature is well formed and pays the author this much; 2) the facilitator checks the balance and
+      // the nonce; 3) it settles the transfer on Base. The report is released only after the money has moved.
       const verified = await verifyX402Payment(payment, reqObj);
       if (!verified.ok) return res.status(402).json({ x402Version: 2, error: verified.error, accepts: [reqObj] });
+      const pp = { ...payment, resource: payment.resource || { url: reqObj.resource }, extensions: payment.extensions || {} };
+      let settled;
+      try {
+        const v = await deps.facilitator('verify', { x402Version: 2, paymentPayload: pp, paymentRequirements: reqObj });
+        if (!v.isValid) return res.status(402).json({ x402Version: 2, error: v.invalidReason || 'The payment is not valid (balance or nonce).', accepts: [reqObj] });
+        settled = await deps.facilitator('settle', { x402Version: 2, paymentPayload: pp, paymentRequirements: reqObj });
+      } catch (e) {
+        return res.status(503).json({ error: `Payment could not be settled: ${String(e.message || e).slice(0, 160)}. Nothing was charged.` });
+      }
+      if (!settled.success) return res.status(402).json({ x402Version: 2, error: settled.errorReason || 'The payment did not settle.', accepts: [reqObj] });
 
-      item.unlocks = (item.unlocks || 0) + 1;
-      item.earnedUsdc = Math.round(((item.earnedUsdc || 0) + Number(item.priceUsdc || 0)) * 100) / 100;
-      await saveIntel(list);
+      const fresh = await loadIntel();
+      const live = fresh.find((x) => x.id === id) || item;
+      live.unlocks = (live.unlocks || 0) + 1;
+      live.earnedUsdc = Math.round(((live.earnedUsdc || 0) + Number(live.priceUsdc || 0)) * 100) / 100;
+      live.payments = [{ tx: settled.transaction || null, payer: verified.payer, at: Date.now() }, ...(live.payments || [])].slice(0, 50);
+      await saveIntel(fresh.some((x) => x.id === id) ? fresh : list);
 
       return res.status(200).json({
         unlocked: true,
         payer: verified.payer,
-        item,
+        paid: { tx: settled.transaction || null, payTo: item.author },
+        item: live,
       });
     }
 
@@ -105,6 +121,8 @@ export default async function handler(req, res) {
       if (!fullReport || fullReport.length < 20) return res.status(400).json({ error: 'Full report must be at least 20 characters.' });
       if (!Number.isFinite(priceUsdc) || priceUsdc < 0.05 || priceUsdc > 25) return res.status(400).json({ error: 'x402 price must be between $0.05 and $25 USDC.' });
       if (!isAddress(b.author || '', { strict: false })) return res.status(400).json({ error: 'Valid Base wallet address required.' });
+      const auth = await checkSigned({ wallet: b.author, message: intelMessage(b, String(b.issuedAt || '')), signature: b.signature, issuedAt: String(b.issuedAt || '') });
+      if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
 
       const item = {
         id: `intel-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,

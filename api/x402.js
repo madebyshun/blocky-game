@@ -11,7 +11,7 @@
 // Only a Blocky whose agent is on (api/agent.js) sells; the owner is read from chain on every call, so a
 // sold NFT stops paying its old owner. Sales are counted per Blocky (soldCalls, soldUsdc) for the P&L.
 // Payment is charged only when the research succeeded: research runs first, settle happens after.
-import { createFacilitatorConfig } from '@coinbase/x402';
+import { facilitatorCall } from './_facilitator.js';
 import { client, NFT, useKv, kv, KEY_BASE } from './_store.js';
 import { runSkill } from './_skills.js';
 import { SKILLS, INPUTS, inputSchema, priceUnits } from '../src/skills.js';
@@ -62,15 +62,6 @@ async function recordSale(tokenId, units) {
   e.soldUsdc = Math.round(((e.soldUsdc || 0) + units / 1e6) * 1e6) / 1e6;
   e.lastSaleAt = Date.now();
   await kv('HSET', AGENT_KEY, String(tokenId), JSON.stringify(e));
-}
-
-async function facilitatorCall(path, body, fetchImpl = fetch) {
-  const f = createFacilitatorConfig(process.env.CDP_API_KEY_ID, process.env.CDP_API_KEY_SECRET);
-  const headers = { 'content-type': 'application/json', ...((await f.createAuthHeaders?.())?.[path] || {}) };
-  const r = await fetchImpl(`${f.url}/${path}`, { method: 'POST', headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.errorMessage || j.error || `Facilitator ${path} HTTP ${r.status}`);
-  return j;
 }
 
 export default async function handler(req, res) {

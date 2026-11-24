@@ -3,6 +3,7 @@
 import { toHex } from 'viem';
 import { esc } from './names.js';
 import { payRequirement, chooseRequirement, providerSigner } from './x402.js';
+import { intelMessage } from './signed.js';
 
 const LOCAL_KEY = 'basecity:stock-intel:v1';
 const UNLOCKED_KEY = 'basecity:stock-intel-unlocked:v1';
@@ -50,18 +51,18 @@ export async function fetchStockIntel(ticker = '') {
 
 export async function publishStockIntel({ provider, account, blockyName, ticker, stance, title, preview, fullReport, priceUsdc }) {
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
-  const msg = `BaseCity Stock Intel (x402): Publish ${ticker} "${title}" at $${priceUsdc} USDC by ${account}`;
-  await provider.request({ method: 'personal_sign', params: [toHex(msg), account] });
-
   const payload = { author: account, blockyName, ticker, stance, title, preview, fullReport, priceUsdc: Number(priceUsdc) };
+  payload.issuedAt = new Date().toISOString();
+  payload.signature = await provider.request({ method: 'personal_sign', params: [toHex(intelMessage(payload, payload.issuedAt)), account] });
   try {
     const r = await fetch('/api/stock-intel', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
+    if ((r.headers.get('content-type') || '').includes('json')) {
       const j = await r.json();
+      if (!r.ok) throw Object.assign(new Error(j.error || 'The intel desk refused this report.'), { refused: true });
       if (j.item) {
         saveUnlocked(j.item.id, j.item.fullReport);
         const { fullReport: _f, ...pub } = j.item;
@@ -69,7 +70,7 @@ export async function publishStockIntel({ provider, account, blockyName, ticker,
         return j.item;
       }
     }
-  } catch { /* fallback local */ }
+  } catch (err) { if (err.refused) throw err; /* offline: keep a local copy */ }
 
   const item = {
     id: `intel-${Date.now().toString(36)}`,
@@ -97,7 +98,7 @@ export async function unlockStockIntel({ provider, account, item, onStatus }) {
 
   // Step 1: Request protected resource (expect HTTP 402 Payment Required)
   onStatus?.('Requesting x402 payment terms...');
-  const url = `/api/stock-intel?id=${encodeURIComponent(item.id)}&viewer=${encodeURIComponent(account)}`;
+  const url = `/api/stock-intel?id=${encodeURIComponent(item.id)}`;
   const r1 = await fetch(url, { cache: 'no-store' }).catch(() => null);
   if (r1?.ok) {
     const j = await r1.json();
@@ -154,7 +155,7 @@ export async function unlockStockIntel({ provider, account, item, onStatus }) {
     return { unlocked: true, fullReport: localItem.fullReport };
   }
   const errBody = await r2?.json().catch(() => ({}));
-  throw new Error(errBody?.error || 'Could not unlock intel right now.');
+  throw new Error(errBody?.error || 'Could not unlock intel right now. Nothing was charged.');
 }
 
 export function renderStockIntelHtml({ items, selectedTicker, account, showForm, busyMsg }) {

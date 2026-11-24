@@ -3,7 +3,71 @@
 // - GET /api/rpg-state?leaderboard=1     -> Top 20 Citizens ranked by XP, Level, Passport Stamps & Plot Score
 // - POST /api/rpg-state                  -> Save/merge wallet RPG state (preserves all USDC receipts & unlocks)
 import { getAddress, isAddress } from 'viem';
-import { kv, useKv, KEY_BASE } from './_store.js';
+import { createHash, randomBytes } from 'node:crypto';
+import { kv, useKv, KEY_BASE, client } from './_store.js';
+import { checkSigned } from './_sigauth.js';
+import { rpgMessage } from '../src/signed.js';
+import { USDC_PRICES } from '../src/shop-prices.js';
+import { CONFIG } from '../src/config.js';
+
+const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const VAULT = String(CONFIG.flywheel?.contract || '0x273c3c49106Dd52Ac9b20D4FDDfcB8C6104dfA3B').toLowerCase();
+const TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+const SESSION_TTL = 24 * 3600;
+const SESS_PREFIX = `${KEY_BASE}:rpg-sess:v1:`;
+const RCPT_PREFIX = `${KEY_BASE}:rpg-rcpt:v1:`; // tx hash -> the wallet that spent it, so one payment buys one thing for one wallet
+const memSess = new Map();
+const memRcpt = new Map();
+export const deps = { getReceipt: (hash) => client.getTransactionReceipt({ hash }) };
+
+const hashToken = (t) => createHash('sha256').update(String(t)).digest('hex');
+
+// one wallet signature opens a save session (24 hours); every save then proves it with the session token
+export async function openSession(addr) {
+  const token = randomBytes(32).toString('hex'), exp = Date.now() + SESSION_TTL * 1000;
+  const row = JSON.stringify({ address: addr, exp });
+  if (useKv()) await kv('SET', `${SESS_PREFIX}${hashToken(token)}`, row, 'EX', String(SESSION_TTL));
+  else memSess.set(hashToken(token), { address: addr, exp });
+  return { token, expiresAt: exp };
+}
+export async function sessionAddress(token) {
+  if (!/^[a-f0-9]{64}$/.test(String(token || ''))) return null;
+  let row = null;
+  if (useKv()) { try { row = JSON.parse((await kv('GET', `${SESS_PREFIX}${hashToken(token)}`)) || 'null'); } catch { row = null; } }
+  else row = memSess.get(hashToken(token)) || null;
+  return row && row.exp > Date.now() ? row.address : null;
+}
+
+// A shop receipt is real when its transaction is a successful USDC transfer from this wallet to the vault
+// for at least the item's price, and that transaction hasn't paid for anything else.
+export async function verifyReceipt(addr, rec, { getReceipt = deps.getReceipt } = {}) {
+  const price = USDC_PRICES[rec?.itemId];
+  const tx = String(rec?.txHash || '').toLowerCase();
+  if (!price || !/^0x[0-9a-f]{64}$/.test(tx)) return false;
+  const used = useKv() ? await kv('GET', `${RCPT_PREFIX}${tx}`) : memRcpt.get(tx);
+  if (used && used !== `${addr}:${rec.itemId}`) return false;
+  const r = await getReceipt(tx).catch(() => null);
+  if (!r || r.status !== 'success') return false;
+  const ok = r.logs.some((l) => l.address.toLowerCase() === BASE_USDC.toLowerCase() && l.topics?.[0] === TRANSFER && l.topics.length === 3
+    && `0x${l.topics[1].slice(26)}`.toLowerCase() === addr && `0x${l.topics[2].slice(26)}`.toLowerCase() === VAULT && BigInt(l.data) >= BigInt(Math.round(price * 1e6)));
+  if (!ok) return false;
+  if (!used) { if (useKv()) await kv('SET', `${RCPT_PREFIX}${tx}`, `${addr}:${rec.itemId}`); else memRcpt.set(tx, `${addr}:${rec.itemId}`); }
+  return true;
+}
+
+// keep only receipts that are verified: ones already marked, plus new ones that check out on chain now
+export async function verifiedReceipts(addr, prev, next, opts) {
+  const out = new Map();
+  const all = [...(Array.isArray(prev) ? prev : []), ...(Array.isArray(next) ? next : [])].filter((r) => r?.itemId && r?.txHash).slice(0, 40);
+  let checks = 0;
+  for (const r of all) {
+    const k = `${String(r.txHash).toLowerCase()}:${r.itemId}`;
+    if (out.has(k)) continue;
+    const known = (Array.isArray(prev) ? prev : []).some((p) => p?.verified && `${String(p.txHash).toLowerCase()}:${p.itemId}` === k);
+    if (known || (checks++ < 8 && await verifyReceipt(addr, r, opts))) out.set(k, { itemId: clean(r.itemId, 40), txHash: clean(r.txHash, 80), usdcPrice: USDC_PRICES[r.itemId], at: Number(r.at || Date.now()), verified: true });
+  }
+  return [...out.values()].slice(0, 100);
+}
 
 const STATE_PREFIX = `${KEY_BASE}:rpg-state:v1:`;
 const LEADERS_KEY = `${KEY_BASE}:rpg-leaders:v1`;
@@ -76,9 +140,9 @@ function mergeReceipts(prev = [], next = []) {
   return [...byKey.values()].slice(0, 100);
 }
 
-function sanitizeState(raw, prev = null) {
+function sanitizeState(raw, prev = null, receiptsIn = null) {
   const s = raw && typeof raw === 'object' ? raw : {};
-  const receipts = mergeReceipts(prev?.usdcReceipts, s.usdcReceipts);
+  const receipts = receiptsIn ?? mergeReceipts(prev?.usdcReceipts, s.usdcReceipts);
   const bpSet = new Set([
     ...(Array.isArray(prev?.blueprints) ? prev.blueprints : []),
     ...(Array.isArray(s.blueprints) ? s.blueprints : []),
@@ -187,8 +251,21 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Valid Base wallet address required.' });
       }
       const addr = getAddress(rawAddr).toLowerCase();
+
+      // opening a save session: one wallet signature, then a token for 24 hours
+      if (b.action === 'session') {
+        const issuedAt = String(b.issuedAt || '');
+        const auth = await checkSigned({ wallet: addr, message: rpgMessage(addr, issuedAt), signature: b.signature, issuedAt });
+        if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+        return res.status(200).json({ ok: true, ...(await openSession(addr)) });
+      }
+      // saving needs that session: only the wallet's owner can write its progress
+      const token = req.headers?.['x-rpg-token'] || b.token;
+      if ((await sessionAddress(token)) !== addr) return res.status(401).json({ error: 'Sign in with your wallet to save your progress.', needsSession: true });
+
       const prev = await loadState(addr);
-      const merged = sanitizeState(b.state, prev);
+      const receipts = await verifiedReceipts(addr, prev?.usdcReceipts, b.state?.usdcReceipts);
+      const merged = sanitizeState(b.state, prev, receipts);
       await saveState(addr, merged);
 
       // Update Top Citizens leaderboard entry

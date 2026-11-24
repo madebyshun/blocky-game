@@ -11,6 +11,7 @@ import { BASE_USDC } from './swap-base.js';
 import { clean, deliveryMessage, validateDelivery } from './work-protocol.js';
 import { linkedAgentId, linkAgentId } from './agent-id.js';
 import { itemSprite, itemIcon, taskCategorySpriteId } from './items.js';
+import { taskMessage } from './signed.js';
 
 const LOCAL_KEY = 'basecity:city-tasks:v3';
 
@@ -23,6 +24,24 @@ function readLocal() {
 
 function writeLocal(tasks) {
   try { localStorage.setItem(LOCAL_KEY, JSON.stringify(tasks.slice(0, 100))); } catch { /* ignore */ }
+}
+
+// A request to the task board. No answer at all (offline): null, so the caller keeps a local copy as before.
+// A refusal (bad signature, not the requester, payment not found...) throws: it must never look like it worked.
+async function callTasks(body) {
+  let r;
+  try { r = await fetch('/api/city-tasks', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); } catch { return null; }
+  const j = await r.json().catch(() => null);
+  if (!j) return null;
+  if (!r.ok) throw new Error(j.error || `The task board answered ${r.status}.`);
+  return j;
+}
+// the action signed by the wallet that takes it (src/signed.js): a personal_sign, no transaction, no gas
+async function signedBody(provider, account, action, body) {
+  const issuedAt = new Date().toISOString();
+  const full = { ...body, action };
+  const signature = await provider.request({ method: 'personal_sign', params: [toHex(taskMessage(action, full, issuedAt)), account] });
+  return { ...full, issuedAt, signature };
 }
 
 const shortAddr = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '—');
@@ -162,11 +181,7 @@ export async function createCityTask({
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
   const cleanAmt = Number(String(rewardAmount ?? rewardUsdc ?? 0).replace(',', '.'));
   const tokenSym = String(rewardToken || 'USDC').toUpperCase();
-  const msg = `BaseCity TaskMarket: Post ${mode.toUpperCase()} task "${title}" (${cleanAmt} ${tokenSym}, ${expiryHours}h) by ${account}`;
-  await provider.request({ method: 'personal_sign', params: [toHex(msg), account] });
-
   const payload = {
-    action: 'create',
     title,
     brief,
     category,
@@ -180,25 +195,10 @@ export async function createCityTask({
     rewardUsdc: Number(rewardUsdc ?? (tokenSym === 'USDC' ? cleanAmt : 0)),
     requester: account,
   };
-  try {
-    const r = await fetch('/api/city-tasks', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
-      const j = await r.json();
-      if (j.task) {
-        const all = [j.task, ...readLocal().filter((t) => t.id !== j.task.id)];
-        writeLocal(all);
-        return j.task;
-      }
-    } else if (r.status >= 400) {
-      const e = await r.json().catch(() => ({}));
-      if (e.error) throw new Error(e.error);
-    }
-  } catch (err) {
-    if (/must be|required/i.test(err?.message || '')) throw err;
+  const j = await callTasks(await signedBody(provider, account, 'create', payload));
+  if (j?.task) {
+    writeLocal([j.task, ...readLocal().filter((t) => t.id !== j.task.id)]);
+    return j.task;
   }
 
   const now = Date.now();
@@ -229,27 +229,10 @@ export async function createCityTask({
 
 export async function claimCityTask({ provider, account, taskId, blockyName, actorType = 'citizen' }) {
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
-  const msg = `BaseCity TaskMarket: Claim task ${taskId} as ${blockyName} (${actorType}) by ${account}`;
-  await provider.request({ method: 'personal_sign', params: [toHex(msg), account] });
-
-  try {
-    const r = await fetch('/api/city-tasks', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'claim', taskId, worker: account, blockyName, actorType }),
-    });
-    if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
-      const j = await r.json();
-      if (j.task) {
-        writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
-        return j.task;
-      }
-    } else if (r.status >= 400) {
-      const e = await r.json().catch(() => ({}));
-      if (e.error) throw new Error(e.error);
-    }
-  } catch (err) {
-    if (/already claimed|cannot claim|no longer open/i.test(err?.message || '')) throw err;
+  const j = await callTasks(await signedBody(provider, account, 'claim', { taskId, worker: account, blockyName, actorType }));
+  if (j?.task) {
+    writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
+    return j.task;
   }
 
   const all = readLocal();
@@ -265,20 +248,11 @@ export async function claimCityTask({ provider, account, taskId, blockyName, act
 
 export async function unclaimCityTask({ provider, account, taskId }) {
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
-  try {
-    const r = await fetch('/api/city-tasks', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'unclaim', taskId, worker: account }),
-    });
-    if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
-      const j = await r.json();
-      if (j.task) {
-        writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
-        return j.task;
-      }
-    }
-  } catch { /* fallback local */ }
+  const j = await callTasks(await signedBody(provider, account, 'unclaim', { taskId, worker: account }));
+  if (j?.task) {
+    writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
+    return j.task;
+  }
 
   const all = readLocal();
   const task = all.find((t) => t.id === taskId);
@@ -294,22 +268,11 @@ export async function unclaimCityTask({ provider, account, taskId }) {
 
 export async function cancelCityTask({ provider, account, taskId }) {
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
-  const msg = `BaseCity TaskMarket: Cancel task ${taskId} by ${account}`;
-  await provider.request({ method: 'personal_sign', params: [toHex(msg), account] });
-  try {
-    const r = await fetch('/api/city-tasks', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'cancel', taskId, requester: account }),
-    });
-    if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
-      const j = await r.json();
-      if (j.task) {
-        writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
-        return j.task;
-      }
-    }
-  } catch { /* fallback local */ }
+  const j = await callTasks(await signedBody(provider, account, 'cancel', { taskId, requester: account }));
+  if (j?.task) {
+    writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
+    return j.task;
+  }
 
   const all = readLocal();
   const task = all.find((t) => t.id === taskId);
@@ -322,28 +285,10 @@ export async function cancelCityTask({ provider, account, taskId }) {
 
 export async function submitCityTask({ provider, account, taskId, blockyName, actorType = 'citizen', agentId = '', summary, proofUrl }) {
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
-  const msg = `BaseCity TaskMarket: Submit work for ${taskId} as ${blockyName} (${actorType}) by ${account}`;
-  await provider.request({ method: 'personal_sign', params: [toHex(msg), account] });
-
-  const payload = { action: 'submit', taskId, worker: account, blockyName, actorType, agentId, summary, proofUrl };
-  try {
-    const r = await fetch('/api/city-tasks', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (r.ok && (r.headers.get('content-type') || '').includes('json')) {
-      const j = await r.json();
-      if (j.task) {
-        writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
-        return j.task;
-      }
-    } else if (r.status >= 400) {
-      const e = await r.json().catch(() => ({}));
-      if (e.error) throw new Error(e.error);
-    }
-  } catch (err) {
-    if (/restricted|locked|no longer open/i.test(err?.message || '')) throw err;
+  const j = await callTasks(await signedBody(provider, account, 'submit', { taskId, worker: account, blockyName, actorType, agentId, summary, proofUrl }));
+  if (j?.task) {
+    writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
+    return j.task;
   }
 
   const all = readLocal();
@@ -390,13 +335,11 @@ export async function approveAndPayCityTask({ provider, account, task, submissio
   const res = await waitTx(txHash, provider);
   if (res.ok === false) throw new Error(`${tokenSym} payout transaction reverted.`);
 
-  try {
-    await fetch('/api/city-tasks', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', taskId: task.id, submissionId: submission.id, requester: account, payTxHash: txHash }),
-    });
-  } catch { /* sync locally */ }
+  onStatus?.('Checking the payment on Base...');
+  let j = null;
+  try { j = await callTasks({ action: 'approve', taskId: task.id, submissionId: submission.id, requester: account, payTxHash: txHash }); }
+  catch (err) { throw new Error(`${err.message} Your payment went through (${txHash}); press Approve & Pay again to record it.`); }
+  if (j?.task) { writeLocal(readLocal().map((x) => (x.id === j.task.id ? j.task : x))); return txHash; }
 
   const all = readLocal();
   const t = all.find((x) => x.id === task.id);

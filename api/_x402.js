@@ -6,7 +6,7 @@ import { recoverTypedDataAddress } from 'viem';
 export const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 export const BASE_NETWORK = 'eip155:8453';
 
-export function buildRequirement({ payTo, amountUsdc, description, resource }) {
+export function buildRequirement({ payTo, amountUsdc, resource }) {
   const units = String(Math.max(1000, Math.round(Number(amountUsdc || 0.1) * 1e6)));
   return {
     scheme: 'exact',
@@ -15,9 +15,8 @@ export function buildRequirement({ payTo, amountUsdc, description, resource }) {
     amount: units,
     payTo: String(payTo).toLowerCase(),
     maxTimeoutSeconds: 300,
-    description: description || 'BaseCity x402 USDC payment on Base',
+    extra: { name: 'USD Coin', version: '2' },
     resource: resource || null,
-    extra: { name: 'USD Coin', version: '2', assetTransferMethod: 'eip3009' },
   };
 }
 

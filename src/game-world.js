@@ -4,7 +4,8 @@
 // - Progression: Citizen XP & Level (Lv.1-50), Rank Titles (NEWCOMER -> CITY MAYOR), 3 Rotating Daily Missions (UTC), 5 Eco Quests, 24 Base Passport Stamps
 // - Wallet Cloud Sync: Auto-syncs RPG state & Plot to /api/rpg-state with onchain USDC purchase receipt protection
 import * as THREE from 'three';
-import { parseUnits, encodeFunctionData, parseAbi } from 'viem';
+import { parseUnits, encodeFunctionData, parseAbi, toHex } from 'viem';
+import { rpgMessage } from './signed.js';
 import { CONFIG } from './config.js';
 import { PROJECTS } from './projects.js';
 import { PITCH } from './sim.js';
@@ -282,6 +283,24 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
   let liveNewsCache = null;
   let syncTimer = null;
   let lastSyncedAt = 0;
+  let rpgDeclined = ''; // the wallet that said no to the save signature this visit: don't ask again until reload
+
+  // Cloud saves need a session: ONE wallet signature (no transaction, no gas) opens 24 hours of saving. Without it,
+  // progress stays on this device exactly as before.
+  async function rpgToken(account, provider) {
+    const key = `basecity:rpg-sess:${account.toLowerCase()}`;
+    try { const c = JSON.parse(localStorage.getItem(key) || 'null'); if (c?.token && c.exp > Date.now() + 60000) return c.token; } catch { /* none */ }
+    if (rpgDeclined === account || !provider) return null;
+    try {
+      const issuedAt = new Date().toISOString();
+      const signature = await provider.request({ method: 'personal_sign', params: [toHex(rpgMessage(account, issuedAt)), account] });
+      const r = await fetch('/api/rpg-state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'session', address: account, issuedAt, signature }) });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.token) throw new Error(j?.error || 'Could not open a save session.');
+      try { localStorage.setItem(key, JSON.stringify({ token: j.token, exp: j.expiresAt })); } catch { /* ignore */ }
+      return j.token;
+    } catch { rpgDeclined = account; return null; }
+  }
 
   // 3D Personal Plot Group at lot [3, 1]
   const plotGroup = new THREE.Group();
@@ -384,16 +403,18 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
   }
 
   function scheduleRemoteSync(immediate = false) {
-    const { account } = getWallet();
+    const { account, provider } = getWallet();
     if (!account) return;
     const run = async () => {
       try {
+        const token = await rpgToken(account, provider);
+        if (!token) return;
         const lv = levelFromXp(state.xp);
         const blocky = getBlocky();
         const mult = stockMultiplierForLevel(lv.level);
         const r = await fetch('/api/rpg-state', {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: { 'content-type': 'application/json', 'x-rpg-token': token },
           body: JSON.stringify({
             address: account,
             state,
@@ -406,6 +427,7 @@ export function createGameWorld({ city, toast, getWallet, getBlocky, getCitizenT
           }),
         });
         if (r.ok) lastSyncedAt = Date.now();
+        else if (r.status === 401) { try { localStorage.removeItem(`basecity:rpg-sess:${account.toLowerCase()}`); } catch { /* ignore */ } }
       } catch { /* offline or local without KV */ }
     };
     clearTimeout(syncTimer);

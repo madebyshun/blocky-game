@@ -2,7 +2,10 @@
 // Zero fake seed tasks — stores only real user & Blocky Agent posted BaseCity tasks.
 // Supports paying rewards in Base USDC OR any Coinbase Tokenized Stock (ERC-20 on Base, 8 decimals).
 // Modes: Bounty (open competition) & Claim (exclusive worker lock) + flexible expiryTime (15m to 30d) + Citizen / Blocky Agent (A2A) tagging.
-import { getAddress, isAddress } from 'viem';
+import { getAddress, isAddress, parseUnits } from 'viem';
+import { checkSigned } from './_sigauth.js';
+import { taskMessage, taskWallet } from '../src/signed.js';
+import { stockList } from './_stocks.js';
 import { kv, useKv, KEY_BASE, client } from './_store.js';
 import { read as readWorker, writeIf as writeWorkerIf, lock as lockWorker } from './_worker-store.js';
 import { assertOwners, log as logWorker } from './_worker-engine.js';
@@ -75,6 +78,40 @@ function normalizeTask(t) {
     claimActorType: t.claimActorType || null,
     submissions: Array.isArray(t.submissions) ? t.submissions : [],
   };
+}
+
+const TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+const topicAddr = (t) => `0x${String(t || '').slice(26)}`.toLowerCase();
+
+// The payment that settles a task: a successful Base transaction holding an ERC-20 Transfer of the task's
+// reward token, from the requester to the winning worker, of at least the reward. Returns the amount sent.
+// (The requester paying on chain IS the approval: nobody else can produce this transaction.)
+export const deps = { getReceipt: (hash) => client.getTransactionReceipt({ hash }), retryMs: 1500 }; // tests swap these
+export async function verifyPayout(task, sub, tx, allTasks, getReceipt = (hash) => deps.getReceipt(hash)) {
+  if (allTasks.some((t) => t.id !== task.id && String(t.payTxHash || '').toLowerCase() === tx.toLowerCase())) throw new Error('This transaction already paid another task.');
+  let r = null;
+  for (let i = 0; i < 4 && !r; i++) { r = await getReceipt(tx).catch(() => null); if (!r && i < 3) await new Promise((ok) => setTimeout(ok, deps.retryMs)); }
+  if (!r) throw new Error('Base has not confirmed that transaction yet: try again in a few seconds.');
+  if (r.status !== 'success') throw new Error('That payment transaction failed on Base.');
+  const token = String(task.rewardTokenAddress || '').toLowerCase();
+  const dec = Number.isInteger(Number(task.rewardDecimals)) ? Number(task.rewardDecimals) : 6;
+  let need;
+  try { need = parseUnits(String(task.rewardAmount), dec); } catch { need = BigInt(Math.floor(Number(task.rewardAmount) * 10 ** dec)); }
+  const hit = r.logs.find((l) => l.address.toLowerCase() === token && l.topics?.[0] === TRANSFER && l.topics.length === 3
+    && topicAddr(l.topics[1]) === task.requester && topicAddr(l.topics[2]) === sub.worker && BigInt(l.data) >= need);
+  if (!hit) throw new Error(`That transaction does not show ${task.rewardAmount} ${task.rewardToken} sent from the requester to the winning worker.`);
+  return { units: BigInt(hit.data), decimals: dec };
+}
+
+// what a verified payout was worth in USD: USDC exactly; a tokenized stock at its Chainlink NAV; else unknown (0)
+export async function payoutUsd(task, paid, stocks = null) {
+  const tokens = Number(paid.units) / 10 ** paid.decimals;
+  if (String(task.rewardTokenAddress).toLowerCase() === BASE_USDC.toLowerCase()) return Math.round(tokens * 1e6) / 1e6;
+  try {
+    const list = stocks || await stockList();
+    const st = list.find((x) => x.address.toLowerCase() === String(task.rewardTokenAddress).toLowerCase());
+    return st?.nav ? Math.round(tokens * (st.multiplier || 1) * st.nav * 100) / 100 : 0;
+  } catch { return 0; }
 }
 
 export async function loadCityTasks() {
@@ -155,21 +192,21 @@ async function syncCityItems(s, cityTasks) {
   let changed = false;
   for (const item of (s.items || []).filter((i) => i.source === 'basecity' && !i.receipt && i.status !== 'Skipped')) {
     const ct = cityTasks.find((t) => t.id === item.jobId);
-    if (ct && ct.status === 'paid' && ct.winner?.toLowerCase() === s.owner && ct.payTxHash) {
+    if (ct && ct.status === 'paid' && ct.paidVerified && ct.winner?.toLowerCase() === s.owner && ct.payTxHash) {
       item.receipt = {
         tx: ct.payTxHash,
-        amountUnits: Math.round((Number(ct.rewardUsdc) || 0) * 1e6),
+        amountUnits: Math.round((Number(ct.verifiedUsdc) || 0) * 1e6),
         verifiedAt: new Date().toISOString(),
       };
       item.status = 'Paid';
       changed = true;
       logWorker(s, 'Paid', `BaseCity ${ct.id}: ${ct.rewardAmount} ${ct.rewardToken}`);
       await bumpJobsPaid(item.tokenId || s.settings.tokenId).catch(() => {});
-      await recordWork({
+      if (Number(ct.verifiedUsdc) > 0) await recordWork({
         kind: 'job-paid',
         blocky: item.tokenId || s.settings.tokenId,
         agentId: item.agentId || s.settings.agentId,
-        usd: Number(ct.rewardUsdc || 0),
+        usd: Number(ct.verifiedUsdc),
         tx: ct.payTxHash,
         title: item.title,
       }).catch(() => {});
@@ -298,7 +335,7 @@ function buildRequesterTrust(tasks) {
     if (!r) continue;
     if (!map[r]) map[r] = { posted: 0, paid: 0, cancelled: 0 };
     map[r].posted += 1;
-    if (t.status === 'paid') map[r].paid += 1;
+    if (t.status === 'paid' && t.paidVerified) map[r].paid += 1;
     if (t.status === 'cancelled') map[r].cancelled += 1;
   }
   return map;
@@ -312,8 +349,8 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const openCount = tasks.filter((t) => t.status === 'open').length;
-      const paidTasks = tasks.filter((t) => t.status === 'paid');
-      const totalUsdcPaid = paidTasks.reduce((a, t) => a + Number(t.rewardUsdc || 0), 0);
+      const paidTasks = tasks.filter((t) => t.status === 'paid' && t.paidVerified);
+      const totalUsdcPaid = paidTasks.reduce((a, t) => a + Number(t.verifiedUsdc || 0), 0);
       return res.status(200).json({
         tasks,
         requesterTrust: buildRequesterTrust(tasks),
@@ -324,6 +361,14 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
     const b = parseBody(req);
     const action = String(b.action || '');
+
+    // every action that speaks for a wallet carries that wallet's signature over exactly what it does
+    if (['create', 'claim', 'unclaim', 'submit', 'cancel'].includes(action)) {
+      let message = '';
+      try { message = taskMessage(action, b, String(b.issuedAt || '')); } catch { /* unknown action */ }
+      const auth = await checkSigned({ wallet: taskWallet(action, b), message, signature: b.signature, issuedAt: String(b.issuedAt || '') });
+      if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+    }
 
     if (action === 'create') {
       const title = clean(b.title, 120);
@@ -361,7 +406,7 @@ export default async function handler(req, res) {
         rewardTokenAddress: getAddress(rewardTokenAddress),
         rewardDecimals,
         rewardAmount: isUsdc ? Math.round(rewardAmount * 100) / 100 : Number(rewardAmount.toFixed(6)),
-        rewardUsdc: Math.round((Number.isFinite(rewardUsdc) ? rewardUsdc : 0) * 100) / 100,
+        rewardUsdc: isUsdc ? Math.round(rewardAmount * 100) / 100 : 0, // a stock reward's USD value is read from its NAV once paid, never from the poster
         requester: getAddress(b.requester).toLowerCase(),
         status: 'open',
         createdAt: now,
@@ -464,12 +509,19 @@ export default async function handler(req, res) {
       const tx = clean(b.payTxHash, 80);
       if (!/^0x[0-9a-fA-F]{64}$/.test(tx)) return res.status(400).json({ error: 'Valid Base payment transaction hash required.' });
 
+      if (task.status === 'paid') return res.status(409).json({ error: 'This task is already paid.' });
+      if (task.status === 'cancelled') return res.status(409).json({ error: 'This task was cancelled.' });
+      let paid;
+      try { paid = await verifyPayout(task, sub, tx, tasks); } catch (e) { return res.status(409).json({ error: e.message }); }
       sub.paid = true;
       sub.payTxHash = tx;
       task.status = 'paid';
       task.paidAt = Date.now();
       task.payTxHash = tx;
       task.winner = sub.worker;
+      task.paidVerified = true;
+      task.paidUnits = String(paid.units);
+      task.verifiedUsdc = await payoutUsd(task, paid);
       await saveTasks(tasks);
       return res.status(200).json({ ok: true, task });
     }
