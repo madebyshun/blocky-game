@@ -81,8 +81,8 @@ export default async function handler(req, res) {
       const verified = await verifyX402Payment(payment, reqObj);
       if (!verified.ok) return res.status(402).json({ x402Version: 2, error: verified.error, accepts: [reqObj] });
       // x402 v2 wants resource as an object; browsers send a plain string, so always rebuild it.
-      const res0 = payment.resource;
-      const resource = res0 && typeof res0 === 'object' && res0.url ? res0 : { url: typeof res0 === 'string' && res0 ? res0 : reqObj.resource };
+      const host = String(req.headers?.['x-forwarded-host'] || req.headers?.host || 'www.basecity.space');
+      const resource = { url: `https://${host}${reqObj.resource}`, description: `Unlock ${item.ticker} intel: ${item.title}`.slice(0, 120), mimeType: 'application/json' };
       const pp = { ...payment, resource, extensions: payment.extensions || {} };
       let settled;
       try {
