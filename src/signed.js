@@ -35,5 +35,8 @@ export function taskMessage(action, b, issuedAt) {
 export const INTEL_FIELDS = ['ticker', 'stance', 'title', 'preview', 'fullReport', 'priceUsdc', 'blockyName'];
 export const intelMessage = (b, issuedAt) => actionMessage('BaseCity intel v1', 'publish', b.author, [`ticker: ${f(b.ticker).toUpperCase()}`, `title: ${f(b.title).slice(0, 100)}`, `price: ${f(b.priceUsdc)} USDC`], INTEL_FIELDS.map((k) => b[k]), issuedAt);
 
+// The author takes their own report down. Bound to the report id, so the signature can't remove any other.
+export const intelRemoveMessage = (b, issuedAt) => actionMessage('BaseCity intel v1', 'remove', b.author, [`report: ${f(b.id)}`], [b.id], issuedAt);
+
 // ---- Game Mode saves (api/rpg-state.js): one signature opens a 24-hour save session ----
 export const rpgMessage = (wallet, issuedAt) => ['BaseCity game save v1', `wallet: ${f(wallet).toLowerCase()}`, `issued: ${issuedAt}`, 'Signing lets this browser save your Game Mode progress for 24 hours. No transaction, no gas.'].join('\n');

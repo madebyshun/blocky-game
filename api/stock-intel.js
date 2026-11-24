@@ -8,7 +8,7 @@ import { kv, useKv, KEY_BASE } from './_store.js';
 import { buildRequirement, decodePaymentHeader, verifyX402Payment, send402 } from './_x402.js';
 import { facilitatorCall } from './_facilitator.js';
 import { checkSigned } from './_sigauth.js';
-import { intelMessage } from '../src/signed.js';
+import { intelMessage, intelRemoveMessage } from '../src/signed.js';
 export const deps = { facilitator: facilitatorCall };
 
 const INTEL_KEY = `${KEY_BASE}:stock-intel:v1`;
@@ -111,6 +111,16 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const b = parseBody(req);
+      if (b.action === 'remove') {
+        if (!isAddress(b.author || '', { strict: false })) return res.status(400).json({ error: 'Valid Base wallet address required.' });
+        const target = list.find((x) => x.id === String(b.id || ''));
+        if (!target) return res.status(404).json({ error: 'Intel report not found.' });
+        if (target.author !== getAddress(b.author).toLowerCase()) return res.status(403).json({ error: 'Only the author can remove this report.' });
+        const auth = await checkSigned({ wallet: b.author, message: intelRemoveMessage(b, String(b.issuedAt || '')), signature: b.signature, issuedAt: String(b.issuedAt || '') });
+        if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+        await saveIntel(list.filter((x) => x.id !== target.id));
+        return res.status(200).json({ ok: true, removed: target.id });
+      }
       const ticker = clean(b.ticker, 10).toUpperCase();
       const title = clean(b.title, 100);
       const preview = clean(b.preview, 280);

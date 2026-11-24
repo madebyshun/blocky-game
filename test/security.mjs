@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { verifyMessage, toHex, pad } from 'viem';
-import { taskMessage, intelMessage, rpgMessage } from '../src/signed.js';
+import { taskMessage, intelMessage, intelRemoveMessage, rpgMessage } from '../src/signed.js';
 import { USDC_PRICES } from '../src/shop-prices.js';
 
 const sigauth = await import('../api/_sigauth.js');
@@ -152,6 +152,14 @@ assert.equal((await save(other.address, s2b.body.token, { usdcReceipts: [rc('gol
 
 // the price table is the shop's
 const src = fs.readFileSync(new URL('../src/game-world.js', import.meta.url), 'utf8');
+// ---- the author can take a report down, nobody else can ----
+const signRemove = async (acct, b) => { const issuedAt = new Date().toISOString(); return { ...b, action: 'remove', issuedAt, signature: await acct.signMessage({ message: intelRemoveMessage(b, issuedAt) }) }; };
+assert.equal((await call(intel.default, { body: { action: 'remove', id: rid, author: author.address } })).status, 401, 'removing unsigned');
+assert.equal((await call(intel.default, { body: await signRemove(mallory, { id: rid, author: mallory.address }) })).status, 403, 'removing someone else\'s report');
+assert.equal((await call(intel.default, { body: await signRemove(mallory, { id: rid, author: author.address }) })).status, 401, 'signing as the author without the key');
+assert.equal((await call(intel.default, { body: await signRemove(author, { id: rid, author: author.address }) })).status, 200, 'the author removes it');
+assert.equal((await call(intel.default, { method: 'GET', query: { id: rid } })).status, 404, 'gone after removal');
+
 const shop = Object.fromEntries([...src.matchAll(/\{ id: '([^']+)'[^\n]*?usdcPrice: ([0-9.]+)/g)].map((m) => [m[1], Number(m[2])]).filter(([, p]) => p > 0));
 assert.deepEqual(USDC_PRICES, shop, 'src/shop-prices.js matches SHOP_CATALOG');
 
