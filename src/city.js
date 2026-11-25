@@ -651,8 +651,27 @@ const DESIGN = {
     k.box(p.w, p.h, p.d, p.color, 0, Y, -0.6);
     k.win(0.6, 0.5, 0.06, p.w / 4, Y + 0.6, p.d / 2 - 0.57);
     k.box(0.7, 1.1, 0.08, 0x8b5a2b, -p.w / 5, Y, p.d / 2 - 0.55);
-    gableRoof(k, p.w, p.d, Y + p.h, roof, 0, -0.6);
-    k.box(0.35, 0.8, 0.35, C.stone, p.w / 3, Y + p.h + 0.3, -1);
+    const form = Math.floor(hash(p.k, 451) * 3);
+    const eaves = Y + p.h;
+    if (form === 1) {
+      // Stepped shed roof and a high strip of glazing along its raised edge.
+      for (let i = 0; i < 4; i++) {
+        const width = (p.w + 0.24) / 4;
+        const x = (i - 1.5) * width;
+        k.box(width, 0.12 + i * 0.18, p.d, p.color, x, eaves, -0.6);
+        k.box(width, 0.12, p.d + 0.28, roof, x, eaves + 0.12 + i * 0.18, -0.6);
+      }
+      k.win(0.5, 0.23, 0.05, p.w * 0.37, eaves + 0.16, p.d / 2 - 0.58);
+    } else {
+      gableRoof(k, p.w, p.d, eaves, roof, 0, -0.6);
+      k.box(0.35, 0.8, 0.35, C.stone, p.w / 3, eaves + 0.3, -1);
+      if (form === 2) {
+        const front = p.d / 2 - 0.6;
+        k.box(p.w, 0.15, 1.1, C.wood, 0, Y, front + 0.53);
+        for (const x of [-1, 1]) k.box(0.14, 1.48, 0.14, C.white, x * (p.w / 2 - 0.15), Y + 0.15, front + 0.94);
+        k.box(p.w + 0.24, 0.17, 1.22, roof, 0, Y + 1.63, front + 0.52);
+      }
+    }
     for (let i = 0; i < 3; i++) k.box(0.3, 0.25, 0.3, C.flower[(p.k + i) % 5], -2.4 + i * 0.5, Y, 2.4);
     tree(k, 2.4, 2.2, p.k);
   },
@@ -662,7 +681,23 @@ const DESIGN = {
     k.box(p.w, p.h, p.d, p.color, 0, Y, -0.8);
     windows(k, p.w, p.d, Y, p.h, true, 0, -0.8);
     k.box(0.8, 1.2, 0.08, 0x6e4b2a, 0, Y, p.d / 2 - 0.75);
-    gableRoof(k, p.w, p.d, Y + p.h, roof, 0, -0.8);
+    const form = Math.floor(hash(p.k, 452) * 3);
+    const top = Y + p.h;
+    if (form === 1) {
+      // Recess the upper studio to leave an open planted terrace.
+      k.box(p.w + 0.2, 0.15, p.d + 0.2, C.white, 0, top, -0.8);
+      k.box(p.w * 0.6, 0.92, p.d * 0.62, C.wood, -p.w * 0.16, top + 0.15, -0.99);
+      k.win(p.w * 0.43, 0.49, 0.06, -p.w * 0.16, top + 0.35, -0.97 + p.d * 0.31);
+      k.box(p.w * 0.65, 0.12, p.d * 0.69, roof, -p.w * 0.16, top + 1.07, -0.99);
+      k.box(0.46, 0.23, p.d * 0.7, C.wood, p.w * 0.38, top + 0.15, -0.8);
+      k.box(0.4, 0.24, p.d * 0.65, C.lawn, p.w * 0.38, top + 0.38, -0.8);
+    } else if (form === 2) {
+      for (const x of [-p.w / 4, p.w / 4]) {
+        gableRoof(k, p.w / 2, p.d, top, roof, x, -0.8);
+      }
+    } else {
+      gableRoof(k, p.w, p.d, top, roof, 0, -0.8);
+    }
     k.box(1.6, 0.06, 2.2, C.walk, 0, Y, 2.0);
     fence(k, 6.2, 6.2, C.white, 1.8);
     bush(k, -2, 2.3, p.k); bush(k, 2, 2.3, p.k + 1);
@@ -810,6 +845,22 @@ const DESIGN = {
   },
   apartment(k, p) {
     sidewalk(k);
+    if (hash(p.k, 461) < 0.55) {
+      // Two brick wings flank an open forecourt. The rear gallery connects both.
+      const wing = p.w * 0.32;
+      k.box(p.w, p.h, p.d * 0.35, p.color, 0, Y, -p.d * 0.325);
+      windows(k, p.w, p.d * 0.35, Y, p.h, true, 0, -p.d * 0.325);
+      k.box(p.w, 0.3, p.d * 0.35, C.stone, 0, Y + p.h, -p.d * 0.325);
+      for (const side of [-1, 1]) {
+        const x = side * (p.w - wing) / 2, h = p.h - (side === 1 ? 1 : 0);
+        k.box(wing, h, p.d * 0.65, 0xb98068, x, Y, p.d * 0.175);
+        windows(k, wing, p.d * 0.65, Y, h, true, x, p.d * 0.175);
+        k.box(wing + 0.1, 0.17, p.d * 0.65, C.white, x, Y + h, p.d * 0.175);
+      }
+      k.box(0.65, 0.08, p.d * 0.68, C.sand, 0, Y, p.d * 0.18);
+      k.box(0.66, 1.1, 0.09, C.wood, 0, Y, -p.d * 0.15 + 0.05);
+      return;
+    }
     k.box(p.w, p.h, p.d, p.color, 0, Y, 0);
     windows(k, p.w, p.d, Y, p.h);
     for (let f = 1; f < p.h; f++) k.box(p.w * 0.8, 0.08, 0.5, C.white, 0, Y + f, p.d / 2 + 0.25);
@@ -829,6 +880,19 @@ const DESIGN = {
   },
   office(k, p) {
     sidewalk(k);
+    if (hash(p.k, 460) < 0.55) {
+      // A masonry podium with a narrow glass lantern above a planted setback.
+      const podium = Math.ceil(p.h * 0.46);
+      k.box(p.w, podium, p.d, 0xb17a63, 0, Y, 0);
+      windows(k, p.w, p.d, Y, podium);
+      k.box(p.w + 0.12, 0.14, p.d + 0.12, C.white, 0, Y + podium, 0);
+      const width = p.w * 0.66, x = -p.w * 0.12;
+      k.box(width, p.h - podium, p.d, 0x446779, x, Y + podium, 0);
+      windows(k, width, p.d, Y + podium, p.h - podium, true, x, 0);
+      k.box(width + 0.12, 0.35, p.d + 0.12, C.dark, x, Y + p.h, 0);
+      k.box(0.45, 0.3, p.d * 0.72, C.lawn, p.w * 0.36, Y + podium + 0.14, 0);
+      return;
+    }
     k.box(p.w, 1, p.d, 0x6b7785, 0, Y, 0);
     k.win(p.w * 0.6, 0.8, 0.06, 0, Y, p.d / 2 + 0.03);
     k.box(p.w, p.h - 1, p.d, p.color, 0, Y + 1, 0);
@@ -1450,6 +1514,12 @@ const LANDMARK = {
   square(k) {
     billboard(k, 0.9, Y, -2.85, 3.4, 1.35, 0, 1.2);
     for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) k.box(1.6, Y, 1.6, (i + j) % 2 ? 0xe2dccd : 0xd2cab6, -2.4 + i * 1.6, 0, -2.4 + j * 1.6);
+    // A shaded public arcade on the west edge frames the treasury plaza.
+    for (const z of [-0.85, 0.1, 1.05]) {
+      for (const x of [-2.85, -1.85]) k.box(0.13, 1.45, 0.13, C.wood, x, Y, z);
+    }
+    for (let slat = 0; slat < 7; slat++) k.box(1.42, 0.12, 0.19, C.wood, -2.35, Y + 1.45, -1.02 + slat * 0.38);
+    k.box(0.38, 0.3, 1.55, C.stone, -2.73, Y, 0.1);
     k.box(2, 0.3, 2, C.stone, 0, Y, 0);
     k.box(1.2, 0.8, 1.2, C.white, 0, Y + 0.3, 0);
     k.blue(0.9, 0.9, 0.9, 0, Y + 1.1, 0); // the treasury block, resting on its pedestal
@@ -2062,7 +2132,84 @@ const HQ = {
     tree(k, -2.5, -2.5, p.k); bush(k, -2.6, 0.2, p.k + 2); bush(k, 2.6, 0.6, p.k + 3); bush(k, 2.6, 1.6, p.k + 4);
   },
 };
-export const brandHq = (k, p) => (HQ[p.brand.style] || HQ.tower)(k, p.brand, p);
+// Named landmarks keep the same simulation lot and unlock schedule as their original HQ.
+const signatureHQ = {
+  o1(k, b) {
+    sidewalk(k);
+    // A pair of unequal exchange towers linked by a suspended trading floor.
+    for (const [x, h] of [[-1.65, 8], [1.65, 6]]) {
+      k.box(1.85, h, 3.9, 0x252b35, x, Y, 0);
+      windows(k, 1.85, 3.9, Y, h, true, x);
+      k.blue(0.12, h, 0.12, x + 0.7, Y, 2);
+    }
+    k.box(3, 1.35, 1.7, 0x597185, 0, Y + 4.4, 0);
+    brandPanel(k, b, 'logo', 1.48, 1.48, -1.65, Y + 7.05, 1.99);
+  },
+  usdc(k, b) {
+    sidewalk(k);
+    // Intersecting slabs form a stepped, octagonal mint drum.
+    for (let level = 0; level < 4; level++) {
+      const radius = 2.6 - level * 0.22, y = Y + level * 1.25;
+      for (const angle of [0, Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4]) {
+        k.boxR(radius * 2, 1.08, radius * 0.82, num(b.color), 0, y, 0, angle);
+        k.boxR(radius * 2 + 0.12, 0.17, radius * 0.82 + 0.06, C.white, 0, y + 1.08, 0, angle);
+      }
+    }
+    k.box(1.95, 1.85, 0.48, num(b.color), 0, Y + 5, 0);
+    brandPanel(k, b, 'logo', 1.72, 1.72, 0, Y + 5.92, 0.26);
+  },
+  toshi(k, b) {
+    sidewalk(k);
+    const blue = num(b.color), orange = num(b.accent);
+    k.box(4.8, 3, 4, blue, 0, Y, -0.2);
+    for (const side of [-1, 1]) {
+      for (let step = 0; step < 3; step++)
+        k.box(1.22 - step * 0.35, 0.4, 0.86, blue, side * (1.62 + step * 0.1), Y + 3 + step * 0.4, 1.18);
+      k.win(0.8, 0.9, 0.08, side * 1.45, Y + 0.45, 1.84);
+    }
+    k.box(5.25, 0.35, 1.18, orange, 0, Y + 1.6, 2.02);
+    brandPanel(k, b, 'logo', 1.32, 1.32, 0, Y + 2.36, 1.84);
+    if (b.flag) brandFlag(k, b.flag, -1.6, Y + 3, -1.45);
+  },
+  occupy(k, b) {
+    sidewalk(k);
+    // An elevated boardroom cantilevers over an open meeting terrace.
+    for (const x of [-1.55, 1.55]) {
+      k.box(0.42, 2.45, 3.2, 0x555258, x, Y, -0.5);
+      k.box(1.35, 0.29, 0.52, C.wood, x, Y, 1.75);
+    }
+    k.box(5.6, 0.3, 4.5, C.dark, 0, Y + 2.45, 0);
+    k.box(5.25, 1.5, 4.15, 0x567984, 0, Y + 2.75, 0);
+    for (const x of [-2.52,-1.26,0,1.26,2.52]) k.box(0.13, 1.5, 0.12, C.dark, x, Y + 2.75, 2.1);
+    k.box(5.6, 0.28, 4.5, C.white, 0, Y + 4.25, 0);
+    brandPanel(k, b, 'name', 3.1, 0.75, 0, Y + 3.54, 2.19);
+  },
+  cbwallet(k, b) {
+    sidewalk(k);
+    // A square portal with an open centre, seen through from the street.
+    for (const x of [-1.95, 1.95]) {
+      k.box(1.42, 5.35, 3.5, num(b.color), x, Y, 0);
+      k.win(0.22, 3.8, 0.06, x, Y + 0.65, 1.79);
+    }
+    k.box(5.32, 1.48, 3.5, num(b.color), 0, Y + 5.35, 0);
+    k.box(2.48, 0.14, 3.5, C.white, 0, Y + 5.22, 0);
+    brandPanel(k, b, 'logo', 1.25, 1.25, 0, Y + 6.08, 1.78);
+  },
+  'sample-tower'(k, b) {
+    sidewalk(k);
+    for (const x of [-1.9, 1.9]) {
+      k.box(1.22, 2, 4.1, C.wood, x, Y, 0);
+      windows(k, 1.22, 4.1, Y, 2, true, x);
+    }
+    for (let bay = 0; bay < 3; bay++) {
+      const x = (bay - 1) * 1.7;
+      for (let step = 0; step < 4; step++) k.box(0.44, 0.17, 4.55, C.white, x - 0.64 + step * 0.42, Y + 2 + step * 0.23, 0);
+      k.box(0.15, 0.85, 4.55, C.stone, x + 0.65, Y + 2, 0);
+    }
+    brandPanel(k, b, 'name', 1.15, 0.55, -1.9, Y + 1.48, 2.08);
+  },
+};
+export const brandHq = (k, p) => (signatureHQ[p.brand.id] || HQ[p.brand.style] || HQ.tower)(k, p.brand, p);
 
 // A Base Avenue plot no project has taken yet: a lawn with hedges and a sign with the plot's number.
 export function freePlot(k, n) {
@@ -2297,6 +2444,17 @@ export function createCity(scene) {
     k.box(ax ? span : STREET_WIDTH, 0.05, ax ? STREET_WIDTH : span, C.road, x, 0.15, z);
     for (let s = -2; s <= 2; s += 2) k.box(ax ? 0.9 : 0.12, 0.02, ax ? 0.12 : 0.9, 0xf4f4f0, x + (ax ? s : 0), 0.2, z + (ax ? 0 : s));
     for (const o of [-railOffset, railOffset]) k.box(ax ? span : 0.2, 0.3, ax ? 0.2 : span, RAIL, x + (ax ? 0 : o), 0.15, z + (ax ? o : 0));
+    if (hash(x, z, 464) < 0.65) {
+      for (const offset of [-railOffset, railOffset]) {
+        const point = (t, y) => [x + (ax ? t : offset), y, z + (ax ? offset : t)];
+        for (let panel = 0; panel < 4; panel++) {
+          const start = -span / 2 + panel * span / 4;
+          k.beam(point(start, 0.44), point(start + span / 8, 1.45), 0.1, 0.1, 0x347487);
+          k.beam(point(start + span / 8, 1.45), point(start + span / 4, 0.44), 0.1, 0.1, 0x347487);
+        }
+        k.beam(point(-span * 3/8, 1.45), point(span * 3/8, 1.45), 0.12, 0.12, 0x285665);
+      }
+    }
     for (const s of [-2.5, 2.5]) k.box(ax ? 0.6 : 1.6, 0.6, ax ? 1.6 : 0.6, 0x9aa3ad, x + (ax ? s : 0), -0.75, z + (ax ? 0 : s));
   }
 
@@ -2329,6 +2487,12 @@ export function createCity(scene) {
     for (const [cx, cz] of [[-3.5, -3.5], [3.5, -3.5], [-3.5, 3.5], [3.5, 3.5]]) {
       const sx = Math.sign(cx), sz = Math.sign(cz);
       if (!wet(sx, sz) || !wet(sx, 0) || !wet(0, sz)) k.box(1, 0.3, 1, C.grass2, x + cx, -0.3, z + cz);
+    }
+    if (!wet(-1, 0) && hash(i, j, 465) < 0.65) {
+      for (let n = 0; n < 5; n++) {
+        const height = 0.32 + 0.38 * hash(i, j, n, 466);
+        k.box(0.09, height, 0.09, 0x668746, x - 3.09 + (n % 2) * 0.12, -0.16, z - 0.68 + n * 0.34);
+      }
     }
     if (hash(i, j, 80) < 0.5) k.box(0.5, 0.05, 0.5, 0x4caf50, x + hash(i, j, 81) * 3 - 1.5, -0.18, z + hash(i, j, 82) * 3 - 1.5);
   }
@@ -2466,7 +2630,13 @@ export function createCity(scene) {
           k.box(alongX ? length : width, 0.012, alongX ? width : length, color,
             x + (alongX ? along : across), 0.05, z + (alongX ? across : along));
         k.box(alongX ? roadSpan : STREET_WIDTH, 0.05, alongX ? STREET_WIDTH : roadSpan, C.road, x, 0, z);
-        mark(0.9, 0.08, 0, 0);
+        const brickStreet = Math.abs(i) + Math.abs(j) <= 4 && dir === 'h';
+        if (brickStreet) {
+          mark(1.65, STREET_WIDTH - 0.32, 0, 0, 0xba8d76);
+          for (const seam of [-0.54, 0, 0.54]) {
+            k.box(0.035, 0.008, STREET_WIDTH - 0.32, 0x9f7666, x + seam, 0.063, z);
+          }
+        } else mark(0.9, 0.08, 0, 0);
         for (const side of [-1, 1]) {
           mark(roadSpan, 0.06, 0, side * (STREET_WIDTH / 2 - 0.08), 0x8a949e);
           for (const stripe of [-0.9, -0.45, 0, 0.45, 0.9]) mark(0.38, 0.2, side * (roadSpan / 2 - 0.43), stripe);

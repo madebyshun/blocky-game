@@ -87,7 +87,7 @@ const items = [
     return { label: l.label, p: { k: 0, kind: 'landmark', type: l.brand ? 'hq' : l.id, w, d, h, brand: l.brand } };
   }),
   // Base Avenue (src/projects.js): every HQ style with a sample project, its plot before, a free plot
-  ...Object.entries(HQ_SIZE).map(([style, [w, d, h]], i) => ({ label: `Base Avenue HQ: ${style}`, p: { k: 0, kind: 'landmark', type: 'hq', w, d, h, brand: { ...SAMPLE, id: `sample-${style}`, style, color: ['#0052ff', '#ff007a', '#3ca1a4', '#7b2ff2'][i] } } })),
+  ...Object.entries(HQ_SIZE).map(([style, [w, d, h]], i) => ({ label: `Base Avenue HQ: ${style}`, p: { k: 0, kind: 'landmark', type: 'hq', w, d, h, brand: { ...SAMPLE, id: `sample-${style}`, style, color: ['#0052ff', '#ff007a', '#3ca1a4', '#7b2ff2'][i % 4] } } })),
   { label: 'Base Avenue: before its goal', p: { type: 'hq' }, make: () => kitFor((k) => brandPlot(k, { ...SAMPLE, at: 400 })) },
   { label: 'Base Avenue: a free plot', p: { type: 'hq' }, make: () => kitFor((k) => freePlot(k, 1)) },
   { label: 'Billboards', p: { type: 'billboards' }, make: adWall },
@@ -112,7 +112,7 @@ const pickedLegends = only?.filter((x) => legendNames.has(x.toLowerCase())).map(
 const showRare = !only || only.includes('rare') || only.includes('blockies');
 const showBlockies = !only || only.includes('blockies') || only.includes('legends') || only.includes('rare') || pickedLegends.length > 0;
 const legendsOnly = (only?.includes('legends') || pickedLegends.length > 0) && !only.includes('blockies');
-if (only) items.splice(0, items.length, ...items.filter((it) => only.includes(it.p.type)));
+if (only) items.splice(0, items.length, ...items.filter((it) => only.includes(it.p.type) || only.includes(it.p.brand?.id)));
 const cols = only ? Math.max(1, Math.min(3, items.length)) : 6, gap = 11;
 const rows = Math.ceil(items.length / cols);
 const tags = [];
