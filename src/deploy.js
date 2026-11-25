@@ -125,13 +125,13 @@ if ($('fw-form')) {
       if (!done.ok) throw new Error(done.ok === false ? 'Flywheel deployment failed' : 'Still pending: check Basescan');
       const addr = getAddress(done.receipt.contractAddress);
       const encoded = encodeAbiParameters(ctor.inputs, args).slice(2);
-      const bcToken = CONFIG.flywheel?.basecityToken || '0xB2000000000000000000003577e92f1D4122a1D1';
+      const bcToken = CONFIG.flywheel?.basecityToken;
       const factory = CONFIG.flywheel?.factory || '0x006Da367654a487bb277fe25ff54f0fE0f741377';
       showFw(`<b>Deployed BaseCityFlywheel: <a href="${basescan(`address/${addr}`)}" target="_blank" rel="noopener">${addr}</a></b>
         <ol class="steps">
           <li>Put <code>${addr}</code> into <code>src/config.js</code> → <code>flywheel.contract</code> (and env <code>FLYWHEEL_CONTRACT=${addr}</code>${fwKey ? ' + <code>FLYWHEEL_OPERATOR_KEY</code> above' : ''}).</li>
           <li>Verify on Basescan: <a href="https://basescan.org/verifyContract?a=${addr}" target="_blank" rel="noopener">verify</a>, compiler <code>${esc(fwArtifact.compiler)}</code>, MIT license, upload <a href="${fwInputUrl}" download="BaseCityFlywheel.input.json">BaseCityFlywheel.input.json</a>. Constructor args: <code>${encoded}</code></li>
-          <li>Route 80% LP fees from <code>$BASECITY/$BLOCKY</code> (connect creator wallet <code>${esc(CONFIG.flywheel?.creator || '')}</code>): <button type="button" class="btn" id="fw-route">Route $BASECITY LP fees to Flywheel</button> <span id="fw-route-msg"></span></li>
+          <li>Route 80% LP fees from <code>$BASECITY/WETH</code> (connect creator wallet <code>${esc(CONFIG.flywheel?.creator || '')}</code>): <button type="button" class="btn" id="fw-route">Route $BASECITY LP fees to Flywheel</button> <span id="fw-route-msg"></span></li>
         </ol>`, 'ok');
       const routeBtn = $('fw-route');
       if (routeBtn) {
@@ -162,7 +162,7 @@ if ($('fw-route-existing') && CONFIG.flywheel?.contract) {
   $('fw-route-existing').onclick = async () => {
     const btn = $('fw-route-existing');
     const fwAddr = getAddress(CONFIG.flywheel.contract);
-    const bcToken = getAddress(CONFIG.flywheel.basecityToken || '0xB2000000000000000000003577e92f1D4122a1D1');
+    const bcToken = getAddress(CONFIG.flywheel.basecityToken);
     const factory = getAddress(CONFIG.flywheel.factory || '0x006Da367654a487bb277fe25ff54f0fE0f741377');
     try {
       btn.disabled = true;
@@ -171,7 +171,7 @@ if ($('fw-route-existing') && CONFIG.flywheel?.contract) {
       const rHash = await sendTx(provider, { from: account, to: factory, data });
       const rDone = await waitTx(rHash, provider, 180000);
       if (!rDone.ok) throw new Error('setCreatorRecipient reverted (ensure connected wallet is creator 0xe7d6...4530)');
-      showFw(`Routed 80% LP fees of <b>$BASECITY/$BLOCKY</b> to Flywheel <code>${fwAddr}</code>. <a href="${basescan(`tx/${rHash}`)}" target="_blank" rel="noopener">View tx on Basescan</a>`, 'ok');
+      showFw(`Routed 80% LP fees of <b>$BASECITY/WETH</b> to Flywheel <code>${fwAddr}</code>. <a href="${basescan(`tx/${rHash}`)}" target="_blank" rel="noopener">View tx on Basescan</a>`, 'ok');
     } catch (err) {
       btn.disabled = false;
       showFw(rejected(err) ? 'Cancelled.' : esc(err.shortMessage || err.message), rejected(err) ? '' : 'bad');

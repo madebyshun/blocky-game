@@ -1,4 +1,4 @@
-// BaseCity Flywheel ($BASECITY / $BLOCKY) metrics panel loader for /metrics.html.
+// BaseCity Flywheel ($BASECITY / WETH) metrics panel loader for /metrics.html.
 import { createPublicClient, fallback, http, formatUnits, keccak256, toBytes } from 'viem';
 import { base } from 'viem/chains';
 import { CONFIG } from './config.js';
@@ -53,7 +53,7 @@ function renderFlywheelDiagram({ bcToken, fwContract, split }) {
           <div class="fw-col-lbl">01 · REVENUE INFLOWS</div>
           <div class="fw-node primary">
             <small>PRIMARY · 80% UNISWAP V4 FEE</small>
-            <b>$BASECITY / $BLOCKY LP</b>
+            <b>$BASECITY / WETH LP</b>
             <span>Token ${esc(shortAddr(bcToken))}</span>
           </div>
           <div class="fw-node">
@@ -119,7 +119,7 @@ function renderFlywheelDiagram({ bcToken, fwContract, split }) {
 
 export async function loadFlywheel() {
   const fw = CONFIG.flywheel || {};
-  const bcToken = fw.basecityToken || '0xB2000000000000000000003577e92f1D4122a1D1';
+  const bcToken = fw.basecityToken;
   const fwContract = fw.contract || '';
   const split = fw.split || { holders: 45, buyback: 35, treasury: 20 };
 
@@ -139,7 +139,7 @@ export async function loadFlywheel() {
   try {
     const dex = await fetch(`https://api.dexscreener.com/tokens/v1/base/${bcToken}`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
     if (Array.isArray(dex) && dex.length) {
-      pair = dex.reduce((best, p) => (Number(p.liquidity?.usd || 0) > Number(best?.liquidity?.usd || 0) ? p : best), dex[0]);
+      pair = dex.find((p) => p.pairAddress?.toLowerCase() === fw.poolId) || null;
     }
   } catch { /* skip */ }
 
@@ -195,7 +195,7 @@ export async function loadFlywheel() {
     const epochSub = `${payouts.length} payouts · ${burns.length} burns${latestBlock ? ` · #${latestBlock.toLocaleString('en-US')}` : ''}`;
     sumEl.innerHTML = [
       ['Fee Split', `${split.holders} / ${split.buyback} / ${split.treasury}%`, 'Holders · Buyback · Treasury', 'blue'],
-      ['Market Cap', pair?.fdv ? usd(pair.fdv) : 'Live on Base', '$BASECITY / $BLOCKY', 'gold'],
+      ['Market Cap', pair?.fdv ? usd(pair.fdv) : 'Live on Base', '$BASECITY / WETH', 'gold'],
       ['24h Volume', pair?.volume?.h24 != null ? usd(pair.volume.h24) : '—', vaultItems.length ? `Vault: ${vaultSummary}` : '$BASECITY on Base', 'green'],
       ['Epoch Status', latestEpoch ? `Epoch ${latestEpoch}` : (fwContract ? 'Epoch 0' : 'Pre-deploy'), epochSub, 'slate'],
     ].map(([k, v, sub, tone]) => `<div class="fw-kpi ${tone}"><small>${esc(k)}</small><b>${esc(v)}</b><span>${esc(sub)}</span></div>`).join('');

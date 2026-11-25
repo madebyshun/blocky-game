@@ -1,4 +1,4 @@
-// Onchain sync endpoint for BaseCityFlywheel ($BASECITY / $BLOCKY / BCB NFTs).
+// Onchain sync endpoint for BaseCityFlywheel ($BASECITY / WETH / BCB NFTs).
 // Reads live vault balances, deferred balances, burned totals, and incremental onchain
 // EpochDistributed / BuybackBurned / DeferredClaimed logs with KV persistence.
 import { createPublicClient, fallback, http, formatUnits, keccak256, toBytes, getAddress } from 'viem';
@@ -23,7 +23,7 @@ const FLYWHEEL_ABI = [
   { type: 'function', name: 'totalDeferred', stateMutability: 'view', inputs: [{ name: 'token', type: 'address' }], outputs: [{ name: '', type: 'uint256' }] },
 ];
 
-const CACHE_KEY = `${KEY_BASE}:flywheel:v3`;
+const CACHE_KEY = `${KEY_BASE}:flywheel:${CONFIG.flywheel.basecityToken.toLowerCase()}`;
 const CACHE_TTL_MS = 45_000;
 const INITIAL_LOOKBACK = 20000n;
 const CHUNK_TIERS = [5000n, 2000n, 500n, 9n];
@@ -154,7 +154,7 @@ export default async function handler(req, res) {
 
   const fw = CONFIG.flywheel || {};
   const fwContract = env.FLYWHEEL_CONTRACT || fw.contract ? getAddress(env.FLYWHEEL_CONTRACT || fw.contract) : '';
-  const bcToken = getAddress(fw.basecityToken || '0xB2000000000000000000003577e92f1D4122a1D1');
+  const bcToken = getAddress(fw.basecityToken);
   const blockyToken = getAddress(CONFIG.tokenAddress || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885');
   const split = fw.split || { holders: 45, buyback: 35, treasury: 20 };
   const tokens = tokenMetaMap(bcToken, blockyToken);
@@ -169,7 +169,7 @@ export default async function handler(req, res) {
   let scannedTo = BigInt(stored?.data?.scannedBlock || 0);
 
   if (fwContract && latestBlock > 0n) {
-    const deployBlock = BigInt(Number(env.FLYWHEEL_DEPLOY_BLOCK || 0) || 0);
+    const deployBlock = BigInt(Math.max(CONFIG.flywheel.launchBlock, Number(env.FLYWHEEL_DEPLOY_BLOCK) || 0));
     const defaultStart = latestBlock > INITIAL_LOOKBACK ? latestBlock - INITIAL_LOOKBACK : 0n;
     const prevBlock = BigInt(stored?.data?.scannedBlock || 0);
     const startBlock = prevBlock > 0n

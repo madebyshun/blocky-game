@@ -6,7 +6,7 @@
 // Execute live auto-push payouts on Base (requires FLYWHEEL_CONTRACT + FLYWHEEL_OPERATOR_KEY):
 //   FLYWHEEL_CONTRACT=0x... FLYWHEEL_OPERATOR_KEY=0x... node scripts/flywheel-snapshot.mjs --epoch 1 --total-fees 100000 --token 0xE72A... --execute
 // Optional buyback burn in the same run:
-//   --burn-token 0xB2000000000000000000003577e92f1D4122a1D1 --burn-amount 35000
+//   --burn-token 0xB200000000000000000000A2408e76AcE2AD63FD --burn-amount 35000
 import { createPublicClient, createWalletClient, fallback, http, parseUnits, formatUnits, getAddress, isAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';

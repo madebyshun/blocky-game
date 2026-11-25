@@ -299,10 +299,12 @@ export const CONFIG = {
   // blocks downtown. It grows with the land and its train stops at a station on every side.
   metro: { at: 1000, land: 6, label: 'BaseCity Metro', cost: 700 },
 
-  // $BASECITY / $BLOCKY flywheel (auto-push rewards to BaseCity Blockies NFT holders + buyback burn).
+  // $BASECITY / WETH flywheel (auto-push rewards to BaseCity Blockies NFT holders + buyback burn).
   flywheel: {
-    basecityToken: '0xB2000000000000000000003577e92f1D4122a1D1',
-    creator: '0xe7d67Cf1108fA1c4836Ff1B178C3f37D56844530',
+    basecityToken: '0xB200000000000000000000A2408e76AcE2AD63FD',
+    poolId: '0xb88479a0ae0e7e036257bdac66a2661eb1a03a90b4106565797457e6e62be808',
+    launchBlock: 62014541,
+    creator: '0x00FD29B7D6dbf13afb879AfBb239dB1D48Ce746F',
     factory: '0x006Da367654a487bb277fe25ff54f0fE0f741377',
     contract: '0x273c3c49106Dd52Ac9b20D4FDDfcB8C6104dfA3B',
     operator: '0x7d5db0838c5a3ceaa458c32f9c711f3f0e3b586d',

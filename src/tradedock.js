@@ -26,7 +26,7 @@ import {
 
 const BASESCAN_TX = ['https', '://basescan.org/tx/'].join('');
 const BLOCKY_ADDR = CONFIG.tokenAddress || '0xE72A0C42b584a3E7A4503a82D1337dEB52adE885';
-const BASECITY_ADDR = CONFIG.flywheel?.basecityToken || '0xB2000000000000000000003577e92f1D4122a1D1';
+const BASECITY_ADDR = CONFIG.flywheel?.basecityToken;
 
 const CRYPTO_ASSETS = [
   { ticker: 'BLOCKY', symbol: '$BLOCKY', name: 'BaseCity Blocky Token', address: BLOCKY_ADDR, decimals: 18, kind: 'crypto' },

@@ -85,6 +85,7 @@ const LAUNCH_V3_ABI = [
 ];
 
 const BASE_CRYPTO_QUOTES = [
+  { group: 'crypto', label: 'WETH · Wrapped Ether', symbol: 'WETH', address: '0x4200000000000000000000000000000000000006', decimals: 18, defaultAmt: '0' },
   { group: 'crypto', label: 'TOSHI · Toshi', symbol: 'TOSHI', address: '0xAC1Bd2486aAf3B5C0fc3Fd868558b082a531B2B4', decimals: 18, defaultAmt: '10000', usdHint: 0.0004 },
   { group: 'crypto', label: 'USDC · USD Coin', symbol: 'USDC', address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals: 6, defaultAmt: '5', usdHint: 1 },
   { group: 'crypto', label: 'cbBTC · Coinbase Wrapped BTC', symbol: 'cbBTC', address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf', decimals: 8, defaultAmt: '0.0001', usdHint: 90000 },
@@ -566,7 +567,7 @@ export function createLaunchpadUI({ onLaunched, onFlyTo } = {}) {
       // 1. Local recently launched tokens + known launched CAs (instant visibility)
       for (const local of readLocalLaunches()) pushEntry(local);
       const seededCAs = [
-        '0xB2000000000000000000003577e92f1D4122a1D1', // $BASECITY / $BLOCKY
+        CONFIG.flywheel.basecityToken,
         '0xB2000000000000000000007560618b723474394c',
         '0xB200000000000000000000D798D8658366fC0f3a',
         '0xb20000000000000000000054F06d8bE312ac7E52',
