@@ -2,7 +2,7 @@
 // 1. Buy / Sell $BLOCKY: Direct in-city $BLOCKY swaps (USDC or ETH) via verified Relay routes — no jumping to external DEX links.
 // 2. Stocks & Crypto: 2-column asset browser + live Buy/Sell execution ticket (Aerodrome Slipstream, Uniswap V3 & Relay).
 // 3. Sector Baskets: 1-tx atomic multi-stock basket buys (All-Stars 10, AI & Chips, Big Tech, Crypto & Space).
-import { formatUnits, parseUnits } from 'viem';
+import { formatUnits, parseUnits, isAddress, getAddress } from 'viem';
 import { CONFIG } from './config.js';
 import { esc } from './names.js';
 import { colorOf } from './stocks.js';
@@ -13,6 +13,7 @@ import {
   BASE_WETH,
   BASE_NATIVE,
   fetchBaseStocks,
+  readBaseToken,
   quoteBaseSwap,
   quoteRelaySwap,
   executeUsdcSwap,
@@ -29,8 +30,8 @@ const BLOCKY_ADDR = CONFIG.tokenAddress || '0xE72A0C42b584a3E7A4503a82D1337dEB52
 const BASECITY_ADDR = CONFIG.flywheel?.basecityToken;
 
 const CRYPTO_ASSETS = [
+  { ticker: 'BASECITY', symbol: '$BASECITY', name: 'BaseCity City Token', address: BASECITY_ADDR, decimals: 18, kind: 'crypto' },
   { ticker: 'BLOCKY', symbol: '$BLOCKY', name: 'BaseCity Blocky Token', address: BLOCKY_ADDR, decimals: 18, kind: 'crypto' },
-  { ticker: 'BASECITY', symbol: '$BASECITY', name: 'BaseCity Flywheel Token', address: BASECITY_ADDR, decimals: 18, kind: 'crypto' },
   { ticker: 'ETH', symbol: 'ETH', name: 'Ether on Base', address: BASE_NATIVE, decimals: 18, kind: 'crypto' },
   { ticker: 'WETH', symbol: 'WETH', name: 'Wrapped Ether', address: BASE_WETH, decimals: 18, kind: 'crypto' },
   { ticker: 'cbBTC', symbol: 'cbBTC', name: 'Coinbase Wrapped BTC', address: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf', decimals: 8, kind: 'crypto' },
@@ -86,13 +87,9 @@ async function loadStocksMeta() {
 
 function activeSectorItems() {
   const sec = SECTOR_BASKETS.find((s) => s.id === selectedSector) || SECTOR_BASKETS[0];
-  const list = sec.tickers.filter((t) => liveMap.size <= 2 || liveMap.has(t));
-  const finalList = list.length ? list : sec.tickers;
-  const baseW = Math.floor(100 / finalList.length);
-  const rem = 100 - baseW * finalList.length;
-  return finalList.map((ticker, i) => ({
+  return sec.tickers.map((ticker) => ({
     ticker,
-    weight: baseW + (i === 0 ? rem : 0),
+    weight: 100 / sec.tickers.length,
     address: liveMap.get(ticker)?.address || '',
     nav: liveMap.get(ticker)?.nav ?? null,
   }));
@@ -122,13 +119,13 @@ function build() {
         ${itemSprite('basket-chest', 38)}
         <div class="td-title">
           <b>BASECITY TRADE HUB</b>
-          <span>Buy $BLOCKY, Stocks &amp; Crypto directly on Base · Self-Custody</span>
+          <span>Trade tokenized stocks &amp; crypto on Base · Self-Custody</span>
         </div>
         <button type="button" class="td-x" title="Close (Esc)">Close</button>
       </div>
 
       <div class="lp-seg" style="margin-top:12px" id="b10-tabs">
-        <button type="button" class="lp-seg-btn" data-b10tab="blocky">Buy / Sell $BLOCKY</button>
+        <button type="button" class="lp-seg-btn" data-b10tab="blocky">Blocky Builders</button>
         <button type="button" class="lp-seg-btn on" data-b10tab="trade">Stocks &amp; Crypto</button>
         <button type="button" class="lp-seg-btn" data-b10tab="basket">Sector Baskets</button>
       </div>
@@ -142,7 +139,7 @@ function build() {
       <form class="b10-swap" id="b10-blocky-form" hidden>
         <div class="th-blocky-hero">
           <div>
-            <b>${esc(CONFIG.ticker || '$BLOCKY')} · BASECITY TOKEN</b>
+            <b>${esc(CONFIG.ticker || '$BLOCKY')} · BUILDER TOKEN</b>
             <span>Every $${CONFIG.usdPerBlocky || 10} unlocks a playable Blocky in Game Mode immediately (0 wait) · Hold 1h to claim tradable NFT.</span>
           </div>
           <div class="th-bal-pill" id="b10-blocky-bal">Wallet: —</div>
@@ -181,7 +178,7 @@ function build() {
               <button type="button" class="lp-seg-btn on" data-bkind="stocks">Stocks</button>
               <button type="button" class="lp-seg-btn" data-bkind="crypto">Crypto</button>
             </div>
-            <input id="b10-search" class="th-search" type="search" placeholder="Search ticker or name..." />
+            <input id="b10-search" class="th-search" type="search" placeholder="Search or paste a Base token address" />
           </div>
           <div class="th-list-head"><span>Asset</span><span>Price / NAV</span></div>
           <div class="th-list" id="b10-asset-list"></div>
@@ -232,7 +229,7 @@ function build() {
           <div class="b10-sec-info">
             <b id="b10-sec-title">All-Stars (10)</b>
             <span id="b10-sec-desc">Top 10 Coinbase tokenized stocks on Base, 10% each</span>
-            <small id="b10-basket-split" class="b10-nav">$1.00 / stock · 1 signature</small>
+            <small id="b10-basket-split" class="b10-nav">$1.00 / stock · wallet confirmation</small>
           </div>
         </div>
         <div class="b10-swap-row">
@@ -386,6 +383,13 @@ function build() {
       bkQuoteEl.textContent = 'Enter an amount to quote $BLOCKY on Base.';
       return;
     }
+    const side = blockySide;
+    const currency = blockyCounter;
+    const exact = blockyExactRaw;
+    const wallet = account;
+    const matchesRequest = () => !el.hidden && activeTab === 'blocky' &&
+      side === blockySide && currency === blockyCounter && exact === blockyExactRaw &&
+      wallet === account && Number(bkAmtEl.value) === amt;
     const counterAddr = blockyCounter === 'ETH' ? BASE_NATIVE : BASE_USDC;
     const counterDec = blockyCounter === 'ETH' ? 18 : 6;
     const tokenIn = blockySide === 'buy' ? counterAddr : BLOCKY_ADDR;
@@ -397,39 +401,45 @@ function build() {
     try {
       const units = blockySide === 'sell' && blockyExactRaw != null ? blockyExactRaw : parseUnits(String(amt), inDec);
       const q = await quoteRelaySwap({ user: account, tokenIn, tokenOut, amountInUnits: units });
+      if (!matchesRequest()) return;
       const outHuman = Number(formatUnits(BigInt(q.amountOut || '0'), outDec));
       const impactTxt = q.impact ? ` · impact ${q.impact}%` : '';
       bkQuoteEl.textContent = `Est. receive: ${outHuman.toLocaleString('en-US', { maximumFractionDigits: outDec === 6 ? 2 : 4 })} ${outSym}${impactTxt}`;
     } catch (e) {
+      if (!matchesRequest()) return;
       bkQuoteEl.textContent = `Quote unavailable: ${e?.message || 'no route right now'}`;
     }
   }
 
   // ---------- TAB 2: QUADRA-STYLE 2-COLUMN STOCKS & CRYPTO ----------
+  let importedToken = null;
+  let loadingToken = false;
   function renderAssetBrowser() {
     el.querySelectorAll('[data-bkind]').forEach((b) => b.classList.toggle('on', b.dataset.bkind === browserKind));
     const q = searchQuery.trim().toLowerCase();
-    const rows = allBrowserRows().filter((r) => !q || r.ticker.toLowerCase().includes(q) || r.name.toLowerCase().includes(q));
+    const rows = (importedToken ? [importedToken] : allBrowserRows()).filter((r) => r.address?.toLowerCase() === q || !q || r.ticker.toLowerCase().includes(q) || r.name.toLowerCase().includes(q));
     assetListEl.innerHTML = rows.length
       ? rows.map((r) => {
-          const active = r.ticker === selectedAsset.ticker && r.kind === selectedAsset.kind;
-          const held = heldStocks.find((h) => h.ticker === r.ticker);
+          const active = r.address?.toLowerCase() === selectedAsset.address?.toLowerCase();
+          const held = r.kind === 'stock' && heldStocks.find((h) => h.ticker === r.ticker);
           const right = r.nav != null ? `$${Number(r.nav).toFixed(2)}` : held ? `${held.balance.toFixed(3)}` : r.kind === 'crypto' ? 'BASE' : '—';
-          return `<button type="button" class="th-row${active ? ' on' : ''}" data-pick="${esc(r.ticker)}" data-pkind="${esc(r.kind)}">
+          return `<button type="button" class="th-row${active ? ' on' : ''}" data-pick="${esc(r.address || r.ticker)}">
             <span class="th-sym"><b>${esc(r.ticker)}</b><small>${esc(r.name)}</small></span>
             <span class="th-px">${esc(right)}</span>
           </button>`;
         }).join('')
-      : '<p class="lp-desc" style="padding:10px">No matching assets on Base.</p>';
+      : `<p class="lp-desc" style="padding:10px">${loadingToken ? "Reading Base token…" : "No matching assets on Base."}</p>`;
   }
 
   function renderTradeTicket() {
     const a = selectedAsset;
+    if (a.address?.toLowerCase() === BASE_USDC.toLowerCase()) counter = 'ETH';
     if (a.address === BASE_NATIVE && counter === 'ETH') counter = 'USDC';
     el.querySelectorAll('[data-side]').forEach((b) => b.classList.toggle('on', b.dataset.side === tradeSide));
     el.querySelectorAll('[data-cnt]').forEach((b) => {
       b.classList.toggle('on', b.dataset.cnt === counter);
-      b.disabled = a.address === BASE_NATIVE && b.dataset.cnt === 'ETH';
+      b.disabled = (a.address === BASE_NATIVE && b.dataset.cnt === 'ETH') ||
+        (a.address?.toLowerCase() === BASE_USDC.toLowerCase() && b.dataset.cnt === 'USDC');
     });
 
     pickTitleEl.textContent = `${a.ticker} — ${a.name}`;
@@ -449,7 +459,7 @@ function build() {
         b.onclick = () => { sellExactRaw = null; amtEl.value = b.dataset.qamt; scheduleTradeQuote(); };
       });
     } else {
-      const held = heldStocks.find((h) => h.ticker === a.ticker);
+      const held = a.kind === 'stock' && heldStocks.find((h) => h.ticker === a.ticker);
       tradeLbl.textContent = held
         ? `Sell ${a.ticker} (Wallet: ${held.balance.toFixed(6)})`
         : `Sell ${a.ticker} (Wallet balance checked on submit)`;
@@ -460,9 +470,9 @@ function build() {
           const pct = Number(b.dataset.pct);
           const balObj = a.address === BASE_NATIVE
             ? await getNativeEthBalance(account)
-            : await getTokenBalanceRaw(a.address, account, a.decimals || 8);
+            : await getTokenBalanceRaw(a.address, account, a.decimals ?? 8);
           if (!balObj.raw || balObj.raw <= 0n) return;
-          const dec = a.decimals || 8;
+          const dec = a.decimals ?? 8;
           sellExactRaw = pct === 1 ? balObj.raw : (balObj.raw * BigInt(Math.round(pct * 100))) / 100n;
           amtEl.value = formatUnits(sellExactRaw, dec);
           scheduleTradeQuote();
@@ -483,12 +493,19 @@ function build() {
     if (!Number.isFinite(amt) || amt <= 0) { quoteEl.textContent = 'Enter an amount to quote on Base.'; return; }
     const counterAddr = counter === 'ETH' ? BASE_NATIVE : BASE_USDC;
     const counterDec = counter === 'ETH' ? 18 : 6;
-    const dec = a.decimals || 8;
+    const dec = a.decimals ?? 8;
     const tokenIn = tradeSide === 'buy' ? counterAddr : a.address;
     const tokenOut = tradeSide === 'buy' ? a.address : counterAddr;
     const inDec = tradeSide === 'buy' ? counterDec : dec;
     const outDec = tradeSide === 'buy' ? dec : counterDec;
     const outSym = tradeSide === 'buy' ? a.ticker : counter;
+    const side = tradeSide;
+    const currency = counter;
+    const wallet = account;
+    const exact = sellExactRaw;
+    const matchesRequest = () => !el.hidden && activeTab === 'trade' && selectedAsset.address === a.address
+      && Number(amtEl.value) === amt && tradeSide === side && counter === currency
+      && account === wallet && sellExactRaw === exact;
     quoteEl.textContent = `Quoting ${amt} ${tradeSide === 'buy' ? counter : a.ticker} -> ${outSym} on Base...`;
     try {
       const units = tradeSide === 'sell' && sellExactRaw != null ? sellExactRaw : parseUnits(String(amt), inDec);
@@ -496,10 +513,12 @@ function build() {
       const q = useOnchain
         ? await quoteBaseSwap({ tokenIn, tokenOut, amountInUnits: units }).catch(() => quoteRelaySwap({ user: account, tokenIn, tokenOut, amountInUnits: units }))
         : await quoteRelaySwap({ user: account, tokenIn, tokenOut, amountInUnits: units });
+      if (!matchesRequest()) return;
       const outHuman = Number(formatUnits(BigInt(q.amountOut || '0'), outDec));
       const via = q.dex === 'aerodrome' ? 'Aerodrome' : q.dex === 'uniswapv3' ? 'Uniswap V3' : q.dex === 'relay' ? 'Relay' : 'Base DEX';
       quoteEl.textContent = `Est. receive: ${outHuman.toLocaleString('en-US', { maximumFractionDigits: outDec === 6 ? 2 : 4 })} ${outSym} · via ${via}`;
     } catch {
+      if (!matchesRequest()) return;
       quoteEl.textContent = `No Base liquidity route found for ${a.ticker}/${counter} right now.`;
     }
   }
@@ -519,7 +538,7 @@ function build() {
 
     const total = Math.max(0, Number(basketAmtEl.value) || 0);
     const per = items.length ? total / items.length : 0;
-    basketSplitEl.textContent = `$${per.toFixed(2)} / stock · 1 signature`;
+    basketSplitEl.textContent = `$${per.toFixed(2)} / stock avg · wallet confirmations vary`;
     basketBuyBtn.textContent = `Buy ${sec.label.split(' ')[0]} Basket ($${total || 0})`;
 
     basketGridEl.innerHTML = items.map((it) => {
@@ -617,6 +636,8 @@ function build() {
     if (!k || k === browserKind) return;
     browserKind = k;
     searchQuery = '';
+    importedToken = null;
+    loadingToken = false;
     searchEl.value = '';
     const rows = allBrowserRows();
     if (rows.length) selectedAsset = rows[0];
@@ -625,14 +646,27 @@ function build() {
     scheduleTradeQuote();
   });
 
-  searchEl.oninput = () => { searchQuery = searchEl.value; renderAssetBrowser(); };
+  searchEl.oninput = async () => {
+    searchQuery = searchEl.value;
+    const query = searchQuery.trim();
+    importedToken = null;
+    loadingToken = isAddress(query, { strict: false });
+    renderAssetBrowser();
+    if (!loadingToken) return;
+    const address = getAddress(query.toLowerCase());
+    const token = [...liveMap.values(), ...CRYPTO_ASSETS].find((asset) => asset.address?.toLowerCase() === address.toLowerCase())
+      || await readBaseToken(address).catch(() => null);
+    if (searchQuery.trim() !== query) return;
+    importedToken = token;
+    loadingToken = false;
+    renderAssetBrowser();
+  };
 
   assetListEl.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-pick]');
     if (!btn) return;
     const t = btn.dataset.pick;
-    const k = btn.dataset.pkind;
-    const hit = k === 'crypto' ? CRYPTO_ASSETS.find((x) => x.ticker === t) : liveMap.get(t);
+    const hit = [importedToken, ...allBrowserRows()].find((asset) => asset && (asset.address || asset.ticker) === t);
     if (!hit) return;
     selectedAsset = hit;
     sellExactRaw = null;
@@ -739,14 +773,14 @@ function build() {
           fetch(`/api/stocks?go=b10&ticker=${encodeURIComponent(a.ticker)}`).catch(() => {});
         } else {
           res = await executeTokenSwap({
-            provider, account, tokenIn: a.address, tokenInDecimals: a.decimals || 8, tokenOut: BASE_USDC,
+            provider, account, tokenIn: a.address, tokenInDecimals: a.decimals ?? 8, tokenOut: BASE_USDC,
             amount: amtStr, rawUnits: sellExactRaw, onStatus: (txt) => setMsg(msgEl, esc(txt)),
           });
         }
       } else {
         const counterAddr = counter === 'ETH' ? BASE_NATIVE : BASE_USDC;
         const counterDec = counter === 'ETH' ? 18 : 6;
-        const dec = a.decimals || 8;
+        const dec = a.decimals ?? 8;
         const tokenIn = tradeSide === 'buy' ? counterAddr : a.address;
         const tokenOut = tradeSide === 'buy' ? a.address : counterAddr;
         const inDec = tradeSide === 'buy' ? counterDec : dec;
@@ -757,7 +791,7 @@ function build() {
       setMsg(
         msgEl,
         res.batched
-          ? `${tradeSide === 'buy' ? 'Bought' : 'Sold'} <b>${esc(a.ticker)}</b> on Base.`
+          ? `Submitted <b>${esc(a.ticker)}</b> swap on Base. Check your wallet for confirmation.`
           : `${tradeSide === 'buy' ? 'Bought' : 'Sold'} <b>${esc(a.ticker)}</b> on Base. <a target="_blank" rel="noopener" href="${BASESCAN_TX}${esc(res.txHash)}">View on Basescan</a>`,
         'ok',
       );
@@ -791,8 +825,8 @@ function build() {
       setMsg(
         basketMsgEl,
         res.batched
-          ? `Bought <b>${res.count} stocks ($${total} USDC)</b> in 1 atomic Base batch!`
-          : `Bought <b>${res.count} stocks</b> in 1 multicall tx.${lastTx ? ` <a target="_blank" rel="noopener" href="${BASESCAN_TX}${esc(lastTx)}">View on Basescan</a>` : ''}`,
+          ? `Submitted Base batch for <b>${res.count} stocks</b>. Check your wallet for confirmation.`
+          : `Bought <b>${res.count} stocks</b> across ${new Set(res.txHashes.map((entry) => entry.txHash)).size} swap transaction(s).${lastTx ? ` <a target="_blank" rel="noopener" href="${BASESCAN_TX}${esc(lastTx)}">View on Basescan</a>` : ''}`,
         'ok',
       );
       refreshWalletBalances();

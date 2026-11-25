@@ -478,7 +478,7 @@ export async function getTokenBalanceRaw(tokenAddress, account, decimals = 8) {
     });
     return { raw, balance: Number(raw) / (10 ** decimals), decimals };
   } catch {
-    return { raw: 0n, balance: 0, decimals };
+    return { raw: 0n, balance: 0, decimals, unavailable: true };
   }
 }
 
@@ -598,10 +598,10 @@ export async function quoteBasketSwap({ items, totalUsdc }) {
   const total = Number(sanitizeAmount(totalUsdc));
   if (!Number.isFinite(total) || total <= 0) throw new Error('Enter a positive USDC total.');
   const totalUnits = parseUnits(String(total), 6);
-  const weightSum = items.reduce((a, x) => a + (x.weight || 10), 0) || 100;
+  const weightSum = items.reduce((a, x) => a + BigInt(Math.round((x.weight || 10) * 100)), 0n) || 10000n;
 
   return Promise.all(items.map(async (it) => {
-    const shareUnits = (totalUnits * BigInt(Math.round((it.weight || 10) * 100))) / BigInt(Math.round(weightSum * 100));
+    const shareUnits = (totalUnits * BigInt(Math.round((it.weight || 10) * 100))) / weightSum;
     if (!it.address || shareUnits <= 0n) return { ...it, shareUnits, ok: false, error: 'Missing contract' };
     try {
       const quote = await quoteBaseSwap({ tokenIn: BASE_USDC, tokenOut: it.address, amountInUnits: shareUnits, preferAerodrome: true });
@@ -621,7 +621,10 @@ export async function executeBasketSwap({ provider, account, items, totalUsdc, s
   const quoted = await quoteBasketSwap({ items, totalUsdc });
   const routable = quoted.filter((x) => x.ok && x.quote);
   quoted.filter((x) => !x.ok).forEach((x) => onStep?.(x.ticker, 'fail', ''));
-  if (!routable.length) throw new Error('No routable Base pools found for the basket right now.');
+  if (routable.length !== items.length) {
+    const missing = quoted.filter((item) => !item.ok || !item.quote).map((item) => item.ticker);
+    throw new Error(`Basket routes unavailable for ${missing.join(', ')}. No swap was submitted.`);
+  }
 
   onStatus?.(`Building ${routable.length} Base swap routes...`);
   const builtList = [];
@@ -633,7 +636,7 @@ export async function executeBasketSwap({ provider, account, items, totalUsdc, s
       onStep?.(item.ticker, 'fail', '');
     }
   }
-  if (!builtList.length) throw new Error('Could not build basket swap transactions.');
+  if (builtList.length !== items.length) throw new Error('Could not prepare every basket swap. No swap was submitted.');
 
   const neededByRouter = new Map();
   for (const { item, built } of builtList) {
@@ -687,14 +690,16 @@ export async function executeBasketSwap({ provider, account, items, totalUsdc, s
     ];
     const batch = await provider.request({
       method: 'wallet_sendCalls',
-      params: [{ version: '1.0', chainId: '0x2105', from: account, calls }],
+      params: [{ version: '2.0.0', chainId: '0x2105', from: account, atomicRequired: true, calls }],
     });
     if (batch) {
-      builtList.forEach(({ item }) => onStep?.(item.ticker, 'done', ''));
       return { batched: true, count: builtList.length, skipped: items.length - builtList.length, txHashes: [] };
     }
   } catch (err) {
-    if (rejected(err)) throw err;
+    // An ambiguous RPC failure can happen after submission. Only fall back
+    // when the wallet explicitly rejects the method or atomic capability.
+    const code = Number(err?.code);
+    if (![-32601, 4200, 5700, 5750].includes(code)) throw err;
   }
 
   // 2. Standard EOA path: 1-time USDC approval + SINGLE multicall tx per router (1 tx total for all Aerodrome stocks!)
@@ -745,7 +750,7 @@ export async function getNativeEthBalance(account) {
     const raw = await client.getBalance({ address: account });
     return { raw, balance: Number(raw) / 1e18 };
   } catch {
-    return { raw: 0n, balance: 0 };
+    return { raw: 0n, balance: 0, unavailable: true };
   }
 }
 
@@ -856,3 +861,13 @@ export async function executeRelaySwap({ provider, account, tokenIn, tokenOut, a
   return { batched: false, txHash: lastHash, quote };
 }
 
+
+// Resolve pasted contracts on Base independently of the curated market list.
+export async function readBaseToken(address) {
+  const read = (functionName) => client.readContract({ address, abi: erc20Abi, functionName });
+  const [decimals, symbol, name] = await Promise.all([
+    read('decimals'), read('symbol').catch(() => ''), read('name').catch(() => ''),
+  ]);
+  const ticker = symbol.trim().slice(0, 32) || address.slice(0, 10);
+  return { address, decimals, ticker, symbol: ticker, name: name.trim().slice(0, 100) || address, kind: 'crypto' };
+}
