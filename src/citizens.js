@@ -19,6 +19,15 @@ function B(parent, w, h, d, color, x = 0, y = 0, z = 0, emissive) {
   return m;
 }
 
+// A smoke held in the corner of the mouth: it starts at the lips and points out of the face, drooping a little
+// and angled to the side, with the lit/blue tip at the far end. (The old ones were flat bars lying across the cheek.)
+function smoke(g, { x, y, len = 0.3, th = 0.04, body = 0xf4f4f0, tip = null, glow, yaw = 0.8, pitch = 0.08, z = 0.215 }) {
+  const dx = Math.cos(pitch) * Math.sin(yaw), dy = -Math.sin(pitch), dz = Math.cos(pitch) * Math.cos(yaw);
+  const turn = (m) => { m.rotation.set(pitch, yaw, 0, 'YXZ'); return m; };
+  turn(B(g, th, th, len, body, x + dx * len / 2, y + dy * len / 2 - th / 2, z + dz * len / 2));
+  if (tip != null) { const t = th * 1.3; turn(B(g, t, t, t, tip, x + dx * len, y + dy * len - t / 2, z + dz * len, glow)); }
+}
+
 const PANTS = 0x34495e;
 const BLOCK_COLORS = [0x0052ff, 0xf4c542, 0xe74c3c, 0x2ecc71, 0xf4f4f0, 0x9b59b6];
 
@@ -119,8 +128,7 @@ export const LEGEND_LOOKS = {
       eyes(g);
       B(g, 0.1, 0.04, 0.02, 0x8b5a2b, -0.1, 1.05, 0.216); B(g, 0.1, 0.04, 0.02, 0x8b5a2b, 0.1, 1.05, 0.216);
       B(g, 0.12, 0.04, 0.02, 0x6b1a10, -0.02, 0.87, 0.216);
-      B(g, 0.32, 0.05, 0.05, 0x555555, 0.16, 0.86, 0.25);
-      B(g, 0.05, 0.05, 0.05, 0x0052ff, 0.34, 0.86, 0.25, 0x0030ff);
+      smoke(g, { x: 0.04, y: 0.89, len: 0.32, th: 0.045, body: 0x555555, tip: 0x0052ff, glow: 0x0030ff });
     },
   },
   // golden Spartan helmet, black crest, glowing X eyes, tongue out with a pill, Base-blue square logo tee
@@ -176,7 +184,7 @@ export const LEGEND_LOOKS = {
       B(g, 0.32, 0.04, 0.02, ink, 0.02, 1.07, 0.215); // brow line
       B(g, 0.08, 0.07, 0.02, ink, -0.1, 0.98, 0.215); B(g, 0.08, 0.07, 0.02, ink, 0.1, 0.98, 0.215);
       B(g, 0.2, 0.1, 0.02, ink, 0, 0.84, 0.215); B(g, 0.08, 0.04, 0.025, white, 0, 0.87, 0.218); // open mouth, a tooth
-      B(g, 0.26, 0.04, 0.04, white, 0.2, 0.84, 0.25); B(g, 0.05, 0.05, 0.05, 0x0052ff, 0.35, 0.835, 0.25, 0x0030ff);
+      smoke(g, { x: 0.09, y: 0.89, body: white, tip: 0x0052ff, glow: 0x0030ff });
       for (const [x, y] of [[-0.14, 0.62], [0, 0.62], [0.14, 0.62], [-0.07, 0.5], [0.07, 0.5]]) B(g, 0.06, 0.06, 0.02, white, x, y, 0.141); // pixel print
     },
   },
@@ -221,7 +229,7 @@ export const LEGEND_LOOKS = {
       B(g, 0.32, 0.04, 0.02, ink, 0, 1.08, 0.215);
       B(g, 0.08, 0.06, 0.02, ink, -0.1, 0.99, 0.215); B(g, 0.08, 0.06, 0.02, ink, 0.1, 0.99, 0.215);
       B(g, 0.12, 0.08, 0.02, ink, 0.02, 0.85, 0.215);
-      B(g, 0.26, 0.04, 0.04, white, 0.2, 0.84, 0.25); B(g, 0.05, 0.05, 0.05, 0x0052ff, 0.35, 0.835, 0.25, 0x0030ff);
+      smoke(g, { x: 0.09, y: 0.89, body: white, tip: 0x0052ff, glow: 0x0030ff });
       for (const [x, y] of [[-0.14, 0.62], [0, 0.62], [0.14, 0.62], [-0.07, 0.5], [0.07, 0.5]]) B(g, 0.06, 0.06, 0.02, white, x, y, 0.141);
     },
   },
@@ -268,7 +276,7 @@ export const LEGEND_LOOKS = {
       for (const [x, z] of [[-0.12, -0.1], [0.1, 0.04], [0.22, -0.16], [-0.2, 0.1], [0, -0.22]]) B(g, 0.1, 0.12, 0.1, hair, x, 1.3, z);
       B(g, 0.5, 0.3, 0.1, shade, 0, 0.9, -0.23);
       B(g, 0.09, 0.025, 0.02, 0x1b2430, -0.1, 0.95, 0.215); B(g, 0.09, 0.025, 0.02, 0x1b2430, 0.1, 0.95, 0.215); // eyes closed
-      B(g, 0.22, 0.03, 0.03, 0xf4f4f0, 0.12, 0.84, 0.24); B(g, 0.04, 0.035, 0.035, 0xff8a3d, 0.24, 0.84, 0.24, 0x802a00);
+      smoke(g, { x: 0.07, y: 0.85, len: 0.26, th: 0.035, tip: 0xff8a3d, glow: 0x802a00 });
       B(g, 0.16, 0.42, 0.02, 0xf0e2c8, 0, 0.38, 0.141); // cream tee
       for (const [x, y] of [[-0.18, 0.44], [-0.14, 0.5], [-0.18, 0.56], [0.17, 0.48]]) B(g, 0.06, 0.03, 0.02, 0xc9a227, x, y, 0.142); // gold waves
       for (const a of arms) for (const y of [-0.12, -0.26]) B(a, 0.14, 0.03, 0.17, 0xc9a227, 0, y);
@@ -304,7 +312,7 @@ export const LEGEND_LOOKS = {
       B(g, 0.08, 0.22, 0.22, red, -0.25, 0.86, 0); B(g, 0.08, 0.22, 0.22, red, 0.25, 0.86, 0); // ear cups
       B(g, 0.03, 0.34, 0.03, 0x111111, 0.3, 0.98, -0.06); // mic boom
       B(g, 0.05, 0.05, 0.02, 0x111111, 0.02, 0.98, 0.215); B(g, 0.05, 0.05, 0.02, 0x111111, 0.12, 0.98, 0.215); // dot eyes
-      B(g, 0.24, 0.04, 0.04, 0xf4f4f0, 0.16, 0.86, 0.24);
+      smoke(g, { x: 0.08, y: 0.88, len: 0.28, th: 0.04 });
       B(arms[1], 0.15, 0.06, 0.18, 0xf4f4f0, 0, -0.38); B(arms[1], 0.06, 0.06, 0.03, 0x9aa3ad, 0, -0.38, 0.1); // watch
     },
   },
@@ -391,7 +399,7 @@ export const LEGEND_LOOKS = {
       B(g, 0.03, 0.04, 0.4, gold, -0.24, 1.2, 0.0); B(g, 0.03, 0.04, 0.4, gold, 0.24, 1.2, 0.0); // gold stripes
       B(g, 0.12, 0.05, 0.02, 0xff2a2a, -0.1, 0.98, 0.215, 0xff0000); B(g, 0.12, 0.05, 0.02, 0xff2a2a, 0.1, 0.98, 0.215, 0xff0000); // red eyes
       B(g, 0.06, 0.02, 0.02, 0x4a4a4a, 0, 0.86, 0.215);
-      B(g, 0.2, 0.05, 0.05, 0x7a4a2a, 0.12, 0.85, 0.24); B(g, 0.05, 0.05, 0.05, 0xff6a2a, 0.23, 0.85, 0.24, 0x802000); // cigar
+      smoke(g, { x: 0.05, y: 0.875, len: 0.26, th: 0.05, body: 0x7a4a2a, tip: 0xff6a2a, glow: 0x802000 }); // cigar
       B(g, 0.5, 0.05, 0.3, gold, 0, 0.74); // gold collar
       B(g, 0.05, 0.05, 0.02, gold, -0.12, 0.52, 0.141); B(g, 0.05, 0.05, 0.02, gold, 0.12, 0.52, 0.141); // strap buckles
       B(g, 0.48, 0.05, 0.3, 0x111111, 0, 0.3); // belt
@@ -573,7 +581,7 @@ export const LEGEND_LOOKS = {
       }
       B(g, 0.04, 0.05, 0.03, lid, 0, 0.87, 0.222); // nose
       B(g, 0.08, 0.025, 0.02, 0x7a6a66, 0.03, 0.815, 0.216); // a smirk
-      B(g, 0.14, 0.03, 0.03, 0xf4f4f0, 0.11, 0.808, 0.24); B(g, 0.03, 0.032, 0.032, 0x9a9a9a, 0.185, 0.808, 0.24); // the cigarette
+      smoke(g, { x: 0.07, y: 0.82, len: 0.24, th: 0.032, tip: 0x9a9a9a }); // the cigarette
       for (const z of [0.02, 0.08]) B(g, 0.02, 0.08, 0.02, silver, -0.225, 0.83, z); // safety pins
       // the sailor top: a black-striped V down the front, the collar flap on the back
       B(g, 0.48, 0.05, 0.3, ink, 0, 0.75);
