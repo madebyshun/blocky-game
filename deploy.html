@@ -81,6 +81,22 @@
         </label>
         <div class="note" id="fw-out" hidden></div>
       </form>
+
+      <form class="panel form" id="esc-form">
+        <h2>BaseCity Task Escrow (Work Protocol + Flywheel Fee Split)</h2>
+        <p class="count">Deploys <code>BaseCityTaskEscrow</code> on Base. Locks USDC or Coinbase Tokenized Stock rewards upfront, enforces Blocky NFT / ERC-8004 Agent gates, and routes protocol fees directly to <code>BaseCityFlywheel</code>.</p>
+        <div class="two">
+          <label>Owner (admin wallet)<input id="esc-owner" required placeholder="0x… (connect wallet above)" /></label>
+          <label>Flywheel receiver<input id="esc-flywheel" required placeholder="0x…" /></label>
+          <label>Blocky NFT contract (Gate)<input id="esc-nft" required placeholder="0x…" /></label>
+          <label>ERC-8004 Registry (Agent Gate)<input id="esc-agent" required placeholder="0x…" /></label>
+        </div>
+        <label>Protocol fee (basis points, 300 = 3%, max 1000 = 10%)<input id="esc-bps" required inputmode="numeric" value="300" /></label>
+        <div class="row">
+          <button class="btn primary big" type="submit" id="esc-go" disabled>Deploy Task Escrow on Base</button>
+        </div>
+        <div class="note" id="esc-out" hidden></div>
+      </form>
     </main>
     <script type="module" src="/src/deploy.js"></script>
   </body>

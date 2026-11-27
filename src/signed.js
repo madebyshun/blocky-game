@@ -14,14 +14,15 @@ export function actionMessage(domain, action, wallet, lines, values, issuedAt) {
 
 // ---- BaseCity Tasks (api/city-tasks.js) ----
 export const TASK_FIELDS = {
-  create: ['title', 'brief', 'category', 'mode', 'audience', 'expiryHours', 'rewardToken', 'rewardTokenAddress', 'rewardDecimals', 'rewardAmount', 'rewardUsdc'],
+  create: ['title', 'brief', 'category', 'mode', 'audience', 'expiryHours', 'rewardToken', 'rewardTokenAddress', 'rewardDecimals', 'rewardAmount', 'rewardUsdc', 'evaluator', 'gate', 'criteria'],
   claim: ['taskId', 'blockyName', 'actorType'],
   unclaim: ['taskId'],
   submit: ['taskId', 'blockyName', 'actorType', 'agentId', 'summary', 'proofUrl'],
+  evaluate: ['taskId', 'submissionId'],
   cancel: ['taskId'],
 };
 // approve needs no signature: the on-chain payment from the requester to the worker is the proof
-export const taskWallet = (action, b) => (action === 'create' || action === 'cancel' ? b.requester : b.worker);
+export const taskWallet = (action, b) => (action === 'create' || action === 'cancel' ? b.requester : action === 'evaluate' ? (b.caller || b.requester || b.worker) : b.worker);
 export function taskMessage(action, b, issuedAt) {
   const keys = TASK_FIELDS[action];
   if (!keys) throw new Error('Unknown task action');

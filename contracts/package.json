@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node build.mjs && node test.mjs && node e2e.mjs"
+    "test": "node build.mjs && node test.mjs && node e2e.mjs && node test-escrow.mjs",
+    "build:escrow": "node build-escrow.mjs",
+    "test:escrow": "node build-escrow.mjs && node test-escrow.mjs"
   },
   "devDependencies": {
     "@ethereumjs/block": "^10.1.3",

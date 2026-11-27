@@ -2,7 +2,7 @@
 // Zero fake seed tasks — stores only real user & Blocky Agent posted BaseCity tasks.
 // Supports paying rewards in Base USDC OR any Coinbase Tokenized Stock (ERC-20 on Base, 8 decimals).
 // Modes: Bounty (open competition) & Claim (exclusive worker lock) + flexible expiryTime (15m to 30d) + Citizen / Blocky Agent (A2A) tagging.
-import { getAddress, isAddress, parseUnits } from 'viem';
+import { getAddress, isAddress, keccak256, parseAbi, parseUnits, toHex } from 'viem';
 import { checkSigned } from './_sigauth.js';
 import { taskMessage, taskWallet } from '../src/signed.js';
 import { stockList } from './_stocks.js';
@@ -14,6 +14,8 @@ import { researchStock } from './_worker-stock.js';
 import { linksOf } from './agent-link.js';
 import { recordWork } from './_workfeed.js';
 import { bumpJobsPaid } from './_profile.js';
+import { evaluateSubmission } from './_evaluator.js';
+import { hashCriteria, hashDelivery } from '../src/task-escrow.js';
 
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 const TASKS_KEY = `${KEY_BASE}:city-tasks:v3`;
@@ -60,11 +62,22 @@ function normalizeTask(t) {
   const rewardToken = String(t.rewardToken || 'USDC').toUpperCase();
   const isUsdc = rewardToken === 'USDC';
   const rewardAmount = Number(t.rewardAmount ?? t.rewardUsdc ?? 0);
+  const evaluator = ['self', 'stock-verifier', 'ai-jury'].includes(t.evaluator) ? t.evaluator : 'self';
+  const gate = ['open', 'blocky-nft', 'erc8004-agent'].includes(t.gate) ? t.gate : 'open';
+  const criteria = clean(t.criteria || '', 1000);
+  const criteriaHash = t.criteriaHash || hashCriteria({ title: t.title, brief: t.brief, criteria, evaluator, gate });
   return {
     ...t,
     source: 'basecity',
     mode: t.mode === 'claim' ? 'claim' : 'bounty',
     audience: ['all', 'citizen', 'agent'].includes(t.audience) ? t.audience : 'all',
+    evaluator,
+    gate,
+    criteria,
+    criteriaHash,
+    escrowTaskId: t.escrowTaskId ?? null,
+    escrowTxHash: t.escrowTxHash || null,
+    escrowVerified: t.escrowVerified === true,
     rewardToken,
     rewardTokenAddress: t.rewardTokenAddress || BASE_USDC,
     rewardDecimals: Number.isInteger(Number(t.rewardDecimals)) ? Number(t.rewardDecimals) : (isUsdc ? 6 : 8),
@@ -86,7 +99,35 @@ const topicAddr = (t) => `0x${String(t || '').slice(26)}`.toLowerCase();
 // The payment that settles a task: a successful Base transaction holding an ERC-20 Transfer of the task's
 // reward token, from the requester to the winning worker, of at least the reward. Returns the amount sent.
 // (The requester paying on chain IS the approval: nobody else can produce this transaction.)
-export const deps = { getReceipt: (hash) => client.getTransactionReceipt({ hash }), retryMs: 1500 }; // tests swap these
+// ---- Onchain escrow (BaseCityTaskEscrow v2) ----
+// Off until TASK_ESCROW_CONTRACT names a deployed v2 contract: with it empty, any escrow claim on a task is refused.
+// A task counts as "locked" only when the contract itself says so: the requester, token, amount, status and the
+// acceptance-criteria hash are read from the chain, never taken from the request.
+export const escrowAddress = () => String(process.env.TASK_ESCROW_CONTRACT || process.env.VITE_TASK_ESCROW_ADDRESS || '').toLowerCase();
+const ESCROW_READ = parseAbi(['function tasks(uint256) view returns (address requester,address evaluator,address token,uint256 amount,uint64 deadline,uint8 mode,uint8 gate,uint8 status,bytes32 criteriaHash,address claimedBy,address winner,uint32 submissionCount,uint16 feeBps,address firstSubmitter)']);
+const TASK_COMPLETED = keccak256(toHex('TaskCompleted(uint256,address,address,uint256,uint256,bytes32)'));
+export const deps = {
+  getReceipt: (hash) => client.getTransactionReceipt({ hash }),
+  readEscrowTask: (id) => client.readContract({ address: escrowAddress(), abi: ESCROW_READ, functionName: 'tasks', args: [BigInt(id)] }),
+  retryMs: 1500,
+}; // tests swap these
+export async function verifyEscrowLock(task, allTasks) {
+  if (!isAddress(escrowAddress(), { strict: false })) throw new Error('Onchain escrow is not enabled yet.');
+  if (!Number.isSafeInteger(task.escrowTaskId) || task.escrowTaskId < 1) throw new Error('Send the escrow task id from the createTask transaction.');
+  if (allTasks.some((t) => t.id !== task.id && t.escrowTaskId === task.escrowTaskId && t.status !== 'cancelled')) throw new Error('That escrow lock already backs another task.');
+  const r = await deps.readEscrowTask(task.escrowTaskId).catch(() => null);
+  if (!r) throw new Error('Could not read that escrow task on Base. Try again in a few seconds.');
+  const [requester, evaluator, token, amount, deadline, , , status, criteriaHash] = r;
+  const dec = Number.isInteger(Number(task.rewardDecimals)) ? Number(task.rewardDecimals) : 6;
+  let need; try { need = parseUnits(String(task.rewardAmount), dec); } catch { need = 0n; }
+  if (String(requester).toLowerCase() !== task.requester) throw new Error('That escrow lock was not made by the requester.');
+  if (String(token).toLowerCase() !== String(task.rewardTokenAddress).toLowerCase()) throw new Error('That escrow lock holds a different token.');
+  if (!(BigInt(amount) >= need) || need === 0n) throw new Error('That escrow lock holds less than the reward.');
+  if (Number(status) !== 0) throw new Error('That escrow lock is no longer open.');
+  if (Number(deadline) * 1000 < Date.now() + 5 * 60e3) throw new Error('That escrow lock ends too soon for anyone to do the work.');
+  if (String(criteriaHash).toLowerCase() !== String(task.criteriaHash).toLowerCase()) throw new Error('The locked acceptance criteria do not match this task.');
+  return { escrowEvaluator: String(evaluator).toLowerCase(), escrowAmount: String(amount), escrowDeadline: Number(deadline) * 1000 };
+}
 export async function verifyPayout(task, sub, tx, allTasks, getReceipt = (hash) => deps.getReceipt(hash)) {
   if (allTasks.some((t) => t.id !== task.id && String(t.payTxHash || '').toLowerCase() === tx.toLowerCase())) throw new Error('This transaction already paid another task.');
   let r = null;
@@ -97,8 +138,27 @@ export async function verifyPayout(task, sub, tx, allTasks, getReceipt = (hash) 
   const dec = Number.isInteger(Number(task.rewardDecimals)) ? Number(task.rewardDecimals) : 6;
   let need;
   try { need = parseUnits(String(task.rewardAmount), dec); } catch { need = BigInt(Math.floor(Number(task.rewardAmount) * 10 ** dec)); }
-  const hit = r.logs.find((l) => l.address.toLowerCase() === token && l.topics?.[0] === TRANSFER && l.topics.length === 3
-    && topicAddr(l.topics[1]) === task.requester && topicAddr(l.topics[2]) === sub.worker && BigInt(l.data) >= need);
+  const escrowAddr = escrowAddress();
+  // paid straight from the requester's wallet, or released by the escrow: then the contract must say that THIS
+  // task's lock was completed for THIS worker (a payout from any other escrow task proves nothing)
+  const escrowDone = (isAddress(escrowAddr, { strict: false }) && task.escrowVerified && Number.isSafeInteger(task.escrowTaskId))
+    ? r.logs.find((l) => l.address.toLowerCase() === escrowAddr && l.topics?.[0] === TASK_COMPLETED && l.topics.length === 4
+        && BigInt(l.topics[1]) === BigInt(task.escrowTaskId) && topicAddr(l.topics[3]) === sub.worker)
+    : null;
+  let escrowPayout = 0n;
+  if (escrowDone) {
+    const payout = BigInt(`0x${escrowDone.data.slice(2, 66)}`), fee = BigInt(`0x${escrowDone.data.slice(66, 130)}`);
+    if (payout + fee >= need) escrowPayout = payout;
+  }
+  const hit = r.logs.find((l) => {
+    if (l.address.toLowerCase() !== token || l.topics?.[0] !== TRANSFER || l.topics.length !== 3) return false;
+    const from = topicAddr(l.topics[1]);
+    const to = topicAddr(l.topics[2]);
+    const val = BigInt(l.data);
+    if (from === task.requester && to === sub.worker && val >= need) return true;
+    if (escrowPayout > 0n && from === escrowAddr && to === sub.worker && val === escrowPayout) return true;
+    return false;
+  });
   if (!hit) throw new Error(`That transaction does not show ${task.rewardAmount} ${task.rewardToken} sent from the requester to the winning worker.`);
   return { units: BigInt(hit.data), decimals: dec };
 }
@@ -154,10 +214,15 @@ export async function submitAgentCityTask({ taskId, worker, blockyName, agentId,
     agentId: /^\d{1,12}$/.test(cleanAgent) ? cleanAgent : '',
     summary: cleanSummary,
     proofUrl: clean(proofUrl, 300),
+    deliveryHash: hashDelivery({ taskId: task.id, worker: addr, summary: cleanSummary, proofUrl: clean(proofUrl, 300) }),
     createdAt: Date.now(),
     paid: false,
     payTxHash: null,
+    evaluation: null,
   };
+  if (task.evaluator && task.evaluator !== 'self') {
+    sub.evaluation = await evaluateSubmission(task, sub).catch(() => null);
+  }
   task.submissions = [sub, ...(task.submissions || [])].slice(0, 50);
   await saveTasks(tasks);
   return { ok: true, submission: sub, task };
@@ -363,7 +428,7 @@ export default async function handler(req, res) {
     const action = String(b.action || '');
 
     // every action that speaks for a wallet carries that wallet's signature over exactly what it does
-    if (['create', 'claim', 'unclaim', 'submit', 'cancel'].includes(action)) {
+    if (['create', 'claim', 'unclaim', 'submit', 'evaluate', 'cancel'].includes(action)) {
       let message = '';
       try { message = taskMessage(action, b, String(b.issuedAt || '')); } catch { /* unknown action */ }
       const auth = await checkSigned({ wallet: taskWallet(action, b), message, signature: b.signature, issuedAt: String(b.issuedAt || '') });
@@ -376,13 +441,17 @@ export default async function handler(req, res) {
       const category = ['Research', 'Builder', 'Content', 'Onchain', 'Design'].includes(b.category) ? b.category : 'Builder';
       const mode = b.mode === 'claim' ? 'claim' : 'bounty';
       const audience = ['all', 'citizen', 'agent'].includes(b.audience) ? b.audience : 'all';
+      const evaluator = ['self', 'stock-verifier', 'ai-jury'].includes(b.evaluator) ? b.evaluator : 'self';
+      const gate = ['open', 'blocky-nft', 'erc8004-agent'].includes(b.gate) ? b.gate : 'open';
+      const criteria = clean(b.criteria || '', 1000);
+      const escrowTxHash = /^0x[0-9a-fA-F]{64}$/.test(String(b.escrowTxHash || '')) ? String(b.escrowTxHash) : null;
+      const escrowTaskId = b.escrowTaskId != null && /^\d{1,12}$/.test(String(b.escrowTaskId)) ? Number(b.escrowTaskId) : null;
       const expiryHours = Math.max(0.25, Math.min(720, Number(b.expiryHours) || 24));
       const rewardToken = clean(b.rewardToken || 'USDC', 16).toUpperCase() || 'USDC';
       const isUsdc = rewardToken === 'USDC';
       const rewardTokenAddress = isUsdc ? BASE_USDC : clean(b.rewardTokenAddress, 60);
       const rewardDecimals = Number.isInteger(Number(b.rewardDecimals)) ? Number(b.rewardDecimals) : (isUsdc ? 6 : 8);
       const rewardAmount = Number(b.rewardAmount ?? b.rewardUsdc);
-      const rewardUsdc = Number(b.rewardUsdc ?? (isUsdc ? rewardAmount : 0));
 
       if (!title || title.length < 4) return res.status(400).json({ error: 'Task title must be at least 4 characters.' });
       if (!brief || brief.length < 10) return res.status(400).json({ error: 'Task brief must be at least 10 characters.' });
@@ -402,17 +471,27 @@ export default async function handler(req, res) {
         category,
         mode,
         audience,
+        evaluator,
+        gate,
+        criteria,
+        criteriaHash: hashCriteria({ title, brief, criteria, evaluator, gate }),
+        escrowTaskId,
+        escrowTxHash,
         rewardToken,
         rewardTokenAddress: getAddress(rewardTokenAddress),
         rewardDecimals,
         rewardAmount: isUsdc ? Math.round(rewardAmount * 100) / 100 : Number(rewardAmount.toFixed(6)),
-        rewardUsdc: isUsdc ? Math.round(rewardAmount * 100) / 100 : 0, // a stock reward's USD value is read from its NAV once paid, never from the poster
+        rewardUsdc: isUsdc ? Math.round(rewardAmount * 100) / 100 : 0,
         requester: getAddress(b.requester).toLowerCase(),
         status: 'open',
         createdAt: now,
         expiryTime: now + Math.round(expiryHours * 3600e3),
         submissions: [],
       });
+      if (task.escrowTaskId != null || task.escrowTxHash) {
+        try { Object.assign(task, await verifyEscrowLock(task, tasks), { escrowVerified: true }); } catch (e) { return res.status(409).json({ error: String(e.message || e).slice(0, 200) }); }
+        task.expiryTime = Math.min(task.expiryTime, task.escrowDeadline); // the task never outlives its lock
+      }
       tasks.unshift(task);
       await saveTasks(tasks);
       return res.status(200).json({ ok: true, task });
@@ -472,6 +551,9 @@ export default async function handler(req, res) {
       const summary = clean(b.summary, 1500);
       const proofUrl = clean(b.proofUrl, 300);
       const agentId = clean(b.agentId, 20).replace(/^#\s*/, '');
+      if (task.gate === 'erc8004-agent' && !/^\d{1,12}$/.test(agentId)) {
+        return res.status(403).json({ error: 'This task is gated to ERC-8004 Agents (valid numeric Agent ID required).' });
+      }
       if (!summary || summary.length < 8) return res.status(400).json({ error: 'Submission summary must be at least 8 characters.' });
 
       if (task.mode === 'claim' && !task.claimedBy) {
@@ -489,13 +571,29 @@ export default async function handler(req, res) {
         agentId: /^\d{1,12}$/.test(agentId) ? agentId : '',
         summary,
         proofUrl,
+        deliveryHash: hashDelivery({ taskId: task.id, worker, summary, proofUrl }),
         createdAt: Date.now(),
         paid: false,
         payTxHash: null,
+        evaluation: null,
       };
+      if (task.evaluator && task.evaluator !== 'self') {
+        sub.evaluation = await evaluateSubmission(task, sub).catch(() => null);
+      }
       task.submissions = [sub, ...(task.submissions || [])].slice(0, 50);
       await saveTasks(tasks);
       return res.status(200).json({ ok: true, submission: sub, task });
+    }
+
+    if (action === 'evaluate') {
+      const task = tasks.find((t) => t.id === b.taskId);
+      if (!task) return res.status(404).json({ error: 'Task not found.' });
+      const sub = (task.submissions || []).find((s) => s.id === b.submissionId);
+      if (!sub) return res.status(404).json({ error: 'Submission not found.' });
+      if (task.evaluator === 'self') return res.status(400).json({ error: 'This task uses Self-Approve rather than an automated Evaluator.' });
+      sub.evaluation = await evaluateSubmission(task, sub);
+      await saveTasks(tasks);
+      return res.status(200).json({ ok: true, evaluation: sub.evaluation, submission: sub, task });
     }
 
     if (action === 'approve') {

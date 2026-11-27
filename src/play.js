@@ -18,7 +18,7 @@ import { browserWallets, smartWallet, connect, restoreWallet, forgetWallet, reje
 import { privyConfigured, loginWithPrivyOAuth, sendPrivyEmailCode, verifyPrivyEmailCode } from './privy.js';
 import { esc, who } from './names.js';
 import { now } from './time.js';
-import { fetchCityTasks, createCityTask, claimCityTask, unclaimCityTask, cancelCityTask, submitCityTask, submitBlueAgentJob, approveAndPayCityTask, formatTaskReward, renderTaskBoardHtml, renderPostTaskHtml } from './city-tasks.js';
+import { fetchCityTasks, createCityTask, claimCityTask, unclaimCityTask, cancelCityTask, submitCityTask, evaluateCityTaskSubmission, submitBlueAgentJob, approveAndPayCityTask, refundExpiredCityTask, formatTaskReward, renderTaskBoardHtml, renderPostTaskHtml } from './city-tasks.js';
 import { fetchStockIntel, publishStockIntel, unlockStockIntel, removeStockIntel, renderStockIntelHtml } from './stock-intel.js';
 import { fetchBaseStocks, getWalletStockBalances } from './swap-base.js';
 import { openBlocky10 } from './tradedock.js';
@@ -937,6 +937,11 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
             mode: fd.get('mode'),
             audience: fd.get('audience'),
             expiryHours: fd.get('expiryHours'),
+            evaluator: fd.get('evaluator'),
+            gate: fd.get('gate'),
+            criteria: fd.get('criteria'),
+            useEscrow: fd.get('useEscrow') === 'on',
+            onStatus: (m) => { msgEl.textContent = m; },
             rewardToken,
             rewardTokenAddress,
             rewardDecimals: Number(decStr) || (rewardToken === 'USDC' ? 6 : 8),
@@ -1174,6 +1179,47 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
           taskBusyMsg = 'Delivery submitted! Awaiting requester approval & Base USDC payout.';
         } catch (err) {
           taskBusyMsg = rejected(err) ? 'Cancelled.' : (err.shortMessage || err.message || 'Submission failed.');
+        }
+        renderTasksModal();
+      };
+    });
+    bodyEl.querySelectorAll('[data-tm-eval]').forEach((btn) => {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        taskBusyMsg = 'Sign evaluation request in your Base wallet...';
+        renderTasksModal();
+        try {
+          const res = await evaluateCityTaskSubmission({
+            provider: walletProvider,
+            account: walletAccount,
+            taskId: btn.dataset.tmEval,
+            submissionId: btn.dataset.tmSub,
+          });
+          if (res?.task) cityTasks = cityTasks.map((t) => (t.id === res.task.id ? res.task : t));
+          const ev = res?.evaluation;
+          taskBusyMsg = ev ? `Evaluator verdict: ${ev.verdict} (${ev.score}/100).` : 'Evaluation updated.';
+        } catch (err) {
+          taskBusyMsg = rejected(err) ? 'Cancelled.' : (err.shortMessage || err.message || 'Evaluation failed.');
+        }
+        renderTasksModal();
+      };
+    });
+    bodyEl.querySelectorAll('[data-tm-refund]').forEach((btn) => {
+      btn.onclick = async () => {
+        const t = cityTasks.find((x) => x.id === btn.dataset.tmRefund);
+        if (!t) return;
+        btn.disabled = true;
+        try {
+          const txHash = await refundExpiredCityTask({
+            provider: walletProvider,
+            account: walletAccount,
+            task: t,
+            onStatus: (m) => { taskBusyMsg = m; renderTasksModal(); },
+          });
+          cityTasks = await fetchCityTasks();
+          taskBusyMsg = `Refunded expired escrow on Base (${txHash.slice(0, 10)}...).`;
+        } catch (err) {
+          taskBusyMsg = rejected(err) ? 'Cancelled.' : (err.shortMessage || err.message || 'Refund failed.');
         }
         renderTasksModal();
       };

@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
-import { verifyMessage, toHex, pad } from 'viem';
+import { verifyMessage, toHex, pad, keccak256 } from 'viem';
+import { hashCriteria } from '../src/task-escrow.js';
 import { taskMessage, intelMessage, intelRemoveMessage, rpgMessage } from '../src/signed.js';
 import { USDC_PRICES } from '../src/shop-prices.js';
 
@@ -77,6 +78,43 @@ const s2 = (await post(await sign(worker, 'submit', { taskId: t2.id, worker: wor
 assert.equal((await post({ action: 'approve', taskId: t2.id, submissionId: s2.id, requester: requester.address, payTxHash: tx1 })).status, 409, 'one payment, one task');
 const board = await call(tasks.default, { method: 'GET' });
 assert.equal(board.body.stats.paid, 1); assert.equal(board.body.stats.totalUsdcPaid, 1);
+
+// ---- onchain escrow: "locked" must be true on the chain, and a payout counts only for THIS lock ----
+const ESC = '0x' + 'e5'.repeat(20);
+const TASK_COMPLETED = keccak256(toHex('TaskCompleted(uint256,address,address,uint256,uint256,bytes32)'));
+const lockStub = (over = {}) => async () => [requester.address, requester.address, USDC, 1_000_000n, BigInt(Math.floor(Date.now() / 1000) + 86400), 0, 0, 0, over.criteriaHash ?? over._hash, '0x' + '0'.repeat(40), '0x' + '0'.repeat(40), 0, 300, '0x' + '0'.repeat(40), ...[]].map((v, i) => (over[i] !== undefined ? over[i] : v));
+const escTask = (title) => ({ ...newTask, title });
+const escHash = (title) => hashCriteria({ title, brief: newTask.brief, criteria: '', evaluator: 'self', gate: 'open' });
+const createEsc = async (title, escrowTaskId, stub) => {
+  tasks.deps.readEscrowTask = stub;
+  return post({ ...(await sign(requester, 'create', escTask(title))), escrowTaskId });
+};
+process.env.TASK_ESCROW_CONTRACT = '';
+assert.equal((await createEsc('Escrow off', 7, lockStub({ _hash: escHash('Escrow off') }))).status, 409, 'an escrow claim is refused while escrow is not enabled');
+process.env.TASK_ESCROW_CONTRACT = ESC;
+assert.equal((await createEsc('Bad requester', 11, lockStub({ _hash: escHash('Bad requester'), 0: mallory.address }))).status, 409, 'a lock made by someone else');
+assert.equal((await createEsc('Too small', 12, lockStub({ _hash: escHash('Too small'), 3: 500_000n }))).status, 409, 'a lock smaller than the reward');
+assert.equal((await createEsc('Closed lock', 13, lockStub({ _hash: escHash('Closed lock'), 7: 1 }))).status, 409, 'a lock that is no longer open');
+assert.equal((await createEsc('Other token', 14, lockStub({ _hash: escHash('Other token'), 2: '0x' + '9'.repeat(40) }))).status, 409, 'a lock in another token');
+assert.equal((await createEsc('Ends too soon', 15, lockStub({ _hash: escHash('Ends too soon'), 4: BigInt(Math.floor(Date.now() / 1000) + 60) }))).status, 409, 'a lock about to expire');
+assert.equal((await createEsc('Other terms', 16, lockStub({ _hash: escHash('Different terms') }))).status, 409, 'locked criteria that differ from the task');
+assert.equal((await post({ ...(await sign(requester, 'create', escTask('No id'))), escrowTxHash: '0x' + 'b'.repeat(64) })).status, 409, 'a tx hash alone proves nothing');
+const lockedRes = await createEsc('Locked task', 21, lockStub({ _hash: escHash('Locked task') }));
+assert.equal(lockedRes.status, 200, 'an honest lock is accepted'); assert.equal(lockedRes.body.task.escrowVerified, true);
+assert.equal((await createEsc('Locked twice', 21, lockStub({ _hash: escHash('Locked twice') }))).status, 409, 'one lock backs one task');
+const lockedTask = lockedRes.body.task;
+const lsub = (await post(await sign(worker, 'submit', { taskId: lockedTask.id, worker: worker.address, blockyName: 'B', actorType: 'agent', summary: 'a finished report here', proofUrl: '' }))).body.submission;
+const doneLog = (taskNo, payout, fee, to = worker.address) => ({ address: ESC, topics: [TASK_COMPLETED, pad(toHex(taskNo)), pad(requester.address), pad(to)], data: '0x' + payout.toString(16).padStart(64, '0') + fee.toString(16).padStart(64, '0') + '0'.repeat(64) });
+const approveLocked = (logs) => { tasks.deps.getReceipt = async () => ({ status: 'success', logs }); return post({ action: 'approve', taskId: lockedTask.id, submissionId: lsub.id, requester: requester.address, payTxHash: '0x' + 'c'.repeat(64) }); };
+assert.equal((await approveLocked([transferLog(USDC, ESC, worker.address, 970_000n)])).status, 409, 'money from the escrow without its TaskCompleted event');
+assert.equal((await approveLocked([doneLog(99, 970_000n, 30_000n), transferLog(USDC, ESC, worker.address, 970_000n)])).status, 409, "another escrow task's payout");
+assert.equal((await approveLocked([doneLog(21, 970_000n, 30_000n, mallory.address), transferLog(USDC, ESC, worker.address, 970_000n)])).status, 409, 'a payout released to someone else');
+assert.equal((await approveLocked([doneLog(21, 400_000n, 10_000n), transferLog(USDC, ESC, worker.address, 400_000n)])).status, 409, 'a lock completed for less than the reward');
+assert.equal((await approveLocked([doneLog(21, 970_000n, 30_000n)])).status, 409, 'the event without the transfer');
+const escPaid = await approveLocked([doneLog(21, 970_000n, 30_000n), transferLog(USDC, ESC, worker.address, 970_000n)]);
+assert.equal(escPaid.status, 200, 'an escrow payout for this lock and this worker is accepted');
+assert.equal(escPaid.body.task.paidVerified, true); assert.equal(escPaid.body.task.verifiedUsdc, 0.97);
+process.env.TASK_ESCROW_CONTRACT = '';
 
 // ---- Stock Intel ----
 const author = wallet(), buyer = wallet();

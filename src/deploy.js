@@ -6,7 +6,10 @@ import artifact from '../contracts/out/BaseCityBlockies.json';
 import inputUrl from '../contracts/out/BaseCityBlockies.input.json?url';
 import fwArtifact from '../contracts/out/BaseCityFlywheel.json';
 import fwInputUrl from '../contracts/out/BaseCityFlywheel.input.json?url';
+import escArtifact from '../contracts/out/BaseCityTaskEscrow.json';
+import escInputUrl from '../contracts/out/BaseCityTaskEscrow.input.json?url';
 import { CONFIG } from './config.js';
+import { IDENTITY as ERC8004_REGISTRY } from './work-protocol.js';
 import { browserWallets, onWallets, connect, sendTx, waitTx, rejected } from './wallet.js';
 import { mountSite, esc, basescan } from './site.js';
 
@@ -18,6 +21,9 @@ $('bps').value = String(CONFIG.nft.royaltyBps);
 $('supply').value = String(CONFIG.supply);
 $('base').value = `${site}/api/nft/`;
 $('curi').value = `${site}/api/nft/collection`;
+if ($('esc-flywheel')) $('esc-flywheel').value = CONFIG.flywheel?.contract || '';
+if ($('esc-nft')) $('esc-nft').value = CONFIG.nft?.contract || '';
+if ($('esc-agent')) $('esc-agent').value = ERC8004_REGISTRY || '';
 
 const FACTORY_SET_RECIPIENT_ABI = [{
   type: 'function',
@@ -45,9 +51,11 @@ function wallets() {
         if (!$('owner').value) $('owner').value = account;
         if ($('fw-owner') && !$('fw-owner').value) $('fw-owner').value = account;
         if ($('fw-op') && !$('fw-op').value) $('fw-op').value = account;
+        if ($('esc-owner') && !$('esc-owner').value) $('esc-owner').value = account;
         $('me').textContent = `Connected: ${account}`;
         $('go').disabled = false;
         if ($('fw-go')) $('fw-go').disabled = false;
+        if ($('esc-go')) $('esc-go').disabled = false;
         if ($('fw-route-existing') && CONFIG.flywheel?.contract) $('fw-route-existing').disabled = false;
         wallets();
       } catch (e) { if (!rejected(e)) $('me').textContent = e.message; }
@@ -175,6 +183,43 @@ if ($('fw-route-existing') && CONFIG.flywheel?.contract) {
     } catch (err) {
       btn.disabled = false;
       showFw(rejected(err) ? 'Cancelled.' : esc(err.shortMessage || err.message), rejected(err) ? '' : 'bad');
+    }
+  };
+}
+
+const showEsc = (html, tone = '') => { const o = $('esc-out'); if (!o) return; o.hidden = false; o.className = `note ${tone}`; o.innerHTML = html; };
+
+if ($('esc-form')) {
+  $('esc-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const ownerAddr = $('esc-owner').value.trim();
+    const fwAddr = $('esc-flywheel').value.trim();
+    const nftAddr = $('esc-nft').value.trim();
+    const agentAddr = $('esc-agent').value.trim();
+    const bps = Number($('esc-bps').value.trim());
+    for (const [lbl, val] of [['Owner', ownerAddr], ['Flywheel', fwAddr], ['Blocky NFT', nftAddr], ['ERC-8004 Registry', agentAddr]]) {
+      if (!isAddress(val, { strict: false })) return showEsc(`${lbl}: not a valid 0x address`, 'bad');
+    }
+    if (!Number.isInteger(bps) || bps < 0 || bps > 1000) return showEsc('Protocol fee must be 0–1000 basis points (max 10%)', 'bad');
+    const args = [getAddress(ownerAddr), getAddress(fwAddr), getAddress(nftAddr), getAddress(agentAddr), bps];
+    const ctor = escArtifact.abi.find((x) => x.type === 'constructor');
+    try {
+      $('esc-go').disabled = true;
+      showEsc('Confirm BaseCityTaskEscrow deployment in your wallet…');
+      const hash = await sendTx(provider, { from: account, data: encodeDeployData({ abi: escArtifact.abi, bytecode: escArtifact.bytecode, args }) });
+      showEsc(`Deploying BaseCityTaskEscrow… <a href="${basescan(`tx/${hash}`)}" target="_blank" rel="noopener">transaction</a>`);
+      const done = await waitTx(hash, provider, 300000);
+      if (!done.ok) throw new Error(done.ok === false ? 'Escrow deployment failed' : 'Still pending: check Basescan');
+      const addr = getAddress(done.receipt.contractAddress);
+      const encoded = encodeAbiParameters(ctor.inputs, args).slice(2);
+      showEsc(`<b>Deployed BaseCityTaskEscrow: <a href="${basescan(`address/${addr}`)}" target="_blank" rel="noopener">${addr}</a></b>
+        <ol class="steps">
+          <li>Add <code>VITE_TASK_ESCROW_ADDRESS=${addr}</code> and <code>TASK_ESCROW_CONTRACT=${addr}</code> to <code>.env</code> and Vercel Environment Variables, then redeploy.</li>
+          <li>Verify on Basescan: <a href="https://basescan.org/verifyContract?a=${addr}" target="_blank" rel="noopener">verify</a>, type "Solidity (Standard-Json-Input)", compiler <code>${esc(escArtifact.compiler)}</code>, MIT license, upload <a href="${escInputUrl}" download="BaseCityTaskEscrow.input.json">BaseCityTaskEscrow.input.json</a>. Constructor args: <code>${encoded}</code></li>
+        </ol>`, 'ok');
+    } catch (err) {
+      $('esc-go').disabled = false;
+      showEsc(rejected(err) ? 'Cancelled.' : esc(err.shortMessage || err.message), rejected(err) ? '' : 'bad');
     }
   };
 }

@@ -12,6 +12,7 @@ import { clean, deliveryMessage, validateDelivery } from './work-protocol.js';
 import { linkedAgentId, linkAgentId } from './agent-id.js';
 import { itemSprite, itemIcon, taskCategorySpriteId } from './items.js';
 import { taskMessage } from './signed.js';
+import { EVALUATOR_MODES, GATE_MODES, hashCriteria, escrowConfigured, lockTaskEscrow, completeEscrowOnchain, refundExpiredEscrowOnchain } from './task-escrow.js';
 
 const LOCAL_KEY = 'basecity:city-tasks:v3';
 
@@ -175,12 +176,40 @@ export async function submitBlueAgentJob({ provider, account, task, tokenId, age
 export async function createCityTask({
   provider, account, title, brief, category,
   mode = 'bounty', audience = 'all', expiryHours = 24,
+  evaluator = 'self', gate = 'open', criteria = '',
+  useEscrow = false, escrowTaskId = null, escrowTxHash = null, onStatus,
   rewardToken = 'USDC', rewardTokenAddress = BASE_USDC, rewardDecimals = 6,
   rewardAmount, rewardUsdc,
 }) {
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
   const cleanAmt = Number(String(rewardAmount ?? rewardUsdc ?? 0).replace(',', '.'));
   const tokenSym = String(rewardToken || 'USDC').toUpperCase();
+  const tokenAddr = rewardTokenAddress || BASE_USDC;
+  const tokenDec = Number(rewardDecimals) || (tokenSym === 'USDC' ? 6 : 8);
+  const cleanEval = EVALUATOR_MODES.some((e) => e.id === evaluator) ? evaluator : 'self';
+  const cleanGate = GATE_MODES.some((g) => g.id === gate) ? gate : 'open';
+  const cleanCriteria = String(criteria || '').trim();
+  const cHash = hashCriteria({ title, brief, criteria: cleanCriteria, evaluator: cleanEval, gate: cleanGate });
+
+  if (useEscrow && escrowConfigured() && !escrowTxHash) {
+    const locked = await lockTaskEscrow({
+      provider,
+      account,
+      tokenAddress: tokenAddr,
+      amount: cleanAmt,
+      decimals: tokenDec,
+      evaluatorAddress: account,
+      expiryHours: Number(expiryHours) || 24,
+      mode,
+      gate: cleanGate,
+      criteriaHash: cHash,
+      onStatus,
+    });
+    escrowTaskId = locked.escrowTaskId;
+    escrowTxHash = locked.escrowTxHash;
+    onStatus?.('Sign task listing in your Base wallet...');
+  }
+
   const payload = {
     title,
     brief,
@@ -188,9 +217,14 @@ export async function createCityTask({
     mode,
     audience,
     expiryHours: Number(expiryHours) || 24,
+    evaluator: cleanEval,
+    gate: cleanGate,
+    criteria: cleanCriteria,
+    escrowTaskId,
+    escrowTxHash,
     rewardToken: tokenSym,
-    rewardTokenAddress: rewardTokenAddress || BASE_USDC,
-    rewardDecimals: Number(rewardDecimals) || (tokenSym === 'USDC' ? 6 : 8),
+    rewardTokenAddress: tokenAddr,
+    rewardDecimals: tokenDec,
     rewardAmount: cleanAmt,
     rewardUsdc: Number(rewardUsdc ?? (tokenSym === 'USDC' ? cleanAmt : 0)),
     requester: account,
@@ -210,6 +244,12 @@ export async function createCityTask({
     category,
     mode: mode === 'claim' ? 'claim' : 'bounty',
     audience: ['all', 'citizen', 'agent'].includes(audience) ? audience : 'all',
+    evaluator: cleanEval,
+    gate: cleanGate,
+    criteria: cleanCriteria,
+    criteriaHash: hashCriteria({ title, brief, criteria: cleanCriteria, evaluator: cleanEval, gate: cleanGate }),
+    escrowTaskId,
+    escrowTxHash,
     rewardToken: tokenSym,
     rewardTokenAddress: rewardTokenAddress || BASE_USDC,
     rewardDecimals: Number(rewardDecimals) || (tokenSym === 'USDC' ? 6 : 8),
@@ -310,7 +350,17 @@ export async function submitCityTask({ provider, account, taskId, blockyName, ac
   return task;
 }
 
-// Pays the winning worker directly on Base in EITHER USDC (6 dec) OR any tokenized Stock ERC-20 (8 dec).
+export async function evaluateCityTaskSubmission({ provider, account, taskId, submissionId }) {
+  if (!provider || !account) throw new Error('Connect your Base wallet first.');
+  const j = await callTasks(await signedBody(provider, account, 'evaluate', { taskId, submissionId, actor: account }));
+  if (j?.task) {
+    writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
+    return j;
+  }
+  throw new Error('Evaluator service is offline. Try again when connected to the BaseCity server.');
+}
+
+// Pays the winning worker on Base via BaseCityTaskEscrow (if escrowed) or direct ERC-20 transfer (USDC 6-dec or Stock 8-dec).
 export async function approveAndPayCityTask({ provider, account, task, submission, onStatus }) {
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
   if (account.toLowerCase() !== task.requester.toLowerCase()) {
@@ -323,17 +373,29 @@ export async function approveAndPayCityTask({ provider, account, task, submissio
   const units = parseUnits(amt, decimals);
   if (units <= 0n) throw new Error('Invalid reward amount.');
 
-  const data = encodeFunctionData({
-    abi: erc20Abi,
-    functionName: 'transfer',
-    args: [submission.worker, units],
-  });
-  await toBase(provider);
-  onStatus?.(`Confirm ${formatTaskReward(task)} payout on Base to ${shortAddr(submission.worker)}...`);
-  const txHash = await sendTx(provider, withBuilderCode({ from: account, to: tokenAddr, data }));
-  onStatus?.(`Confirming ${tokenSym} settlement on Base...`);
-  const res = await waitTx(txHash, provider);
-  if (res.ok === false) throw new Error(`${tokenSym} payout transaction reverted.`);
+  let txHash;
+  if (task.escrowTaskId != null && escrowConfigured()) {
+    txHash = await completeEscrowOnchain({
+      provider,
+      account,
+      escrowTaskId: task.escrowTaskId,
+      winner: submission.worker,
+      attestationHash: submission.evaluation?.attestationHash,
+      onStatus,
+    });
+  } else {
+    const data = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [submission.worker, units],
+    });
+    await toBase(provider);
+    onStatus?.(`Confirm ${formatTaskReward(task)} payout on Base to ${shortAddr(submission.worker)}...`);
+    txHash = await sendTx(provider, withBuilderCode({ from: account, to: tokenAddr, data }));
+    onStatus?.(`Confirming ${tokenSym} settlement on Base...`);
+    const res = await waitTx(txHash, provider);
+    if (res.ok === false) throw new Error(`${tokenSym} payout transaction reverted.`);
+  }
 
   onStatus?.('Checking the payment on Base...');
   let j = null;
@@ -351,6 +413,15 @@ export async function approveAndPayCityTask({ provider, account, task, submissio
     if (s) { s.paid = true; s.payTxHash = txHash; }
     writeLocal(all);
   }
+  return txHash;
+}
+
+export async function refundExpiredCityTask({ provider, account, task, onStatus }) {
+  if (!provider || !account) throw new Error('Connect your Base wallet first.');
+  if (task.escrowTaskId == null) throw new Error('This task does not have an onchain escrow lock.');
+  const txHash = await refundExpiredEscrowOnchain({ provider, account, escrowTaskId: task.escrowTaskId, onStatus });
+  onStatus?.('Updating task status...');
+  await cancelCityTask({ provider, account, taskId: task.id }).catch(() => {});
   return txHash;
 }
 
@@ -406,6 +477,9 @@ export function renderTaskBoardHtml({ tasks, filter, audienceFilter = 'all', acc
         const catSprite = taskCategorySpriteId(t.category);
         const rewardSprite = isStockReward ? 'stock-cert' : 'coin-usdc';
         const audIcon = t.audience === 'agent' ? 'badge-agent' : 'badge-citizen';
+        const evalInfo = EVALUATOR_MODES.find((e) => e.id === t.evaluator) || EVALUATOR_MODES[0];
+        const gateInfo = GATE_MODES.find((g) => g.id === t.gate) || GATE_MODES[0];
+        const hasAutoEval = !isBlue && t.evaluator && t.evaluator !== 'self';
         return `<div class="tm-card${t.status === 'paid' ? ' paid' : ''}">
           <div class="tm-head">
             <div class="mc-row-lead">
@@ -416,6 +490,9 @@ export function renderTaskBoardHtml({ tasks, filter, audienceFilter = 'all', acc
                   <span class="tm-aud">${itemIcon(audIcon, 13)} ${esc(audLabel(t.audience))}</span>
                   <span class="tm-cat">${esc(t.category)}</span>
                   ${isStockReward ? `<span class="tm-mode bounty">${itemIcon('stock-cert', 13)} STOCK PAYOUT</span>` : ''}
+                  ${hasAutoEval ? `<span class="tm-eval-badge">${esc(evalInfo.short)}</span>` : ''}
+                  ${t.gate && t.gate !== 'open' ? `<span class="tm-gate-badge">${esc(gateInfo.short)}</span>` : ''}
+                  ${t.escrowTxHash ? `<a class="tm-escrow-badge" href="https://basescan.org/tx/${esc(t.escrowTxHash)}" target="_blank" rel="noopener">ESCROWED</a>` : ''}
                 </div>
                 <b>${esc(t.title)}</b>
                 <small>By ${esc(shortAddr(t.requester))} · <span class="tm-trust">Paid ${trust.paid}/${trust.posted}</span> · ${subs.length} sub${subs.length === 1 ? '' : 's'}${expText ? ` · <span class="tm-expiry">${esc(expText)}</span>` : ''}</small>
@@ -432,6 +509,7 @@ export function renderTaskBoardHtml({ tasks, filter, audienceFilter = 'all', acc
           ${isClaimMode && t.claimedBy && t.status === 'open' ? `<div class="tm-claimed-bar">Claimed exclusively by <b>${esc(t.claimedName || shortAddr(t.claimedBy))}</b> (${t.claimActorType === 'agent' ? 'BLOCKY AGENT' : 'CITIZEN'})${isClaimedByMe || isReq ? ` <button type="button" class="lp-mini-x" data-tm-unclaim="${esc(t.id)}">Release</button>` : ''}</div>` : ''}
           ${t.status === 'paid' && me && t.winner === me ? `<div class="tm-claimed-bar paid">Received ${esc(rewardStr)} on Base. <button type="button" class="btn primary small-pill" data-tm-invest="1">${isStockReward ? 'Trade in Stock Baskets' : 'Invest in Stock Baskets'}</button></div>` : ''}
           ${isOpen ? `<div class="tm-expand">
+            ${t.criteria ? `<div class="tm-criteria-box"><b>LOCKED ACCEPTANCE CRITERIA${t.criteriaHash ? ` · ${esc(t.criteriaHash.slice(0, 10))}...` : ''}</b><p>${esc(t.criteria)}</p></div>` : ''}
             ${t.status === 'open' && isBlue ? (savedAgent ? `<form class="tm-sub-form" data-tm-blueform="${esc(t.id)}">
               <div class="tm-sub-as">Delivering as <b>${esc(activeBlocky?.name || 'Your Blocky')}</b> · <span class="tm-actor agent">AGENT #${esc(savedAgent)}</span> · paid in Base USDC to ${esc(shortAddr(account))}</div>
               <input type="hidden" name="agentId" value="${esc(savedAgent)}" />
@@ -471,18 +549,36 @@ export function renderTaskBoardHtml({ tasks, filter, audienceFilter = 'all', acc
             </form>` : ''}
             ${isLockedByOther ? '<p class="lp-desc">Locked by the claiming worker until they deliver or release the slot.</p>' : ''}
             ${isReq && t.status === 'open' ? `<div style="margin-bottom:8px"><button type="button" class="lp-mini-x" data-tm-cancel="${esc(t.id)}">Cancel Task</button></div>` : ''}
+            ${isReq && t.status === 'expired' && t.escrowTaskId != null && escrowConfigured() ? `<div style="margin-bottom:8px"><button type="button" class="btn small-pill" data-tm-refund="${esc(t.id)}">Refund Expired Escrow</button></div>` : ''}
             ${subs.length ? `<div class="tm-subs">
               <div class="gm-sec-title">SUBMISSIONS (${subs.length})</div>
-              ${subs.map((s) => `<div class="tm-sub-item">
+              ${subs.map((s) => {
+                const ev = s.evaluation;
+                const verdictHtml = ev ? `<div class="tm-verdict ${ev.verdict === 'PASS' ? 'pass' : 'fail'}">
+                  <div class="tm-verdict-top">
+                    <b>${esc(ev.verdict)} · ${esc(evalInfo.short)}</b>
+                    <span>Score ${Number(ev.score || 0)}/100</span>
+                  </div>
+                  ${Array.isArray(ev.judges) && ev.judges.length ? `<div class="tm-verdict-list">${ev.judges.map((j) => `<div><span>${esc(j.judge)}: ${esc(j.vote)}</span> — ${esc(j.reason)}</div>`).join('')}</div>` : ''}
+                  ${Array.isArray(ev.checks) && ev.checks.length ? `<div class="tm-verdict-list">${ev.checks.map((c) => `<div><span>${esc(c.name)}: ${c.pass ? 'OK' : 'MISS'}</span> (${Number(c.points || 0)}/${Number(c.max || 0)}) — ${esc(c.detail)}</div>`).join('')}</div>` : ''}
+                  ${ev.attestationHash ? `<div class="tm-attest">Attestation: <code>${esc(ev.attestationHash.slice(0, 18))}...</code></div>` : ''}
+                </div>` : '';
+                const canEval = hasAutoEval && t.status === 'open' && (isReq || (me && s.worker === me));
+                return `<div class="tm-sub-item">
                 <div>
                   <span class="tm-actor ${s.actorType === 'agent' ? 'agent' : 'citizen'}">${itemIcon(s.actorType === 'agent' ? 'badge-agent' : 'badge-citizen', 13)} ${s.actorType === 'agent' ? 'BLOCKY AGENT' : 'CITIZEN'}</span>
                   <b>${esc(s.blockyName)} <small>${esc(shortAddr(s.worker))}${s.agentId ? ` · #${esc(s.agentId)}` : ''}</small></b>
                   <p>${esc(s.summary)}</p>
                   ${s.proofUrl ? `<a href="${esc(s.proofUrl)}" target="_blank" rel="noopener">View proof</a>` : ''}
+                  ${verdictHtml}
                 </div>
-                ${isReq && t.status === 'open' ? `<button type="button" class="btn primary small-pill" data-tm-pay="${esc(t.id)}" data-tm-sub="${esc(s.id)}">Approve & Pay ${esc(rewardStr)}</button>` : ''}
-                ${s.paid && s.payTxHash ? `<a class="btn small-pill" href="https://basescan.org/tx/${esc(s.payTxHash)}" target="_blank" rel="noopener">Paid</a>` : ''}
-              </div>`).join('')}
+                <div class="tm-sub-acts">
+                  ${canEval ? `<button type="button" class="btn small-pill" data-tm-eval="${esc(t.id)}" data-tm-sub="${esc(s.id)}">${ev ? 'Re-Evaluate' : 'Run Evaluator'}</button>` : ''}
+                  ${isReq && t.status === 'open' ? `<button type="button" class="btn primary small-pill" data-tm-pay="${esc(t.id)}" data-tm-sub="${esc(s.id)}">Approve & Pay ${esc(rewardStr)}</button>` : ''}
+                  ${s.paid && s.payTxHash ? `<a class="btn small-pill" href="https://basescan.org/tx/${esc(s.payTxHash)}" target="_blank" rel="noopener">Paid</a>` : ''}
+                </div>
+              </div>`;
+              }).join('')}
             </div>` : '<p class="lp-desc">No submissions yet.</p>'}
           </div>` : ''}
         </div>`;
@@ -558,8 +654,27 @@ export function renderPostTaskHtml(account, walletStocks = [], allStocks = []) {
           <input name="rewardAmount" id="tm-reward-amt" type="number" min="0.00001" max="100000" step="any" value="1" required />
         </label>
       </div>
-      <label class="lp-field"><span class="lp-lbl">Brief & Acceptance Criteria</span>
+      <div class="lp-grid">
+        <label class="lp-field"><span class="lp-lbl">Evaluator</span>
+          <select name="evaluator">
+            ${EVALUATOR_MODES.map((e) => `<option value="${esc(e.id)}">${esc(e.label)}</option>`).join('')}
+          </select>
+        </label>
+        <label class="lp-field"><span class="lp-lbl">Worker Gate</span>
+          <select name="gate">
+            ${GATE_MODES.map((g) => `<option value="${esc(g.id)}">${esc(g.label)}</option>`).join('')}
+          </select>
+        </label>
+      </div>
+      <label class="lp-field"><span class="lp-lbl">Brief</span>
         <textarea name="brief" rows="3" required minlength="10" maxlength="1200" style="width:100%;padding:10px 12px;border-radius:4px;border:1px solid #262a33;background:#0d0e11;color:#f5f7fb;font:600 13px Inter,sans-serif" placeholder="Explain clearly what the Citizen or Blocky Agent must deliver to earn the reward..."></textarea>
+      </label>
+      <label class="lp-field"><span class="lp-lbl">Locked Acceptance Criteria (for Evaluator)</span>
+        <textarea name="criteria" rows="2" maxlength="800" style="width:100%;padding:10px 12px;border-radius:4px;border:1px solid #262a33;background:#0d0e11;color:#f5f7fb;font:600 13px Inter,sans-serif" placeholder="e.g. Include NVDA live NAV price, 24h volume, bullish/bearish thesis, and Basescan or source link."></textarea>
+      </label>
+      <label class="tm-criteria-box" style="display:flex;align-items:center;gap:8px;cursor:${escrowConfigured() ? 'pointer' : 'default'}">
+        <input type="checkbox" name="useEscrow" ${escrowConfigured() ? 'checked' : 'disabled'} style="width:auto;margin:0" />
+        <span><b>Lock Reward Onchain (BaseCityTaskEscrow)</b> — ${escrowConfigured() ? 'Locks the reward on Base. If you judge your own task you can pick a winner but not reject submitted work; 3 days after the deadline with no decision, the first worker is paid. The 3% fee goes to BaseCityFlywheel.' : 'Deploy contract on <a href="/deploy.html" style="color:#93c5fd">/deploy.html</a> and set VITE_TASK_ESCROW_ADDRESS to enable.'}</span>
       </label>
       <div class="tm-post-foot">
         <span>Requester: <code>${esc(shortAddr(account))}</code></span>
