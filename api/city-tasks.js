@@ -109,6 +109,7 @@ const TASK_COMPLETED = keccak256(toHex('TaskCompleted(uint256,address,address,ui
 export const deps = {
   getReceipt: (hash) => client.getTransactionReceipt({ hash }),
   readEscrowTask: (id) => client.readContract({ address: escrowAddress(), abi: ESCROW_READ, functionName: 'tasks', args: [BigInt(id)] }),
+  readEscrowSubmission: (id, worker) => client.readContract({ address: escrowAddress(), abi: parseAbi(['function submissions(uint256,address) view returns (bytes32)']), functionName: 'submissions', args: [BigInt(id), worker] }),
   retryMs: 1500,
 }; // tests swap these
 export async function verifyEscrowLock(task, allTasks) {
@@ -555,6 +556,12 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: 'This task is gated to ERC-8004 Agents (valid numeric Agent ID required).' });
       }
       if (!summary || summary.length < 8) return res.status(400).json({ error: 'Submission summary must be at least 8 characters.' });
+      if (task.escrowVerified && Number.isSafeInteger(task.escrowTaskId)) {
+        // the reward is locked in the escrow: the contract only pays (and only protects) a worker whose delivery it has recorded
+        const onChain = await deps.readEscrowSubmission(task.escrowTaskId, worker).catch(() => null);
+        if (onChain == null) return res.status(503).json({ error: 'Could not read the escrow on Base. Try again in a few seconds.' });
+        if (/^0x0*$/.test(String(onChain))) return res.status(409).json({ error: 'Record your delivery on the escrow first (the app asks your wallet for it), then submit.' });
+      }
 
       if (task.mode === 'claim' && !task.claimedBy) {
         task.claimedBy = worker;

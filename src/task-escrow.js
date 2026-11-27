@@ -113,6 +113,13 @@ export const TASK_ESCROW_ABI = [
   },
   {
     type: 'function',
+    name: 'submissions',
+    stateMutability: 'view',
+    inputs: [{ name: 'taskId', type: 'uint256' }, { name: '', type: 'address' }],
+    outputs: [{ name: '', type: 'bytes32' }],
+  },
+  {
+    type: 'function',
     name: 'settleDefault',
     stateMutability: 'nonpayable',
     inputs: [{ name: 'taskId', type: 'uint256' }],
@@ -278,5 +285,24 @@ export async function settleDefaultEscrowOnchain({ provider, account, escrowTask
   onStatus?.('Confirming settlement on Base...');
   const res = await waitTx(txHash, provider);
   if (res.ok === false) throw new Error('settleDefault() reverted (the review window may still be open, or there is no submission).');
+  return txHash;
+}
+
+// The worker records the delivery hash on the escrow. Until this happens the contract sees no submission: the requester
+// could still cancel or refund the lock, and complete() would refuse to pay. So the worker does this BEFORE the
+// submission is posted to the board. Safe to repeat: a delivery already recorded is left as it is.
+export async function submitWorkEscrowOnchain({ provider, account, escrowTaskId, deliveryHash, onStatus }) {
+  if (!escrowConfigured()) throw new Error('BaseCityTaskEscrow contract is not configured.');
+  const escrow = getAddress(TASK_ESCROW_ADDRESS);
+  const worker = getAddress(account);
+  const done = await pubClient().readContract({ address: escrow, abi: TASK_ESCROW_ABI, functionName: 'submissions', args: [BigInt(escrowTaskId), worker] }).catch(() => zeroHash);
+  if (done && done !== zeroHash) return null; // already on chain
+  const data = encodeFunctionData({ abi: TASK_ESCROW_ABI, functionName: 'submitWork', args: [BigInt(escrowTaskId), deliveryHash] });
+  await toBase(provider);
+  onStatus?.('Confirm recording your delivery on the escrow (a small gas fee)...');
+  const txHash = await sendTx(provider, withBuilderCode({ from: worker, to: escrow, data }));
+  onStatus?.('Confirming your delivery on Base...');
+  const res = await waitTx(txHash, provider);
+  if (res.ok === false) throw new Error('Recording the delivery on the escrow reverted (the task may be closed, expired or gated).');
   return txHash;
 }

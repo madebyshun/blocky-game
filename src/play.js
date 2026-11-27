@@ -1174,6 +1174,7 @@ export function createPlayMode({ scene, renderer, city, controls, street, sim, c
             agentId: fd.get('agentId') || '',
             summary: fd.get('summary'),
             proofUrl: fd.get('proofUrl'),
+            onStatus: (m) => { taskBusyMsg = m; renderTasksModal(); },
           });
           cityTasks = cityTasks.map((t) => (t.id === updated.id ? updated : t));
           taskBusyMsg = 'Delivery submitted! Awaiting requester approval & Base USDC payout.';

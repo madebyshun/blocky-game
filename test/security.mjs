@@ -103,7 +103,14 @@ const lockedRes = await createEsc('Locked task', 21, lockStub({ _hash: escHash('
 assert.equal(lockedRes.status, 200, 'an honest lock is accepted'); assert.equal(lockedRes.body.task.escrowVerified, true);
 assert.equal((await createEsc('Locked twice', 21, lockStub({ _hash: escHash('Locked twice') }))).status, 409, 'one lock backs one task');
 const lockedTask = lockedRes.body.task;
-const lsub = (await post(await sign(worker, 'submit', { taskId: lockedTask.id, worker: worker.address, blockyName: 'B', actorType: 'agent', summary: 'a finished report here', proofUrl: '' }))).body.submission;
+const submitLocked = async () => post(await sign(worker, 'submit', { taskId: lockedTask.id, worker: worker.address, blockyName: 'B', actorType: 'agent', summary: 'a finished report here', proofUrl: '' }));
+tasks.deps.readEscrowSubmission = async () => '0x' + '0'.repeat(64);
+assert.equal((await submitLocked()).status, 409, 'a delivery the escrow has not recorded is refused (it could not be paid or protected)');
+tasks.deps.readEscrowSubmission = async () => { throw new Error('rpc down'); };
+assert.equal((await submitLocked()).status, 503, 'escrow unreadable: try again, never accept blindly');
+tasks.deps.readEscrowSubmission = async () => '0x' + 'ab'.repeat(32);
+const lsub = (await submitLocked()).body.submission;
+assert.ok(lsub?.id, 'a delivery recorded on the escrow is accepted');
 const doneLog = (taskNo, payout, fee, to = worker.address) => ({ address: ESC, topics: [TASK_COMPLETED, pad(toHex(taskNo)), pad(requester.address), pad(to)], data: '0x' + payout.toString(16).padStart(64, '0') + fee.toString(16).padStart(64, '0') + '0'.repeat(64) });
 const approveLocked = (logs) => { tasks.deps.getReceipt = async () => ({ status: 'success', logs }); return post({ action: 'approve', taskId: lockedTask.id, submissionId: lsub.id, requester: requester.address, payTxHash: '0x' + 'c'.repeat(64) }); };
 assert.equal((await approveLocked([transferLog(USDC, ESC, worker.address, 970_000n)])).status, 409, 'money from the escrow without its TaskCompleted event');

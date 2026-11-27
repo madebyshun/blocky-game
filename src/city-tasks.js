@@ -12,7 +12,7 @@ import { clean, deliveryMessage, validateDelivery } from './work-protocol.js';
 import { linkedAgentId, linkAgentId } from './agent-id.js';
 import { itemSprite, itemIcon, taskCategorySpriteId } from './items.js';
 import { taskMessage } from './signed.js';
-import { EVALUATOR_MODES, GATE_MODES, hashCriteria, escrowConfigured, lockTaskEscrow, completeEscrowOnchain, refundExpiredEscrowOnchain } from './task-escrow.js';
+import { EVALUATOR_MODES, GATE_MODES, hashCriteria, hashDelivery, escrowConfigured, lockTaskEscrow, completeEscrowOnchain, refundExpiredEscrowOnchain, submitWorkEscrowOnchain } from './task-escrow.js';
 
 const LOCAL_KEY = 'basecity:city-tasks:v3';
 
@@ -323,8 +323,13 @@ export async function cancelCityTask({ provider, account, taskId }) {
   return task;
 }
 
-export async function submitCityTask({ provider, account, taskId, blockyName, actorType = 'citizen', agentId = '', summary, proofUrl }) {
+export async function submitCityTask({ provider, account, taskId, blockyName, actorType = 'citizen', agentId = '', summary, proofUrl, onStatus }) {
   if (!provider || !account) throw new Error('Connect your Base wallet first.');
+  // a task whose reward sits in the escrow: record the delivery on the escrow first (see submitWorkEscrowOnchain)
+  const known = readLocal().find((t) => t.id === taskId) || (await fetchCityTasks().catch(() => [])).find((t) => t.id === taskId);
+  if (known?.escrowVerified && known.escrowTaskId != null && escrowConfigured()) {
+    await submitWorkEscrowOnchain({ provider, account, escrowTaskId: known.escrowTaskId, deliveryHash: hashDelivery({ taskId, worker: account, summary, proofUrl }), onStatus });
+  }
   const j = await callTasks(await signedBody(provider, account, 'submit', { taskId, worker: account, blockyName, actorType, agentId, summary, proofUrl }));
   if (j?.task) {
     writeLocal(readLocal().map((t) => (t.id === j.task.id ? j.task : t)));
